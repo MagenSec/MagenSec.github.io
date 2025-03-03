@@ -1,0 +1,19 @@
+name: Update Latest Tag
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-latest-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Update latest tag
+        run: |
+          git fetch --tags
+          git tag -d latest || true
+          git tag latest ${{ github.sha }}
+          git push origin --force latest
