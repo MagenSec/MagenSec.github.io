@@ -3,6 +3,7 @@ name: Update Latest Tag
 on:
   release:
     types: [published]
+  workflow_dispatch:  # Allows manual execution
 
 jobs:
   update-latest-tag:
@@ -11,9 +12,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Update latest tag
+      - name: Fetch tags
+        run: git fetch --tags
+
+      - name: Delete existing latest tag (if exists)
         run: |
-          git fetch --tags
-          git tag -d latest || true
+          if git rev-parse latest >/dev/null 2>&1; then
+            git tag -d latest
+            git push origin --delete latest || true
+          fi
+
+      - name: Create and push new latest tag
+        run: |
           git tag latest ${{ github.sha }}
-          git push origin --force latest
+          git push origin latest
