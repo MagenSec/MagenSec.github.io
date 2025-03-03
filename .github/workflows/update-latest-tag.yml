@@ -11,9 +11,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Ensures all tags are available
 
-      - name: Fetch tags
-        run: git fetch --tags
+      - name: Get latest release tag
+        id: get-latest-tag
+        run: echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
       - name: Delete existing latest tag (if exists)
         run: |
@@ -24,5 +27,5 @@ jobs:
 
       - name: Create and push new latest tag
         run: |
-          git tag latest ${{ github.sha }}
+          git tag latest ${{ env.tag_name }}
           git push origin latest
