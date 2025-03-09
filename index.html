@@ -1,124 +1,120 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <meta name="description" content="MagenSec - Bringing Security Solution for Consumers and Small Businesses. Coming Soon.">
-    <title>MagenSec | Coming Soon</title>
+    <title>Kshetrapal - Secure Your Devices | MagenSec</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(to right, #4CAF50, #2E7D32);
-            color: #fff;
+            font-family: sans-serif;
             margin: 0;
             padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            text-align: center;
+            line-height: 1.6;
         }
         .container {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-            color: #333;
-            max-width: 500px;
-            width: 90%;
+            width: 80%;
+            margin: 0 auto;
+            padding: 20px;
         }
-        .logo {
-            width: 100px;
+        header {
+            text-align: center;
+            padding: 40px 0;
+            background-color: #f0f0f0;
+        }
+        .features {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            padding: 40px 0;
+        }
+        .feature {
+            width: 30%;
+            text-align: center;
             margin-bottom: 20px;
         }
-        .header {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 15px;
+        .downloads {
+            text-align: center;
+            padding: 40px 0;
+            background-color: #e8f5e9;
         }
-        .subheader {
-            font-size: 16px;
-            color: #555;
-            margin-bottom: 20px;
-        }
-        .countdown {
-            font-size: 24px;
-            font-weight: bold;
-            margin: 20px 0;
-            color: #d32f2f;
-        }
-        .cta-btn {
-            display: block;
-            background: #007BFF;
-            color: #fff;
+        .downloads a {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
             text-decoration: none;
-            font-size: 16px;
-            font-weight: bold;
-            padding: 12px;
             border-radius: 5px;
-            margin: 10px 0;
-            transition: 0.3s;
+            margin: 10px;
         }
-        .cta-btn:hover {
-            background: #0056b3;
+        .payment {
+            text-align: center;
+            padding: 40px 0;
         }
-        .footer {
-            font-size: 12px;
-            color: #777;
-            margin-top: 30px;
+        footer {
+            text-align: center;
+            padding: 20px 0;
+            background-color: #f0f0f0;
+        }
+        .razorpay-payment-button {
+          background-color: #3498db;
+          color: white;
+          padding: 10px 20px;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+        }
+        .mobile-message {
+          text-align: center;
+          color: red;
+          padding: 20px;
+          display: none; /* Hidden by default */
         }
     </style>
 </head>
 <body>
+    <header>
+        <h1>Kshetrapal - Protect Your Digital Life</h1>
+        <p>Simple, Powerful Security for Consumers and SMBs</p>
+    </header>
 
     <div class="container">
-        <img src="green_cropped.jpg" alt="MagenSec Logo" class="logo">
-        <div class="header">MagenSec Security Solutions</div>
-        <div class="subheader">Bringing affordable protection for consumers and small businesses.</div>
+        <section class="features">
+            <div class="feature">
+                <span style="font-size: 50px;">📡</span>
+                <h3>Find Vulnerabilities</h3>
+                <p>Identifies vulnerable applications on your system.</p>
+            </div>
+            <div class="feature">
+                <span style="font-size: 50px;">📋</span>
+                <h3>Meeting Compliance</h3>
+                <p>Helps SMBs meet industry compliance standards.</p>
+            </div>
+            <div class="feature">
+                <span style="font-size: 50px;">🛡️</span>
+                <h3>Complements Antivirus</h3>
+                <p>Enhances your existing antivirus protection.</p>
+            </div>
+        </section>
 
-        <div class="countdown" id="countdown">Launching in: --:--:--</div>
+        <section class="downloads">
+            <h2>Download Kshetrapal</h2>
+            <p>Free download with limited preview functionality is available for Windows.</p>
+            <a href="https://magensec.short.gy/x64msi" id="x64-download">Download for Intel/AMD x64</a>
+            <br />
+            <a href="https://magensec.short.gy/arm64msi" id="arm64-download">Download for ARM64</a>
+        </section>
 
-        <p>We understand the importance of keeping your data safe. Stay tuned for more details and be the first to know when we launch!</p>
+        <section class="payment">
+            <h2>Unlock Advanced Features</h2>
+            <p>Subscribe to get full access to Kshetrapal's powerful features.</p>
 
-        <a href="https://magensec.short.gy/x64msi" class="cta-btn">Download Preview (Intel/AMD)</a>
-        <a href="https://magensec.short.gy/arm64msi" class="cta-btn">Download Preview (ARM64)</a>
+            <form><script src="https://cdn.razorpay.com/static/widget/subscription-button.js" data-subscription_button_id="pl_Q3yzjZETmJ7Tdb" data-button_theme="brand-color" async> </script> </form>
 
-        <form><script src="https://cdn.razorpay.com/static/widget/subscription-button.js" data-subscription_button_id="pl_Q3yzjZETmJ7Tdb" data-button_theme="brand-color" async> </script> </form>
-
-        <div class="footer">
-            <p>&copy; 2025 MagenSec. All rights reserved.</p>
-        </div>
+            <p><a href="/terms.html">Terms and Conditions</a></p>
+        </section>
     </div>
 
-    <script>
-        // Countdown Timer
-        function startCountdown() {
-            const launchDate = new Date("May 15, 2025 12:00:00").getTime(); 
-            const countdownElement = document.getElementById("countdown");
-
-            function updateCountdown() {
-                const now = new Date().getTime();
-                const timeLeft = launchDate - now;
-
-                if (timeLeft <= 0) {
-                    countdownElement.innerHTML = "We are LIVE!";
-                    return;
-                }
-
-                const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-
-                countdownElement.innerHTML = `Launching in: ${days}d ${hours}h ${minutes}m ${seconds}s`;
-            }
-
-            setInterval(updateCountdown, 1000);
-        }
-
-        startCountdown();
-    </script>
+    <footer>
+        <p>&copy; 2024 MagenSec. All rights reserved.</p>
+    </footer>
 
 </body>
 </html>
