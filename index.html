@@ -116,9 +116,13 @@
             <p>Buy Credit to get full access to Kshetrapal's powerful features. You can buy and use on multiple devices.</p>
 
             <div class="payment-options">
-                <form>
-                    <script src="https://checkout.razorpay.com/v1/payment-button.js" data-payment_button_id="pl_Q71uWwqkrA71gr" async> </script>
-                </form>
+                <script src="https://www.paypal.com/sdk/js?client-id=BAA7vgHnN9PhMc13u_oJeFxrG1Pg8_94mHB0L3nE4TkfxyAx_Iw-dmBe7uCGDfJ-IEr0cso89ClzHSblV8&components=hosted-buttons&disable-funding=venmo&currency=USD"></script>
+                <div id="paypal-container-EZP5AJQHDDVM8"></div>
+                <script>
+                  paypal.HostedButtons({
+                    hostedButtonId: "EZP5AJQHDDVM8",
+                  }).render("#paypal-container-EZP5AJQHDDVM8")
+                </script>
             </div>
 
             <p><a href="/terms.html">Terms and Conditions</a></p>
