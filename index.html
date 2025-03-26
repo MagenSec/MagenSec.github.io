@@ -28,6 +28,7 @@
 
 		<!-- Home -->
 			<article id="top" class="wrapper style1">
+				<p style="text-align:center;" id="blink">🎁 Limited Period Offer: Buy License and Use on Unlimited Devices</p>
 				<div class="container">
 					<div class="row">
 						<div class="col-4 col-5-large col-12-medium">
@@ -85,7 +86,7 @@
 						  <div id="arm64">
 							<a href="http://arm64-download-link">Download ARM64</a>
 						  </div-->
-						<a href="#download" class="button large scrolly">Download Options</a>
+						<a href="#download" class="button large scrolly">Download</a>
 					</footer>
 				</div>
 			</article>
@@ -117,6 +118,10 @@
 							</article>
 						</div>
 					</div>
+					<footer>
+						<p>Pair with a License and unlock full potential.</p>
+						<a href="#license" class="button large scrolly">Buy License</a>
+					</footer>
 				</div>
 			</article>
 
@@ -148,7 +153,7 @@
 						</div>
 					</div>
 					<footer>
-						<p id="blink">🎁Limited Period Offer: You can use License on any number of devices</p>
+						<p id="blink">🎁 Limited Period Offer: Buy License and Use on Unlimited Devices</p>
 						<script type="text/javascript">
 							let blink =
 								document.getElementById('blink');
@@ -165,7 +170,7 @@
 			</article>
 
 		<!-- Contact -->
-			<article id="contact" class="wrapper style5">
+			<article id="contact" class="wrapper style4">
 				<div class="container medium">
 					<header>
 						<h2>Contact Us</h2>
@@ -173,28 +178,21 @@
 					</header>
 					<div class="row">
 						<div class="col-12">
-							<form method="post" action="#">
-								<div class="row">
-									<div class="col-6 col-12-small">
-										<input type="text" name="name" id="name" placeholder="Name" />
-									</div>
-									<div class="col-6 col-12-small">
-										<input type="text" name="email" id="email" placeholder="Email" />
-									</div>
-									<div class="col-12">
-										<input type="text" name="subject" id="subject" placeholder="Subject" />
-									</div>
-									<div class="col-12">
-										<textarea name="message" id="message" placeholder="Message"></textarea>
-									</div>
-									<div class="col-12">
-										<ul class="actions">
-											<li><input type="submit" value="Send Message" /></li>
-											<li><input type="reset" value="Clear Form" class="alt" /></li>
-										</ul>
-									</div>
-								</div>
-							</form>
+							<form
+								action="https://formspree.io/f/xeoazbre"
+								method="POST"
+								>
+								<label>
+									Your email:
+									<input type="email" name="email">
+								</label>
+								<label>
+									Your message:
+									<textarea name="message">Message</textarea>
+								</label>
+								<!-- your other form fields go here -->
+								<button type="submit">Send Message</button>
+								</form>
 						</div>
 						<div class="col-12">
 							<hr />
