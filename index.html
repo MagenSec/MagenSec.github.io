@@ -28,12 +28,14 @@
 			</nav>
 
 		<!-- Home -->
-			<article id="top" class="wrapper style1">
-				<p style="text-align:center;" id="blink">🎁 Limited Time: Secure Unlimited Devices for Just $4.99!</p>
+			<article id="top"  class="wrapper style1">
+				
 				<div class="container">
 					<div class="row">
 						<div class="col-4 col-5-large col-12-medium">
 							<span class="image fit"><img src="images/green_icon.ico" alt="" /></span>
+							<p></p>
+							<p style="text-align:center;" id="blink">🎁 Limited Time 🎁 <br /> Secure Unlimited Devices for Just $4.99!</p>
 						</div>
 						<div class="col-8 col-7-large col-12-medium">
 							<header>
@@ -49,7 +51,7 @@
 			</article>
 
 		<!-- features -->
-			<article id="features" class="wrapper style1">
+			<article id="features" class="wrapper style2">
 				<div class="container">
 					<header>
 						<h2>MagenSec: Your First Line of Defense</h2>
@@ -218,7 +220,7 @@
 			</article>
 
 		<!-- downoad -->
-			<article id="download" class="wrapper style3">
+			<article id="download" class="wrapper style1">
 				<div class="container">
 					<header>
 						<h2>Download MagenSec</h2>
@@ -254,7 +256,7 @@
 			</article>
 
 				<!-- License -->
-			<article id="license" class="wrapper style4">
+			<article id="license" class="wrapper style3">
 				<div class="container">
 					<header>
 						<h2>MagenSec License: Secure All Your Devices for Just $4.99/Year!</h2>
@@ -285,15 +287,6 @@
 					</div>
 					<footer>
 						<p id="blink">🎁 Limited Period Offer: Buy License for $4.99 and Use on Unlimited Devices</p>
-						<script type="text/javascript">
-							let blink =
-								document.getElementById('blink');
-					
-							setInterval(function () {
-								blink.style.opacity =
-									(blink.style.opacity == 0 ? 1 : 0);
-							}, 1000); 
-						</script>
 						<!--p><span style="font-size: 80px;">📢</span><h4>GMail ID shared while paying for license will be tied to the license and you will have to use that to login to the product.</h4></p-->
 						<!--a href="#contact" class="button large scrolly">Get in touch with us</a-->
 					</footer>
@@ -325,7 +318,7 @@
 								<button type="submit">Send Message</button>
 								</form>
 						</div>
-                        <p>Or, Email Us Directly: <a href=mailto:magensec@gigabits.co.in>MagenSec@Gigabits</a></p>
+                        <p> 📧 Email Us Directly: <a href=mailto:magensec@gigabits.co.in>MagenSec@Gigabits</a></p>
 						<div class="col-12">
 							<hr />
 							<h3>Connect With Us</h3>
@@ -359,6 +352,14 @@
 			<script src="assets/js/download-links.js"></script>
 			<script src="assets/js/util.js"></script>
 			<script src="assets/js/main.js"></script>
-
+			<script type="text/javascript">
+				let blinkElements = document.querySelectorAll('#blink');
+			
+				setInterval(function () {
+					blinkElements.forEach(function (blink) {
+						blink.style.opacity = (blink.style.opacity == 0 ? 1 : 0);
+					});
+				}, 1000);
+			</script>
 	</body>
 </html>
