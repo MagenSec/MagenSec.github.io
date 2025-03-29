@@ -39,7 +39,7 @@
 					<div class="row">
 						<div class="col-4 col-5-large col-12-medium">
 							<p></p>
-							<span class="image fit"><img src="images/green_icon.ico" alt="" /></span>
+							<span class="image fit"><img src="images/green_icon.ico" alt="MagenSec logo" /></span>
 							<p></p>
 							<p style="text-align:center;" id="blink">🎁 Limited Time 🎁 <br />
 								Secure Unlimited Devices for Just $4.99!
@@ -252,6 +252,23 @@
 							</article>
 						</div>
 					</div>
+					<!-- How To -->
+					 <p></p>
+					<div id="deviceTypeContainer">
+						<div class="device-type-info" id="deviceTypeToggle">
+						  	<span>Find your device type</span>
+							  <span class="device-type-icon" id="deviceTypeIcon">⨠</span>
+						</div>
+						<div class="device-type-details" id="deviceTypeDetails">
+							Press the Windows key and type <strong>Settings</strong>.
+							Click on <strong>Settings</strong>.
+							Select <strong>System</strong> > <strong>About</strong>.
+							Under "Device Specifications", check <strong>System Type</strong>.<br>
+						  	It will show either "x64-based processor" for x64 Intel/AMD Chip or "ARM-based processor" for ARM64 chip.<br>
+						  <img src="https://support.prometheanworld.com/servlet/rtaImage?eid=ka0PQ0000007IRd&feoid=00N1400000B7wen&refid=0EMPQ00000BGeRN" alt="Device Type x64-based" width="300" height="200">
+						  <img src="https://support.prometheanworld.com/servlet/rtaImage?eid=ka0PQ0000007IRd&feoid=00N1400000B7wen&refid=0EMPQ00000BGb26" alt="Device Type arm64-based" width="300" height="200">
+						</div>
+					</div>
 					<footer>
                         <h3>Unlock Full Protection</h3>
 						<p>Pair your download with a MagenSec license to activate all features and secure all your devices.</p>
@@ -365,6 +382,21 @@
 						blink.style.opacity = (blink.style.opacity == 0 ? 1 : 0);
 					});
 				}, 1000);
+			</script>
+			<script>
+				const deviceTypeToggle = document.getElementById('deviceTypeToggle');
+				const deviceTypeDetails = document.getElementById('deviceTypeDetails');
+				const deviceTypeIcon = document.getElementById('deviceTypeIcon');
+
+				deviceTypeToggle.addEventListener('click', function() {
+				if (deviceTypeDetails.style.display === 'none' || deviceTypeDetails.style.display === '') {
+					deviceTypeDetails.style.display = 'block';
+					deviceTypeIcon.textContent = '⩔';
+				} else {
+					deviceTypeDetails.style.display = 'none';
+					deviceTypeIcon.textContent = '⨠';
+				}
+				});
 			</script>
 	</body>
 </html>

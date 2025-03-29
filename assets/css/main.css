@@ -2443,3 +2443,38 @@ input, select, textarea {
 					}
 
 	}
+
+/* Style for the collapsible container */
+.device-type-info {
+	width: 100%;
+	border: 1px solid #ccc;
+	padding: 10px;
+	cursor: pointer;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+  }
+  
+  .device-type-details {
+	display: none;
+	padding: 10px;
+	background-color: #f9f9f9;
+	border: 1px solid #ddd;
+	margin-top: 5px;
+  }
+  
+  .device-type-icon {
+	font-size: 1.2em;
+  }
+
+  .device-type-details img {
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 5px;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+	.device-type-details {
+    padding: 10px;
+}
