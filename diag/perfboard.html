@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MagenSec: Performance Telemetry Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.0"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      padding: 1rem;
+      background-color: #1e1e1e;
+      color: #eee;
+    }
+    #filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    #filters label, #filters select, #filters input, #filters button {
+      color: inherit;
+      background-color: #333;
+      border: 1px solid #555;
+      padding: 0.25rem 0.5rem;
+    }
+    select[multiple] {
+      height: 6rem;
+    }
+    .chart-container {
+      width: 100%;
+      height: 80vh;
+    }
+    canvas {
+      background-color: #fff;
+      border-radius: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>🛡️Performance Dashboard</h1>
+  <div id="filters">
+    <label>Org: <select id="orgFilter"><option value="all">All</option></select></label>
+    <label>Device: <select id="deviceFilter"><option value="all">All</option></select></label>
+    <label>Process: <select id="processFilter"><option value="all">All</option></select></label>
+    <label>App Version: <select id="versionFilter"><option value="all">All</option></select></label>
+    <label>Aggregation: <select id="aggregationFilter">
+      <option value="none">Raw</option>
+      <option value="hour">Hour</option>
+      <option value="6h">6 Hours</option>
+      <option value="12h">12 Hours</option>
+      <option value="day">Day</option>
+      <option value="week">Week</option>
+    </select></label>
+    <label>Start: <input type="date" id="startDate"></label>
+    <label>End: <input type="date" id="endDate"></label>
+    <label>Metrics: <select id="metricFilter" multiple>
+      <option value="cpuAvg" selected>CPU Avg</option>
+      <option value="cpuMin">CPU Min</option>
+      <option value="cpuMax">CPU Max</option>
+      <option value="memAvg">Memory Avg</option>
+      <option value="memMin">Memory Min</option>
+      <option value="memMax">Memory Max</option>
+    </select></label>
+    <label>Refresh: <select id="refreshRate">
+      <option value="0">Off</option>
+      <option value="60000">1 min</option>
+      <option value="300000">5 min</option>
+      <option value="600000">10 min</option>
+    </select></label>
+    <button id="exportBtn">Export CSV</button>
+    <button id="themeToggle">Toggle Theme</button>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="mainChart"></canvas>
+  </div>
+
+  <script>
+    const sasUrl = "https://magensecinstallperfdata.table.core.windows.net/PerfTelemetry()?sv=2024-11-04&ss=t&srt=o&sp=r&se=2026-06-30T19:00:00Z&st=2025-06-24T09:14:50Z&spr=https&sig=HLBvDpo7ZYA1z9TI%2FYojmUVYi7DMfhZ8wYZ3sTCXIwo%3D&$format=json";
+    let rawData = [], chart, refreshTimer = null;
+
+    async function fetchPerfData() {
+      const res = await fetch(sasUrl, { headers: { Accept: "application/json" } });
+      const data = await res.json();
+      return data.value.map(item => ({
+        org: item.OrgId,
+        device: item.DeviceId,
+        version: item.ApplicationVersion,
+        process: item.ProcessName,
+        cpuAvg: item.CpuAvg,
+        cpuMin: item.CpuMin,
+        cpuMax: item.CpuMax,
+        memAvg: item.MemAvgMB,
+        memMin: item.MemMinMB,
+        memMax: item.MemMaxMB,
+        time: new Date(item.WindowEnd)
+      }));
+    }
+
+    function populateFilterOptions(data) {
+      ["org", "device", "process", "version"].forEach(key => {
+        const select = document.getElementById(key + "Filter");
+        [...new Set(data.map(d => d[key]))].sort().forEach(val => {
+          select.innerHTML += `<option value="${val}">${val}</option>`;
+        });
+      });
+    }
+
+    function filterData(data) {
+      const [org, device, process, version] = ["org", "device", "process", "version"].map(k => document.getElementById(k + "Filter").value);
+      const [start, end] = [document.getElementById("startDate").valueAsDate, document.getElementById("endDate").valueAsDate];
+      return data.filter(d =>
+        (org === "all" || d.org === org) &&
+        (device === "all" || d.device === device) &&
+        (process === "all" || d.process === process) &&
+        (version === "all" || d.version === version) &&
+        (!start || d.time >= new Date(start.setHours(0,0,0))) &&
+        (!end || d.time <= new Date(end.setHours(23,59,59)))
+      );
+    }
+
+    function roundTime(date, g) {
+      const d = new Date(date);
+      if (g === 'hour') d.setMinutes(0,0,0);
+      else if (g === '6h') d.setHours(Math.floor(d.getHours()/6)*6,0,0,0);
+      else if (g === '12h') d.setHours(Math.floor(d.getHours()/12)*12,0,0,0);
+      else if (g === 'day') d.setHours(0,0,0,0);
+      else if (g === 'week') { const diff = d.getDate() - d.getDay(); d.setDate(diff); d.setHours(0,0,0,0); }
+      return d;
+    }
+
+    function aggregateData(data) {
+      const g = document.getElementById("aggregationFilter").value;
+      if (g === "none") return data;
+      const grouped = {};
+      for (const row of data) {
+        const time = roundTime(row.time, g);
+        const key = row.process + time;
+        if (!grouped[key]) grouped[key] = { ...row, time, count: 0 };
+        const r = grouped[key];
+        r.cpuAvg += row.cpuAvg; r.cpuMin = Math.min(r.cpuMin, row.cpuMin); r.cpuMax = Math.max(r.cpuMax, row.cpuMax);
+        r.memAvg += row.memAvg; r.memMin = Math.min(r.memMin, row.memMin); r.memMax = Math.max(r.memMax, row.memMax);
+        r.count++;
+      }
+      return Object.values(grouped).map(r => ({ ...r, cpuAvg: r.cpuAvg/r.count, memAvg: r.memAvg/r.count }));
+    }
+
+    function renderMainChart(data) {
+      const ctx = document.getElementById("mainChart");
+      if (chart) chart.destroy();
+
+      const selectedMetrics = Array.from(document.getElementById("metricFilter").selectedOptions).map(o => o.value);
+      const labels = [...new Set(data.map(d => d.time.toLocaleString()))];
+      const processes = [...new Set(data.map(d => d.process))];
+      const datasets = [];
+      const colors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0'];
+
+      processes.forEach((p, i) => {
+        const pd = data.filter(d => d.process === p);
+        selectedMetrics.forEach(metric => {
+          datasets.push({
+            label: `${p} (${metric})`,
+            data: pd.map(d => d[metric]),
+            borderColor: colors[i % colors.length],
+            backgroundColor: colors[i % colors.length],
+            fill: false
+          });
+        });
+      });
+
+      const annotations = selectedMetrics.flatMap(metric => {
+        if (metric.includes('cpu')) return [{ type: 'line', yMin: 10, yMax: 10, borderColor: 'orange', borderWidth: 1, label: { content: '10%', enabled: true } },
+                                            { type: 'line', yMin: 20, yMax: 20, borderColor: 'red', borderWidth: 1, label: { content: '20%', enabled: true } }];
+        if (metric.includes('mem')) return [{ type: 'line', yMin: 50, yMax: 50, borderColor: 'orange', borderWidth: 1, label: { content: '50MB', enabled: true } },
+                                            { type: 'line', yMin: 100, yMax: 100, borderColor: 'red', borderWidth: 1, label: { content: '100MB', enabled: true } }];
+        return [];
+      });
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: selectedMetrics.join(', ') + " by Process" },
+            legend: { labels: { font: { size: 14 }, padding: 20 } },
+            annotation: { annotations }
+          },
+          scales: {
+            x: { title: { display: true, text: "Time" } },
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function updateDashboard() {
+      const filtered = filterData(rawData);
+      const data = aggregateData(filtered);
+      renderMainChart(data);
+    }
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const rows = ["Process,Time,CpuAvg,CpuMin,CpuMax,MemAvg,MemMin,MemMax"];
+      const data = aggregateData(filterData(rawData));
+      data.forEach(d => rows.push(`${d.process},${d.time.toISOString()},${d.cpuAvg},${d.cpuMin},${d.cpuMax},${d.memAvg},${d.memMin},${d.memMax}`));
+      const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "telemetry.csv"; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      const body = document.body;
+      const dark = body.style.backgroundColor !== "white";
+      body.style.backgroundColor = dark ? "white" : "#1e1e1e";
+      body.style.color = dark ? "#000" : "#eee";
+      document.querySelectorAll("#filters select, #filters input, #filters button").forEach(el => {
+        el.style.backgroundColor = dark ? "#fff" : "#333";
+        el.style.color = dark ? "#000" : "#eee";
+      });
+    });
+
+    document.querySelectorAll("#filters select, #filters input").forEach(e => e.addEventListener("change", () => {
+      const interval = parseInt(document.getElementById("refreshRate").value);
+      clearInterval(refreshTimer);
+      if (interval > 0) refreshTimer = setInterval(updateDashboard, interval);
+      updateDashboard();
+    }));
+
+    fetchPerfData().then(data => {
+      rawData = data;
+      populateFilterOptions(rawData);
+      updateDashboard();
+    });
+  </script>
+</body>
+</html>
