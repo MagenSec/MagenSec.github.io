@@ -5,10 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard - MagenSec</title>
   <link rel="stylesheet" href="css/admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div id="sidebar"></div>
-  <main id="mainContent"></main>
+  <main id="mainContent">
+    <div id="viewSwitcher">
+      <button id="globalViewBtn">Global</button>
+      <button id="orgViewBtn">My Org</button>
+    </div>
+    <section id="kpiCardsRow" class="kpi-row"></section>
+    <section id="chartsSection" class="charts-section"></section>
+  </main>
   <div id="expiryCounter"></div>
   <script src="js/dataService.js"></script>
   <script src="js/dashboard.js"></script>

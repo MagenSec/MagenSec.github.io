@@ -1,4 +1,5 @@
 // dashboard.js: Handles sidebar, view loading, expiry counter, and theme
+// Use window.renderKpiCards and window.renderCharts instead of imports
 (function() {
   console.log('dashboard.js loaded, window.dataService:', window.dataService);
   if (!sessionStorage.getItem('org')) {
@@ -13,6 +14,7 @@
 
   // Sidebar links
   const views = [
+    { id: 'dashboard', label: 'Dashboard' },
     { id: 'perf', label: 'Performance' },
     { id: 'apps', label: 'Applications' },
     { id: 'installs', label: 'Installs' },
@@ -42,15 +44,40 @@
       const html = await res.text();
       main.innerHTML = html;
       // Dynamically load the JS for this view
-      const scriptPath = `js/${view}View.js`;
-      if (window.__debugLog) window.__debugLog('Loading script: ' + scriptPath);
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = scriptPath;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.body.appendChild(script);
-      });
+      if (view === 'dashboard') {
+        // Load dependencies in order
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'js/kpiCards.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'js/charts.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'js/dashboardView.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      } else {
+        const scriptPath = `js/${view}View.js`;
+        if (window.__debugLog) window.__debugLog('Loading script: ' + scriptPath);
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = scriptPath;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
       if (window.__debugLog) window.__debugLog('Loaded script for ' + view + ', now checking for window.' + view + 'ViewInit');
       if (window[view + 'ViewInit']) window[view + 'ViewInit']();
       else if (window.__debugLog) window.__debugLog('No window.' + view + 'ViewInit found after script load.');
@@ -58,6 +85,23 @@
       main.innerHTML = '<div class="error">View not found or failed to load script.</div>';
       if (window.__debugLog) window.__debugLog('Error loading view ' + view + ': ' + e.message + ' Stack: ' + (e.stack||''));
     }
+  }
+
+  // Example: Fetch live data using dataService.js (org isolation/session logic assumed inside dataService)
+  async function loadDashboard(view) {
+    // Replace with real dataService calls
+    const kpis = await window.dataService.getKpis(view); // e.g. [{title, value, desc}]
+    const charts = await window.dataService.getCharts(view); // e.g. [{id, title, type, data, options}]
+    window.renderKpiCards(kpis);
+    window.renderCharts(charts);
+  }
+
+  // View switcher logic
+  const globalBtn = document.getElementById('globalViewBtn');
+  const orgBtn = document.getElementById('orgViewBtn');
+  if (globalBtn && orgBtn) {
+    globalBtn.onclick = () => loadDashboard('global');
+    orgBtn.onclick = () => loadDashboard('org');
   }
 
   // On load, fetch SAS expiry (admin only)
@@ -105,5 +149,11 @@
   setupDebugLog();
 
   // Load default view
-  loadView('perf');
+  loadView('dashboard');
+  // Initial load (default to org view for customer admin)
+  window.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('kpiCardsRow')) {
+      loadDashboard('org');
+    }
+  });
 })();

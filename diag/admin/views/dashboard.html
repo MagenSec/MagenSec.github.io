@@ -1,0 +1,19 @@
+<h1>Dashboard</h1>
+<div id="dashboardControls">
+  <div id="orgSelectorContainer"></div>
+  <div id="processSelectorContainer"></div>
+</div>
+<section id="kpiCardsRow" class="kpi-row"></section>
+<section id="chartsSection" class="charts-section"></section>
+<script src="js/kpiCards.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/dashboardView.js"></script>
+<script>
+// Hide org selector for non-admins
+(function() {
+  const isAdmin = sessionStorage.getItem('isAdmin') === '1';
+  if (!isAdmin) {
+    document.getElementById('orgSelectorContainer').style.display = 'none';
+  }
+})();
+</script>
