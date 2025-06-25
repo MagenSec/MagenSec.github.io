@@ -1,0 +1,127 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #181c24;
+  color: #f0f2f5;
+}
+.login-container {
+  max-width: 350px;
+  margin: 8vh auto;
+  background: #232a36;
+  padding: 2rem 2.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 2px 16px #0008;
+}
+.login-container h2 {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+.login-container label {
+  display: block;
+  margin: 0.5rem 0 0.2rem;
+}
+.login-container input {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid #444;
+  background: #1a1e25;
+  color: #f0f2f5;
+}
+.login-container button {
+  width: 100%;
+  padding: 0.6rem;
+  background: #2e7be4;
+  color: #fff;
+  border: none;
+  border-radius: 0.4rem;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+.login-container .error {
+  color: #ff6a6a;
+  text-align: center;
+  min-height: 1.5em;
+}
+#sidebar {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 220px;
+  background: #232a36;
+  padding: 2rem 1rem 1rem 1rem;
+  box-shadow: 2px 0 12px #0004;
+  z-index: 10;
+}
+#sidebar h2 {
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+  color: #2e7be4;
+}
+#sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+#sidebar li {
+  margin-bottom: 1.2rem;
+}
+#sidebar a {
+  color: #f0f2f5;
+  text-decoration: none;
+  font-size: 1.05rem;
+  transition: color 0.2s;
+}
+#sidebar a:hover {
+  color: #2e7be4;
+}
+#mainContent {
+  margin-left: 240px;
+  padding: 2rem 2rem 2rem 1rem;
+  min-height: 100vh;
+}
+.loading {
+  color: #aaa;
+  text-align: center;
+  margin-top: 3rem;
+}
+.error {
+  color: #ff6a6a;
+  text-align: center;
+  margin-top: 2rem;
+}
+#expiryCounter {
+  position: fixed;
+  right: 2rem;
+  top: 1.5rem;
+  background: #232a36;
+  color: #f0f2f5;
+  padding: 0.5rem 1.2rem;
+  border-radius: 0.7rem;
+  font-size: 1rem;
+  box-shadow: 0 2px 8px #0003;
+  z-index: 20;
+}
+.telemetry-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 2rem;
+}
+.telemetry-table th, .telemetry-table td {
+  border: 1px solid #444;
+  padding: 0.5em 0.7em;
+  text-align: left;
+}
+.telemetry-table th {
+  background: #232a36;
+  color: #2e7be4;
+}
+.telemetry-table tr:nth-child(even) {
+  background: #232a36;
+}
+.telemetry-table tr:nth-child(odd) {
+  background: #181c24;
+}
+.telemetry-table td {
+  color: #f0f2f5;
+}
