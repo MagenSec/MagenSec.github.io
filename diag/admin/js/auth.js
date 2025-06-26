@@ -38,7 +38,7 @@
       // Store org/session info
       sessionStorage.setItem('org', passwords[username].org || username);
       sessionStorage.setItem('isAdmin', passwords[username].admin ? '1' : '0');
-      window.location.href = 'dashboard.html';
+      window.location.href = 'index.html';
     } else {
       errorDiv.textContent = 'Invalid username or password.';
     }
