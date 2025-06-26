@@ -1,4 +1,5 @@
 import { initOrgSwitcher } from './orgSwitcher.js';
+import { themeSwitcherInit } from './themeSwitcher.js';
 // app.js: Main application entry point, router, and event handlers.
 console.log('app.js loaded');
 
@@ -105,6 +106,20 @@ async function initializeApp(container) {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM fully loaded and parsed');
+
+    // Initialize theme switcher
+    themeSwitcherInit();
+
+    // Handle logout
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            sessionStorage.clear();
+            window.location.href = 'login.html';
+        });
+    }
+
     google.charts.load('current', { packages: ['corechart', 'gauge', 'timeline'] });
     google.charts.setOnLoadCallback(async () => {
         console.log('Google Charts loaded');
