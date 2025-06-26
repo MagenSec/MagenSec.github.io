@@ -59,6 +59,16 @@
               </a>
             </li>
             <li class="nav-item">
+              <a class="nav-link" href="#" data-view="performance">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-activity"></i>
+                </span>
+                <span class="nav-link-title">
+                  Performance
+                </span>
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link disabled" href="#" data-view="security" tabindex="-1" aria-disabled="true">
                 <span class="nav-link-icon d-md-none d-lg-inline-block">
                   <i class="ti ti-shield-check"></i>
@@ -143,21 +153,10 @@
   <!-- Core Application Logic -->
   <!-- dataService must come first as other scripts depend on it -->
   <script src="js/dataService.js" defer></script>
-
-  <!-- Utilities and View-specific logic -->
-  <script src="js/timeUtils.js" defer></script>
-  <script src="js/dashboardView.js" defer></script>
-  <script src="js/appView.js" defer></script>
-  <script src="js/deviceView.js" defer></script>
-  <script src="js/securityView.js" defer></script>
-  <script src="js/reportsView.js" defer></script>
-  
-  <!-- UI Components & Router -->
-  <script src="js/orgSwitcher.js" defer></script> 
-  <script src="js/router.js" defer></script>
-
-  <!-- Main dashboard initializer - must be last -->
-  <script src="js/dashboard.js" defer></script>
+  <script src="js/orgSwitcher.js"></script>
+  <script src="js/timeUtils.js"></script>
+  <!-- View-specific scripts will be loaded dynamically by app.js -->
+  <script src="js/app.js" type="module" defer></script>
 
 </body>
 </html>

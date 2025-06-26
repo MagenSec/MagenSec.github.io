@@ -1,27 +1,34 @@
 // appView.js: Renders the Application Intelligence view.
-window.appViewInit = async function() {
-  console.log('Initializing Application Intelligence view...');
-  const pageHeader = document.querySelector('.page-header h2.page-title');
-  const pageBody = document.querySelector('.page-body .container-xl');
-  if (!pageBody || !pageHeader) return;
+window.appViewInit = async function(container) {
+  if (!container) {
+    console.error('App view requires a container element.');
+    return;
+  }
 
-  pageHeader.textContent = 'Application Intelligence';
-  pageBody.innerHTML = `<div class="page-preloader"><div class="spinner"></div></div>`;
+  console.log('Initializing Application Intelligence view...');
+  container.innerHTML = `<div class="page-preloader"><div class="spinner"></div></div>`;
+
+  // Load Google Charts
+  const googleChartsLoaded = new Promise(resolve => {
+    google.charts.load('current', { 'packages': ['timeline', 'corechart'] });
+    google.charts.setOnLoadCallback(resolve);
+  });
 
   try {
     const org = sessionStorage.getItem('org') || 'Global';
-    const { apps, summary } = await dataService.getApplicationData(org);
+    const { apps, summary, timelineData } = await dataService.getApplicationData(org);
 
-    renderAppView(pageBody, apps, summary);
+    await googleChartsLoaded;
+    renderAppView(container, apps, summary, timelineData);
     addEventListeners();
 
   } catch (error) {
     console.error('Error initializing app view:', error);
-    pageBody.innerHTML = `<div class="alert alert-danger">Failed to load application data. Please try again later.</div>`;
+    container.innerHTML = `<div class="alert alert-danger">Failed to load application data. Please try again later.</div>`;
   }
 };
 
-function renderAppView(container, apps, summary) {
+function renderAppView(container, apps, summary, timelineData) {
   const getRiskColor = (level) => {
     const colors = {
       'Critical': 'red',
@@ -77,6 +84,18 @@ function renderAppView(container, apps, summary) {
         </div>
       </div>
 
+      <!-- Application Lifecycle Chart -->
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Application Lifecycle (Last 30 Days)</h3>
+          </div>
+          <div class="card-body">
+            <div id="app-timeline-chart" style="height: 350px;"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Applications Table -->
       <div class="col-12">
         <div class="card">
@@ -103,13 +122,13 @@ function renderAppView(container, apps, summary) {
               <tbody>
                 ${apps.map(app => `
                   <tr>
-                    <td>${app.name}</td>
-                    <td>${app.publisher}</td>
+                    <td><div class="text-truncate" style="max-width: 250px;" title="${app.name}">${app.name}</div></td>
+                    <td><div class="text-truncate" style="max-width: 150px;" title="${app.publisher}">${app.publisher}</div></td>
                     <td>${app.installCount}</td>
                     <td>
                       <span class="badge bg-${getRiskColor(app.riskLevel)}-lt">${app.riskLevel}</span>
                     </td>
-                    <td class="text-muted" title="${app.versions}">${(app.versions || '').substring(0, 50)}${app.versions && app.versions.length > 50 ? '...' : ''}</td>
+                    <td class="text-muted" title="${app.versions}">${(app.versions || '').substring(0, 40)}${app.versions && app.versions.length > 40 ? '...' : ''}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -119,11 +138,55 @@ function renderAppView(container, apps, summary) {
       </div>
     </div>
   `;
+
+  renderAppTimeline(timelineData);
+}
+
+function renderAppTimeline(data) {
+    const container = document.getElementById('app-timeline-chart');
+    if (!container) return;
+    // Add data-chart-type attribute for the global resizer
+    container.setAttribute('data-chart-type', 'google');
+
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center">No application lifecycle data available for the last 30 days.</div>';
+        return;
+    }
+
+    const chart = new google.visualization.Timeline(container);
+    const dataTable = new google.visualization.DataTable();
+    dataTable.addColumn({ type: 'string', id: 'App' });
+    dataTable.addColumn({ type: 'string', id: 'State' });
+    dataTable.addColumn({ type: 'date', id: 'Start' });
+    dataTable.addColumn({ type: 'date', id: 'End' });
+
+    dataTable.addRows(data);
+
+    const isDark = document.body.classList.contains('theme-dark');
+    const options = {
+        height: 350,
+        timeline: { 
+            groupByRowLabel: true,
+            colorByRowLabel: false,
+            rowLabelStyle: { fontName: 'inherit', fontSize: 12, color: isDark ? '#e5e5e5' : '#424242' },
+            barLabelStyle: { fontName: 'inherit', fontSize: 10 }
+        },
+        backgroundColor: 'transparent',
+        colors: ['#206bc4', '#d63939', '#f59f00'], // Installed, Uninstalled, Vulnerable
+        hAxis: {
+            textStyle: { color: isDark ? '#999' : '#666' }
+        }
+    };
+
+    chart.draw(dataTable, options);
+    // Store for resizing
+    container.chartInstance = { chart, data: dataTable, options, type: 'Timeline' };
 }
 
 function addEventListeners() {
   const searchInput = document.getElementById('app-search');
   const table = document.getElementById('app-table');
+  if (!table) return;
   const tableBody = table.querySelector('tbody');
   const headers = table.querySelectorAll('thead th.sortable');
   let originalRows = Array.from(tableBody.querySelectorAll('tr'));
@@ -172,3 +235,6 @@ function addEventListeners() {
     });
   });
 }
+
+// Set this as the current view initializer for timezone/theme refresh
+window.currentViewInit = window.appViewInit;

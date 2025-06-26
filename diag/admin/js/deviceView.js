@@ -1,23 +1,30 @@
 // deviceView.js: Renders the Device Fleet Management view.
-window.deviceViewInit = async function() {
-  console.log('Initializing Device Fleet Management view...');
-  const pageHeader = document.querySelector('.page-header h2.page-title');
-  const pageBody = document.querySelector('.page-body .container-xl');
-  if (!pageBody || !pageHeader) return;
+window.deviceViewInit = async function(container) {
+  if (!container) {
+    console.error('Device view requires a container element.');
+    return;
+  }
 
-  pageHeader.textContent = 'Device Fleet Management';
-  pageBody.innerHTML = `<div class="page-preloader"><div class="spinner"></div></div>`;
+  console.log('Initializing Device Fleet Management view...');
+  container.innerHTML = `<div class="page-preloader"><div class="spinner"></div></div>`;
+
+  // Load Google Charts
+  const googleChartsLoaded = new Promise(resolve => {
+    google.charts.load('current', { 'packages': ['corechart'] });
+    google.charts.setOnLoadCallback(resolve);
+  });
 
   try {
     const org = sessionStorage.getItem('org') || 'Global';
     const { devices, summary } = await dataService.getDeviceData(org);
 
-    renderDeviceView(pageBody, devices, summary);
+    await googleChartsLoaded;
+    renderDeviceView(container, devices, summary);
     addDeviceEventListeners();
 
   } catch (error) {
     console.error('Error initializing device view:', error);
-    pageBody.innerHTML = `<div class="alert alert-danger">Failed to load device data. Please try again later.</div>`;
+    container.innerHTML = `<div class="alert alert-danger">Failed to load device data. Please try again later.</div>`;
   }
 };
 
@@ -71,6 +78,28 @@ function renderDeviceView(container, devices, summary) {
         </div>
       </div>
 
+      <!-- Hardware Spec Charts -->
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Memory Distribution</h3>
+          </div>
+          <div class="card-body">
+            <div id="mem-dist-chart" style="height: 250px"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">CPU Core Distribution</h3>
+          </div>
+          <div class="card-body">
+            <div id="cpu-dist-chart" style="height: 250px"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Devices Table -->
       <div class="col-12">
         <div class="card">
@@ -97,7 +126,7 @@ function renderDeviceView(container, devices, summary) {
               <tbody>
                 ${devices.map(device => `
                   <tr>
-                    <td>${device.name}</td>
+                    <td><div class="text-truncate" style="max-width: 250px;" title="${device.name}">${device.name}</div></td>
                     <td>${device.os}</td>
                     <td>${device.clientVersion}</td>
                     <td>
@@ -113,6 +142,36 @@ function renderDeviceView(container, devices, summary) {
       </div>
     </div>
   `;
+
+  renderDistributionChart('mem-dist-chart', 'Memory Specs', summary.memoryDistribution);
+  renderDistributionChart('cpu-dist-chart', 'CPU Cores', summary.cpuCoreDistribution);
+}
+
+function renderDistributionChart(elementId, title, data) {
+    const container = document.getElementById(elementId);
+    if (!container || !data) {
+        container.innerHTML = '<div class="text-muted text-center">No data available.</div>';
+        return;
+    }
+
+    const dataArray = [[title, 'Count'], ...Object.entries(data)];
+    const dataTable = google.visualization.arrayToDataTable(dataArray);
+
+    const isDark = document.body.classList.contains('theme-dark');
+    const textStyle = { color: isDark ? '#e5e5e5' : '#424242', fontName: 'inherit' };
+
+    const options = {
+        pieHole: 0.4,
+        backgroundColor: 'transparent',
+        chartArea: { left: 10, top: 20, width: '90%', height: '80%' },
+        legend: { textStyle: textStyle, position: 'right' },
+        titleTextStyle: { color: textStyle.color, fontName: 'inherit', fontSize: 16, bold: false },
+        tooltip: { textStyle: { fontName: 'inherit' } },
+        colors: ['#206bc4', '#79a6dc', '#d1e0f6', '#f0f6ff', '#a6cffc']
+    };
+
+    const chart = new google.visualization.PieChart(container);
+    chart.draw(dataTable, options);
 }
 
 function addDeviceEventListeners() {
@@ -165,3 +224,6 @@ function addDeviceEventListeners() {
     });
   });
 }
+
+// Set this as the current view initializer for timezone/theme refresh
+window.currentViewInit = window.deviceViewInit;

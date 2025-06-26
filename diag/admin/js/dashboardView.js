@@ -5,9 +5,9 @@ window.dashboardViewInit = async function(container) {
     return;
   }
 
-  // Load Google Charts for gauges
+  // Load Google Charts
   const googleChartsLoaded = new Promise(resolve => {
-    google.charts.load('current', { 'packages': ['gauge'] });
+    google.charts.load('current', { 'packages': ['gauge', 'corechart'] });
     google.charts.setOnLoadCallback(resolve);
   });
 
@@ -40,58 +40,53 @@ window.dashboardViewInit = async function(container) {
   const isDark = document.body.classList.contains('theme-dark');
 
   /**
-   * Renders a KPI gauge using ApexCharts for the main security score.
+   * Renders the main security score gauge using Google Charts.
    * @param {string} elementId The ID of the container element.
    * @param {number} value The value to display (0-100).
    */
-  function renderSecurityScoreGauge(elementId, value) {
+  async function renderMainScoreGauge(elementId, value) {
+    await googleChartsLoaded;
     const chartEl = document.getElementById(elementId);
     if (!chartEl) return;
 
     const val = Number(value);
+    const data = google.visualization.arrayToDataTable([
+      ['Label', 'Value'],
+      ['Score', val]
+    ]);
+
+    const isDark = document.body.classList.contains('theme-dark');
+    const textStyle = { color: isDark ? '#e5e5e5' : '#424242', fontName: 'inherit', fontSize: 18 };
+    const gaugeColor = isDark ? '#3a3a3a' : '#e9ecef';
+
     const options = {
-      chart: { type: 'radialBar', height: 250, sparkline: { enabled: true } },
-      series: [val],
-      plotOptions: {
-        radialBar: {
-          hollow: { size: '75%' },
-          track: { background: 'transparent', strokeWidth: '97%' },
-          dataLabels: {
-            name: { show: false },
-            value: {
-              offsetY: 10,
-              fontSize: '2.5rem',
-              fontWeight: 700,
-              color: 'var(--tblr-body-color)',
-              formatter: (v) => `${v}`
-            }
-          }
-        }
-      },
-      fill: {
-        type: 'gradient',
-        gradient: {
-          shade: 'dark',
-          type: 'horizontal',
-          shadeIntensity: 0.5,
-          gradientToColors: ['#50c878', '#f0b400', '#d63939'],
-          inverseColors: false,
-          opacityFrom: 1,
-          opacityTo: 1,
-          stops: [0, 50, 100]
-        }
-      },
-      stroke: { lineCap: 'round' },
-      labels: ['Security Score'],
-      theme: { mode: isDark ? 'dark' : 'light' }
+      min: 0, max: 100,
+      redFrom: 0, redTo: 40,
+      yellowFrom: 40, yellowTo: 70,
+      greenFrom: 70, greenTo: 100,
+      minorTicks: 5,
+      animation: { duration: 500, easing: 'out' },
+      chartArea: { left: '5%', top: '5%', width: '90%', height: '90%' },
+      backgroundColor: 'transparent',
+      legend: { textStyle: textStyle },
+      titleTextStyle: textStyle,
+      gauge: {
+          axis: {
+              minValue: 0,
+              maxValue: 100,
+              ticks: [0, 20, 40, 60, 80, 100]
+          },
+          bar: { color: gaugeColor, thickness: 1 }, // This is the track
+          backgroundColor: 'transparent',
+      }
     };
-    
-    chartEl.innerHTML = '';
-    const chart = new ApexCharts(chartEl, options);
-    chart.render();
-    // Store chart instance for theme changes
-    chartEl.chartInstance = chart;
+
+    const chart = new google.visualization.Gauge(chartEl);
+    chart.draw(data, options);
+    // Store for theme changes and resizing
+    chartEl.chartInstance = { chart, data, options, type: 'Gauge' };
   }
+
 
   /**
    * Creates the HTML for a single KPI card.
@@ -100,12 +95,16 @@ window.dashboardViewInit = async function(container) {
    * @param {string|number} value The main KPI value.
    * @param {string} icon Tabler icon name.
    * @param {boolean} hasTrend If true, adds a sparkline container.
+   * @param {string} subValue Optional smaller text below the main value.
    * @returns {string} HTML string for the card.
    */
-  function createKpiCardHtml(kpiKey, title, value, icon, hasTrend) {
+  function createKpiCardHtml(kpiKey, title, value, icon, hasTrend, subValue = '') {
     const sparklineId = `sparkline-${kpiKey}`;
+    const subValueHtml = subValue ? `<div class="text-muted mt-1">${subValue}</div>` : '';
+    // Add data-chart-type for the global resizer to find it
+    const sparklineContainer = hasTrend ? `<div id="${sparklineId}" class="chart-sm mt-2" data-chart-type="google"></div>` : `<div class="chart-sm mt-2" style="height: 40px;">${subValueHtml}</div>`;
     return `
-      <div class="col-sm-6 col-lg-4">
+      <div class="col-sm-6 col-lg-3">
         <div class="card kpi-tile">
           <div class="card-body">
             <div class="d-flex align-items-center">
@@ -117,131 +116,51 @@ window.dashboardViewInit = async function(container) {
                 <span class="text-secondary"><i class="ti ti-${icon} icon-lg"></i></span>
               </div>
             </div>
-            ${hasTrend ? `<div id="${sparklineId}" class="chart-sm mt-2"></div>` : '<div class="chart-sm mt-2" style="height: 40px;"></div>'}
+            ${sparklineContainer}
           </div>
         </div>
       </div>`;
   }
 
   /**
-   * Creates HTML for a resource gauge KPI card.
-   * @param {string} kpiKey Unique key for the element ID.
-   * @param {string} title The title to display on the card.
-   * @returns {string} HTML string for the gauge card.
+   * Creates HTML for the 1-over-2 resource gauge layout.
+   * @param {string} resourceKey 'cpu' or 'memory'.
+   * @param {string} title 'CPU Usage' or 'Memory Usage'.
+   * @param {string} icon Tabler icon name.
+   * @returns {string} HTML string for the card.
    */
-  function createGaugeKpiCardHtml(kpiKey, title) {
-    const chartId = `gauge-${kpiKey}`;
-    // The title is now rendered inside the gauge, so we just need the container.
-    return `
-      <div class="col-sm-4 col-lg-2">
+  function createResourceKpiCardHtml(resourceKey, title, icon) {
+      return `
+      <div class="col-sm-6 col-lg-6">
         <div class="card kpi-tile">
-          <div class="card-body text-center">
-            <div id="${chartId}" class="kpi-gauge-sm" style="height: 150px;"></div>
+          <div class="card-header">
+            <h3 class="card-title d-flex align-items-center">
+              <i class="ti ti-${icon} icon me-2"></i>
+              ${title}
+            </h3>
+          </div>
+          <div class="card-body">
+            <div class="row align-items-center">
+              <div class="col-lg-6 text-center">
+                <div id="gauge-${resourceKey}-avg" class="kpi-gauge-lg mx-auto" data-chart-type="google"></div>
+                <div class="h3 mt-2 mb-0">Average</div>
+              </div>
+              <div class="col-lg-6">
+                <div class="row">
+                  <div class="col-6 text-center">
+                    <div id="gauge-${resourceKey}-min" class="kpi-gauge-sm mx-auto" data-chart-type="google"></div>
+                    <div class="text-muted mt-1">Min</div>
+                  </div>
+                  <div class="col-6 text-center">
+                    <div id="gauge-${resourceKey}-max" class="kpi-gauge-sm mx-auto" data-chart-type="google"></div>
+                    <div class="text-muted mt-1">Max</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>`;
-  }
-
-  /**
-   * Renders a 270-degree gauge for resource metrics.
-   * @param {string} elementId The ID of the container element.
-   * @param {string} title The title for the label inside the gauge.
-   * @param {number} value The absolute value.
-   * @param {number} total The total value for percentage calculation.
-   * @param {string} unit The unit for the value display.
-   * @param {string} rangeType The type of value ('cpu' or 'memory') for color coding.
-   */
-  function renderResourceGauge(elementId, title, value, total, unit, rangeType) {
-    const chartEl = document.getElementById(elementId);
-    if (!chartEl) return;
-
-    const isDark = document.body.classList.contains('theme-dark');
-    const val = Number(value);
-    const percentage = total > 0 ? Math.min(100, Math.round((val / total) * 100)) : 0;
-
-    const getColorForValue = (v, type) => {
-        if (type === 'cpu') {
-            if (v <= 10) return '#50c878'; // green
-            if (v <= 20) return '#f0b400'; // yellow
-            if (v <= 50) return '#fd7e14'; // orange
-            return '#d63939'; // red
-        }
-        if (type === 'memory') {
-            if (v <= 50) return '#50c878'; // green
-            if (v <= 100) return '#f0b400'; // yellow
-            return '#d63939'; // red
-        }
-        return '#206bc4'; // default
-    };
-
-    const gaugeColor = getColorForValue(val, rangeType);
-
-    const options = {
-        chart: {
-            type: 'radialBar',
-            height: 150,
-            sparkline: { enabled: true },
-            background: 'transparent'
-        },
-        series: [percentage],
-        plotOptions: {
-            radialBar: {
-                startAngle: -135,
-                endAngle: 135,
-                hollow: {
-                    margin: 0,
-                    size: '70%',
-                    background: 'transparent',
-                },
-                track: {
-                    background: isDark ? '#3a3a3a' : '#e9ecef',
-                    strokeWidth: '100%',
-                    margin: 0,
-                },
-                dataLabels: {
-                    name: {
-                        show: true,
-                        offsetY: -15,
-                        fontSize: '0.8rem',
-                        fontWeight: 500,
-                        color: 'var(--tblr-muted)',
-                        formatter: () => title
-                    },
-                    value: {
-                        offsetY: 10,
-                        fontSize: '1.4rem',
-                        fontWeight: 700,
-                        color: 'var(--tblr-body-color)',
-                        formatter: () => `${val}${unit}`
-                    }
-                }
-            }
-        },
-        fill: {
-            type: 'gradient',
-            gradient: {
-                shade: isDark ? 'dark' : 'light',
-                type: 'horizontal',
-                shadeIntensity: 0.5,
-                gradientToColors: [gaugeColor],
-                inverseColors: true,
-                opacityFrom: 1,
-                opacityTo: 1,
-                stops: [0, 100]
-            }
-        },
-        stroke: {
-            lineCap: 'round'
-        },
-        theme: {
-            mode: isDark ? 'dark' : 'light'
-        }
-    };
-
-    chartEl.innerHTML = '';
-    const chart = new ApexCharts(chartEl, options);
-    chart.render();
-    chartEl.chartInstance = chart;
   }
 
   /**
@@ -252,7 +171,8 @@ window.dashboardViewInit = async function(container) {
    * @param {string} rangeType 'cpu' or 'memory' for color settings.
    * @param {number} max The max value for the gauge.
    */
-  function renderGoogleGauge(elementId, title, value, rangeType, max) {
+  async function renderGoogleGauge(elementId, title, value, rangeType, max) {
+    await googleChartsLoaded;
     const chartEl = document.getElementById(elementId);
     if (!chartEl) return;
 
@@ -264,57 +184,75 @@ window.dashboardViewInit = async function(container) {
 
     let colorOptions = {};
     if (rangeType === 'cpu') {
-      colorOptions = {
-        greenFrom: 0, greenTo: 10,
-        yellowFrom: 10, yellowTo: 50, // Note: Google Charts supports 3 ranges, so yellow/orange are combined.
-        redFrom: 50, redTo: 100,
-      };
+      colorOptions = { greenFrom: 0, greenTo: 50, yellowFrom: 50, yellowTo: 80, redFrom: 80, redTo: 100 };
+      max = 100;
     } else { // memory
-      colorOptions = {
-        greenFrom: 0, greenTo: 50,
-        yellowFrom: 50, yellowTo: 100,
-        redFrom: 100, redTo: max,
-      };
+      // Dynamic ranges based on the max value
+      const yellowStart = Math.round(max * 0.6);
+      const redStart = Math.round(max * 0.8);
+      colorOptions = { greenFrom: 0, greenTo: yellowStart, yellowFrom: yellowStart, yellowTo: redStart, redFrom: redStart, redTo: max };
     }
 
     const isDark = document.body.classList.contains('theme-dark');
-    const textAndBgStyle = {
-        color: isDark ? '#e5e5e5' : '#424242',
-        backgroundColor: 'transparent'
-    };
-
+    const textStyle = { color: isDark ? '#e5e5e5' : '#424242', fontName: 'inherit' };
+    
     const options = {
-      width: 150, height: 150,
       max: max,
       minorTicks: 5,
       ...colorOptions,
+      animation: { duration: 500, easing: 'out' },
       backgroundColor: 'transparent',
-      legend: { textStyle: textAndBgStyle },
-      labelStyle: { color: textAndBgStyle.color, fontSize: 12 },
+      legend: { textStyle: textStyle },
+      // Let the container size dictate the chart size
+      chartArea: { left: '5%', top: '5%', width: '90%', height: '75%' },
     };
 
     const chart = new google.visualization.Gauge(chartEl);
     chart.draw(data, options);
+    chartEl.chartInstance = { chart, data, options, type: 'Gauge' };
   }
 
   /**
-   * Renders a sparkline chart.
+   * Renders a sparkline chart using Google Charts.
    * @param {string} elementId The ID of the container element.
    * @param {Array<number>} data The data points.
    */
-  function renderSparkline(elementId, data) {
-    const el = document.getElementById(elementId);
-    if (!el) return;
-    const options = {
-        chart: { type: 'area', height: 40, sparkline: { enabled: true }, animations: { enabled: true } },
-        series: [{ data: data }],
-        stroke: { width: 2, curve: 'smooth' },
-        fill: { opacity: 0.25 },
-        tooltip: { enabled: false },
-        colors: ['#206bc4']
-    };
-    new ApexCharts(el, options).render();
+  async function renderGoogleSparkline(elementId, data) {
+      await googleChartsLoaded;
+      const chartEl = document.getElementById(elementId);
+      if (!chartEl) return;
+
+      const dataTable = new google.visualization.DataTable();
+      dataTable.addColumn('number', 'X');
+      dataTable.addColumn('number', 'Value');
+      dataTable.addRows(data.map((y, x) => [x, y]));
+
+      const isDark = document.body.classList.contains('theme-dark');
+      const options = {
+          backgroundColor: 'transparent',
+          colors: ['#206bc4'],
+          chartArea: { left: 0, top: 0, width: '100%', height: '100%' },
+          legend: { position: 'none' },
+          hAxis: {
+              baselineColor: 'transparent',
+              gridlines: { color: 'transparent' },
+              textPosition: 'none'
+          },
+          vAxis: {
+              baselineColor: 'transparent',
+              gridlines: { color: 'transparent' },
+              textPosition: 'none'
+          },
+          tooltip: { trigger: 'none' }, // Disable tooltips for sparklines
+          areaOpacity: 0.2,
+          lineWidth: 2,
+      };
+
+      const chart = new google.visualization.AreaChart(chartEl);
+      chart.draw(dataTable, options);
+      chartEl.chartInstance = { chart, data: dataTable, options, type: 'AreaChart' };
   }
+
 
   /**
    * Renders a main chart in a card.
@@ -323,7 +261,7 @@ window.dashboardViewInit = async function(container) {
   function renderApexChart(chartInfo) {
     const chartEl = document.getElementById(chartInfo.id);
     if (!chartEl) return;
-
+    const isDark = document.body.classList.contains('theme-dark');
     const options = {
       chart: {
         type: chartInfo.type || 'bar',
@@ -359,24 +297,22 @@ window.dashboardViewInit = async function(container) {
     chartEl.innerHTML = '';
     const chart = new ApexCharts(chartEl, options);
     chart.render();
-    chartEl.chartInstance = chart;
+    chartEl.chartInstance = chart; // Keep for potential theme changes if needed
   }
 
   // --- RENDER DASHBOARD ---
 
-  // 1. Render Main Security Score
+  // 1. Render Main Security Score & KPIs
   kpiMainRow.innerHTML = `
-    <div class="col-12">
+    <div class="col-lg-4">
       <div class="card">
         <div class="card-body text-center">
-          <div class="subheader">Overall Security Score</div>
-          <div id="securityScoreGauge" class="kpi-gauge"></div>
+          <div class="subheader mb-2">Overall Security Score</div>
+          <div id="securityScoreGauge" class="kpi-gauge" style="height: 300px;" data-chart-type="google"></div>
         </div>
       </div>
     </div>`;
-  renderSecurityScoreGauge('securityScoreGauge', kpis.securityScore.value);
-
-  // 2. Render Secondary KPIs & Resource Gauges
+  
   let kpiSecondaryHtml = '';
   const kpiMap = {
       managedDevices: { title: 'Managed Devices', icon: 'device-desktop' },
@@ -385,56 +321,54 @@ window.dashboardViewInit = async function(container) {
       totalVulnerableApps: { title: 'Vulnerable Apps', icon: 'alert-triangle' },
       highRiskAssets: { title: 'High-Risk Assets', icon: 'shield-off' },
       uniqueApps: { title: 'Unique Apps', icon: 'apps' },
+      avgRemediationTime: { title: 'Avg. Remediation', icon: 'clock-check', unit: ' days' },
+      matchAnalysis: { title: 'Match Analysis', icon: 'search' },
   };
 
   Object.entries(kpiMap).forEach(([key, config]) => {
       const kpi = kpis[key];
       if (kpi) {
           const hasTrend = kpi.trend && kpi.trend.length > 0;
-          kpiSecondaryHtml += createKpiCardHtml(key, config.title, kpi.value, config.icon, hasTrend);
+          let value = kpi.value !== undefined ? kpi.value : '';
+          let subValue = '';
+          if (key === 'avgRemediationTime') {
+              value = `${kpi.value}${config.unit || ''}`;
+          }
+          if (key === 'matchAnalysis') {
+              value = kpi.absolute;
+              subValue = `Heuristic: ${kpi.heuristic}`;
+          }
+          kpiSecondaryHtml += createKpiCardHtml(key, config.title, value, config.icon, hasTrend, subValue);
       }
   });
   
-  // Add CPU/Memory Gauges
-  if (kpis.cpu) {
-      kpiSecondaryHtml += createGaugeKpiCardHtml('cpu-avg', 'Avg CPU');
-      kpiSecondaryHtml += createGaugeKpiCardHtml('cpu-max', 'Max CPU');
-      kpiSecondaryHtml += createGaugeKpiCardHtml('cpu-min', 'Min CPU');
-  }
-  if (kpis.memory) {
-      kpiSecondaryHtml += createGaugeKpiCardHtml('mem-avg', 'Avg Memory');
-      kpiSecondaryHtml += createGaugeKpiCardHtml('mem-max', 'Max Memory');
-      kpiSecondaryHtml += createGaugeKpiCardHtml('mem-min', 'Min Memory');
-  }
-
-  kpiSecondaryRow.innerHTML = kpiSecondaryHtml;
+  const kpiCards = document.createElement('div');
+  kpiCards.className = 'col-lg-8';
+  kpiCards.innerHTML = `<div class="row row-cards">${kpiSecondaryHtml}</div>`;
+  kpiMainRow.appendChild(kpiCards);
+  
+  renderMainScoreGauge('securityScoreGauge', kpis.securityScore.value);
 
   // Render sparklines after HTML is injected
   Object.entries(kpiMap).forEach(([key, config]) => {
       const kpi = kpis[key];
-      if (kpi && kpi.trend) {
-          renderSparkline(`sparkline-${key}`, kpi.trend);
+      if (kpi && kpi.trend && kpi.trend.length > 0) {
+          renderGoogleSparkline(`sparkline-${key}`, kpi.trend);
       }
   });
 
-  // Render gauges after HTML is injected
-  await googleChartsLoaded;
+  // 3. Render Resource Gauges & Charts
+  let chartsAndGaugesHtml = '';
   if (kpis.cpu) {
-      renderGoogleGauge('gauge-cpu-avg', 'Avg CPU', kpis.cpu.avg, 'cpu', 100);
-      renderGoogleGauge('gauge-cpu-max', 'Max CPU', kpis.cpu.max, 'cpu', 100);
-      renderGoogleGauge('gauge-cpu-min', 'Min CPU', kpis.cpu.min, 'cpu', 100);
+      chartsAndGaugesHtml += createResourceKpiCardHtml('cpu', 'CPU Usage', 'cpu');
   }
   if (kpis.memory) {
-      const MEMORY_GAUGE_TOTAL = 200; // Set a fixed total for memory gauges (in MB) for a consistent scale
-      renderGoogleGauge('gauge-mem-avg', 'Avg Memory', kpis.memory.avg, 'memory', MEMORY_GAUGE_TOTAL);
-      renderGoogleGauge('gauge-mem-max', 'Max Memory', kpis.memory.max, 'memory', MEMORY_GAUGE_TOTAL);
-      renderGoogleGauge('gauge-mem-min', 'Min Memory', kpis.memory.min, 'memory', MEMORY_GAUGE_TOTAL);
+      // Note the key change from 'mem' to 'memory' to match dataService
+      chartsAndGaugesHtml += createResourceKpiCardHtml('memory', 'Memory Usage', 'database');
   }
-
-  // 3. Render Charts
-  let chartsHtml = '';
+  
   charts.forEach(chart => {
-    chartsHtml += `
+    chartsAndGaugesHtml += `
       <div class="col-lg-6">
         <div class="card">
           <div class="card-body">
@@ -443,7 +377,24 @@ window.dashboardViewInit = async function(container) {
         </div>
       </div>`;
   });
-  chartsSection.innerHTML = chartsHtml;
+  
+  chartsSection.innerHTML = chartsAndGaugesHtml; 
+
+  // Render gauges after HTML is injected
+  if (kpis.cpu) {
+      renderGoogleGauge('gauge-cpu-avg', 'Avg', kpis.cpu.avg, 'cpu', 100);
+      renderGoogleGauge('gauge-cpu-min', 'Min', kpis.cpu.min, 'cpu', 100);
+      renderGoogleGauge('gauge-cpu-max', 'Max', kpis.cpu.max, 'cpu', 100);
+  }
+  if (kpis.memory) {
+      // Use the dynamic max from the data. Fallback to a default if 0.
+      const maxMem = kpis.memory.max > 0 ? kpis.memory.max * 1.2 : 200; // Add 20% buffer
+      renderGoogleGauge('gauge-memory-avg', 'Avg', kpis.memory.avg, 'memory', maxMem);
+      renderGoogleGauge('gauge-memory-min', 'Min', kpis.memory.min, 'memory', maxMem);
+      renderGoogleGauge('gauge-memory-max', 'Max', kpis.memory.max, 'memory', maxMem);
+  }
+
+  // Render charts after HTML is injected
   charts.forEach(renderApexChart);
 };
 
