@@ -209,3 +209,65 @@ body {
   display: block;
   margin: 0 auto;
 }
+/* Light Theme Overrides */
+body.light-theme {
+  background: #f5f7fa;
+  color: #232a36;
+}
+body.light-theme #sidebar {
+  background: #fff;
+  color: #232a36;
+  box-shadow: 2px 0 12px #0001;
+}
+body.light-theme #sidebar a {
+  color: #232a36;
+}
+body.light-theme #sidebar a:hover {
+  color: #2e7be4;
+}
+body.light-theme #mainContent {
+  background: #f5f7fa;
+  color: #232a36;
+}
+body.light-theme .kpi-card.kpi-tile {
+  background: #fff;
+  color: #232a36;
+  box-shadow: 0 2px 8px #0001;
+}
+body.light-theme .kpi-title {
+  color: #2e7be4;
+}
+body.light-theme .kpi-value {
+  color: #232a36;
+}
+body.light-theme .kpi-desc {
+  color: #6a7a8c;
+}
+body.light-theme .chart-container {
+  background: #fff;
+  box-shadow: 0 2px 8px #0001;
+}
+body.light-theme .telemetry-table th {
+  background: #eaf1fb;
+  color: #2e7be4;
+}
+body.light-theme .telemetry-table td {
+  color: #232a36;
+}
+body.light-theme .telemetry-table tr:nth-child(even) {
+  background: #f5f7fa;
+}
+body.light-theme .telemetry-table tr:nth-child(odd) {
+  background: #fff;
+}
+body.light-theme #expiryCounter {
+  background: #fff;
+  color: #232a36;
+  box-shadow: 0 2px 8px #0001;
+}
+body.light-theme .error {
+  color: #d32f2f;
+}
+body.light-theme .loading {
+  color: #888;
+}

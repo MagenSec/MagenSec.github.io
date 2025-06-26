@@ -8,17 +8,40 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div id="sidebar"></div>
-  <main id="mainContent">
-    <div id="viewSwitcher">
-      <button id="globalViewBtn">Global</button>
-      <button id="orgViewBtn">My Org</button>
+    <button id="themeToggleBtn" style="position:fixed;left:16px;top:16px;z-index:100;width:180px;padding:0.5rem 0;border-radius:0.5rem;background:#2e7be4;color:#fff;border:none;cursor:pointer;font-size:1rem;">Switch Theme</button>
+    <div id="sidebar">
+      <!-- Sidebar content will be loaded here -->
     </div>
-    <section id="kpiCardsRow" class="kpi-row"></section>
-    <section id="chartsSection" class="charts-section"></section>
-  </main>
-  <div id="expiryCounter"></div>
-  <script src="js/dataService.js"></script>
-  <script src="js/dashboard.js"></script>
-</body>
+    <main id="mainContent">
+      <div id="viewSwitcher">
+        <button id="globalViewBtn">Global</button>
+        <button id="orgViewBtn">My Org</button>
+      </div>
+      <section id="kpiCardsRow" class="kpi-row"></section>
+      <section id="chartsSection" class="charts-section"></section>
+    </main>
+    <div id="expiryCounter"></div>
+    <script src="js/dataService.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script>
+      // Theme toggle logic
+      const themeBtn = document.getElementById('themeToggleBtn');
+      const body = document.body;
+      // Load theme from localStorage
+      if (localStorage.getItem('theme') === 'light') {
+        body.classList.add('light-theme');
+        themeBtn.textContent = 'Switch to Dark Theme';
+      }
+      themeBtn.addEventListener('click', () => {
+        body.classList.toggle('light-theme');
+        if (body.classList.contains('light-theme')) {
+          localStorage.setItem('theme', 'light');
+          themeBtn.textContent = 'Switch to Dark Theme';
+        } else {
+          localStorage.setItem('theme', 'dark');
+          themeBtn.textContent = 'Switch to Light Theme';
+        }
+      });
+    </script>
+  </body>
 </html>
