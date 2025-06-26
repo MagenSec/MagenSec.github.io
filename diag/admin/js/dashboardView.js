@@ -255,49 +255,73 @@ window.dashboardViewInit = async function(container) {
 
 
   /**
-   * Renders a main chart in a card.
+   * Renders a main chart (bar, donut, or line) in a card using Google Charts.
    * @param {object} chartInfo The chart configuration.
    */
-  function renderApexChart(chartInfo) {
+  async function renderGoogleChart(chartInfo) {
+    await googleChartsLoaded;
     const chartEl = document.getElementById(chartInfo.id);
     if (!chartEl) return;
+
     const isDark = document.body.classList.contains('theme-dark');
-    const options = {
-      chart: {
-        type: chartInfo.type || 'bar',
-        height: 350,
-        background: 'transparent',
-        toolbar: { show: true, tools: { download: true } },
-        fontFamily: 'inherit',
-      },
-      series: chartInfo.data.datasets.map(ds => ({ name: ds.label, data: ds.data })),
-      labels: chartInfo.data.labels,
-      theme: { mode: isDark ? 'dark' : 'light' },
-      dataLabels: { enabled: chartInfo.type !== 'line' },
-      legend: { show: true, position: 'bottom', labels: { colors: 'var(--tblr-body-color)' } },
-      grid: { strokeDashArray: 4, borderColor: 'var(--tblr-border-color)' },
-      xaxis: {
-        labels: { style: { colors: 'var(--tblr-body-color)' } },
-        axisBorder: { show: false },
-        axisTicks: { color: 'var(--tblr-border-color)' }
-      },
-      yaxis: { labels: { style: { colors: 'var(--tblr-body-color)' } } },
-      plotOptions: {
-        bar: { borderRadius: 4, horizontal: chartInfo.type === 'horizontalBar' },
-        donut: { labels: { show: true, total: { show: true, label: 'Total', color: 'var(--tblr-body-color)' }, value: { color: 'var(--tblr-body-color)'} } }
-      },
-      fill: {
-        opacity: 1,
-        colors: chartInfo.type === 'donut' ? ['#d63939', '#ff9f40', '#ffcd56'] : ['#206bc4']
-      },
-      tooltip: { theme: isDark ? 'dark' : 'light' },
-      title: { text: chartInfo.title, style: { fontSize: '1rem', fontWeight: '600', color: 'var(--tblr-body-color)' } },
+    const textStyle = { color: isDark ? '#e5e5e5' : '#424242', fontName: 'inherit' };
+    const gridlineColor = isDark ? '#555' : '#e9ecef';
+    const bgColor = 'transparent';
+
+    let chart;
+    let data;
+    let options = {
+        backgroundColor: bgColor,
+        chartArea: { left: 60, top: 40, width: '85%', height: '75%' },
+        legend: { position: 'bottom', textStyle: textStyle },
+        titleTextStyle: { color: textStyle.color, fontName: 'inherit', fontSize: 16, bold: false },
+        title: chartInfo.title,
+        tooltip: { textStyle: { fontName: 'inherit' } },
     };
 
-    chartEl.innerHTML = '';
-    const chart = new ApexCharts(chartEl, options);
-    chart.render();
-    chartEl.chartInstance = chart; // Keep for potential theme changes if needed
+    switch (chartInfo.type) {
+        case 'bar':
+            data = new google.visualization.DataTable();
+            data.addColumn('string', chartInfo.data.labels[0]);
+            data.addColumn('number', chartInfo.data.datasets[0].label);
+            data.addRows(chartInfo.data.labels.map((label, i) => [label, parseFloat(chartInfo.data.datasets[0].data[i])]));
+
+            options.hAxis = { textStyle: textStyle, gridlines: { color: 'transparent' } };
+            options.vAxis = { textStyle: textStyle, gridlines: { color: gridlineColor }, title: 'Exploit Probability (%)', titleTextStyle: textStyle };
+            options.colors = ['#d63939'];
+            options.legend.position = 'none';
+            chart = new google.visualization.ColumnChart(chartEl);
+            break;
+
+        case 'donut':
+            const chartData = chartInfo.data.labels.map((label, i) => [label, chartInfo.data.datasets[0].data[i]]);
+            data = google.visualization.arrayToDataTable([['Vulnerability', 'Count'], ...chartData]);
+
+            options.pieHole = 0.5;
+            options.colors = ['#d63939', '#ff9f40', '#ffcd56']; // Critical, High, Medium
+            chart = new google.visualization.PieChart(chartEl);
+            break;
+
+        case 'line':
+            const lineData = chartInfo.data.labels.map((label, i) => [label, parseFloat(chartInfo.data.datasets[0].data[i])]);
+            data = google.visualization.arrayToDataTable([['Date', 'Score'], ...lineData]);
+
+            options.curveType = 'function';
+            options.hAxis = { textStyle: textStyle, gridlines: { color: 'transparent' }, slantedText: true, slantedTextAngle: 30 };
+            options.vAxis = { textStyle: textStyle, gridlines: { color: gridlineColor }, viewWindow: { min: 0, max: 100 } };
+            options.colors = ['#206bc4'];
+            options.legend.position = 'none';
+            chart = new google.visualization.LineChart(chartEl);
+            break;
+
+        default:
+            console.error(`Unsupported Google Chart type: ${chartInfo.type}`);
+            return;
+    }
+
+    chart.draw(data, options);
+    chartEl.chartInstance = { chart, data, options, type: chartInfo.type };
+    chartEl.dataset.chartType = 'google'; // Mark for global resizer
   }
 
   // --- RENDER DASHBOARD ---
@@ -372,7 +396,7 @@ window.dashboardViewInit = async function(container) {
       <div class="col-lg-6">
         <div class="card">
           <div class="card-body">
-            <div id="${chart.id}"></div>
+            <div id="${chart.id}" style="height: 350px;"></div>
           </div>
         </div>
       </div>`;
@@ -395,7 +419,7 @@ window.dashboardViewInit = async function(container) {
   }
 
   // Render charts after HTML is injected
-  charts.forEach(renderApexChart);
+  charts.forEach(renderGoogleChart);
 };
 
 // Set this as the current view initializer for timezone/theme refresh

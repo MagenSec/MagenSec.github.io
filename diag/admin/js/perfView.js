@@ -2,8 +2,8 @@
  * TODO (handoff):
  * - Ensure perfViewInit is only called by the view loader after DOM is ready (not from perfView.js itself).
  * - Fix timezone toggle and chart rendering race: only render after DOM and container are present.
- * - Extend dashboardView.js patterns (modular filters, animated KPIs, ApexCharts) to all other views (apps, installs, security, reports).
- * - Replace static dashboard tiles with animated ApexCharts gauges/charts.
+ * - Extend dashboardView.js patterns (modular filters, animated KPIs, Google Charts) to all other views (apps, installs, security, reports).
+ * - Replace static dashboard tiles with animated Google Charts gauges/charts.
  * - Add more KPIs and analytics as needed.
  * - Document any new patterns in COPILOT.md and .copilot/config.json.
  * - Continue incremental, modular, and secure enhancements.
@@ -70,7 +70,7 @@ function renderPerfView(container, summary, timeSeries) {
             <h3 class="card-title">CPU Utilization Over Time</h3>
           </div>
           <div class="card-body">
-            <div id="cpu-timeseries-chart" style="height: 300px"></div>
+            <div id="cpu-timeseries-chart" style="height: 300px" data-chart-type="google"></div>
           </div>
         </div>
       </div>
@@ -80,7 +80,7 @@ function renderPerfView(container, summary, timeSeries) {
             <h3 class="card-title">Memory Usage Over Time</h3>
           </div>
           <div class="card-body">
-            <div id="mem-timeseries-chart" style="height: 300px"></div>
+            <div id="mem-timeseries-chart" style="height: 300px" data-chart-type="google"></div>
           </div>
         </div>
       </div>
@@ -130,6 +130,8 @@ function renderTimeSeriesChart(elementId, title, data, dataKey, unit) {
 
     const chart = new google.visualization.LineChart(container);
     chart.draw(dataTable, options);
+    // Store for theme changes and resizing
+    container.chartInstance = { chart, data: dataTable, options, type: 'LineChart' };
 }
 
 // Set this as the current view initializer for timezone/theme refresh
@@ -138,7 +140,7 @@ window.currentViewInit = window.perfViewInit;
 /*
  * TODO: Modernize and modularize perfView.js using the same patterns as dashboardView.js:
  * - Use modular, modern filter dropdowns for Org, Process, Version, Aggregation.
- * - Integrate animated KPI cards (ApexCharts) for key perf metrics (e.g., Response Time, Uptime, Errors, Throughput).
+ * - Integrate animated KPI cards (Google Charts) for key perf metrics (e.g., Response Time, Uptime, Errors, Throughput).
  * - Add timezone and theme toggles (reuse modular logic).
  * - Ensure all charts/tables use responsive, modern components and update on filter changes.
  * - Patch all time displays for timezone toggle.

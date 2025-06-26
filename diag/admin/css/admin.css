@@ -99,15 +99,6 @@ body {
     min-height: 180px;
 }
 
-/* Make chart labels readable in both themes */
-.apexcharts-xaxis-label, .apexcharts-yaxis-label {
-    fill: var(--tblr-secondary-color);
-}
-
-.apexcharts-legend-text {
-    color: var(--tblr-secondary-color) !important;
-}
-
 /* Logo Fix */
 .navbar-brand {
     display: flex;

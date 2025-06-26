@@ -1,3 +1,4 @@
+import { initOrgSwitcher } from './orgSwitcher.js';
 // app.js: Main application entry point, router, and event handlers.
 console.log('app.js loaded');
 
@@ -101,23 +102,18 @@ async function initializeApp(container) {
     loadView(initialView);
 }
 
-// --- DOMContentLoaded ---
-document.addEventListener('DOMContentLoaded', () => {
-    const mainContainer = document.getElementById('view-content');
-    if (mainContainer) {
-        initializeApp(mainContainer);
-    } else {
-        console.error('Main content container #view-content not found.');
-    }
 
-    // Load other initializers
-    if (window.orgSwitcherInit) {
-        window.orgSwitcherInit();
-    }
-    if (window.themeSwitcherInit) {
-        window.themeSwitcherInit();
-    }
-    if (window.expiryCounterInit) {
-        window.expiryCounterInit();
-    }
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM fully loaded and parsed');
+    google.charts.load('current', { packages: ['corechart', 'gauge', 'timeline'] });
+    google.charts.setOnLoadCallback(async () => {
+        console.log('Google Charts loaded');
+        const contentContainer = document.getElementById('view-content');
+        if (contentContainer) {
+            initializeApp(contentContainer);
+            await initOrgSwitcher();
+        } else {
+            console.error('Main content container #view-content not found.');
+        }
+    });
 });
