@@ -1,5 +1,4 @@
 import { initOrgSwitcher } from './orgSwitcher.js';
-import { themeSwitcherInit } from './themeSwitcher.js';
 // app.js: Main application entry point, router, and event handlers.
 console.log('app.js loaded');
 
@@ -107,8 +106,12 @@ async function initializeApp(container) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM fully loaded and parsed');
 
-    // Initialize theme switcher
-    themeSwitcherInit();
+    // Initialize theme switcher from the global scope
+    if (window.themeSwitcherInit) {
+        window.themeSwitcherInit();
+    } else {
+        console.error('Theme switcher initialization function not found.');
+    }
 
     // Handle logout
     const logoutBtn = document.getElementById('logoutBtn');

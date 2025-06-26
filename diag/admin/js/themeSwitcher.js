@@ -1,6 +1,6 @@
 // js/themeSwitcher.js
 
-export function themeSwitcherInit() {
+function themeSwitcherInit() {
     const themeToggle = document.querySelector('#themeToggleBtn');
     if (!themeToggle) {
         console.log('Theme toggle button not found.');
@@ -45,3 +45,5 @@ export function themeSwitcherInit() {
 
     console.log('Theme switcher initialized for Tabler 1.x.');
 }
+
+window.themeSwitcherInit = themeSwitcherInit;
