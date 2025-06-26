@@ -42,3 +42,14 @@ window.appsViewInit = async function appsViewInit(filterParams) {
     if (window.__debugLog) window.__debugLog('AppTelemetry error: ' + e.message + ' Stack: ' + (e.stack||''));
   }
 };
+
+/*
+ * TODO: Modernize and modularize appsView.js using dashboardView.js patterns:
+ * - Modular filter dropdowns (Org, Process, Version, Aggregation)
+ * - Animated KPI cards for app metrics (e.g., App Count, Active Users, Errors)
+ * - Timezone/theme toggles (reuse modular logic)
+ * - Responsive, modern tables/charts
+ * - Patch time displays for timezone
+ * - Preserve org/session/security logic
+ * - Add comments for extensibility
+ */

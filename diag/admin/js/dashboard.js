@@ -1,159 +1,147 @@
-// dashboard.js: Handles sidebar, view loading, expiry counter, and theme
-// Use window.renderKpiCards and window.renderCharts instead of imports
+// dashboard.js: Handles initialization for the Tabler-based dashboard.
 (function() {
-  console.log('dashboard.js loaded, window.dataService:', window.dataService);
+  console.log('dashboard.js (Tabler version) loaded');
+
+  // 1. Authentication & Session Check
   if (!sessionStorage.getItem('org')) {
     window.location.href = 'login.html';
     return;
   }
-  const sidebar = document.getElementById('sidebar');
-  const main = document.getElementById('mainContent');
+
+  // 2. State and DOM References
   const expiryDiv = document.getElementById('expiryCounter');
-  const org = sessionStorage.getItem('org');
-  const isAdmin = sessionStorage.getItem('isAdmin') === '1';
+  const isAdmin = sessionStorage.getItem('userRole') === 'admin';
 
-  // Sidebar links
-  const views = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'perf', label: 'Performance' },
-    { id: 'apps', label: 'Applications' },
-    { id: 'installs', label: 'Installs' },
-    { id: 'security', label: 'Security' },
-    { id: 'reports', label: 'Reports' }
-  ];
-  sidebar.innerHTML = `<h2>Org: ${org}</h2><ul>` +
-    views.map(v => `<li><a href="#" data-view="${v.id}">${v.label}</a></li>`).join('') +
-    (isAdmin ? '<li><a href="#" data-view="admin">Admin</a></li>' : '') +
-    '<li><a href="#" id="logout">Logout</a></li></ul>';
+  // 3. Dynamic UI Setup
+  function setupDynamicElements() {
+    // Add Logout button to sidebar footer
+    const sidebarFooter = document.getElementById('sidebar-footer');
+    if (sidebarFooter) {
+        const logoutItem = document.createElement('div');
+        logoutItem.className = 'nav-item';
+        logoutItem.innerHTML = `
+          <a class="nav-link" href="#" id="logoutBtn">
+            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-logout"></i></span>
+            <span class="nav-link-title">Logout</span>
+          </a>`;
+        sidebarFooter.appendChild(logoutItem);
 
-  sidebar.onclick = (e) => {
-    if (e.target.dataset.view) {
-      loadView(e.target.dataset.view);
-    } else if (e.target.id === 'logout') {
-      sessionStorage.clear();
-      window.location.href = 'login.html';
-    }
-  };
-
-  async function loadView(view) {
-    if (window.__debugLog) window.__debugLog('loadView(' + view + ') called.');
-    main.innerHTML = '<div class="loading">Loading...';
-    try {
-      const res = await fetch(`views/${view}.html`);
-      if (window.__debugLog) window.__debugLog('Fetched views/' + view + '.html, status: ' + res.status);
-      const html = await res.text();
-      main.innerHTML = html;
-      // Dynamically load the JS for this view
-      if (view === 'dashboard') {
-        // Load dependencies in order
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'js/kpiCards.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            sessionStorage.clear();
+            window.location.href = 'login.html';
         });
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'js/charts.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
-        });
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'js/dashboardView.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
-        });
-      } else {
-        const scriptPath = `js/${view}View.js`;
-        if (window.__debugLog) window.__debugLog('Loading script: ' + scriptPath);
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = scriptPath;
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
-        });
-      }
-      if (window.__debugLog) window.__debugLog('Loaded script for ' + view + ', now checking for window.' + view + 'ViewInit');
-      if (window[view + 'ViewInit']) window[view + 'ViewInit']();
-      else if (window.__debugLog) window.__debugLog('No window.' + view + 'ViewInit found after script load.');
-    } catch (e) {
-      main.innerHTML = '<div class="error">View not found or failed to load script.</div>';
-      if (window.__debugLog) window.__debugLog('Error loading view ' + view + ': ' + e.message + ' Stack: ' + (e.stack||''));
     }
   }
 
-  // Example: Fetch live data using dataService.js (org isolation/session logic assumed inside dataService)
-  async function loadDashboard(view) {
-    // Replace with real dataService calls
-    const kpis = await window.dataService.getKpis(view); // e.g. [{title, value, desc}]
-    const charts = await window.dataService.getCharts(view); // e.g. [{id, title, type, data, options}]
-    window.renderKpiCards(kpis);
-    window.renderCharts(charts);
-  }
+  // 4. SAS Token Expiry Counter for Admins
+  async function updateExpiryCounter() {
+    if (!isAdmin || !expiryDiv) return;
 
-  // View switcher logic
-  const globalBtn = document.getElementById('globalViewBtn');
-  const orgBtn = document.getElementById('orgViewBtn');
-  if (globalBtn && orgBtn) {
-    globalBtn.onclick = () => loadDashboard('global');
-    orgBtn.onclick = () => loadDashboard('org');
-  }
+    await window.dataService.fetchSasExpiry();
+    const expiry = window.dataService.getExpiry();
+    if (!expiry) return;
 
-  // On load, fetch SAS expiry (admin only)
-  console.log('window.dataService:', window.dataService);
-  if (isAdmin) {
-    dataService.fetchSasExpiry().then(updateExpiry);
-  }
+    const remainingMs = expiry - Date.now();
+    if (remainingMs <= 0) return; // Don't show if expired
 
-  // Expiry counter (admin only, shows days/hours left)
-  function updateExpiry() {
-    if (!isAdmin) {
-      expiryDiv.style.display = 'none';
-      return;
+    const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+
+    // Only show a dismissible alert if the token is expiring within 30 days.
+    if (remainingDays <= 30) {
+        const alertClass = remainingDays < 7 ? 'alert-warning' : 'alert-info';
+        expiryDiv.innerHTML = `
+            <div class="alert ${alertClass} alert-dismissible" role="alert">
+                <div class="d-flex">
+                    <div><i class="icon ti ti-alert-circle me-2"></i></div>
+                    <div>
+                        <div class="alert-title">Admin token expires in ${remainingDays} day${remainingDays !== 1 ? 's' : ''}.</div>
+                    </div>
+                </div>
+                <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+            </div>
+        `;
     }
-    expiryDiv.style.display = '';
-    let expiry = dataService.getExpiry();
-    if (!expiry || expiry < Date.now()) {
-      expiryDiv.textContent = 'SAS Key expired!';
-      return;
-    }
-    const msLeft = expiry - Date.now();
-    const days = Math.floor(msLeft / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((msLeft / (1000 * 60 * 60)) % 24);
-    const mins = Math.floor((msLeft / (1000 * 60)) % 60);
-    expiryDiv.textContent = `SAS Key Expires In: ${days}d ${hours}h ${mins}m`;
   }
-  setInterval(updateExpiry, 1000 * 60); // update every minute
-  updateExpiry();
 
-  // Debug log viewer (visible if ?debug in URL)
-  function setupDebugLog() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (!urlParams.has('debug')) return;
-    let debugDiv = document.createElement('div');
-    debugDiv.id = 'debugLogViewer';
-    debugDiv.style = 'position:fixed;bottom:0;left:0;right:0;max-height:30vh;overflow:auto;background:#222;color:#fff;font-size:0.9em;padding:0.5em;z-index:1000;border-top:2px solid #444;';
-    document.body.appendChild(debugDiv);
+  // 5. Initial Page Load
+  function initializeDashboard() {
+    console.log('Initializing Tabler dashboard components...');
+    
+    setupDynamicElements();
+
+    // Initialize header controls
+    if (window.initTimezoneToggle) window.initTimezoneToggle();
+    if (window.initOrgSwitcher) window.initOrgSwitcher();
+
+    // Initialize the router to load the default view
+    if (window.router) {
+      window.router.init();
+    } else {
+      console.error('Router not found!');
+      const container = document.querySelector('.page-body .container-xl');
+      if(container) container.innerHTML = '<div class="alert alert-danger">Error: Failed to load router.</div>';
+    }
+
+    // Show admin-only expiry counter
+    updateExpiryCounter();
+  }
+
+  // 6. Debug Log Viewer (show if ?debug is present)
+  if (window.location.search.includes('debug')) {
+    if (!document.getElementById('debugLogContainer')) {
+      const dbgDiv = document.createElement('div');
+      dbgDiv.id = 'debugLogContainer';
+      dbgDiv.style.position = 'fixed';
+      dbgDiv.style.left = '0';
+      dbgDiv.style.right = '0';
+      dbgDiv.style.bottom = '0';
+      dbgDiv.style.zIndex = '9999';
+      dbgDiv.style.background = '#222';
+      dbgDiv.style.color = '#fff';
+      dbgDiv.style.maxHeight = '30vh';
+      dbgDiv.style.overflowY = 'auto';
+      dbgDiv.style.fontSize = '12px';
+      dbgDiv.style.resize = 'vertical';
+      dbgDiv.style.borderTop = '2px solid #444';
+      dbgDiv.style.padding = '8px 4px 32px 4px';
+      dbgDiv.style.boxSizing = 'border-box';
+      dbgDiv.style.pointerEvents = 'auto';
+      dbgDiv.style.marginBottom = '48px'; // Avoid overlap with logout
+      dbgDiv.innerHTML = '<pre id="debugLog" style="margin:0;white-space:pre-wrap;"></pre>';
+      document.body.appendChild(dbgDiv);
+    }
     window.__debugLog = function(msg) {
-      debugDiv.style.display = '';
-      debugDiv.innerHTML += `<div>${new Date().toISOString()} - ${msg}</div>`;
-      debugDiv.scrollTop = debugDiv.scrollHeight;
+      const log = document.getElementById('debugLog');
+      if (log) log.textContent += msg + '\n';
     };
-    window.__debugLog('Debug log viewer enabled.');
   }
-  setupDebugLog();
 
-  // Load default view
-  loadView('dashboard');
-  // Initial load (default to org view for customer admin)
-  window.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('kpiCardsRow')) {
-      loadDashboard('org');
+  // 7. Theme Toggle Button
+  const themeBtn = document.getElementById('themeToggleBtn');
+  if (themeBtn) {
+    themeBtn.onclick = function() {
+      const isDark = document.body.classList.toggle('theme-dark');
+      if (isDark) {
+        document.body.classList.remove('theme-light');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.body.classList.add('theme-light');
+        localStorage.setItem('theme', 'light');
+      }
+    };
+    // On load, set theme from localStorage
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+      document.body.classList.add('theme-light');
+      document.body.classList.remove('theme-dark');
+    } else {
+      document.body.classList.add('theme-dark');
+      document.body.classList.remove('theme-light');
     }
-  });
+  }
+
+  // Run initialization when the page is fully loaded
+  window.addEventListener('load', initializeDashboard);
+
 })();

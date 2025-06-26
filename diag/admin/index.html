@@ -3,45 +3,161 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard - MagenSec</title>
+  <title>MagenSec Command Center</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  
+  <!-- Tabler Core CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+
+  <!-- Your custom styles -->
   <link rel="stylesheet" href="css/admin.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Charting Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 </head>
-<body>
-    <button id="themeToggleBtn" style="position:fixed;left:16px;top:16px;z-index:100;width:180px;padding:0.5rem 0;border-radius:0.5rem;background:#2e7be4;color:#fff;border:none;cursor:pointer;font-size:1rem;">Switch Theme</button>
-    <div id="sidebar">
-      <!-- Sidebar content will be loaded here -->
-    </div>
-    <main id="mainContent">
-      <div id="viewSwitcher">
-        <button id="globalViewBtn">Global</button>
-        <button id="orgViewBtn">My Org</button>
+<body class="theme-dark">
+  <div class="page">
+    <!-- Sidebar -->
+    <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+      <div class="container-fluid">
+        <h1 class="navbar-brand">
+          <span class="navbar-brand-icon">🛡️</span>
+          <a href="." class="ms-2 navbar-brand-autodark text-decoration-none">MagenSec</a>
+        </h1>
+        <div class="collapse navbar-collapse" id="sidebar-menu">
+          <ul class="navbar-nav pt-lg-3">
+            <li class="nav-item active">
+              <a class="nav-link" href="#" data-view="dashboard">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-home"></i>
+                </span>
+                <span class="nav-link-title">
+                  Command Center
+                </span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-view="applications">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-apps"></i>
+                </span>
+                <span class="nav-link-title">
+                  Applications
+                </span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-view="devices">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-devices"></i>
+                </span>
+                <span class="nav-link-title">
+                  Devices
+                </span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link disabled" href="#" data-view="security" tabindex="-1" aria-disabled="true">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-shield-check"></i>
+                </span>
+                <span class="nav-link-title">
+                  Security
+                </span>
+              </a>
+            </li>
+             <li class="nav-item">
+              <a class="nav-link disabled" href="#" data-view="reports" tabindex="-1" aria-disabled="true">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-file-analytics"></i>
+                </span>
+                <span class="nav-link-title">
+                  Reports
+                </span>
+              </a>
+            </li>
+          </ul>
+           <div id="sidebar-footer" class="mt-auto">
+                <div id="expiryCounter" class="px-3"></div>
+           </div>
+        </div>
       </div>
-      <section id="kpiCardsRow" class="kpi-row"></section>
-      <section id="chartsSection" class="charts-section"></section>
-    </main>
-    <div id="expiryCounter"></div>
-    <script src="js/dataService.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script>
-      // Theme toggle logic
-      const themeBtn = document.getElementById('themeToggleBtn');
-      const body = document.body;
-      // Load theme from localStorage
-      if (localStorage.getItem('theme') === 'light') {
-        body.classList.add('light-theme');
-        themeBtn.textContent = 'Switch to Dark Theme';
-      }
-      themeBtn.addEventListener('click', () => {
-        body.classList.toggle('light-theme');
-        if (body.classList.contains('light-theme')) {
-          localStorage.setItem('theme', 'light');
-          themeBtn.textContent = 'Switch to Dark Theme';
-        } else {
-          localStorage.setItem('theme', 'dark');
-          themeBtn.textContent = 'Switch to Light Theme';
-        }
-      });
-    </script>
-  </body>
+    </aside>
+
+    <!-- Header -->
+    <header class="navbar navbar-expand-md d-print-none">
+        <div class="container-xl">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="navbar-nav flex-row ms-auto align-items-center order-md-last">
+                <div class="nav-item me-3">
+                    <div id="orgSwitcherContainer"></div>
+                </div>
+                <div class="nav-item me-3">
+                    <a href="help.html" target="_blank" class="nav-link px-0" title="Help & Documentation" data-bs-toggle="tooltip" data-bs-placement="bottom">
+                        <i class="ti ti-help-circle icon-lg"></i>
+                    </a>
+                </div>
+                <div class="nav-item me-3">
+                    <a href="#" id="timezoneToggle" class="nav-link px-0" title="Toggle Timezone" data-bs-toggle="tooltip" data-bs-placement="bottom">
+                        <i class="ti ti-clock icon-lg"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" id="themeToggleBtn" class="nav-link px-0" title="Toggle Theme" data-bs-toggle="tooltip" data-bs-placement="bottom">
+                        <i class="ti ti-sun icon-lg"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="page-wrapper">
+      <!-- Page header -->
+      <div class="page-header d-print-none">
+        <div class="container-xl">
+          <div class="row g-2 align-items-center">
+            <div class="col">
+              <h2 class="page-title">
+                Command Center
+              </h2>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Page body -->
+      <div class="page-body">
+        <div id="view-content" class="container-xl">
+          <!-- View-specific content will be injected here by the router -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabler Core JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js" defer></script>
+  
+  <!-- Core Application Logic -->
+  <!-- dataService must come first as other scripts depend on it -->
+  <script src="js/dataService.js" defer></script>
+
+  <!-- Utilities and View-specific logic -->
+  <script src="js/timeUtils.js" defer></script>
+  <script src="js/dashboardView.js" defer></script>
+  <script src="js/appView.js" defer></script>
+  <script src="js/deviceView.js" defer></script>
+  <script src="js/securityView.js" defer></script>
+  <script src="js/reportsView.js" defer></script>
+  
+  <!-- UI Components & Router -->
+  <script src="js/orgSwitcher.js" defer></script> 
+  <script src="js/router.js" defer></script>
+
+  <!-- Main dashboard initializer - must be last -->
+  <script src="js/dashboard.js" defer></script>
+
+</body>
 </html>

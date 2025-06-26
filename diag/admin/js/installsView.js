@@ -41,3 +41,14 @@ window.installsViewInit = async function installsViewInit(filterParams) {
     if (window.__debugLog) window.__debugLog('InstallTelemetry error: ' + e.message + ' Stack: ' + (e.stack||''));
   }
 };
+
+/*
+ * TODO: Modernize and modularize installsView.js using dashboardView.js patterns:
+ * - Modular filter dropdowns (Org, Process, Version, Aggregation)
+ * - Animated KPI cards for install metrics (e.g., Installs, Failures, Updates)
+ * - Timezone/theme toggles (reuse modular logic)
+ * - Responsive, modern tables/charts
+ * - Patch time displays for timezone
+ * - Preserve org/session/security logic
+ * - Add comments for extensibility
+ */

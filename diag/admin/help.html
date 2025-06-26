@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Help - MagenSec</title>
+  <link rel="stylesheet" href="css/admin.css">
+  <style>
+    body {
+      background-color: #1a1a1a;
+      color: #f0f0f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #2b2b2b;
+      padding: 2rem;
+      border-radius: 8px;
+    }
+    h1, h2 {
+      color: #4bc0c0;
+      border-bottom: 1px solid #444;
+      padding-bottom: 0.5rem;
+    }
+    code {
+      background: #333;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-family: "Courier New", Courier, monospace;
+    }
+    .kpi-explanation {
+      margin-bottom: 1.5rem;
+      padding-left: 1rem;
+      border-left: 3px solid #4bc0c0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Dashboard Help & Explanations</h1>
+    <p>This page provides details on how the metrics and visualizations in the Command Center dashboard are calculated.</p>
+
+    <h2>Key Performance Indicators (KPIs)</h2>
+
+    <div class="kpi-explanation">
+      <h3>Security Score</h3>
+      <p>The <strong>Security Score</strong> is a high-level metric (0-100) representing your organization's overall security posture. A higher score is better.</p>
+      <p>It is calculated using a weighted formula based on:</p>
+      <ul>
+        <li><strong>Vulnerability Density:</strong> The ratio of vulnerable applications to the total number of applications.</li>
+        <li><strong>Average Exploitability:</strong> The average <code>ExploitProbability</code> across all discovered applications.</li>
+      </ul>
+      <p>The goal is to provide an at-a-glance understanding of your risk exposure.</p>
+    </div>
+
+    <div class="kpi-explanation">
+        <h3>Managed Devices</h3>
+        <p>This is the total count of unique devices (endpoints) that have reported telemetry data.</p>
+    </div>
+
+    <div class="kpi-explanation">
+        <h3>Unique Applications</h3>
+        <p>This is the total count of distinct application names found across all managed devices.</p>
+    </div>
+
+    <div class="kpi-explanation">
+        <h3>High-Risk Assets</h3>
+        <p>This counts the number of devices that have at least one application with a critical vulnerability (<code>ExploitProbability > 0.7</code>).</p>
+    </div>
+
+    <h2>Charts & Visualizations</h2>
+
+    <div class="kpi-explanation">
+      <h3>Security Posture (Last 30 Days)</h3>
+      <p>This chart shows the trend of your Security Score over the past 30 days.</p>
+      <p><strong>Note:</strong> Currently, this chart uses a simulated projection for demonstration purposes. In a production environment, this would be populated with historical snapshot data of the daily security score.</p>
+    </div>
+
+    <div class="kpi-explanation">
+        <h3>Vulnerability Breakdown</h3>
+        <p>This donut chart categorizes all vulnerable applications based on their <code>ExploitProbability</code> into three buckets:</p>
+        <ul>
+            <li><strong>Critical:</strong> Probability > 70%</li>
+            <li><strong>High:</strong> Probability between 40% and 70%</li>
+            <li><strong>Medium:</strong> Probability <= 40%</li>
+        </ul>
+    </div>
+
+    <div class="kpi-explanation">
+        <h3>Top 5 Riskiest Applications</h3>
+        <p>This bar chart highlights the applications with the highest <code>ExploitProbability</code>, allowing you to prioritize remediation efforts on the most significant threats.</p>
+    </div>
+
+  </div>
+</body>
+</html>
