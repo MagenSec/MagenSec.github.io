@@ -90,6 +90,39 @@ const dataService = (() => {
     return data;
   }
 
+  async function fetchOData(table, org, params = {}) {
+    const orgString = org || sessionStorage.getItem('org') || 'all';
+    const key = `${table}:${orgString}:${JSON.stringify(params)}`;
+    const cachedItem = cache.getItem(key);
+
+    if (cachedItem && Date.now() < cachedItem.expiry) {
+      console.log(`[Cache] HIT for ${key.substring(0, 100)}...`);
+      return cachedItem.data;
+    }
+    console.log(`[Cache] MISS for ${key.substring(0, 100)}...`);
+
+    const url = await loadSasUrl(table);
+    if (!url) throw new Error('SAS URL not loaded');
+
+    const urlObj = new URL(url);
+
+    const orgs = orgString.split(',').filter(Boolean);
+    if (orgs.length > 0 && orgs[0] !== 'all') {
+        const filterQuery = orgs.map(o => `Context1 eq '${o}'`).join(' or ');
+        urlObj.searchParams.set('$filter', filterQuery);
+        console.log(`Applying filter: ${filterQuery}`);
+    }
+
+    for (const [k, v] of Object.entries(params)) {
+      urlObj.searchParams.set(k, v);
+    }
+    const res = await fetch(urlObj.toString());
+    if (!res.ok) throw new Error(`Data fetch failed for table ${table} with status ${res.status}`);
+    const data = await res.json();
+    cache.setItem(key, { data, expiry: Date.now() + CACHE_TTL });
+    return data;
+  }
+
   function getExpiry() {
     return expiry;
   }
