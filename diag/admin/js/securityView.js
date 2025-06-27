@@ -92,10 +92,9 @@ window.securityViewInit = async function(container, { dataService }) {
         <div class="col-sm-6 col-lg-3">
             <div class="card kpi-tile">
                 <div class="card-body">
-                    <div class="subheader">Medium / Low</div>
+                    <div class="subheader">Medium & Low Severity</div>
                     <div class="h1 mt-2">
-                        <span>${(summary.bySeverity.Medium || 0).toLocaleString()}</span> /
-                        <span class="text-muted">${(summary.bySeverity.Low || 0).toLocaleString()}</span>
+                        <span>${((summary.bySeverity.Medium || 0) + (summary.bySeverity.Low || 0)).toLocaleString()}</span>
                     </div>
                 </div>
             </div>

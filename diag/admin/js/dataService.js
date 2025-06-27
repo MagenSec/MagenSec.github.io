@@ -1,6 +1,6 @@
 // dataService.js: OData fetch, caching, expiry logic
 console.log('dataService.js loaded');
-const dataService = (() => {
+window.dataService = (() => {
   // Use sessionStorage for a more persistent cache across views and page reloads
   const cache = {
     _prefix: 'magenSecCache:',
@@ -50,7 +50,15 @@ const dataService = (() => {
   let sasUrlMap = {};
   let orgsList = null; // Cache for the orgs list
 
-  async function getOrgs() {
+  async function init() {
+    // Initialize by fetching the org list and SAS expiry in parallel.
+    await Promise.all([
+        getOrgList(),
+        fetchSasExpiry()
+    ]);
+  }
+
+  async function getOrgList() {
     if (orgsList) return orgsList;
 
     // Fetch unique organizations directly from telemetry data.
@@ -712,6 +720,79 @@ const dataService = (() => {
   }
 
   // =================================================================
+  // Installs View Data Logic
+  // =================================================================
+  async function getInstallsData(org) {
+    org = org || sessionStorage.getItem('org');
+    // Select fields relevant to software installation tracking
+    const installData = await fetchOData('InstallTelemetry', org, {
+        '$select': 'AppName,AppVersion,Publisher,InstallDate,Context2,LifecycleState,ClientVersion'
+    });
+
+    if (!installData || !installData.value || !installData.value.length === 0) {
+        return {
+            installs: [],
+            summary: { total: 0, installed: 0, uninstalled: 0, byDay: {} },
+            timelineData: []
+        };
+    }
+
+    const rawInstalls = installData.value;
+
+    const installList = rawInstalls.map(i => ({
+        appName: i.AppName || 'Unknown App',
+        version: i.AppVersion || 'N/A',
+        publisher: i.Publisher || 'Unknown Publisher',
+        installDate: i.InstallDate,
+        device: i.Context2 || 'Unknown Device',
+        lifecycleState: i.LifecycleState || 'Unknown',
+        clientVersion: i.ClientVersion || 'N/A'
+    })).sort((a, b) => {
+        const dateA = a.installDate ? new Date(a.installDate).getTime() : 0;
+        const dateB = b.installDate ? new Date(b.installDate).getTime() : 0;
+        // Handle NaN cases where date is invalid
+        if (isNaN(dateA)) return 1;  // push a to the end
+        if (isNaN(dateB)) return -1; // push b to the end
+        return dateB - dateA; // descending sort
+    });
+
+    const byDay = {};
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    installList.forEach(i => {
+        if (i.installDate) {
+            const d = new Date(i.installDate);
+            if (d > thirtyDaysAgo) {
+                const day = d.toISOString().split('T')[0];
+                if (!byDay[day]) {
+                    byDay[day] = { installed: 0, uninstalled: 0 };
+                }
+                if (i.lifecycleState === 'Installed') {
+                    byDay[day].installed++;
+                } else if (i.lifecycleState === 'Uninstalled') {
+                    byDay[day].uninstalled++;
+                }
+            }
+        }
+    });
+
+    const summary = {
+        total: installList.length,
+        installed: installList.filter(i => i.lifecycleState === 'Installed').length,
+        uninstalled: installList.filter(i => i.lifecycleState === 'Uninstalled').length,
+        byDay
+    };
+
+    const timelineData = Object.entries(byDay).map(([date, counts]) => {
+        return [new Date(date), counts.installed, counts.uninstalled];
+    }).sort((a, b) => a[0] - b[0]);
+
+
+    return { installs: installList, summary, timelineData };
+  }
+
+  // =================================================================
   // Security View Data Logic
   // =================================================================
   async function getSecurityData(org) {
@@ -741,7 +822,6 @@ const dataService = (() => {
     const medium = vulnerabilities.filter(v => v.ExploitProbability > 0.4 && v.ExploitProbability <= 0.7).length;
     const low = vulnerabilities.filter(v => v.ExploitProbability > 0 && v.ExploitProbability <= 0.4).length;
 
-    // FIX: Restructure summary to match securityView expectations
     const summary = {
         totalEvents: vulnerabilities.length,
         affectedDevices: affectedDevices.size,
@@ -800,10 +880,10 @@ const dataService = (() => {
         totalSecurityEvents: securityEvents.length,
         securityEvents: securityEvents,
         securityEventsBySeverity: {
-            Critical: securitySummary.critical || 0,
-            High: securitySummary.high || 0,
-            Medium: securitySummary.medium || 0,
-            Low: securitySummary.low || 0,
+            Critical: securitySummary.bySeverity.Critical || 0,
+            High: securitySummary.bySeverity.High || 0,
+            Medium: securitySummary.bySeverity.Medium || 0,
+            Low: securitySummary.bySeverity.Low || 0,
         },
 
         // Report metadata
@@ -837,94 +917,29 @@ const dataService = (() => {
         }
     });
 
-    report.applications = Array.from(appMap.values()).map(app => ({
-        ...app,
-        versions: Array.from(app.versions).join(', ')
-    })).sort((a, b) => b.maxRisk - a.maxRisk);
+    // Convert map back to array and join versions
+    report.applications = Array.from(appMap.values()).map(app => {
+        app.versions = Array.from(app.versions).join(', ');
+        return app;
+    });
 
     return report;
   }
 
-  async function getInstallData(org) {
-    org = org || sessionStorage.getItem('org');
-    const installData = await fetchOData('InstallTelemetry', org);
-
-    if (!installData || !installData.value || !installData.value.length === 0) {
-        return {
-            installs: [],
-            summary: {
-                total: 0,
-                successful: 0,
-                failed: 0,
-                last24h: 0,
-                last7d: 0,
-            }
-        };
-    }
-
-    const installs = installData.value;
-    const now = Date.now();
-    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-    const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
-
-    let successful = 0;
-    let failed = 0;
-    let last24h = 0;
-    let last7d = 0;
-
-    installs.forEach(i => {
-        const timestamp = new Date(i.Timestamp).getTime();
-        // Assuming 'Succeeded' and 'Completed' status for successful installs.
-        if (i.Status === 'Succeeded' || i.Status === 'Completed') {
-            successful++;
-        } else {
-            failed++;
-        }
-
-        if (timestamp >= twentyFourHoursAgo) {
-            last24h++;
-        }
-        if (timestamp >= sevenDaysAgo) {
-            last7d++;
-        }
-    });
-
-    const summary = {
-        total: installs.length,
-        successful,
-        failed,
-        last24h,
-        last7d
-    };
-
-    const installList = installs.map(i => ({
-        timestamp: i.Timestamp,
-        device: i.Context2,
-        appName: i.Context3,
-        status: i.Status,
-        details: i.Details || '',
-        version: i.ClientVersion || 'N/A'
-    })).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-    return { installs: installList, summary };
-  }
 
   // =================================================================
   // Public API
   // =================================================================
   return {
-    getOrgs,
+    init,
+    fetchOData,
     getDashboardMetrics,
-    getApplicationData,
     getDeviceData,
+    getApplicationData,
+    getPerformanceData: getPerfData,
+    getInstallsData,
     getSecurityData,
-    getPerfData,
-    getInstallData,
     getReportsData,
+    getOrgList
   };
 })();
-
-export default dataService;
-
-// Make it globally available
-window.dataService = dataService;

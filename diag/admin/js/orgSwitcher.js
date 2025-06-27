@@ -112,7 +112,7 @@ export async function initOrgSwitcher() {
 
     if (isAdmin) {
         try {
-            const orgs = (window.dataService && window.dataService.getOrgs) ? await window.dataService.getOrgs() : [];
+            const orgs = (window.dataService && window.dataService.getOrgList) ? await window.dataService.getOrgList() : [];
             if (!orgs.length) {
                 console.warn('No orgs found or dataService not ready.');
                 renderNonAdminSwitcher(orgSwitcherContainer, 'Admin (No Orgs)');

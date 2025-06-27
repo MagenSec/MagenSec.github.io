@@ -25,7 +25,7 @@ async function loadPerfData(container, { dataService }, days = 1) {
 
   try {
     const org = sessionStorage.getItem('org') || 'Global';
-    const { summary, timeSeries } = await dataService.getPerfData(org, days);
+    const { summary, timeSeries } = await dataService.getPerformanceData(org, days);
 
     await googleChartsLoaded;
     renderPerfView(container, summary, timeSeries);

@@ -71,7 +71,12 @@
       // Re-render the view to apply the new time format
       if (window.currentViewInit && typeof window.currentViewInit === 'function') {
           const container = document.getElementById('view-content');
-          window.currentViewInit(container);
+          // FIX: Pass the dataService dependency, which all views now require for re-initialization.
+          if (container && window.dataService) {
+            window.currentViewInit(container, { dataService: window.dataService });
+          } else {
+            console.error('Cannot refresh view: container or dataService not found.');
+          }
       }
     });
 

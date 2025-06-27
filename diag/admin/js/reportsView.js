@@ -182,19 +182,21 @@ window.reportsViewInit = async function reportsViewInit(container, { dataService
         ]);
         html += renderReportTable('Device Fleet Overview', deviceHeaders, deviceRows);
 
-        // 3. Application Table
-        const appHeaders = ['Application', 'Publisher', 'Versions', 'Installations', 'Highest Risk'];
-        const appRows = report.applications.map(a => [
-            a.name || 'N/A',
-            a.publisher || 'N/A',
-            `<div class="text-truncate" style="max-width: 200px;" title="${a.versions}">${a.versions || 'N/A'}</div>`,
-            a.installCount || 0,
-            a.riskLevel || 'N/A'
-        ]);
-        html += renderReportTable('Application Landscape (Aggregated)', appHeaders, appRows);
-        
-        // 4. Security Events Table
+        // 3. Security Events Table (Sorted by severity)
         const eventHeaders = ['Timestamp', 'Device', 'Description', 'Severity'];
+        const severityOrder = { 'Critical': 1, 'High': 2, 'Medium': 3, 'Low': 4, 'Informational': 5 };
+        report.securityEvents.sort((a, b) => {
+            const severityA = severityOrder[a.severity] || 99;
+            const severityB = severityOrder[b.severity] || 99;
+            if (severityA !== severityB) {
+                return severityA - severityB;
+            }
+            // Secondary sort by timestamp, newest first
+            const timeA = a.detected ? new Date(a.detected).getTime() : 0;
+            const timeB = b.detected ? new Date(b.detected).getTime() : 0;
+            return timeB - timeA;
+        });
+
         const eventRows = report.securityEvents.slice(0, 50).map(e => { // Limit to most recent 50
             const severityClass = {
                 'Critical': 'danger',
@@ -212,6 +214,18 @@ window.reportsViewInit = async function reportsViewInit(container, { dataService
         });
         html += renderReportTable('Recent Security Events (Top 50)', eventHeaders, eventRows);
 
+        // 4. Application Table (Sorted by install count)
+        const appHeaders = ['Application', 'Publisher', 'Versions', 'Installations', 'Highest Risk'];
+        report.applications.sort((a, b) => (b.installCount || 0) - (a.installCount || 0));
+        const appRows = report.applications.map(a => [
+            a.name || 'N/A',
+            a.publisher || 'N/A',
+            `<div class="text-truncate" style="max-width: 200px;" title="${a.versions}">${a.versions || 'N/A'}</div>`,
+            a.installCount || 0,
+            a.riskLevel || 'N/A'
+        ]);
+        html += renderReportTable('Application Landscape (Aggregated)', appHeaders, appRows);
+        
         reportContent.innerHTML = html;
 
         // Add event listener for the print button

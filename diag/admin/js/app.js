@@ -1,5 +1,4 @@
 import { initOrgSwitcher } from './orgSwitcher.js';
-import dataService from './dataService.js';
 
 // app.js: Main application entry point, router, and event handlers.
 console.log('app.js loaded');
@@ -72,7 +71,7 @@ async function initializeApp(container) {
             window.currentViewInit = viewInitializer;
             
             // Initialize the view, passing dependencies
-            await viewInitializer(container, { dataService });
+            await viewInitializer(container, { dataService: window.dataService });
 
         } catch (error) {
             console.error(`Error loading view: ${viewName}`, error);
@@ -136,8 +135,18 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Google Charts loaded');
         const contentContainer = document.getElementById('view-content');
         if (contentContainer) {
-            initializeApp(contentContainer);
-            await initOrgSwitcher();
+            try {
+                // First, initialize the data service and wait for it to be ready.
+                await window.dataService.init();
+                console.log('dataService initialized successfully.');
+
+                // Now that dataService is ready, initialize the rest of the app.
+                initializeApp(contentContainer);
+                await initOrgSwitcher(window.dataService);
+            } catch (error) {
+                console.error('Failed to initialize the application:', error);
+                contentContainer.innerHTML = `<div class="alert alert-danger">Failed to initialize application: ${error.message}</div>`;
+            }
         } else {
             console.error('Main content container #view-content not found.');
         }
