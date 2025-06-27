@@ -109,8 +109,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize theme switcher from the global scope
     if (window.themeSwitcherInit) {
         window.themeSwitcherInit();
+    }
+
+    // Initialize timezone toggle
+    if (window.initTimezoneToggle) {
+        window.initTimezoneToggle();
     } else {
-        console.error('Theme switcher initialization function not found.');
+        console.error('Timezone toggle initialization function not found.');
     }
 
     // Handle logout

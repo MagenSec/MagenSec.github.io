@@ -44,6 +44,9 @@ function renderDeviceView(container, devices, summary) {
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="subheader">Total Devices</div>
+              <div class="ms-auto lh-1">
+                <i class="ti ti-device-desktop text-muted"></i>
+              </div>
             </div>
             <div class="h1 mb-3">${summary.total}</div>
           </div>
@@ -54,6 +57,9 @@ function renderDeviceView(container, devices, summary) {
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="subheader">Live Devices</div>
+               <div class="ms-auto lh-1">
+                <i class="ti ti-wifi text-success"></i>
+              </div>
             </div>
             <div class="h1 mb-3 text-success">${summary.live}</div>
           </div>
@@ -63,17 +69,25 @@ function renderDeviceView(container, devices, summary) {
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">Offline Devices</div>
+              <div class="subheader">Most Common Memory</div>
+              <div class="ms-auto lh-1">
+                <i class="ti ti-database text-muted"></i>
+              </div>
             </div>
-            <div class="h1 mb-3 text-muted">${summary.offline}</div>
+            <div class="h1 mb-3">${summary.mostCommonMemory}</div>
           </div>
         </div>
       </div>
       <div class="col-sm-6 col-lg-3">
         <div class="card">
           <div class="card-body">
-            <div class="subheader">Platforms</div>
-            <div class="h1 mb-3">${Object.keys(summary.byPlatform).map(p => `${p}: ${summary.byPlatform[p]}`).join(', ') || 'N/A'}</div>
+            <div class="d-flex align-items-center">
+              <div class="subheader">Most Common CPU</div>
+              <div class="ms-auto lh-1">
+                <i class="ti ti-cpu text-muted"></i>
+              </div>
+            </div>
+            <div class="h1 mb-3">${summary.mostCommonCpu}</div>
           </div>
         </div>
       </div>
@@ -85,7 +99,7 @@ function renderDeviceView(container, devices, summary) {
             <h3 class="card-title">Memory Distribution</h3>
           </div>
           <div class="card-body">
-            <div id="mem-dist-chart" style="height: 250px"></div>
+            <div id="mem-dist-chart" style="height: 250px" data-chart-type="google"></div>
           </div>
         </div>
       </div>
@@ -95,7 +109,7 @@ function renderDeviceView(container, devices, summary) {
             <h3 class="card-title">CPU Core Distribution</h3>
           </div>
           <div class="card-body">
-            <div id="cpu-dist-chart" style="height: 250px"></div>
+            <div id="cpu-dist-chart" style="height: 250px" data-chart-type="google"></div>
           </div>
         </div>
       </div>
@@ -116,7 +130,7 @@ function renderDeviceView(container, devices, summary) {
             <table class="table card-table table-vcenter text-nowrap datatable" id="device-table">
               <thead>
                 <tr>
-                  <th class="w-1 sortable" data-sort="name">Device Name</th>
+                  <th class="w-1 sortable" data-sort="name">Hostname</th>
                   <th class="sortable" data-sort="os">Operating System</th>
                   <th class="sortable" data-sort="clientVersion">Client Version</th>
                   <th class="sortable" data-sort="status">Status</th>
@@ -149,8 +163,8 @@ function renderDeviceView(container, devices, summary) {
 
 function renderDistributionChart(elementId, title, data) {
     const container = document.getElementById(elementId);
-    if (!container || !data) {
-        container.innerHTML = '<div class="text-muted text-center">No data available.</div>';
+    if (!container || !data || Object.keys(data).length === 0) {
+        container.innerHTML = '<div class="text-muted text-center pt-5">No distribution data available.</div>';
         return;
     }
 
@@ -167,11 +181,12 @@ function renderDistributionChart(elementId, title, data) {
         legend: { textStyle: textStyle, position: 'right' },
         titleTextStyle: { color: textStyle.color, fontName: 'inherit', fontSize: 16, bold: false },
         tooltip: { textStyle: { fontName: 'inherit' } },
-        colors: ['#206bc4', '#79a6dc', '#d1e0f6', '#f0f6ff', '#a6cffc']
+        colors: ['#206bc4', '#79a6dc', '#d1e0f6', '#f0f6ff', '#a6cffc', '#6c7a89', '#95a5a6']
     };
 
     const chart = new google.visualization.PieChart(container);
     chart.draw(dataTable, options);
+    container.chartInstance = { chart, data: dataTable, options, type: 'PieChart' };
 }
 
 function addDeviceEventListeners() {

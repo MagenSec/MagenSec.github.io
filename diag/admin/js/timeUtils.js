@@ -52,33 +52,26 @@
    * Initializes the timezone toggle button in the header.
    */
   window.initTimezoneToggle = function() {
-    const toggleBtn = document.getElementById('timezoneToggle');
-    if (!toggleBtn) return;
-
-    const icon = toggleBtn.querySelector('i');
+    const toggleSwitch = document.getElementById('timezoneToggle');
+    if (!toggleSwitch) return;
+    const label = document.querySelector('label[for="timezoneToggle"]');
 
     function updateAppearance() {
       const useLocal = getUseLocalTime();
-      if (icon) {
-        icon.className = useLocal ? 'ti ti-world-longitude' : 'ti ti-clock';
-      }
-      const newTitle = useLocal ? 'Switch to UTC Time' : 'Switch to Local Time';
-      toggleBtn.setAttribute('data-bs-original-title', newTitle);
-      const tooltip = bootstrap.Tooltip.getInstance(toggleBtn);
-      if (tooltip) {
-        tooltip.setContent({ '.tooltip-inner': newTitle });
+      toggleSwitch.checked = useLocal;
+      if (label) {
+        label.textContent = useLocal ? 'Local Time' : 'UTC Time';
       }
     }
 
-    toggleBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const current = getUseLocalTime();
-      sessionStorage.setItem('useLocalTime', current ? '0' : '1');
+    toggleSwitch.addEventListener('change', (e) => {
+      sessionStorage.setItem('useLocalTime', e.target.checked ? '1' : '0');
       updateAppearance();
 
       // Re-render the view to apply the new time format
-      if (window.currentViewInit) {
-        window.currentViewInit();
+      if (window.currentViewInit && typeof window.currentViewInit === 'function') {
+          const container = document.getElementById('view-content');
+          window.currentViewInit(container);
       }
     });
 

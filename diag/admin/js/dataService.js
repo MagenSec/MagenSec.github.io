@@ -464,78 +464,129 @@ const dataService = (() => {
         fetchOData('PerfTelemetry', org)
     ]);
 
-    const defaultResult = { 
-        devices: [], 
-        summary: { 
+    const defaultResult = {
+        devices: [],
+        summary: {
             total: 0, live: 0, offline: 0, byPlatform: {},
-            hardware: {
-                cpu: { 'Unknown': 0 },
-                memory: { 'Unknown': 0 }
-            }
-        } 
+            memoryDistribution: {}, cpuCoreDistribution: {},
+            mostCommonMemory: 'N/A', mostCommonCpu: 'N/A'
+        }
     };
-    if (!installData || !installData.value || installData.value.length === 0) return defaultResult;
+
+    if ((!installData || !installData.value || installData.value.length === 0) && 
+        (!perfData || !perfData.value || perfData.value.length === 0)) {
+        return defaultResult;
+    }
 
     const deviceMap = new Map();
     const now = Date.now();
     const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
 
-    installData.value.forEach(record => {
-        const deviceId = record.Context2;
-        if (!deviceId) return;
-        const timestamp = new Date(record.Timestamp).getTime();
-        if (!deviceMap.has(deviceId)) {
-            deviceMap.set(deviceId, {
-                id: deviceId, hostname: record.DeviceHostname || 'Unknown',
-                os: record.Platform || 'Windows', lastSeen: 0,
-                maxMem: 0
-            });
-        }
-        const device = deviceMap.get(deviceId);
-        if (timestamp > device.lastSeen) device.lastSeen = timestamp;
-    });
-
-    if (perfData && perfData.value) {
-        perfData.value.forEach(p => {
-            const deviceId = p.Context2;
-            if (deviceMap.has(deviceId)) {
-                const mem = parseFloat(p.MemAvgMB) || 0;
+    // First pass with install data for basic device info
+    if (installData && installData.value) {
+        installData.value.forEach(record => {
+            const deviceId = record.Context2;
+            if (!deviceId) return;
+            const timestamp = new Date(record.Timestamp).getTime();
+            if (!deviceMap.has(deviceId)) {
+                deviceMap.set(deviceId, {
+                    id: deviceId,
+                    hostname: record.DeviceHostname || 'Unknown',
+                    os: record.Platform || 'Windows',
+                    lastSeen: timestamp,
+                    clientVersion: 'N/A',
+                    cpuCores: null,
+                    totalMemoryGB: null
+                });
+            } else {
                 const device = deviceMap.get(deviceId);
-                if (mem > device.maxMem) {
-                    device.maxMem = mem;
+                if (timestamp > device.lastSeen) {
+                    device.lastSeen = timestamp;
                 }
             }
         });
     }
 
-    const devices = Array.from(deviceMap.values()).map(d => ({ ...d, status: d.lastSeen >= twentyFourHoursAgo ? 'Live' : 'Offline' }));
-    
-    const memBuckets = { '<8GB': 0, '8-16GB': 0, '16-32GB': 0, '>32GB': 0, 'Unknown': 0 };
+    // Second pass with perf data to enrich and update
+    if (perfData && perfData.value) {
+        perfData.value.forEach(p => {
+            const deviceId = p.Context2;
+            if (!deviceId) return;
+            const timestamp = new Date(p.Timestamp).getTime();
+
+            if (!deviceMap.has(deviceId)) {
+                // This case handles devices that only have perf data (less likely but possible)
+                deviceMap.set(deviceId, {
+                    id: deviceId,
+                    hostname: p.DeviceHostname || 'Unknown',
+                    os: p.Platform || 'Windows',
+                    lastSeen: timestamp,
+                    clientVersion: p.AppVersion,
+                    cpuCores: p.CpuCores,
+                    totalMemoryGB: p.TotalMemoryGB
+                });
+            } else {
+                const device = deviceMap.get(deviceId);
+                if (timestamp > device.lastSeen) {
+                    device.lastSeen = timestamp;
+                }
+                device.clientVersion = p.AppVersion || device.clientVersion;
+                device.cpuCores = p.CpuCores || device.cpuCores;
+                device.totalMemoryGB = p.TotalMemoryGB || device.totalMemoryGB;
+            }
+        });
+    }
+
+    const devices = Array.from(deviceMap.values());
+
+    // Calculate summaries
+    const total = deviceMap.size;
+    let live = 0;
+    const byPlatform = {};
+    const memoryDistribution = {};
+    const cpuCoreDistribution = {};
+
     devices.forEach(d => {
-        if (d.maxMem === 0) memBuckets['Unknown']++;
-        else if (d.maxMem < 8000) memBuckets['<8GB']++;
-        else if (d.maxMem < 16000) memBuckets['8-16GB']++;
-        else if (d.maxMem < 32000) memBuckets['16-32GB']++;
-        else memBuckets['>32GB']++;
-    });
-    
-    const summary = {
-        total: devices.length,
-        live: devices.filter(d => d.status === 'Live').length,
-        offline: devices.filter(d => d.status === 'Offline').length,
-        byPlatform: devices.reduce((acc, d) => { acc[d.os] = (acc[d.os] || 0) + 1; return acc; }, {}),
-        hardware: {
-            cpu: {
-                '4-Core': Math.floor(devices.length * 0.6),
-                '8-Core': Math.floor(devices.length * 0.3),
-                '16-Core': Math.floor(devices.length * 0.1)
-            },
-            memory: memBuckets
+        if (d.lastSeen >= twentyFourHoursAgo) live++;
+        if (d.os) byPlatform[d.os] = (byPlatform[d.os] || 0) + 1;
+
+        if (d.totalMemoryGB) {
+            const mem = `${Math.round(d.totalMemoryGB)} GB`;
+            memoryDistribution[mem] = (memoryDistribution[mem] || 0) + 1;
+        } else {
+            memoryDistribution['Unknown'] = (memoryDistribution['Unknown'] || 0) + 1;
         }
+
+        if (d.cpuCores) {
+            const cores = `${d.cpuCores} Cores`;
+            cpuCoreDistribution[cores] = (cpuCoreDistribution[cores] || 0) + 1;
+        } else {
+            cpuCoreDistribution['Unknown'] = (cpuCoreDistribution['Unknown'] || 0) + 1;
+        }
+    });
+
+    const offline = total - live;
+    
+    const mostCommonMemory = total > 0 ? Object.keys(memoryDistribution).reduce((a, b) => memoryDistribution[a] > memoryDistribution[b] ? a : b, 'N/A') : 'N/A';
+    const mostCommonCpu = total > 0 ? Object.keys(cpuCoreDistribution).reduce((a, b) => cpuCoreDistribution[a] > cpuCoreDistribution[b] ? a : b, 'N/A') : 'N/A';
+
+    const summary = {
+        total, live, offline, byPlatform,
+        memoryDistribution, cpuCoreDistribution,
+        mostCommonMemory, mostCommonCpu
     };
-    return { devices, summary };
+
+    const deviceList = devices.map(d => ({
+        name: d.hostname,
+        os: d.os,
+        clientVersion: d.clientVersion || 'N/A',
+        status: d.lastSeen >= twentyFourHoursAgo ? 'Live' : 'Offline',
+        lastSeenTimestamp: d.lastSeen
+    }));
+
+    return { devices: deviceList, summary };
   }
-  
+
   async function getSecurityData(org) {
     org = org || sessionStorage.getItem('org');
     const [appData, installData] = await Promise.all([
@@ -543,7 +594,7 @@ const dataService = (() => {
         fetchOData('InstallTelemetry', org)
     ]);
     const defaultResult = { events: [], summary: { totalEvents: 0, critical: 0, high: 0, byType: {} } };
-    if (!appData || !appData.value || appData.value.length === 0) return defaultResult;
+    if (!appData || appData.value.length === 0) return defaultResult;
 
     const deviceHostnames = new Map();
     if (installData && installData.value) {
@@ -583,59 +634,71 @@ const dataService = (() => {
     org = org || sessionStorage.getItem('org');
     const perfData = await fetchOData('PerfTelemetry', org);
 
-    const defaultResult = { 
-        summary: { avgCpu: 0, avgMem: 0 },
-        timeSeries: [] 
+    const defaultResult = {
+        summary: { 
+            avgCpu: 0, peakCpu: 0, 
+            avgMem: 0, peakMem: 0, 
+            avgDiskRead: 0, avgDiskWrite: 0,
+            deviceCount: 0
+        },
+        timeSeries: []
     };
-    if (!perfData || !perfData.value || perfData.value.length === 0) {
+    if (!perfData || !perfData.value || !perfData.value.length === 0) {
         console.warn('getPerformanceData: No data available.');
         return defaultResult;
     }
 
     const perfs = perfData.value;
+    const deviceSet = new Set();
 
-    // Calculate summary stats from the last 24 hours
-    const now = Date.now();
-    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-    const recentPerfs = perfs.filter(p => new Date(p.Timestamp).getTime() >= twentyFourHoursAgo);
+    // Calculate summary stats from all available data for a better overview
+    const cpuVals = perfs.map(p => parseFloat(p.CpuAvg) || 0);
+    const memVals = perfs.map(p => parseFloat(p.MemAvgMB) || 0);
+    const diskReadVals = perfs.map(p => parseFloat(p.IoReadLatencyMs) || 0);
+    const diskWriteVals = perfs.map(p => parseFloat(p.IoWriteLatencyMs) || 0);
+    perfs.forEach(p => deviceSet.add(p.Context2));
 
-    const cpuVals = recentPerfs.map(p => parseFloat(p.CpuAvg) || 0);
-    const memVals = recentPerfs.map(p => parseFloat(p.MemAvgMB) || 0);
-
-    const avgCpu = cpuVals.length > 0 ? (cpuVals.reduce((a, b) => a + b, 0) / cpuVals.length).toFixed(1) : 0;
-    const avgMem = memVals.length > 0 ? Math.round(memVals.reduce((a, b) => a + b, 0) / memVals.length) : 0;
-
-    const summary = { avgCpu, avgMem };
+    const summary = {
+        avgCpu: cpuVals.length > 0 ? (cpuVals.reduce((a, b) => a + b, 0) / cpuVals.length).toFixed(1) : 0,
+        peakCpu: cpuVals.length > 0 ? Math.max(...cpuVals).toFixed(1) : 0,
+        avgMem: memVals.length > 0 ? Math.round(memVals.reduce((a, b) => a + b, 0) / memVals.length) : 0,
+        peakMem: memVals.length > 0 ? Math.round(Math.max(...memVals)) : 0,
+        avgDiskRead: diskReadVals.length > 0 ? (diskReadVals.reduce((a, b) => a + b, 0) / diskReadVals.length).toFixed(2) : 0,
+        avgDiskWrite: diskWriteVals.length > 0 ? (diskWriteVals.reduce((a, b) => a + b, 0) / diskWriteVals.length).toFixed(2) : 0,
+        deviceCount: deviceSet.size
+    };
 
     // Create aggregated time series from all data for context
     const timeSeriesMap = new Map();
     perfs.forEach(p => {
-        // Round timestamp to the nearest 5 minutes to aggregate points
+        // Round timestamp to the nearest hour for a cleaner graph
         const d = new Date(p.Timestamp);
-        const roundedMinutes = Math.round(d.getMinutes() / 5) * 5;
-        d.setMinutes(roundedMinutes, 0, 0);
-        const timestamp = d.toISOString();
+        d.setMinutes(0, 0, 0);
+        const timestampKey = d.getTime();
 
-        const cpu = parseFloat(p.CpuAvg) || 0;
-        const memory = parseFloat(p.MemAvgMB) || 0;
-
-        if (!timeSeriesMap.has(timestamp)) {
-            timeSeriesMap.set(timestamp, { timestamp, cpus: [], memories: [] });
+        if (!timeSeriesMap.has(timestampKey)) {
+            timeSeriesMap.set(timestampKey, {
+                timestamp: d,
+                cpu: [],
+                memory: [],
+                diskRead: [],
+                diskWrite: []
+            });
         }
-        const entry = timeSeriesMap.get(timestamp);
-        entry.cpus.push(cpu);
-        entry.memories.push(memory);
+        const entry = timeSeriesMap.get(timestampKey);
+        entry.cpu.push(parseFloat(p.CpuAvg) || 0);
+        entry.memory.push(parseFloat(p.MemAvgMB) || 0);
+        entry.diskRead.push(parseFloat(p.IoReadLatencyMs) || 0);
+        entry.diskWrite.push(parseFloat(p.IoWriteLatencyMs) || 0);
     });
 
-    const timeSeries = Array.from(timeSeriesMap.values()).map(entry => {
-        const avgCpu = entry.cpus.reduce((a, b) => a + b, 0) / entry.cpus.length;
-        const avgMem = entry.memories.reduce((a, b) => a + b, 0) / entry.memories.length;
-        return {
-            timestamp: entry.timestamp,
-            cpu: avgCpu,
-            memory: avgMem
-        };
-    }).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const timeSeries = Array.from(timeSeriesMap.values()).map(entry => ({
+        timestamp: entry.timestamp,
+        cpu: entry.cpu.reduce((a, b) => a + b, 0) / entry.cpu.length,
+        memory: entry.memory.reduce((a, b) => a + b, 0) / entry.memory.length,
+        diskRead: entry.diskRead.reduce((a, b) => a + b, 0) / entry.diskRead.length,
+        diskWrite: entry.diskWrite.reduce((a, b) => a + b, 0) / entry.diskWrite.length,
+    })).sort((a, b) => a.timestamp - b.timestamp);
 
     return { summary, timeSeries };
   }

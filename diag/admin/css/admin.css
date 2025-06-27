@@ -99,6 +99,18 @@ body {
     min-height: 180px;
 }
 
+.kpi-gauge-lg {
+    min-height: 220px;
+}
+
+.kpi-gauge-sm {
+    min-height: 100px;
+}
+
+.kpi-sparkline {
+    height: 40px; /* Fixed height for sparklines */
+}
+
 /* Logo Fix */
 .navbar-brand {
     display: flex;

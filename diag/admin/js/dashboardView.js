@@ -101,8 +101,7 @@ window.dashboardViewInit = async function(container) {
   function createKpiCardHtml(kpiKey, title, value, icon, hasTrend, subValue = '') {
     const sparklineId = `sparkline-${kpiKey}`;
     const subValueHtml = subValue ? `<div class="text-muted mt-1">${subValue}</div>` : '';
-    // Add data-chart-type for the global resizer to find it
-    const sparklineContainer = hasTrend ? `<div id="${sparklineId}" class="chart-sm mt-2" data-chart-type="google"></div>` : `<div class="chart-sm mt-2" style="height: 40px;">${subValueHtml}</div>`;
+    const sparklineContainer = hasTrend ? `<div id="${sparklineId}" class="kpi-sparkline mt-2" data-chart-type="google"></div>` : `<div class="kpi-sparkline mt-2">${subValueHtml}</div>`;
     return `
       <div class="col-sm-6 col-lg-3">
         <div class="card kpi-tile">
@@ -141,20 +140,18 @@ window.dashboardViewInit = async function(container) {
           </div>
           <div class="card-body">
             <div class="row align-items-center">
-              <div class="col-lg-6 text-center">
+              <div class="col-6 text-center">
                 <div id="gauge-${resourceKey}-avg" class="kpi-gauge-lg mx-auto" data-chart-type="google"></div>
                 <div class="h3 mt-2 mb-0">Average</div>
               </div>
-              <div class="col-lg-6">
-                <div class="row">
-                  <div class="col-6 text-center">
+              <div class="col-6">
+                <div class="text-center">
                     <div id="gauge-${resourceKey}-min" class="kpi-gauge-sm mx-auto" data-chart-type="google"></div>
                     <div class="text-muted mt-1">Min</div>
-                  </div>
-                  <div class="col-6 text-center">
+                </div>
+                <div class="text-center mt-3">
                     <div id="gauge-${resourceKey}-max" class="kpi-gauge-sm mx-auto" data-chart-type="google"></div>
                     <div class="text-muted mt-1">Max</div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -282,7 +279,8 @@ window.dashboardViewInit = async function(container) {
     switch (chartInfo.type) {
         case 'bar':
             data = new google.visualization.DataTable();
-            data.addColumn('string', chartInfo.data.labels[0]);
+            // Fixed: Provide a static label for the domain axis column.
+            data.addColumn('string', chartInfo.title.includes('App') ? 'Application' : 'Category');
             data.addColumn('number', chartInfo.data.datasets[0].label);
             data.addRows(chartInfo.data.labels.map((label, i) => [label, parseFloat(chartInfo.data.datasets[0].data[i])]));
 
@@ -303,15 +301,40 @@ window.dashboardViewInit = async function(container) {
             break;
 
         case 'line':
-            const lineData = chartInfo.data.labels.map((label, i) => [label, parseFloat(chartInfo.data.datasets[0].data[i])]);
-            data = google.visualization.arrayToDataTable([['Date', 'Score'], ...lineData]);
+            // Use AreaChart for trends and ensure date parsing.
+            const lineData = chartInfo.data.labels.map((label, i) => {
+                const date = new Date(label);
+                const value = parseFloat(chartInfo.data.datasets[0].data[i]);
+                // Google charts can have issues with invalid dates, fallback to label.
+                return [isNaN(date.getTime()) ? label : date, value];
+            });
+
+            data = new google.visualization.DataTable();
+            // Check if the first element is a date object to decide the column type
+            const isDateAxis = lineData.length > 0 && lineData[0][0] instanceof Date;
+            data.addColumn(isDateAxis ? 'date' : 'string', 'Date');
+            data.addColumn('number', chartInfo.data.datasets[0].label || 'Value');
+            data.addRows(lineData);
 
             options.curveType = 'function';
-            options.hAxis = { textStyle: textStyle, gridlines: { color: 'transparent' }, slantedText: true, slantedTextAngle: 30 };
-            options.vAxis = { textStyle: textStyle, gridlines: { color: gridlineColor }, viewWindow: { min: 0, max: 100 } };
+            options.hAxis = {
+                textStyle: textStyle,
+                gridlines: { color: 'transparent' },
+                slantedText: true,
+                slantedTextAngle: 30,
+            };
+            if (isDateAxis) {
+                options.hAxis.format = 'MMM d'; // Format dates on the axis
+            }
+            options.vAxis = {
+                textStyle: textStyle,
+                gridlines: { color: gridlineColor },
+                viewWindow: { min: 0 } // Let Google Charts determine max for better scaling
+            };
             options.colors = ['#206bc4'];
             options.legend.position = 'none';
-            chart = new google.visualization.LineChart(chartEl);
+            options.areaOpacity = 0.2; // Add for area chart look
+            chart = new google.visualization.AreaChart(chartEl); // Use AreaChart for trends
             break;
 
         default:
