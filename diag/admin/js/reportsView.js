@@ -6,6 +6,9 @@
  * @returns {string} HTML string for the summary cards.
  */
 function renderReportSummary(report) {
+    const securityCritical = report.securityEventsBySeverity?.Critical || 0;
+    const securityHigh = report.securityEventsBySeverity?.High || 0;
+
     return `
         <div class="row row-deck row-cards">
             <div class="col-sm-6 col-lg-3">
@@ -29,10 +32,10 @@ function renderReportSummary(report) {
                             <div>Live / Cold</div>
                             <div class="ms-auto">
                                 <span class="text-green d-inline-flex align-items-center lh-1">
-                                    ${report.liveDevices}
+                                    ${report.liveDevices || 0}
                                 </span> / 
                                 <span class="text-muted d-inline-flex align-items-center lh-1">
-                                    ${report.coldDevices}
+                                    ${report.coldDevices || 0}
                                 </span>
                             </div>
                         </div>
@@ -50,7 +53,7 @@ function renderReportSummary(report) {
                             <div>Vulnerable Apps</div>
                             <div class="ms-auto">
                                 <span class="text-danger d-inline-flex align-items-center lh-1">
-                                    ${report.vulnerableApps}
+                                    ${report.vulnerableApps || 0}
                                 </span>
                             </div>
                         </div>
@@ -68,10 +71,10 @@ function renderReportSummary(report) {
                             <div>Critical / High</div>
                             <div class="ms-auto">
                                 <span class="text-danger d-inline-flex align-items-center lh-1">
-                                    ${report.securityEventsBySeverity.Critical}
+                                    ${securityCritical}
                                 </span> /
                                 <span class="text-warning d-inline-flex align-items-center lh-1">
-                                    ${report.securityEventsBySeverity.High}
+                                    ${securityHigh}
                                 </span>
                             </div>
                         </div>
@@ -91,7 +94,13 @@ function renderReportSummary(report) {
  */
 function renderReportTable(title, headers, rows) {
     const headerHtml = headers.map(h => `<th>${h}</th>`).join('');
-    const bodyHtml = rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
+    let bodyHtml;
+
+    if (!rows || rows.length === 0) {
+        bodyHtml = `<tr><td colspan="${headers.length}" class="text-center text-muted">No data available for this section.</td></tr>`;
+    } else {
+        bodyHtml = rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
+    }
 
     return `
         <div class="card mt-4">
@@ -115,24 +124,47 @@ function renderReportTable(title, headers, rows) {
 /**
  * Initializes the Reports view.
  */
-window.reportsViewInit = async function reportsViewInit() {
-  const container = document.getElementById('reportsContainer') || document.querySelector('h1');
+window.reportsViewInit = async function reportsViewInit(container, { dataService }) {
   if (!container) {
-    console.warn('Reports container not found');
+    console.error('Reports view requires a container element.');
     return;
   }
 
-    const org = sessionStorage.getItem('org');
-    container.innerHTML = '<div class="text-center p-4"><div class="spinner-border" role="status"></div><p class="mt-2">Generating comprehensive report...</p></div>';
-    if (window.__debugLog) window.__debugLog(`Generating report for org: ${org}`);
+    const org = sessionStorage.getItem('org') || 'all';
+    container.innerHTML = `
+        <div class="page-header">
+            <div class="d-flex-inline">
+                <h2 class="page-title">Comprehensive Security Report</h2>
+                <div class="text-muted mt-1">For organization: <span id="report-org-name">${org}</span> | Generated on: <span id="report-generated-date">${new Date().toLocaleDateString()}</span></div>
+            </div>
+            <div class="ms-auto">
+                 <button id="printReportBtn" class="btn btn-primary">
+                    <i class="ti ti-printer me-2"></i>
+                    Print Report
+                </button>
+            </div>
+        </div>
+        <div id="report-content" class="mt-4">
+            <div class="text-center p-4">
+                <div class="spinner-border" role="status"></div>
+                <p class="mt-2">Generating comprehensive report...</p>
+            </div>
+        </div>
+    `;
+
+    const reportContent = container.querySelector('#report-content');
 
     try {
         const report = await dataService.getReportsData(org);
 
         if (!report) {
-            container.innerHTML = '<div class="alert alert-info">Could not generate a report. Data may be unavailable.</div>';
+            reportContent.innerHTML = '<div class="alert alert-info">Could not generate a report. Data may be unavailable.</div>';
             return;
         }
+
+        // Update header placeholders
+        container.querySelector('#report-org-name').textContent = report.org;
+        container.querySelector('#report-generated-date').textContent = report.generated.toLocaleString();
 
         // --- Build Report Sections ---
 
@@ -140,64 +172,58 @@ window.reportsViewInit = async function reportsViewInit() {
         let html = renderReportSummary(report);
 
         // 2. Device Table
-        const deviceHeaders = ['Name', 'OS', 'Client Version', 'Status', 'Last Seen'];
+        const deviceHeaders = ['Device ID', 'OS Version', 'Client Version', 'Status', 'Last Seen'];
         const deviceRows = report.devices.map(d => [
-            d.name,
-            d.os,
-            d.clientVersion,
-            d.status === 'Live' ? `<span class="badge bg-green-lt">Live</span>` : `<span class="badge bg-gray-lt">Cold</span>`,
-            timeUtils.formatDate(d.lastSeenTimestamp)
+            d.id || 'N/A',
+            d.osVersion || 'N/A',
+            d.clientVersion || 'N/A',
+            d.status === 'Online' ? `<span class="badge bg-success-lt">Online</span>` : `<span class="badge bg-secondary-lt">Offline</span>`,
+            d.lastSeen ? window.timeUtils.formatTimestamp(d.lastSeen) : 'Never'
         ]);
         html += renderReportTable('Device Fleet Overview', deviceHeaders, deviceRows);
 
         // 3. Application Table
-        const appHeaders = ['Name', 'Publisher', 'Versions', 'Installations', 'Risk Level'];
+        const appHeaders = ['Application', 'Publisher', 'Versions', 'Installations', 'Highest Risk'];
         const appRows = report.applications.map(a => [
-            a.name,
-            a.publisher,
-            `<div class="text-truncate" style="max-width: 200px;">${a.versions}</div>`,
-            a.installCount,
-            a.riskLevel
+            a.name || 'N/A',
+            a.publisher || 'N/A',
+            `<div class="text-truncate" style="max-width: 200px;" title="${a.versions}">${a.versions || 'N/A'}</div>`,
+            a.installCount || 0,
+            a.riskLevel || 'N/A'
         ]);
-        html += renderReportTable('Application Landscape', appHeaders, appRows);
+        html += renderReportTable('Application Landscape (Aggregated)', appHeaders, appRows);
         
         // 4. Security Events Table
-        const eventHeaders = ['Timestamp', 'Device ID', 'Event', 'Severity'];
-        const eventRows = report.securityEvents.slice(0, 20).map(e => [ // Limit to most recent 20 for brevity
-            timeUtils.formatDate(e.Timestamp),
-            e.DeviceId || 'N/A',
-            e.Event || 'N/A',
-            e.Severity || 'Informational'
-        ]);
-        html += renderReportTable('Recent Security Events (Top 20)', eventHeaders, eventRows);
+        const eventHeaders = ['Timestamp', 'Device', 'Description', 'Severity'];
+        const eventRows = report.securityEvents.slice(0, 50).map(e => { // Limit to most recent 50
+            const severityClass = {
+                'Critical': 'danger',
+                'High': 'warning',
+                'Medium': 'yellow',
+                'Low': 'secondary'
+            }[e.severity] || 'info';
 
+            return [
+                e.detected ? window.timeUtils.formatTimestamp(e.detected) : 'N/A',
+                e.device || 'N/A',
+                e.description || 'N/A',
+                `<span class="badge bg-${severityClass}-lt">${e.severity || 'N/A'}</span>`
+            ];
+        });
+        html += renderReportTable('Recent Security Events (Top 50)', eventHeaders, eventRows);
 
-        container.innerHTML = `
-            <div class="page-header">
-                <div class="d-flex-inline">
-                    <h2 class="page-title">Comprehensive Security Report</h2>
-                    <div class="text-muted mt-1">For organization: ${org} | Generated on: ${new Date().toLocaleDateString()}</div>
-                </div>
-                <div class="ms-auto">
-                     <button id="printReportBtn" class="btn btn-primary">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17 17h2a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h2" /><path d="M17 9v-4a2 2 0 0 0 -2 -2h-6a2 2 0 0 0 -2 2v4" /><path d="M7 13m0 2a2 2 0 0 1 2 -2h6a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2z" /></svg>
-                        Print Report
-                    </button>
-                </div>
-            </div>
-            ${html}
-        `;
+        reportContent.innerHTML = html;
 
         // Add event listener for the print button
-        document.getElementById('printReportBtn').addEventListener('click', () => {
+        container.querySelector('#printReportBtn').addEventListener('click', () => {
             window.print();
         });
 
-        if (window.__debugLog) window.__debugLog('Report view generated successfully.');
-
     } catch (e) {
         console.error('Failed to generate report:', e);
-        container.innerHTML = `<div class="alert alert-danger">Failed to generate report: ${e.message}</div>`;
-        if (window.__debugLog) window.__debugLog(`Report generation error: ${e.message} Stack: ${e.stack || ''}`);
+        reportContent.innerHTML = `<div class="alert alert-danger">Failed to generate report: ${e.message}</div>`;
     }
 };
+
+// Set this as the current view initializer for timezone/theme refresh
+window.currentViewInit = window.reportsViewInit;

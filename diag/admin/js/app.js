@@ -1,4 +1,6 @@
 import { initOrgSwitcher } from './orgSwitcher.js';
+import dataService from './dataService.js';
+
 // app.js: Main application entry point, router, and event handlers.
 console.log('app.js loaded');
 
@@ -34,11 +36,12 @@ window.addEventListener('resize', () => {
 async function initializeApp(container) {
     const viewModules = {
         dashboard: { path: './dashboardView.js', init: 'dashboardViewInit' },
-        applications: { path: './appView.js', init: 'appViewInit' },
+        applications: { path: './appsView.js', init: 'appsViewInit' },
         devices: { path: './deviceView.js', init: 'deviceViewInit' },
         performance: { path: './perfView.js', init: 'perfViewInit' },
-        // security: { path: './securityView.js', init: 'securityViewInit' },
-        // reports: { path: './reportsView.js', init: 'reportsViewInit' },
+        installs: { path: './installsView.js', init: 'installsViewInit' },
+        security: { path: './securityView.js', init: 'securityViewInit' },
+        reports: { path: './reportsView.js', init: 'reportsViewInit' },
     };
 
     async function loadView(viewName) {
@@ -68,8 +71,8 @@ async function initializeApp(container) {
             // Set the current view initializer for theme/timezone refreshes
             window.currentViewInit = viewInitializer;
             
-            // Initialize the view
-            await viewInitializer(container);
+            // Initialize the view, passing dependencies
+            await viewInitializer(container, { dataService });
 
         } catch (error) {
             console.error(`Error loading view: ${viewName}`, error);

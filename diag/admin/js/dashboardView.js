@@ -1,5 +1,5 @@
 // dashboardView.js: Renders the main 'Command Center' dashboard using Tabler components.
-window.dashboardViewInit = async function(container) {
+window.dashboardViewInit = async function(container, { dataService }) {
   if (!container) {
     console.error('Dashboard view requires a container element.');
     return;
@@ -14,13 +14,21 @@ window.dashboardViewInit = async function(container) {
   // Create the dashboard-specific layout
   container.innerHTML = `
     <div id="kpi-main-row" class="row row-deck row-cards"></div>
-    <div id="kpi-secondary-row" class="row row-deck row-cards mt-4"></div>
+    <div class="mt-4">
+        <h2 class="h2">Device Telemetry</h2>
+        <div id="kpi-global-row" class="row row-deck row-cards"></div>
+    </div>
+    <div class="mt-4">
+        <h2 class="h2">Hardware Compliance</h2>
+        <div id="hardware-compliance-row" class="row row-deck row-cards"></div>
+    </div>
     <div id="chartsSection" class="row row-deck row-cards mt-4"></div>
   `;
 
   // Get containers
   const kpiMainRow = container.querySelector('#kpi-main-row');
-  const kpiSecondaryRow = container.querySelector('#kpi-secondary-row');
+  const kpiGlobalRow = container.querySelector('#kpi-global-row');
+  const hardwareComplianceRow = container.querySelector('#hardware-compliance-row');
   const chartsSection = container.querySelector('#chartsSection');
 
   console.log('Initializing dashboard view...');
@@ -30,7 +38,7 @@ window.dashboardViewInit = async function(container) {
   chartsSection.innerHTML = ''; // Clear other sections
 
   // Fetch data
-  const data = await (window.dataService.getDashboardMetrics ? window.dataService.getDashboardMetrics() : null);
+  const data = await (dataService.getDashboardMetrics ? dataService.getDashboardMetrics() : null);
   if (!data || !data.kpis) {
     kpiMainRow.innerHTML = '<div class="alert alert-warning">No dashboard data available for this organization.</div>';
     return;
@@ -96,14 +104,15 @@ window.dashboardViewInit = async function(container) {
    * @param {string} icon Tabler icon name.
    * @param {boolean} hasTrend If true, adds a sparkline container.
    * @param {string} subValue Optional smaller text below the main value.
+   * @param {string} colClass Optional column classes for layout.
    * @returns {string} HTML string for the card.
    */
-  function createKpiCardHtml(kpiKey, title, value, icon, hasTrend, subValue = '') {
+  function createKpiCardHtml(kpiKey, title, value, icon, hasTrend, subValue = '', colClass = 'col-sm-6 col-lg-3') {
     const sparklineId = `sparkline-${kpiKey}`;
     const subValueHtml = subValue ? `<div class="text-muted mt-1">${subValue}</div>` : '';
     const sparklineContainer = hasTrend ? `<div id="${sparklineId}" class="kpi-sparkline mt-2" data-chart-type="google"></div>` : `<div class="kpi-sparkline mt-2">${subValueHtml}</div>`;
     return `
-      <div class="col-sm-6 col-lg-3">
+      <div class="${colClass}">
         <div class="card kpi-tile">
           <div class="card-body">
             <div class="d-flex align-items-center">
@@ -131,7 +140,7 @@ window.dashboardViewInit = async function(container) {
   function createResourceKpiCardHtml(resourceKey, title, icon) {
       return `
       <div class="col-sm-6 col-lg-6">
-        <div class="card kpi-tile">
+        <div class="card kpi-tile resource-gauge-card">
           <div class="card-header">
             <h3 class="card-title d-flex align-items-center">
               <i class="ti ti-${icon} icon me-2"></i>
@@ -282,7 +291,11 @@ window.dashboardViewInit = async function(container) {
             // Fixed: Provide a static label for the domain axis column.
             data.addColumn('string', chartInfo.title.includes('App') ? 'Application' : 'Category');
             data.addColumn('number', chartInfo.data.datasets[0].label);
-            data.addRows(chartInfo.data.labels.map((label, i) => [label, parseFloat(chartInfo.data.datasets[0].data[i])]));
+            const barRows = chartInfo.data.labels.map((label, i) => {
+                const value = parseFloat(chartInfo.data.datasets[0].data[i]);
+                return [label, isNaN(value) ? null : value];
+            });
+            data.addRows(barRows);
 
             options.hAxis = { textStyle: textStyle, gridlines: { color: 'transparent' } };
             options.vAxis = { textStyle: textStyle, gridlines: { color: gridlineColor }, title: 'Exploit Probability (%)', titleTextStyle: textStyle };
@@ -292,11 +305,14 @@ window.dashboardViewInit = async function(container) {
             break;
 
         case 'donut':
-            const chartData = chartInfo.data.labels.map((label, i) => [label, chartInfo.data.datasets[0].data[i]]);
+            const chartData = chartInfo.data.labels.map((label, i) => {
+                const value = parseFloat(chartInfo.data.datasets[0].data[i]);
+                return [label, isNaN(value) ? 0 : value]; // Use 0 for donuts to avoid gaps
+            });
             data = google.visualization.arrayToDataTable([['Vulnerability', 'Count'], ...chartData]);
 
             options.pieHole = 0.5;
-            options.colors = ['#d63939', '#ff9f40', '#ffcd56']; // Critical, High, Medium
+            options.colors = chartInfo.colors || ['#d63939', '#ff9f40', '#ffcd56']; // Critical, High, Medium
             chart = new google.visualization.PieChart(chartEl);
             break;
 
@@ -306,7 +322,7 @@ window.dashboardViewInit = async function(container) {
                 const date = new Date(label);
                 const value = parseFloat(chartInfo.data.datasets[0].data[i]);
                 // Google charts can have issues with invalid dates, fallback to label.
-                return [isNaN(date.getTime()) ? label : date, value];
+                return [isNaN(date.getTime()) ? label : date, isNaN(value) ? null : value];
             });
 
             data = new google.visualization.DataTable();
@@ -376,14 +392,14 @@ window.dashboardViewInit = async function(container) {
       const kpi = kpis[key];
       if (kpi) {
           const hasTrend = kpi.trend && kpi.trend.length > 0;
-          let value = kpi.value !== undefined ? kpi.value : '';
+          let value = kpi.value !== undefined ? kpi.value : 'N/A';
           let subValue = '';
           if (key === 'avgRemediationTime') {
-              value = `${kpi.value}${config.unit || ''}`;
+              value = kpi.value !== undefined ? `${kpi.value}${config.unit || ''}` : 'N/A';
           }
           if (key === 'matchAnalysis') {
-              value = kpi.absolute;
-              subValue = `Heuristic: ${kpi.heuristic}`;
+              value = kpi.absolute !== undefined ? kpi.absolute : 'N/A';
+              subValue = kpi.heuristic !== undefined ? `Heuristic: ${kpi.heuristic}` : '';
           }
           kpiSecondaryHtml += createKpiCardHtml(key, config.title, value, config.icon, hasTrend, subValue);
       }
@@ -394,7 +410,15 @@ window.dashboardViewInit = async function(container) {
   kpiCards.innerHTML = `<div class="row row-cards">${kpiSecondaryHtml}</div>`;
   kpiMainRow.appendChild(kpiCards);
   
-  renderMainScoreGauge('securityScoreGauge', kpis.securityScore.value);
+  if (kpis.securityScore && kpis.securityScore.value !== undefined) {
+      renderMainScoreGauge('securityScoreGauge', kpis.securityScore.value);
+  } else {
+      const gaugeEl = document.getElementById('securityScoreGauge');
+      if (gaugeEl) {
+          gaugeEl.parentElement.innerHTML = '<div class="text-muted text-center p-4 d-flex align-items-center justify-content-center" style="height: 100%;">Security Score data is not available.</div>';
+          gaugeEl.closest('.card').style.height = '100%';
+      }
+  }
 
   // Render sparklines after HTML is injected
   Object.entries(kpiMap).forEach(([key, config]) => {
@@ -404,7 +428,82 @@ window.dashboardViewInit = async function(container) {
       }
   });
 
-  // 3. Render Resource Gauges & Charts
+  // 2. Render Global KPIs
+  let globalKpiHtml = '';
+  const globalKpiMap = {
+      unlicensedDevices: { title: 'Unlicensed Devices', icon: 'id-off' },
+      newDevices7d: { title: 'New Devices (7d)', icon: 'device-desktop-plus' },
+      newlyLicensedDevices7d: { title: 'Newly Licensed (7d)', icon: 'license' },
+      newDevices14d: { title: 'New Devices (14d)', icon: 'device-desktop-plus' },
+      newlyLicensedDevices14d: { title: 'Newly Licensed (14d)', icon: 'license' },
+  };
+
+  Object.entries(globalKpiMap).forEach(([key, config]) => {
+      const kpi = kpis[key];
+      if (kpi && kpi.value !== undefined) {
+          // Use custom column classes to fit 5 cards in a row on large screens
+          globalKpiHtml += createKpiCardHtml(key, config.title, kpi.value, config.icon, false, '', 'col-lg col-md-6');
+      }
+  });
+  if (kpiGlobalRow) {
+      kpiGlobalRow.innerHTML = globalKpiHtml;
+      // Rename the header to be more accurate based on org selection
+      const org = sessionStorage.getItem('org') || 'all';
+      const header = kpiGlobalRow.parentElement.querySelector('h2');
+      if (header) {
+          header.textContent = org === 'all' ? 'Global Device Telemetry' : 'Org Device Telemetry';
+      }
+  }
+
+  // 3. Render Hardware Compliance Charts
+  if (kpis.hardware && hardwareComplianceRow) {
+      let hardwareHtml = '';
+      const hardwareCharts = [
+          { id: 'cpuArchChart', title: 'CPU Architecture', data: kpis.hardware.cpuArch, colors: ['#206bc4', '#79a6dc', '#b3c7e4', '#f2f2f2'] },
+          { id: 'secureBootChart', title: 'Secure Boot Status', data: kpis.hardware.secureBoot, colors: { 'Enabled': '#50b83c', 'Disabled': '#d63939', 'Unknown': '#aaa' } },
+          { id: 'tpmChart', title: 'TPM Status', data: kpis.hardware.tpm, colors: { 'Enabled': '#50b83c', 'Disabled': '#d63939', 'Unknown': '#aaa' } }
+      ];
+
+      hardwareCharts.forEach(chart => {
+          if (chart.data && Object.keys(chart.data).length > 0) {
+              hardwareHtml += `
+                <div class="col-lg-4">
+                  <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">${chart.title}</h3>
+                    </div>
+                    <div class="card-body">
+                      <div id="${chart.id}" style="height: 250px;"></div>
+                    </div>
+                  </div>
+                </div>`;
+          }
+      });
+
+      hardwareComplianceRow.innerHTML = hardwareHtml;
+
+      // Render charts after HTML is injected
+      hardwareCharts.forEach(chartInfo => {
+          if (chartInfo.data && Object.keys(chartInfo.data).length > 0) {
+              // For charts with specific color mappings (like status), order the colors to match the labels
+              const labels = Object.keys(chartInfo.data);
+              const chartColors = Array.isArray(chartInfo.colors) ? chartInfo.colors : labels.map(label => chartInfo.colors[label]);
+
+              renderGoogleChart({
+                  id: chartInfo.id,
+                  type: 'donut',
+                  title: chartInfo.title,
+                  data: {
+                      labels: labels,
+                      datasets: [{ data: Object.values(chartInfo.data) }]
+                  },
+                  colors: chartColors
+              });
+          }
+      });
+  }
+
+  // 4. Render Resource Gauges & Charts
   let chartsAndGaugesHtml = '';
   if (kpis.cpu) {
       chartsAndGaugesHtml += createResourceKpiCardHtml('cpu', 'CPU Usage', 'cpu');
@@ -414,16 +513,18 @@ window.dashboardViewInit = async function(container) {
       chartsAndGaugesHtml += createResourceKpiCardHtml('memory', 'Memory Usage', 'database');
   }
   
-  charts.forEach(chart => {
-    chartsAndGaugesHtml += `
-      <div class="col-lg-6">
-        <div class="card">
-          <div class="card-body">
-            <div id="${chart.id}" style="height: 350px;"></div>
-          </div>
-        </div>
-      </div>`;
-  });
+  if (charts && charts.main) {
+      charts.main.forEach(chart => {
+        chartsAndGaugesHtml += `
+          <div class="col-lg-6">
+            <div class="card">
+              <div class="card-body">
+                <div id="${chart.id}" style="height: 350px;"></div>
+              </div>
+            </div>
+          </div>`;
+      });
+  }
   
   chartsSection.innerHTML = chartsAndGaugesHtml; 
 
@@ -442,7 +543,9 @@ window.dashboardViewInit = async function(container) {
   }
 
   // Render charts after HTML is injected
-  charts.forEach(renderGoogleChart);
+  if (charts && charts.main) {
+    charts.main.forEach(renderGoogleChart);
+  }
 };
 
 // Set this as the current view initializer for timezone/theme refresh

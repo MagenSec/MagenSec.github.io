@@ -19,7 +19,8 @@ window.appsViewInit = async function(container) {
     const { apps, summary, timelineData } = await dataService.getApplicationData(org);
 
     await googleChartsLoaded;
-    renderAppsView(container, apps, summary, timelineData);
+    renderAppsView(container, apps, summary);
+    renderAppTimeline(timelineData); // Render the timeline
     addAppEventListeners(apps); // Pass full dataset to event listeners
 
   } catch (error) {
@@ -28,65 +29,53 @@ window.appsViewInit = async function(container) {
   }
 };
 
-function renderAppsView(container, apps, summary, timelineData) {
-  const formatRelativeTime = (window.timeUtils && window.timeUtils.formatRelativeTime) ? window.timeUtils.formatRelativeTime : (ts => ts);
-
+function renderAppsView(container, apps, summary) {
+  // FIX: Corrected summary property names and adjusted KPI cards.
   container.innerHTML = `
     <div class="row row-deck row-cards">
       <!-- KPI Cards -->
-      <div class="col-sm-6 col-lg-3">
+      <div class="col-sm-6 col-lg-4">
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">Total Applications</div>
+              <div class="subheader">Total App Installs</div>
               <div class="ms-auto lh-1"><i class="ti ti-apps text-muted"></i></div>
             </div>
-            <div class="h1 mb-3">${summary.totalApps}</div>
+            <div class="h1 mb-3">${summary.total}</div>
           </div>
         </div>
       </div>
-      <div class="col-sm-6 col-lg-3">
+      <div class="col-sm-6 col-lg-4">
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">Vulnerable Apps</div>
+              <div class="subheader">Vulnerable App Installs</div>
               <div class="ms-auto lh-1"><i class="ti ti-alert-triangle text-warning"></i></div>
             </div>
-            <div class="h1 mb-3 text-warning">${summary.vulnerableApps}</div>
+            <div class="h1 mb-3 text-warning">${summary.vulnerable}</div>
           </div>
         </div>
       </div>
-      <div class="col-sm-6 col-lg-3">
+      <div class="col-sm-6 col-lg-4">
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">Critical Vulnerabilities</div>
+              <div class="subheader">High Risk Apps</div>
               <div class="ms-auto lh-1"><i class="ti ti-shield-x text-danger"></i></div>
             </div>
-            <div class="h1 mb-3 text-danger">${summary.criticalVulnerabilities}</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="subheader">High Vulnerabilities</div>
-              <div class="ms-auto lh-1"><i class="ti ti-shield-half text-orange"></i></div>
-            </div>
-            <div class="h1 mb-3 text-orange">${summary.highVulnerabilities}</div>
+            <div class="h1 mb-3 text-danger">${summary.highRisk}</div>
           </div>
         </div>
       </div>
 
-      <!-- Application Lifecycle Timeline -->
+      <!-- Timeline Chart -->
       <div class="col-12">
         <div class="card">
           <div class="card-header">
-            <h3 class="card-title">Application Lifecycle (Last 30 Days)</h3>
+            <h3 class="card-title">Application Lifecycle Timeline (Last 30 Days)</h3>
           </div>
           <div class="card-body">
-            <div id="app-lifecycle-timeline" style="height: 300px" data-chart-type="google"></div>
+            <div id="app-lifecycle-timeline" style="height: 300px"></div>
           </div>
         </div>
       </div>
@@ -96,16 +85,45 @@ function renderAppsView(container, apps, summary, timelineData) {
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">Application Inventory</h3>
-            <div class="ms-auto text-muted">
-              Search: 
-              <div class="ms-2 d-inline-block">
-                <input type="text" id="app-search" class="form-control form-control-sm" aria-label="Search applications">
-              </div>
+            <div class="ms-auto d-flex align-items-center">
+                <div class="text-muted me-3">Status:</div>
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="app-status-filter" id="app-status-installed" autocomplete="off" value="installed" checked>
+                    <label class="btn btn-sm btn-outline-primary" for="app-status-installed">Installed</label>
+
+                    <input type="radio" class="btn-check" name="app-status-filter" id="app-status-uninstalled" autocomplete="off" value="uninstalled">
+                    <label class="btn btn-sm btn-outline-primary" for="app-status-uninstalled">Uninstalled</label>
+
+                    <input type="radio" class="btn-check" name="app-status-filter" id="app-status-all" autocomplete="off" value="all">
+                    <label class="btn btn-sm btn-outline-primary" for="app-status-all">All</label>
+                </div>
+                <div class="ms-4 text-muted">Search:</div>
+                <div class="ms-2 d-inline-block">
+                    <input type="text" id="app-search" class="form-control form-control-sm" aria-label="Search applications">
+                </div>
             </div>
           </div>
-          <div id="app-table-container" class="table-responsive"></div>
+          <div id="app-table-container" class="table-responsive">
+            <table class="table card-table table-vcenter text-nowrap datatable" id="apps-table">
+                <thead>
+                    <tr>
+                        <!-- FIX: Updated table headers -->
+                        <th class="sortable asc" data-sort="appName">Application</th>
+                        <th class="sortable" data-sort="version">Version</th>
+                        <th class="sortable" data-sort="publisher">Publisher</th>
+                        <th class="sortable" data-sort="device">Device</th>
+                        <th class="sortable text-center" data-sort="exploitProbability">Risk</th>
+                        <th class="sortable" data-sort="lifecycleState">Status</th>
+                        <th class="sortable" data-sort="uninstalledOn">Remediated On</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be rendered by JavaScript -->
+                </tbody>
+            </table>
+          </div>
           <div class="card-footer d-flex align-items-center">
-            <p class="m-0 text-muted">Showing <span id="pagination-info-start">1</span> to <span id="pagination-info-end">10</span> of <span id="pagination-info-total">${apps.length}</span> entries</p>
+            <p class="m-0 text-muted">Showing <span id="pagination-info-start">0</span> to <span id="pagination-info-end">0</span> of <span id="pagination-info-total">0</span> entries</p>
             <ul class="pagination m-0 ms-auto" id="pagination-controls"></ul>
           </div>
         </div>
@@ -113,9 +131,7 @@ function renderAppsView(container, apps, summary, timelineData) {
     </div>
   `;
 
-  renderAppTimeline(timelineData);
-  // Initial render of the table with pagination
-  updateAppsTable(apps, 1, 20); // Default to page 1, 20 rows per page
+  // Initial render of the table with pagination is now handled by addAppEventListeners
 }
 
 function renderAppTimeline(timelineData) {
@@ -151,145 +167,44 @@ function renderAppTimeline(timelineData) {
     container.chartInstance = { chart, data: dataTable, options, type: 'Timeline' };
 }
 
-function updateAppsTable(apps, currentPage, rowsPerPage) {
-    const tableContainer = document.getElementById('app-table-container');
-    const start = (currentPage - 1) * rowsPerPage;
-    const end = start + rowsPerPage;
-    const paginatedApps = apps.slice(start, end);
-
-    const getRiskBadge = (level) => {
-        const map = {
-            'Critical': 'danger',
-            'High': 'warning',
-            'Medium': 'orange',
-            'Low': 'yellow',
-            'None': 'secondary'
-        };
-        return `<span class="badge bg-${map[level]}-lt">${level}</span>`;
-    };
-
-    const tableHtml = `
-        <table class="table card-table table-vcenter text-nowrap datatable" id="apps-table">
-            <thead>
-                <tr>
-                    <th class="sortable" data-sort="name">Application</th>
-                    <th class="sortable" data-sort="publisher">Publisher</th>
-                    <th class="sortable text-center" data-sort="installCount">Installs</th>
-                    <th class="sortable" data-sort="riskLevel">Highest Risk</th>
-                    <th class="sortable" data-sort="firstDetected">First Detected</th>
-                    <th class="sortable" data-sort="firstRemediated">First Remediated</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${paginatedApps.map(app => `
-                    <tr>
-                        <td>${app.name}</td>
-                        <td>${app.publisher}</td>
-                        <td class="text-center">${app.installCount}</td>
-                        <td>${getRiskBadge(app.riskLevel)}</td>
-                        <td data-timestamp="${app.firstDetected ? new Date(app.firstDetected).getTime() : 0}">${app.firstDetected ? new Date(app.firstDetected).toLocaleDateString() : 'N/A'}</td>
-                        <td data-timestamp="${app.firstRemediated ? new Date(app.firstRemediated).getTime() : 0}">${app.firstRemediated ? new Date(app.firstRemediated).toLocaleDateString() : 'N/A'}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-    tableContainer.innerHTML = tableHtml;
-
-    // Update pagination info
-    document.getElementById('pagination-info-start').textContent = apps.length > 0 ? start + 1 : 0;
-    document.getElementById('pagination-info-end').textContent = Math.min(end, apps.length);
-    document.getElementById('pagination-info-total').textContent = apps.length;
-
-    // Update pagination controls
-    updatePaginationControls(apps.length, currentPage, rowsPerPage);
-}
-
-function updatePaginationControls(totalItems, currentPage, rowsPerPage) {
-    const paginationContainer = document.getElementById('pagination-controls');
-    paginationContainer.innerHTML = '';
-    const totalPages = Math.ceil(totalItems / rowsPerPage);
-
-    if (totalPages <= 1) return;
-
-    // Previous button
-    const prevLi = document.createElement('li');
-    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
-    prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}"><i class="ti ti-chevron-left"></i></a>`;
-    paginationContainer.appendChild(prevLi);
-
-    // Page numbers
-    for (let i = 1; i <= totalPages; i++) {
-        const li = document.createElement('li');
-        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
-        li.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i}</a>`;
-        paginationContainer.appendChild(li);
-    }
-
-    // Next button
-    const nextLi = document.createElement('li');
-    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
-    nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}"><i class="ti ti-chevron-right"></i></a>`;
-    paginationContainer.appendChild(nextLi);
-}
-
 function addAppEventListeners(allApps) {
-    let currentApps = [...allApps];
     let currentPage = 1;
     const rowsPerPage = 20;
+    let currentStatusFilter = 'installed';
+    let sortKey = 'exploitProbability'; // Default sort by risk
+    let sortDirection = 'desc';
 
-    // Search functionality
-    const searchInput = document.getElementById('app-search');
-    searchInput.addEventListener('keyup', () => {
-        const searchTerm = searchInput.value.toLowerCase();
-        currentApps = allApps.filter(app => 
-            app.name.toLowerCase().includes(searchTerm) || 
-            app.publisher.toLowerCase().includes(searchTerm)
-        );
-        currentPage = 1;
-        updateAppsTable(currentApps, currentPage, rowsPerPage);
-    });
-
-    // Pagination functionality
-    const paginationContainer = document.getElementById('pagination-controls');
-    paginationContainer.addEventListener('click', (e) => {
-        e.preventDefault();
-        const target = e.target.closest('a.page-link');
-        if (target) {
-            const page = parseInt(target.dataset.page, 10);
-            if (page && page !== currentPage) {
-                currentPage = page;
-                updateAppsTable(currentApps, currentPage, rowsPerPage);
-            }
-        }
-    });
-
-    // Sorting functionality
     const tableContainer = document.getElementById('app-table-container');
-    let sortDirection = {};
-    tableContainer.addEventListener('click', (e) => {
-        const header = e.target.closest('th.sortable');
-        if (!header) return;
+    const paginationContainer = document.getElementById('pagination-controls');
+    const searchInput = document.getElementById('app-search');
+    const statusFilters = document.querySelectorAll('input[name="app-status-filter"]');
 
-        const sortKey = header.dataset.sort;
-        const direction = (sortDirection[sortKey] = sortDirection[sortKey] === 'asc' ? 'desc' : 'asc');
+    function renderTable() {
+        // 1. Apply Filter
+        const searchTerm = searchInput.value.toLowerCase();
+        let filteredApps = allApps.filter(app => {
+            // FIX: Use correct properties from dataService
+            const matchesSearch = (app.appName || '').toLowerCase().includes(searchTerm) ||
+                                  (app.publisher || '').toLowerCase().includes(searchTerm) ||
+                                  (app.device || '').toLowerCase().includes(searchTerm);
 
-        // Reset other headers
-        header.parentElement.querySelectorAll('th.sortable').forEach(h => {
-            if (h !== header) {
-                h.classList.remove('asc', 'desc');
-                delete sortDirection[h.dataset.sort];
-            }
+            // FIX: Filter based on presence of `uninstalledOn` date
+            const isUninstalled = !!app.uninstalledOn;
+            const matchesStatus = currentStatusFilter === 'all' ||
+                                  (currentStatusFilter === 'installed' && !isUninstalled) ||
+                                  (currentStatusFilter === 'uninstalled' && isUninstalled);
+
+            return matchesSearch && matchesStatus;
         });
-        header.classList.remove('asc', 'desc');
-        header.classList.add(direction);
 
-        currentApps.sort((a, b) => {
+        // 2. Apply Sort
+        // FIX: Use correct properties from dataService
+        filteredApps.sort((a, b) => {
             let valA, valB;
-            if (sortKey === 'installCount') {
-                valA = a.installCount;
-                valB = b.installCount;
-            } else if (sortKey === 'firstDetected' || sortKey === 'firstRemediated') {
+            if (sortKey === 'exploitProbability') {
+                valA = a.exploitProbability || 0;
+                valB = b.exploitProbability || 0;
+            } else if (sortKey === 'uninstalledOn') {
                 valA = a[sortKey] ? new Date(a[sortKey]).getTime() : 0;
                 valB = b[sortKey] ? new Date(b[sortKey]).getTime() : 0;
             } else {
@@ -297,14 +212,99 @@ function addAppEventListeners(allApps) {
                 valB = (b[sortKey] || '').toString().toLowerCase();
             }
 
-            if (valA < valB) return direction === 'asc' ? -1 : 1;
-            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
             return 0;
         });
 
+        // 3. Apply Pagination
+        const totalItems = filteredApps.length;
+        const totalPages = Math.ceil(totalItems / rowsPerPage);
+        currentPage = Math.max(1, Math.min(currentPage, totalPages || 1)); // Ensure currentPage is valid
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        const paginatedApps = filteredApps.slice(start, end);
+
+        // 4. Render Table Body
+        // FIX: Create risk badge based on probability score
+        const getRiskBadge = (probability) => {
+            const p = probability || 0;
+            if (p > 0.9) return `<span class="badge bg-danger-lt">Critical</span>`;
+            if (p > 0.7) return `<span class="badge bg-danger-lt">High</span>`;
+            if (p > 0.4) return `<span class="badge bg-warning-lt">Medium</span>`;
+            if (p > 0) return `<span class="badge bg-yellow-lt">Low</span>`;
+            return `<span class="badge bg-secondary-lt">None</span>`;
+        };
+
+        const tableBody = tableContainer.querySelector('tbody');
+        if (tableBody) {
+            // FIX: Use correct properties and add fallbacks for robust rendering
+            tableBody.innerHTML = paginatedApps.map(app => `
+                <tr>
+                    <td>${app.appName}</td>
+                    <td>${app.version}</td>
+                    <td>${app.publisher}</td>
+                    <td>${app.device}</td>
+                    <td class="text-center">${getRiskBadge(app.exploitProbability)}</td>
+                    <td><span class="badge bg-secondary-lt">${app.lifecycleState}</span></td>
+                    <td data-timestamp="${app.uninstalledOn ? new Date(app.uninstalledOn).getTime() : '0'}">${app.uninstalledOn ? new Date(app.uninstalledOn).toLocaleDateString() : 'N/A'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 5. Update Pagination Info
+        document.getElementById('pagination-info-start').textContent = totalItems > 0 ? start + 1 : 0;
+        document.getElementById('pagination-info-end').textContent = Math.min(end, totalItems);
+        document.getElementById('pagination-info-total').textContent = totalItems;
+
+        // 6. Render Pagination Controls using uiUtils
+        if (window.setupPagination) {
+            window.setupPagination(paginationContainer, totalPages, (page) => {
+                currentPage = page;
+                renderTable();
+            }, currentPage);
+        }
+    }
+
+    // --- Event Listeners ---
+    searchInput.addEventListener('keyup', () => {
         currentPage = 1;
-        updateAppsTable(currentApps, currentPage, rowsPerPage);
+        renderTable();
     });
+
+    statusFilters.forEach(filter => {
+        filter.addEventListener('change', (e) => {
+            currentStatusFilter = e.target.value;
+            currentPage = 1;
+            renderTable();
+        });
+    });
+
+    tableContainer.addEventListener('click', (e) => {
+        const header = e.target.closest('th.sortable');
+        if (!header) return;
+
+        const newSortKey = header.dataset.sort;
+        if (sortKey === newSortKey) {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortKey = newSortKey;
+            sortDirection = 'asc';
+        }
+        
+        // Resetting classes on all th elements
+        header.parentElement.querySelectorAll('th.sortable').forEach(h => {
+            h.classList.remove('asc', 'desc');
+        });
+        // Adding the correct class to the clicked header
+        header.classList.add(sortDirection);
+
+        currentPage = 1;
+        renderTable();
+    });
+
+    // Initial Render
+    renderTable();
 }
 
 // Set this as the current view initializer for timezone/theme refresh

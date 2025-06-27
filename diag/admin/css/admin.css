@@ -109,6 +109,16 @@ body {
 
 .kpi-sparkline {
     height: 40px; /* Fixed height for sparklines */
+    width: 100%; /* Ensure it fits the card */
+}
+
+/* Fix for resource gauge layout */
+.resource-gauge-card .card-body {
+    padding: 0.5rem;
+}
+
+.resource-gauge-card .card-body .row {
+    height: 100%;
 }
 
 /* Logo Fix */

@@ -1,5 +1,5 @@
 // deviceView.js: Renders the Device Fleet Management view.
-window.deviceViewInit = async function(container) {
+window.deviceViewInit = async function(container, { dataService }) {
   if (!container) {
     console.error('Device view requires a container element.');
     return;
@@ -20,7 +20,7 @@ window.deviceViewInit = async function(container) {
 
     await googleChartsLoaded;
     renderDeviceView(container, devices, summary);
-    addDeviceEventListeners();
+    addDeviceEventListeners(devices);
 
   } catch (error) {
     console.error('Error initializing device view:', error);
@@ -29,13 +29,7 @@ window.deviceViewInit = async function(container) {
 };
 
 function renderDeviceView(container, devices, summary) {
-  const getStatusColor = (status) => {
-    return status === 'Live' ? 'green' : 'gray';
-  };
-
-  // Use formatRelativeTime if available
-  const formatRelativeTime = (window.timeUtils && window.timeUtils.formatRelativeTime) ? window.timeUtils.formatRelativeTime : (ts => ts);
-
+  // FIX: Updated KPI cards to be more relevant and use correct summary data.
   container.innerHTML = `
     <div class="row row-deck row-cards">
       <!-- KPI Cards -->
@@ -44,9 +38,7 @@ function renderDeviceView(container, devices, summary) {
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="subheader">Total Devices</div>
-              <div class="ms-auto lh-1">
-                <i class="ti ti-device-desktop text-muted"></i>
-              </div>
+              <div class="ms-auto lh-1"><i class="ti ti-device-desktop text-muted"></i></div>
             </div>
             <div class="h1 mb-3">${summary.total}</div>
           </div>
@@ -56,12 +48,10 @@ function renderDeviceView(container, devices, summary) {
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">Live Devices</div>
-               <div class="ms-auto lh-1">
-                <i class="ti ti-wifi text-success"></i>
-              </div>
+              <div class="subheader">Online</div>
+               <div class="ms-auto lh-1"><i class="ti ti-wifi text-success"></i></div>
             </div>
-            <div class="h1 mb-3 text-success">${summary.live}</div>
+            <div class="h1 mb-3 text-success">${summary.online}</div>
           </div>
         </div>
       </div>
@@ -69,12 +59,10 @@ function renderDeviceView(container, devices, summary) {
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">Most Common Memory</div>
-              <div class="ms-auto lh-1">
-                <i class="ti ti-database text-muted"></i>
-              </div>
+              <div class="subheader">Secure Boot Enabled</div>
+              <div class="ms-auto lh-1"><i class="ti ti-lock text-muted"></i></div>
             </div>
-            <div class="h1 mb-3">${summary.mostCommonMemory}</div>
+            <div class="h1 mb-3">${summary.secureBoot}</div>
           </div>
         </div>
       </div>
@@ -82,12 +70,10 @@ function renderDeviceView(container, devices, summary) {
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">Most Common CPU</div>
-              <div class="ms-auto lh-1">
-                <i class="ti ti-cpu text-muted"></i>
-              </div>
+              <div class="subheader">TPM Enabled</div>
+              <div class="ms-auto lh-1"><i class="ti ti-chip text-muted"></i></div>
             </div>
-            <div class="h1 mb-3">${summary.mostCommonCpu}</div>
+            <div class="h1 mb-3">${summary.tpmEnabled}</div>
           </div>
         </div>
       </div>
@@ -96,7 +82,7 @@ function renderDeviceView(container, devices, summary) {
       <div class="col-lg-6">
         <div class="card">
           <div class="card-header">
-            <h3 class="card-title">Memory Distribution</h3>
+            <h3 class="card-title">Memory Distribution (${summary.mostCommonMemory})</h3>
           </div>
           <div class="card-body">
             <div id="mem-dist-chart" style="height: 250px" data-chart-type="google"></div>
@@ -106,7 +92,7 @@ function renderDeviceView(container, devices, summary) {
       <div class="col-lg-6">
         <div class="card">
           <div class="card-header">
-            <h3 class="card-title">CPU Core Distribution</h3>
+            <h3 class="card-title">CPU Architecture (${summary.mostCommonCpu})</h3>
           </div>
           <div class="card-body">
             <div id="cpu-dist-chart" style="height: 250px" data-chart-type="google"></div>
@@ -126,31 +112,8 @@ function renderDeviceView(container, devices, summary) {
               </div>
             </div>
           </div>
-          <div class="table-responsive">
-            <table class="table card-table table-vcenter text-nowrap datatable" id="device-table">
-              <thead>
-                <tr>
-                  <th class="w-1 sortable" data-sort="name">Hostname</th>
-                  <th class="sortable" data-sort="os">Operating System</th>
-                  <th class="sortable" data-sort="clientVersion">Client Version</th>
-                  <th class="sortable" data-sort="status">Status</th>
-                  <th class="sortable" data-sort="lastSeen">Last Seen</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${devices.map(device => `
-                  <tr>
-                    <td><div class="text-truncate" style="max-width: 250px;" title="${device.name}">${device.name}</div></td>
-                    <td>${device.os}</td>
-                    <td>${device.clientVersion}</td>
-                    <td>
-                      <span class="badge bg-${getStatusColor(device.status)}-lt">${device.status}</span>
-                    </td>
-                    <td data-timestamp="${device.lastSeenTimestamp}">${formatRelativeTime(device.lastSeenTimestamp)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
+          <div id="devices-table-container">
+             <!-- Paginated table will be rendered here -->
           </div>
         </div>
       </div>
@@ -189,55 +152,127 @@ function renderDistributionChart(elementId, title, data) {
     container.chartInstance = { chart, data: dataTable, options, type: 'PieChart' };
 }
 
-function addDeviceEventListeners() {
-  const searchInput = document.getElementById('device-search');
-  const table = document.getElementById('device-table');
-  if (!table) return;
-  const tableBody = table.querySelector('tbody');
-  const headers = table.querySelectorAll('thead th.sortable');
-  let originalRows = Array.from(tableBody.querySelectorAll('tr'));
+function addDeviceEventListeners(allDevices) {
+    const tableContainer = document.getElementById('devices-table-container');
+    const searchInput = document.getElementById('device-search');
+    
+    let currentDevices = [...allDevices];
+    let currentPage = 1;
+    const pageSize = 15;
+    let sortColumn = 'lastSeenTimestamp';
+    let sortDirection = 'desc';
 
-  // Search functionality
-  searchInput.addEventListener('keyup', () => {
-    const searchTerm = searchInput.value.toLowerCase();
-    originalRows.forEach(row => {
-      const text = row.textContent.toLowerCase();
-      row.style.display = text.includes(searchTerm) ? '' : 'none';
-    });
-  });
+    const renderTablePage = (page) => {
+        currentPage = page;
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        const pageData = currentDevices.slice(start, end);
 
-  // Sorting functionality
-  let sortDirection = {};
-  headers.forEach(header => {
-    header.addEventListener('click', () => {
-      const sortKey = header.dataset.sort;
-      const direction = (sortDirection[sortKey] = sortDirection[sortKey] === 'asc' ? 'desc' : 'asc');
-
-      headers.forEach(h => h.classList.remove('asc', 'desc'));
-      header.classList.add(direction);
-
-      const rows = Array.from(tableBody.querySelectorAll('tr'));
-
-      rows.sort((a, b) => {
-        let valA, valB;
-        const cellIndex = header.cellIndex;
-
-        if (sortKey === 'lastSeen') {
-          valA = parseInt(a.children[cellIndex].dataset.timestamp, 10);
-          valB = parseInt(b.children[cellIndex].dataset.timestamp, 10);
-        } else {
-          valA = a.children[cellIndex].textContent.trim().toLowerCase();
-          valB = b.children[cellIndex].textContent.trim().toLowerCase();
+        const tableId = 'devices-table';
+        if (tableContainer.querySelector(`#${tableId}`) === null) {
+            tableContainer.innerHTML = `
+                <div class="table-responsive">
+                    <table id="${tableId}" class="table card-table table-vcenter text-nowrap datatable">
+                        <thead>
+                            <tr>
+                                <!-- FIX: Updated table headers for new data -->
+                                <th class="w-1 sortable" data-sort="hostname">Hostname</th>
+                                <th class="sortable" data-sort="osVersion">Operating System</th>
+                                <th class="sortable" data-sort="clientVersion">Client Version</th>
+                                <th class="sortable" data-sort="status">Status</th>
+                                <th class="sortable" data-sort="lastSeen">Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="card-footer d-flex align-items-center">
+                    <p class="m-0 text-muted">Showing <span id="${tableId}-start">1</span> to <span id="${tableId}-end">10</span> of <span id="${tableId}-total">${currentDevices.length}</span> entries</p>
+                    <ul id="${tableId}-pagination" class="pagination m-0 ms-auto"></ul>
+                </div>
+            `;
         }
 
-        if (valA < valB) return direction === 'asc' ? -1 : 1;
-        if (valA > valB) return direction === 'asc' ? 1 : -1;
-        return 0;
-      });
+        const tableBody = tableContainer.querySelector(`#${tableId} tbody`);
+        const timeUtils = window.timeUtils;
+        // FIX: Status check is now boolean-based
+        const getStatusColor = (status) => status === 'Online' ? 'green' : 'gray';
 
-      rows.forEach(row => tableBody.appendChild(row));
+        if (pageData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No devices found matching your criteria.</td></tr>';
+        } else {
+            // FIX: Use correct properties from dataService and add fallbacks
+            tableBody.innerHTML = pageData.map(device => `
+                <tr>
+                    <td><div class="text-truncate" style="max-width: 250px;" title="Device ID: ${device.id}">${device.hostname}</div></td>
+                    <td>${device.osVersion}</td>
+                    <td>${device.clientVersion}</td>
+                    <td>
+                        <span class="badge bg-${getStatusColor(device.status)}-lt">${device.status}</span>
+                    </td>
+                    <td data-timestamp="${device.lastSeen}">${timeUtils.formatTimestamp(device.lastSeen)}</td>
+                </tr>
+            `).join('');
+        }
+
+        document.getElementById(`${tableId}-start`).textContent = currentDevices.length > 0 ? start + 1 : 0;
+        document.getElementById(`${tableId}-end`).textContent = Math.min(end, currentDevices.length);
+        document.getElementById(`${tableId}-total`).textContent = currentDevices.length;
+
+        const paginationElement = document.getElementById(`${tableId}-pagination`);
+        const totalPages = Math.ceil(currentDevices.length / pageSize);
+        window.setupPagination(paginationElement, totalPages, renderTablePage, currentPage);
+        
+        tableContainer.querySelectorAll('th.sortable').forEach(th => {
+            th.classList.remove('asc', 'desc');
+            if (th.dataset.sort === sortColumn) {
+                th.classList.add(sortDirection);
+            }
+        });
+    };
+
+    const applySearchAndSort = () => {
+        const searchTerm = searchInput.value.toLowerCase();
+        
+        // FIX: Search against correct and available properties
+        currentDevices = allDevices.filter(device => {
+            const searchableString = `${device.id} ${device.hostname} ${device.osVersion} ${device.clientVersion} ${device.status}`.toLowerCase();
+            return searchableString.includes(searchTerm);
+        });
+
+        currentDevices.sort((a, b) => {
+            let valA = a[sortColumn];
+            let valB = b[sortColumn];
+            if (valA === null || valA === undefined) valA = '';
+            if (valB === null || valB === undefined) valB = '';
+
+            if (typeof valA === 'string') {
+                return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else {
+                return sortDirection === 'asc' ? valA - valB : valB - valA;
+            }
+        });
+
+        renderTablePage(1);
+    };
+
+    searchInput.addEventListener('keyup', applySearchAndSort);
+
+    tableContainer.addEventListener('click', (e) => {
+        const header = e.target.closest('th.sortable');
+        if (header) {
+            const newSortColumn = header.dataset.sort;
+            if (newSortColumn === sortColumn) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = newSortColumn;
+                sortDirection = (newSortColumn.toLowerCase().includes('timestamp')) ? 'desc' : 'asc';
+            }
+            applySearchAndSort();
+        }
     });
-  });
+
+    applySearchAndSort();
 }
 
 // Set this as the current view initializer for timezone/theme refresh

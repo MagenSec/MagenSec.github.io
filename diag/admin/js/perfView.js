@@ -10,16 +10,14 @@
  */
 
 // perfView.js: Renders the Performance Monitoring view.
-window.perfViewInit = async function(container) {
-  if (!container) {
-    console.error('Performance view requires a container element.');
-    return;
+
+async function loadPerfData(container, { dataService }, days = 1) {
+  console.log(`Loading performance data for last ${days} day(s).`);
+  let contentWrapper = container.querySelector('.perf-content-wrapper');
+  if (contentWrapper) {
+      contentWrapper.innerHTML = `<div class="page-preloader"><div class="spinner"></div></div>`;
   }
 
-  console.log('Initializing Performance Monitoring view...');
-  container.innerHTML = `<div class="page-preloader"><div class="spinner"></div></div>`;
-
-  // Load Google Charts
   const googleChartsLoaded = new Promise(resolve => {
     google.charts.load('current', { 'packages': ['corechart'] });
     google.charts.setOnLoadCallback(resolve);
@@ -27,19 +25,21 @@ window.perfViewInit = async function(container) {
 
   try {
     const org = sessionStorage.getItem('org') || 'Global';
-    const { summary, timeSeries } = await dataService.getPerformanceData(org);
+    const { summary, timeSeries } = await dataService.getPerfData(org, days);
 
     await googleChartsLoaded;
     renderPerfView(container, summary, timeSeries);
 
   } catch (error) {
     console.error('Error initializing performance view:', error);
-    container.innerHTML = `<div class="alert alert-danger">Failed to load performance data. Please try again later.</div>`;
+    if(contentWrapper) {
+        contentWrapper.innerHTML = `<div class="alert alert-danger">Failed to load performance data. Please try again later.</div>`;
+    }
   }
-};
+}
 
 function renderPerfView(container, summary, timeSeries) {
-  container.innerHTML = `
+  const viewHTML = `
     <div class="row row-deck row-cards">
       <!-- KPI Cards -->
       <div class="col-sm-6 col-lg-3">
@@ -130,6 +130,11 @@ function renderPerfView(container, summary, timeSeries) {
     </div>
   `;
 
+  let contentWrapper = container.querySelector('.perf-content-wrapper');
+  if (contentWrapper) {
+      contentWrapper.innerHTML = viewHTML;
+  }
+
   renderTimeSeriesChart('cpu-timeseries-chart', 'CPU', timeSeries, ['cpu'], '%');
   renderTimeSeriesChart('mem-timeseries-chart', 'Memory', timeSeries, ['memory'], 'MB');
   renderTimeSeriesChart('disk-timeseries-chart', 'Disk Latency', timeSeries, ['diskRead', 'diskWrite'], 'ms');
@@ -180,6 +185,41 @@ function renderTimeSeriesChart(elementId, title, data, dataKeys, unit) {
     // Store for theme changes and resizing
     container.chartInstance = { chart, data: dataTable, options, type: 'AreaChart' };
 }
+
+window.perfViewInit = async function(container, { dataService }) {
+  if (!container) {
+    console.error('Performance view requires a container element.');
+    return;
+  }
+  window.dataService = dataService; // Make it available for event handlers
+
+  container.innerHTML = `
+    <div class="d-flex justify-content-end mb-3 perf-filter-bar">
+        <div class="btn-group">
+            <button class="btn btn-sm btn-primary" data-days="1">24 Hours</button>
+            <button class="btn btn-sm btn-outline-secondary" data-days="7">7 Days</button>
+            <button class="btn btn-sm btn-outline-secondary" data-days="30">30 Days</button>
+        </div>
+    </div>
+    <div class="perf-content-wrapper"></div>
+  `;
+
+  container.querySelectorAll('.perf-filter-bar .btn').forEach(button => {
+      button.addEventListener('click', (e) => {
+          container.querySelectorAll('.perf-filter-bar .btn').forEach(btn => {
+              btn.classList.remove('btn-primary');
+              btn.classList.add('btn-outline-secondary');
+          });
+          e.target.classList.remove('btn-outline-secondary');
+          e.target.classList.add('btn-primary');
+
+          const selectedDays = parseInt(e.target.dataset.days, 10);
+          loadPerfData(container, { dataService: window.dataService }, selectedDays);
+      });
+  });
+
+  await loadPerfData(container, { dataService }, 1);
+};
 
 // Set this as the current view initializer for timezone/theme refresh
 window.currentViewInit = window.perfViewInit;

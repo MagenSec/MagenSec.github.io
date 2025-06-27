@@ -4,8 +4,9 @@ console.log('orgSwitcher.js (Tabler version) loaded');
 function refreshCurrentView() {
     if (window.currentViewInit && typeof window.currentViewInit === 'function') {
         const contentContainer = document.getElementById('view-content');
-        if (contentContainer) {
-            window.currentViewInit(contentContainer);
+        if (contentContainer && window.dataService) {
+            // Pass the dataService dependency when refreshing the view
+            window.currentViewInit(contentContainer, { dataService: window.dataService });
         }
     }
 }

@@ -48,6 +48,48 @@ const dataService = (() => {
   let sasUrlBase = null;
   // Cache SAS URLs for each table
   let sasUrlMap = {};
+  let orgsList = null; // Cache for the orgs list
+
+  async function getOrgs() {
+    if (orgsList) return orgsList;
+
+    // Fetch unique organizations directly from telemetry data.
+    // We pass 'all' as the org to bypass org filtering for this specific query.
+    // We select only Context1 to get the org names and keep the payload small.
+    const installData = await fetchOData('InstallTelemetry', 'all', { '$select': 'Context1' });
+
+    if (!installData || !installData.value) {
+        console.error('Could not fetch organization list from InstallTelemetry.');
+        // Fallback to trying the old method if telemetry is empty
+        try {
+            const res = await fetch('../teamList.json');
+            if (res.ok) {
+                const teamList = await res.json();
+                const orgs = new Set();
+                for (const user in teamList) {
+                    if (teamList[user].org) orgs.add(teamList[user].org);
+                }
+                orgsList = Array.from(orgs).sort();
+                return orgsList;
+            }
+        } catch (e) {
+            // ignore
+        }
+        return [];
+    }
+
+    const orgs = new Set();
+    installData.value.forEach(item => {
+        // Add to set if Context1 is a valid org name, filtering out system/placeholder values.
+        if (item.Context1 && item.Context1 !== 'Global') {
+            orgs.add(item.Context1);
+        }
+    });
+
+    orgsList = Array.from(orgs).sort();
+    console.log('Discovered orgs from telemetry:', orgsList);
+    return orgsList;
+  }
 
   async function loadSasUrl(table) {
     if (sasUrlMap[table]) return sasUrlMap[table];
@@ -66,31 +108,6 @@ const dataService = (() => {
   }
 
   async function fetchOData(table, org, params = {}) {
-    const key = `${table}:${org}:${JSON.stringify(params)}`;
-    const cachedItem = cache.getItem(key);
-
-    if (cachedItem && Date.now() < cachedItem.expiry) {
-      console.log(`[Cache] HIT for ${key.substring(0, 100)}...`);
-      return cachedItem.data;
-    }
-    console.log(`[Cache] MISS for ${key.substring(0, 100)}...`);
-
-    const url = await loadSasUrl(table);
-    if (!url) throw new Error('SAS URL not loaded');
-    
-    const urlObj = new URL(url);
-    urlObj.searchParams.set('org', org);
-    for (const [k, v] of Object.entries(params)) {
-      urlObj.searchParams.set(k, v);
-    }
-    const res = await fetch(urlObj.toString());
-    if (!res.ok) throw new Error(`Data fetch failed for table ${table} with status ${res.status}`);
-    const data = await res.json();
-    cache.setItem(key, { data, expiry: Date.now() + CACHE_TTL });
-    return data;
-  }
-
-  async function fetchOData(table, org, params = {}) {
     const orgString = org || sessionStorage.getItem('org') || 'all';
     const key = `${table}:${orgString}:${JSON.stringify(params)}`;
     const cachedItem = cache.getItem(key);
@@ -105,17 +122,35 @@ const dataService = (() => {
     if (!url) throw new Error('SAS URL not loaded');
 
     const urlObj = new URL(url);
+    const filterClauses = [];
 
+    // Handle org filter
     const orgs = orgString.split(',').filter(Boolean);
     if (orgs.length > 0 && orgs[0] !== 'all') {
-        const filterQuery = orgs.map(o => `Context1 eq '${o}'`).join(' or ');
-        urlObj.searchParams.set('$filter', filterQuery);
-        console.log(`Applying filter: ${filterQuery}`);
+        const orgFilter = orgs.map(o => `Context1 eq '${o}'`).join(' or ');
+        filterClauses.push(orgs.length > 1 ? `(${orgFilter})` : orgFilter);
     }
 
-    for (const [k, v] of Object.entries(params)) {
+    // Handle incoming params, especially $filter
+    const otherParams = { ...params }; // clone
+    if (otherParams['$filter']) {
+        // The filter from params is pushed as is. The caller is responsible for its format.
+        filterClauses.push(otherParams['$filter']);
+        delete otherParams['$filter'];
+    }
+
+    // Combine filters
+    if (filterClauses.length > 0) {
+        const finalFilter = filterClauses.join(' and ');
+        urlObj.searchParams.set('$filter', finalFilter);
+        console.log(`Applying filter: ${finalFilter}`);
+    }
+
+    // Add other params
+    for (const [k, v] of Object.entries(otherParams)) {
       urlObj.searchParams.set(k, v);
     }
+    
     const res = await fetch(urlObj.toString());
     if (!res.ok) throw new Error(`Data fetch failed for table ${table} with status ${res.status}`);
     const data = await res.json();
@@ -150,10 +185,13 @@ const dataService = (() => {
   async function getDashboardMetrics(org) {
     org = org || sessionStorage.getItem('org');
 
-    const [installData, appData, perfData] = await Promise.all([
+    const [installData, appData, perfData, allInstallData] = await Promise.all([
       fetchOData('InstallTelemetry', org),
       fetchOData('AppTelemetry', org),
-      fetchOData('PerfTelemetry', org)
+      fetchOData('PerfTelemetry', org),
+      // Fetch installs for the selected org(s) to calculate device and hardware stats.
+      // For admins, 'org' can be 'all' or a subset. For non-admins, it's their own org.
+      fetchOData('InstallTelemetry', org, { '$select': 'Context1,Context2,Timestamp,CpuArchitecture,IsSecureBootEnabled,IsTpmEnabled' })
     ]);
 
     if ((!installData || !installData.value || installData.value.length === 0) &&
@@ -166,6 +204,11 @@ const dataService = (() => {
               managedDevices: { value: 0, trend: [] },
               liveDevices: { value: 0 },
               offlineDevices: { value: 0 },
+              newDevices7d: { value: 0 },
+              newlyLicensedDevices7d: { value: 0 },
+              newDevices14d: { value: 0 },
+              newlyLicensedDevices14d: { value: 0 },
+              unlicensedDevices: { value: 0 },
               uniqueApps: { value: 0, trend: [] },
               highRiskAssets: { value: 0, trend: [] },
               totalVulnerableApps: { value: 0, trend: [] },
@@ -173,6 +216,7 @@ const dataService = (() => {
               matchAnalysis: { absolute: 0, heuristic: 0 },
               cpu: { avg: 0, min: 0, max: 0 },
               memory: { avg: 0, min: 0, max: 0 },
+              hardware: { cpuArch: {}, secureBoot: {}, tpm: {} },
           }, 
           charts: [] 
       };
@@ -182,8 +226,88 @@ const dataService = (() => {
     const apps = appData.value || [];
     const perfs = perfData.value || [];
 
-    // Device stats
+    // --- NEW: Global device stats from allInstallData ---
+    const allInstalls = (allInstallData && allInstallData.value) ? allInstallData.value : [];
+    const deviceFirstSeen = new Map();
+    const deviceFirstLicensedTimestamp = new Map();
+    const unlicensedDeviceIds = new Set();
+
+    allInstalls.forEach(i => {
+        const deviceId = i.Context2;
+        if (!deviceId) return;
+        const timestamp = new Date(i.Timestamp).getTime();
+        const org = i.Context1;
+
+        // First time seen anywhere
+        if (!deviceFirstSeen.has(deviceId) || timestamp < deviceFirstSeen.get(deviceId)) {
+            deviceFirstSeen.set(deviceId, timestamp);
+        }
+
+        if (org && org !== 'DEVICE-NOT-LICENSED') {
+            // First time seen in a licensed org
+            if (!deviceFirstLicensedTimestamp.has(deviceId) || timestamp < deviceFirstLicensedTimestamp.get(deviceId)) {
+                deviceFirstLicensedTimestamp.set(deviceId, timestamp);
+            }
+        } else if (org === 'DEVICE-NOT-LICENSED') {
+            unlicensedDeviceIds.add(deviceId);
+        }
+    });
+    
     const now = Date.now();
+    const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = now - (14 * 24 * 60 * 60 * 1000);
+
+    let newDevices7d = 0;
+    let newDevices14d = 0;
+    deviceFirstSeen.forEach(timestamp => {
+        if (timestamp >= sevenDaysAgo) newDevices7d++;
+        if (timestamp >= fourteenDaysAgo) newDevices14d++;
+    });
+
+    let newlyLicensedDevices7d = 0;
+    let newlyLicensedDevices14d = 0;
+    deviceFirstLicensedTimestamp.forEach(timestamp => {
+        if (timestamp >= sevenDaysAgo) {
+            newlyLicensedDevices7d++;
+        }
+        if (timestamp >= fourteenDaysAgo) {
+            newlyLicensedDevices14d++;
+        }
+    });
+
+    const unlicensedDevices = unlicensedDeviceIds.size;
+
+    // --- NEW: Hardware KPIs from allInstallData ---
+    const uniqueDevices = new Map();
+    allInstalls.forEach(i => {
+        // Use the latest record for each device based on Timestamp
+        if (i.Context2 && (!uniqueDevices.has(i.Context2) || new Date(i.Timestamp) > new Date(uniqueDevices.get(i.Context2).Timestamp))) {
+            uniqueDevices.set(i.Context2, i);
+        }
+    });
+
+    const deviceList = Array.from(uniqueDevices.values());
+
+    const cpuArchDistribution = deviceList.reduce((acc, device) => {
+        const arch = device.CpuArchitecture || 'Unknown';
+        acc[arch] = (acc[arch] || 0) + 1;
+        return acc;
+    }, {});
+
+    const secureBootStatus = deviceList.reduce((acc, device) => {
+        const status = device.IsSecureBootEnabled === true ? 'Enabled' : (device.IsSecureBootEnabled === false ? 'Disabled' : 'Unknown');
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+    }, {});
+
+    const tpmStatus = deviceList.reduce((acc, device) => {
+        const status = device.IsTpmEnabled === true ? 'Enabled' : (device.IsTpmEnabled === false ? 'Disabled' : 'Unknown');
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+    }, {});
+    // --- END NEW ---
+
+    // Device stats
     const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
     const deviceLastSeen = new Map();
 
@@ -264,6 +388,11 @@ const dataService = (() => {
         managedDevices: { value: managedDevices, trend: generateTrend(managedDevices) },
         liveDevices: { value: liveDevices },
         offlineDevices: { value: offlineDevices },
+        newDevices7d: { value: newDevices7d },
+        newlyLicensedDevices7d: { value: newlyLicensedDevices7d },
+        newDevices14d: { value: newDevices14d },
+        newlyLicensedDevices14d: { value: newlyLicensedDevices14d },
+        unlicensedDevices: { value: unlicensedDevices },
         uniqueApps: { value: uniqueApps, trend: generateTrend(uniqueApps) },
         highRiskAssets: { value: highRiskAssets, trend: generateTrend(highRiskAssets) },
         totalVulnerableApps: { value: vulnerableApps.length, trend: generateTrend(vulnerableApps.length) },
@@ -271,6 +400,11 @@ const dataService = (() => {
         matchAnalysis: matchAnalysis,
         cpu,
         memory,
+        hardware: {
+            cpuArch: cpuArchDistribution,
+            secureBoot: secureBootStatus,
+            tpm: tpmStatus,
+        },
     };
 
     // Chart Data
@@ -310,342 +444,34 @@ const dataService = (() => {
     };
 
     const charts = [riskyAppsChart, vulnerabilityBreakdownChart, postureHistory];
-    return { kpis, charts };
+
+    const cpuChartData = perfs.map(p => ({ x: new Date(p.Timestamp), y: parseFloat(p.CpuAvg) || 0 })).sort((a, b) => a.x - b.x);
+    const memChartData = perfs.map(p => ({ x: new Date(p.Timestamp), y: parseFloat(p.MemAvgMB) || 0 })).sort((a, b) => a.x - b.x);
+
+    return { kpis, charts: { main: charts, cpu: cpuChartData, memory: memChartData } };
   }
 
-  async function getOrgs() {
-    try {
-      let url = await loadSasUrl('InstallTelemetry');
-      if (!url) throw new Error('No SAS URL for InstallTelemetry');
-      const res = await fetch(url + '&$top=1000');
-      if (!res.ok) throw new Error('Failed to fetch InstallTelemetry');
-      const data = await res.json();
-      const orgSet = new Set();
-      (data.value || []).forEach(row => {
-        if (row.Context1) orgSet.add(row.Context1);
-        if (row.org) orgSet.add(row.org);
-      });
-      const orgs = Array.from(orgSet);
-      if (!orgs.length) throw new Error('No orgs found in InstallTelemetry');
-      return orgs;
-    } catch (e) {
-      try {
-        const res = await fetch('teamList.json');
-        if (!res.ok) throw new Error('Failed to load teamList.json');
-        const users = await res.json();
-        const orgSet = new Set(Object.values(users).map(u => u.org).filter(Boolean));
-        return orgSet.size > 0 ? Array.from(orgSet) : ['admin', 'DEVICE-NOT-LICENSED'];
-      } catch (e2) {
-        console.error('getOrgs error:', e, e2);
-        return ['admin', 'DEVICE-NOT-LICENSED'];
-      }
-    }
-  }
+  // =================================================================
+  // Performance View Data Logic
+  // =================================================================
+  async function getPerfData(org, days = 1) {
+    const now = new Date();
+    const startTime = new Date(now.getTime() - (days * 24 * 60 * 60 * 1000));
+    const odataFilterTime = `Timestamp ge datetime'${startTime.toISOString()}'`;
 
-  async function getApplicationData(org) {
-    org = org || sessionStorage.getItem('org');
-    const appData = await fetchOData('AppTelemetry', org);
+    const perfData = await fetchOData('PerfTelemetry', org, { '$filter': odataFilterTime });
 
-    const defaultSummary = { totalApps: 0, vulnerableApps: 0, criticalVulnerabilities: 0, highVulnerabilities: 0 };
-    if (!appData || !appData.value || appData.value.length === 0) {
-      return { apps: [], summary: defaultSummary, timelineData: [] };
-    }
-
-    const appMap = new Map();
-    appData.value.forEach(record => {
-      if (!record.AppName) return;
-      const key = `${record.AppName}|${record.AppVendor || 'Unknown'}`;
-      if (!appMap.has(key)) {
-        appMap.set(key, {
-          name: record.AppName, publisher: record.AppVendor || 'Unknown',
-          versions: new Set(), devices: new Set(), maxRisk: 0,
-          firstDetected: null,
-          firstRemediated: null,
-        });
-      }
-      const app = appMap.get(key);
-      if (record.ApplicationVersion) app.versions.add(record.ApplicationVersion);
-      if (record.Context2) app.devices.add(record.Context2);
-      const exploitProb = parseFloat(record.ExploitProbability) || 0;
-      if (exploitProb > app.maxRisk) app.maxRisk = exploitProb;
-
-      const detectedDate = record.FirstDetectedOn ? new Date(record.FirstDetectedOn) : null;
-      if (detectedDate && (!app.firstDetected || detectedDate < app.firstDetected)) {
-          app.firstDetected = detectedDate;
-      }
-      const uninstalledDate = record.UninstalledOn ? new Date(record.UninstalledOn) : null;
-      if (uninstalledDate && (!app.firstRemediated || uninstalledDate < app.firstRemediated)) {
-          app.firstRemediated = uninstalledDate;
-      }
-    });
-
-    const apps = Array.from(appMap.values()).map(app => {
-      let riskLevel = 'None';
-      if (app.maxRisk > 0.9) riskLevel = 'Critical';
-      else if (app.maxRisk > 0.7) riskLevel = 'High';
-      else if (app.maxRisk > 0.4) riskLevel = 'Medium';
-      else if (app.maxRisk > 0) riskLevel = 'Low';
+    if (!perfData || !perfData.value || perfData.value.length === 0) {
+      console.warn('Perf metrics: No data available.');
       return {
-        name: app.name, publisher: app.publisher,
-        versions: Array.from(app.versions).join(', '),
-        installCount: app.devices.size, riskLevel: riskLevel,
-        firstDetected: app.firstDetected,
-        firstRemediated: app.firstRemediated,
+          summary: { 
+              avgCpu: 0, peakCpu: 0, 
+              avgMem: 0, peakMem: 0, 
+              avgDiskRead: 0, avgDiskWrite: 0,
+              deviceCount: 0
+          },
+          timeSeries: []
       };
-    });
-
-    const summary = {
-        totalApps: appMap.size,
-        vulnerableApps: apps.filter(a => a.riskLevel !== 'None').length,
-        criticalVulnerabilities: apps.filter(a => a.riskLevel === 'Critical').length,
-        highVulnerabilities: apps.filter(a => a.riskLevel === 'High').length,
-    };
-
-    // --- NEW: Application Lifecycle Timeline ---
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const timelineData = [];
-    // Create a map to track the earliest install for each app to avoid duplicate timeline entries
-    const appInstallTracker = new Map();
-
-    appData.value.forEach(record => {
-        if (!record.AppName || !record.FirstDetectedOn) return;
-        const appKey = `${record.AppName}|${record.AppVendor || 'Unknown'}`;
-        const detectedDate = new Date(record.FirstDetectedOn);
-
-        // Track the very first time we see an app installed
-        if (!appInstallTracker.has(appKey) || detectedDate < appInstallTracker.get(appKey)) {
-            appInstallTracker.set(appKey, detectedDate);
-        }
-    });
-
-    appData.value.forEach(record => {
-        if (!record.AppName) return;
-        const appKey = `${record.AppName}|${record.AppVendor || 'Unknown'}`;
-        const detectedDate = record.FirstDetectedOn ? new Date(record.FirstDetectedOn) : null;
-        const uninstalledDate = record.UninstalledOn ? new Date(record.UninstalledOn) : null;
-
-        // Add install event only if it's the first one and within 30 days
-        if (detectedDate && detectedDate.getTime() === appInstallTracker.get(appKey).getTime() && detectedDate >= thirtyDaysAgo) {
-            timelineData.push([
-                record.AppName,
-                'Installed',
-                detectedDate,
-                // If uninstalled, end date is that. Otherwise, it's ongoing (set end to now).
-                uninstalledDate || new Date()
-            ]);
-        }
-
-        // Add uninstall event if it happened in the last 30 days
-        // This is slightly redundant if the above handles it, but ensures uninstalls are captured
-        // if the install was > 30 days ago.
-        if (uninstalledDate && uninstalledDate >= thirtyDaysAgo) {
-             // To avoid double entries, check if an entry for this exact period already exists
-            const existing = timelineData.find(e => e[0] === record.AppName && e[2].getTime() === detectedDate.getTime());
-            if (!existing) {
-                 timelineData.push([
-                    record.AppName,
-                    'Installed/Uninstalled', // A different state for clarity
-                    detectedDate,
-                    uninstalledDate
-                ]);
-            }
-        }
-    });
-    
-    return { apps, summary, timelineData };
-  }
-
-  async function getDeviceData(org) {
-    org = org || sessionStorage.getItem('org');
-    const [installData, perfData] = await Promise.all([
-        fetchOData('InstallTelemetry', org),
-        fetchOData('PerfTelemetry', org)
-    ]);
-
-    const defaultResult = {
-        devices: [],
-        summary: {
-            total: 0, live: 0, offline: 0, byPlatform: {},
-            memoryDistribution: {}, cpuCoreDistribution: {},
-            mostCommonMemory: 'N/A', mostCommonCpu: 'N/A'
-        }
-    };
-
-    if ((!installData || !installData.value || installData.value.length === 0) && 
-        (!perfData || !perfData.value || perfData.value.length === 0)) {
-        return defaultResult;
-    }
-
-    const deviceMap = new Map();
-    const now = Date.now();
-    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-
-    // First pass with install data for basic device info
-    if (installData && installData.value) {
-        installData.value.forEach(record => {
-            const deviceId = record.Context2;
-            if (!deviceId) return;
-            const timestamp = new Date(record.Timestamp).getTime();
-            if (!deviceMap.has(deviceId)) {
-                deviceMap.set(deviceId, {
-                    id: deviceId,
-                    hostname: record.DeviceHostname || 'Unknown',
-                    os: record.Platform || 'Windows',
-                    lastSeen: timestamp,
-                    clientVersion: 'N/A',
-                    cpuCores: null,
-                    totalMemoryGB: null
-                });
-            } else {
-                const device = deviceMap.get(deviceId);
-                if (timestamp > device.lastSeen) {
-                    device.lastSeen = timestamp;
-                }
-            }
-        });
-    }
-
-    // Second pass with perf data to enrich and update
-    if (perfData && perfData.value) {
-        perfData.value.forEach(p => {
-            const deviceId = p.Context2;
-            if (!deviceId) return;
-            const timestamp = new Date(p.Timestamp).getTime();
-
-            if (!deviceMap.has(deviceId)) {
-                // This case handles devices that only have perf data (less likely but possible)
-                deviceMap.set(deviceId, {
-                    id: deviceId,
-                    hostname: p.DeviceHostname || 'Unknown',
-                    os: p.Platform || 'Windows',
-                    lastSeen: timestamp,
-                    clientVersion: p.AppVersion,
-                    cpuCores: p.CpuCores,
-                    totalMemoryGB: p.TotalMemoryGB
-                });
-            } else {
-                const device = deviceMap.get(deviceId);
-                if (timestamp > device.lastSeen) {
-                    device.lastSeen = timestamp;
-                }
-                device.clientVersion = p.AppVersion || device.clientVersion;
-                device.cpuCores = p.CpuCores || device.cpuCores;
-                device.totalMemoryGB = p.TotalMemoryGB || device.totalMemoryGB;
-            }
-        });
-    }
-
-    const devices = Array.from(deviceMap.values());
-
-    // Calculate summaries
-    const total = deviceMap.size;
-    let live = 0;
-    const byPlatform = {};
-    const memoryDistribution = {};
-    const cpuCoreDistribution = {};
-
-    devices.forEach(d => {
-        if (d.lastSeen >= twentyFourHoursAgo) live++;
-        if (d.os) byPlatform[d.os] = (byPlatform[d.os] || 0) + 1;
-
-        if (d.totalMemoryGB) {
-            const mem = `${Math.round(d.totalMemoryGB)} GB`;
-            memoryDistribution[mem] = (memoryDistribution[mem] || 0) + 1;
-        } else {
-            memoryDistribution['Unknown'] = (memoryDistribution['Unknown'] || 0) + 1;
-        }
-
-        if (d.cpuCores) {
-            const cores = `${d.cpuCores} Cores`;
-            cpuCoreDistribution[cores] = (cpuCoreDistribution[cores] || 0) + 1;
-        } else {
-            cpuCoreDistribution['Unknown'] = (cpuCoreDistribution['Unknown'] || 0) + 1;
-        }
-    });
-
-    const offline = total - live;
-    
-    const mostCommonMemory = total > 0 ? Object.keys(memoryDistribution).reduce((a, b) => memoryDistribution[a] > memoryDistribution[b] ? a : b, 'N/A') : 'N/A';
-    const mostCommonCpu = total > 0 ? Object.keys(cpuCoreDistribution).reduce((a, b) => cpuCoreDistribution[a] > cpuCoreDistribution[b] ? a : b, 'N/A') : 'N/A';
-
-    const summary = {
-        total, live, offline, byPlatform,
-        memoryDistribution, cpuCoreDistribution,
-        mostCommonMemory, mostCommonCpu
-    };
-
-    const deviceList = devices.map(d => ({
-        name: d.hostname,
-        os: d.os,
-        clientVersion: d.clientVersion || 'N/A',
-        status: d.lastSeen >= twentyFourHoursAgo ? 'Live' : 'Offline',
-        lastSeenTimestamp: d.lastSeen
-    }));
-
-    return { devices: deviceList, summary };
-  }
-
-  async function getSecurityData(org) {
-    org = org || sessionStorage.getItem('org');
-    const [appData, installData] = await Promise.all([
-        fetchOData('AppTelemetry', org),
-        fetchOData('InstallTelemetry', org)
-    ]);
-    const defaultResult = { events: [], summary: { totalEvents: 0, critical: 0, high: 0, byType: {} } };
-    if (!appData || appData.value.length === 0) return defaultResult;
-
-    const deviceHostnames = new Map();
-    if (installData && installData.value) {
-        installData.value.forEach(rec => {
-            if (rec.Context2 && rec.DeviceHostname) deviceHostnames.set(rec.Context2, rec.DeviceHostname);
-        });
-    }
-
-    const events = appData.value
-        .filter(a => a.ExploitProbability > 0)
-        .map(a => {
-            const risk = parseFloat(a.ExploitProbability) || 0;
-            let severity = 'Low';
-            if (risk > 0.9) severity = 'Critical';
-            else if (risk > 0.7) severity = 'High';
-            else if (risk > 0.4) severity = 'Medium';
-            return {
-                timestamp: a.Timestamp,
-                device: deviceHostnames.get(a.Context2) || a.Context2 || 'Unknown Device',
-                description: `Vulnerable application detected: ${a.AppName} ${a.ApplicationVersion || ''}`,
-                type: 'Vulnerability', severity: severity,
-                details: `EPSS Score: ${(risk * 100).toFixed(1)}%`,
-            };
-        })
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-    const summary = {
-        totalEvents: events.length,
-        critical: events.filter(e => e.severity === 'Critical').length,
-        high: events.filter(e => e.severity === 'High').length,
-        byType: events.reduce((acc, e) => { acc[e.type] = (acc[e.type] || 0) + 1; return acc; }, {}),
-    };
-    return { events, summary };
-  }
-
-  async function getPerformanceData(org) {
-    org = org || sessionStorage.getItem('org');
-    const perfData = await fetchOData('PerfTelemetry', org);
-
-    const defaultResult = {
-        summary: { 
-            avgCpu: 0, peakCpu: 0, 
-            avgMem: 0, peakMem: 0, 
-            avgDiskRead: 0, avgDiskWrite: 0,
-            deviceCount: 0
-        },
-        timeSeries: []
-    };
-    if (!perfData || !perfData.value || !perfData.value.length === 0) {
-        console.warn('getPerformanceData: No data available.');
-        return defaultResult;
     }
 
     const perfs = perfData.value;
@@ -703,28 +529,402 @@ const dataService = (() => {
     return { summary, timeSeries };
   }
 
-  async function getReportsData(org) {
+  // =================================================================
+  // Application View Data Logic
+  // =================================================================
+  async function getApplicationData(org) {
     org = org || sessionStorage.getItem('org');
-    const [deviceData, appData, securityData] = await Promise.all([
-        getDeviceData(org),
-        getApplicationData(org),
-        getSecurityData(org)
-    ]);
-    return { deviceData, appData, securityData, generated: new Date(), org: org };
+    // FIX: Explicitly select all required fields to avoid missing data.
+    const appData = await fetchOData('AppTelemetry', org, {
+        '$select': 'AppName,AppVersion,Publisher,InstallDate,ExploitProbability,Context2,FirstDetectedOn,UninstalledOn,LifecycleState'
+    });
+
+    if (!appData || !appData.value || appData.value.length === 0) {
+        return {
+            apps: [],
+            summary: {
+                total: 0,
+                vulnerable: 0,
+                highRisk: 0,
+                uniqueApps: 0,
+            },
+            timelineData: []
+        };
+    }
+
+    const rawApps = appData.value;
+
+    // 1. Create the clean app list first, with fallbacks for robustness.
+    const appList = rawApps.map(a => ({
+        appName: a.AppName || 'Unknown App',
+        version: a.AppVersion || 'N/A',
+        publisher: a.Publisher || 'Unknown Publisher',
+        installDate: a.InstallDate, // Dates can be null, view should handle it
+        exploitProbability: a.ExploitProbability || 0,
+        device: a.Context2 || 'Unknown Device',
+        firstDetected: a.FirstDetectedOn,
+        uninstalledOn: a.UninstalledOn,
+        lifecycleState: a.LifecycleState || 'Unknown'
+    })).sort((a, b) => (b.exploitProbability || 0) - (a.exploitProbability || 0));
+
+    // 2. Calculate summary from the clean list.
+    const vulnerableApps = appList.filter(a => a.exploitProbability > 0);
+    const highRiskApps = vulnerableApps.filter(a => a.exploitProbability > 0.7);
+
+    const summary = {
+        total: appList.length,
+        vulnerable: vulnerableApps.length,
+        highRisk: highRiskApps.length,
+        uniqueApps: new Set(appList.map(a => a.appName)).size
+    };
+
+    // 3. Generate Timeline Data from the clean list.
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const timelineData = appList
+        .filter(a => (a.installDate || a.firstDetected) && new Date(a.installDate || a.firstDetected) > thirtyDaysAgo)
+        .map(a => {
+            const startDate = new Date(a.installDate || a.firstDetected);
+            const uninstallDate = a.uninstalledOn ? new Date(a.uninstalledOn) : new Date();
+            const endDate = uninstallDate < startDate ? startDate : uninstallDate;
+            const state = a.exploitProbability > 0 ? `Vulnerable (Risk: ${(a.exploitProbability * 100).toFixed(0)}%)` : 'Installed';
+            return [a.appName, state, startDate, endDate];
+        });
+
+    // 4. Return everything.
+    return { apps: appList, summary, timelineData };
   }
 
+  // =================================================================
+  // Device View Data Logic
+  // =================================================================
+  async function getDeviceData(org) {
+    org = org || sessionStorage.getItem('org');
+    const [installData, perfData] = await Promise.all([
+        // FIX: Explicitly select all required fields, including HostName for good measure.
+        fetchOData('InstallTelemetry', org, { '$select': 'Context2,HostName,Timestamp,TotalRAMMB,CpuArchitecture,IsSecureBootEnabled,IsTpmEnabled,OSVersion,ClientVersion' }),
+        fetchOData('PerfTelemetry', org, { '$select': 'Context2,Timestamp' })
+    ]);
+
+    if ((!installData || !installData.value || installData.value.length === 0)) {
+        return {
+            devices: [],
+            summary: {
+                total: 0,
+                online: 0,
+                offline: 0,
+                secureBoot: 0,
+                tpmEnabled: 0,
+                mostCommonMemory: 'N/A',
+                mostCommonCpu: 'N/A',
+                memoryDistribution: {},
+                cpuCoreDistribution: {}
+            }
+        };
+    }
+
+    const installs = installData.value || [];
+    const perfs = perfData.value || [];
+    const now = Date.now();
+    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+
+    const deviceMap = new Map();
+
+    // Process install data for hardware info (latest record wins)
+    installs.forEach(i => {
+        const deviceId = i.Context2;
+        if (!deviceId) return;
+        if (!deviceMap.has(deviceId) || new Date(i.Timestamp) > new Date(deviceMap.get(deviceId).installTimestamp)) {
+            // FIX: Add fallbacks for potentially null/undefined data.
+            deviceMap.set(deviceId, {
+                id: deviceId,
+                hostname: i.HostName || 'Unknown Host',
+                osVersion: i.OSVersion || 'Unknown OS',
+                clientVersion: i.ClientVersion || 'N/A',
+                ram: i.TotalRAMMB || 0,
+                cpu: i.CpuArchitecture || 'Unknown Arch',
+                secureBoot: i.IsSecureBootEnabled === true, // Coerce to boolean
+                tpm: i.IsTpmEnabled === true, // Coerce to boolean
+                installTimestamp: i.Timestamp, // for latest record logic
+                lastSeen: null // will be filled by perf data
+            });
+        }
+    });
+
+    // Process perf data for last seen status
+    perfs.forEach(p => {
+        const deviceId = p.Context2;
+        if (deviceMap.has(deviceId)) {
+            const device = deviceMap.get(deviceId);
+            const timestamp = new Date(p.Timestamp).getTime();
+            if (!device.lastSeen || timestamp > device.lastSeen) {
+                device.lastSeen = timestamp;
+            }
+        }
+    });
+
+    const deviceList = Array.from(deviceMap.values());
+
+    let onlineCount = 0;
+    deviceList.forEach(d => {
+        if (d.lastSeen && d.lastSeen >= twentyFourHoursAgo) {
+            d.status = 'Online';
+            onlineCount++;
+        } else {
+            d.status = 'Offline';
+        }
+    });
+
+    // FIX: Add missing summary calculations
+    const calculateDistribution = (items, key, formatter) => {
+        return items.reduce((acc, item) => {
+            const value = item[key];
+            if (value) {
+                const formattedValue = formatter ? formatter(value) : value;
+                acc[formattedValue] = (acc[formattedValue] || 0) + 1;
+            }
+            return acc;
+        }, {});
+    };
+
+    const getMostCommon = (dist) => {
+        if (Object.keys(dist).length === 0) return 'N/A';
+        return Object.entries(dist).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+    };
+
+    const memoryDistribution = calculateDistribution(deviceList, 'ram', val => `${Math.round(val / 1024)} GB`);
+    const cpuCoreDistribution = calculateDistribution(deviceList, 'cpu');
+
+    const summary = {
+        total: deviceList.length,
+        online: onlineCount,
+        offline: deviceList.length - onlineCount,
+        secureBoot: deviceList.filter(d => d.secureBoot).length,
+        tpmEnabled: deviceList.filter(d => d.tpm).length,
+        mostCommonMemory: getMostCommon(memoryDistribution),
+        mostCommonCpu: getMostCommon(cpuCoreDistribution),
+        memoryDistribution,
+        cpuCoreDistribution
+    };
+
+    return { devices: deviceList, summary };
+  }
+
+  // =================================================================
+  // Security View Data Logic
+  // =================================================================
+  async function getSecurityData(org) {
+    org = org || sessionStorage.getItem('org');
+    // Add explicit select for required fields
+    const appData = await fetchOData('AppTelemetry', org, {
+        '$select': 'AppName,Context2,ExploitProbability,Details,FirstDetectedOn'
+    });
+
+    if (!appData || !appData.value || !appData.value.length === 0) {
+        return {
+            events: [],
+            summary: {
+                totalEvents: 0,
+                affectedDevices: 0,
+                bySeverity: { Critical: 0, High: 0, Medium: 0, Low: 0 },
+            }
+        };
+    }
+
+    const apps = appData.value;
+    const vulnerabilities = apps.filter(a => a.ExploitProbability > 0);
+    const affectedDevices = new Set(vulnerabilities.map(v => v.Context2));
+
+    const critical = vulnerabilities.filter(v => v.ExploitProbability > 0.9).length;
+    const high = vulnerabilities.filter(v => v.ExploitProbability > 0.7 && v.ExploitProbability <= 0.9).length;
+    const medium = vulnerabilities.filter(v => v.ExploitProbability > 0.4 && v.ExploitProbability <= 0.7).length;
+    const low = vulnerabilities.filter(v => v.ExploitProbability > 0 && v.ExploitProbability <= 0.4).length;
+
+    // FIX: Restructure summary to match securityView expectations
+    const summary = {
+        totalEvents: vulnerabilities.length,
+        affectedDevices: affectedDevices.size,
+        bySeverity: {
+            Critical: critical,
+            High: high,
+            Medium: medium,
+            Low: low,
+        }
+    };
+
+    const vulnerabilityList = vulnerabilities.map(v => ({
+        appName: v.AppName,
+        device: v.Context2,
+        // FIX: Add fields expected by securityView table
+        description: `Vulnerability in ${v.AppName}`,
+        type: 'Software Vulnerability',
+        severity: v.ExploitProbability > 0.9 ? 'Critical' : (v.ExploitProbability > 0.7 ? 'High' : (v.ExploitProbability > 0.4 ? 'Medium' : 'Low')),
+        probability: v.ExploitProbability,
+        details: v.Details || 'N/A',
+        timestamp: v.FirstDetectedOn, // Use timestamp for sorting
+    })).sort((a, b) => b.probability - a.probability);
+
+    // Return as 'events' for consistency with views
+    return { events: vulnerabilityList, summary };
+  }
+
+  async function getReportsData(org) {
+    org = org || sessionStorage.getItem('org');
+    const [deviceData, appData, securityData, dashboardMetrics] = await Promise.all([
+        getDeviceData(org),
+        getApplicationData(org),
+        getSecurityData(org),
+        getDashboardMetrics(org) // Contains security score and other KPIs
+    ]);
+
+    const securityEvents = securityData.events || [];
+    const securitySummary = securityData.summary || {};
+
+    const report = {
+        // From dashboard metrics
+        securityScore: dashboardMetrics.kpis.securityScore.value || 'N/A',
+        managedDevices: dashboardMetrics.kpis.managedDevices.value || 0,
+        liveDevices: dashboardMetrics.kpis.liveDevices.value || 0,
+        coldDevices: dashboardMetrics.kpis.offlineDevices.value || 0,
+
+        // From app data
+        totalApps: appData.summary.total || 0,
+        vulnerableApps: appData.summary.vulnerable || 0,
+        applications: appData.apps || [],
+
+        // From device data
+        devices: deviceData.devices || [],
+
+        // From security data
+        totalSecurityEvents: securityEvents.length,
+        securityEvents: securityEvents,
+        securityEventsBySeverity: {
+            Critical: securitySummary.critical || 0,
+            High: securitySummary.high || 0,
+            Medium: securitySummary.medium || 0,
+            Low: securitySummary.low || 0,
+        },
+
+        // Report metadata
+        generated: new Date(),
+        org: org
+    };
+
+    // Aggregate application data for a summarized report table
+    const appMap = new Map();
+    report.applications.forEach(app => {
+        const key = `${app.appName}|${app.publisher}`;
+        if (!appMap.has(key)) {
+            appMap.set(key, {
+                name: app.appName,
+                publisher: app.publisher,
+                versions: new Set(),
+                installCount: 0,
+                riskLevel: 'None',
+                maxRisk: 0
+            });
+        }
+        const entry = appMap.get(key);
+        entry.installCount++;
+        entry.versions.add(app.version);
+        if (app.exploitProbability > entry.maxRisk) {
+            entry.maxRisk = app.exploitProbability;
+            if (entry.maxRisk > 0.9) entry.riskLevel = 'Critical';
+            else if (entry.maxRisk > 0.7) entry.riskLevel = 'High';
+            else if (entry.maxRisk > 0.4) entry.riskLevel = 'Medium';
+            else if (entry.maxRisk > 0) entry.riskLevel = 'Low';
+        }
+    });
+
+    report.applications = Array.from(appMap.values()).map(app => ({
+        ...app,
+        versions: Array.from(app.versions).join(', ')
+    })).sort((a, b) => b.maxRisk - a.maxRisk);
+
+    return report;
+  }
+
+  async function getInstallData(org) {
+    org = org || sessionStorage.getItem('org');
+    const installData = await fetchOData('InstallTelemetry', org);
+
+    if (!installData || !installData.value || !installData.value.length === 0) {
+        return {
+            installs: [],
+            summary: {
+                total: 0,
+                successful: 0,
+                failed: 0,
+                last24h: 0,
+                last7d: 0,
+            }
+        };
+    }
+
+    const installs = installData.value;
+    const now = Date.now();
+    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+    const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+
+    let successful = 0;
+    let failed = 0;
+    let last24h = 0;
+    let last7d = 0;
+
+    installs.forEach(i => {
+        const timestamp = new Date(i.Timestamp).getTime();
+        // Assuming 'Succeeded' and 'Completed' status for successful installs.
+        if (i.Status === 'Succeeded' || i.Status === 'Completed') {
+            successful++;
+        } else {
+            failed++;
+        }
+
+        if (timestamp >= twentyFourHoursAgo) {
+            last24h++;
+        }
+        if (timestamp >= sevenDaysAgo) {
+            last7d++;
+        }
+    });
+
+    const summary = {
+        total: installs.length,
+        successful,
+        failed,
+        last24h,
+        last7d
+    };
+
+    const installList = installs.map(i => ({
+        timestamp: i.Timestamp,
+        device: i.Context2,
+        appName: i.Context3,
+        status: i.Status,
+        details: i.Details || '',
+        version: i.ClientVersion || 'N/A'
+    })).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    return { installs: installList, summary };
+  }
+
+  // =================================================================
+  // Public API
+  // =================================================================
   return {
     getOrgs,
     getDashboardMetrics,
     getApplicationData,
     getDeviceData,
     getSecurityData,
+    getPerfData,
+    getInstallData,
     getReportsData,
-    getPerformanceData,
-    fetchSasExpiry,
-    getExpiry
   };
 })();
+
+export default dataService;
 
 // Make it globally available
 window.dataService = dataService;
