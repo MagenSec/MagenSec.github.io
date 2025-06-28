@@ -3,7 +3,7 @@ console.log('orgSwitcher.js (Tabler version) loaded');
 
 function refreshCurrentView() {
     if (window.currentViewInit && typeof window.currentViewInit === 'function') {
-        const contentContainer = document.getElementById('view-content');
+        const contentContainer = document.getElementById('view-container');
         if (contentContainer && window.dataService) {
             // Pass the dataService dependency when refreshing the view
             window.currentViewInit(contentContainer, { dataService: window.dataService });
@@ -100,7 +100,7 @@ function renderNonAdminSwitcher(container, org) {
     `;
 }
 
-export async function initOrgSwitcher() {
+window.initOrgSwitcher = async function initOrgSwitcher() {
     const orgSwitcherContainer = document.getElementById('orgSwitcherContainer');
     if (!orgSwitcherContainer) {
         console.error('Organization switcher container not found.');

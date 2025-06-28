@@ -2,11 +2,12 @@
 (function() {
   // Map view names to their initializer functions and content URLs
   const views = {
-    dashboard: { init: window.dashboardViewInit, content: 'views/dashboard.html' },
-    applications: { init: window.appViewInit, content: 'views/applications.html' },
-    devices: { init: window.deviceViewInit, content: 'views/devices.html' },
-    security: { init: window.securityViewInit, content: 'views/security.html' },
-    reports: { init: window.reportsViewInit, content: 'views/reports.html' },
+    dashboard: { init: window.dashboardViewInit, content: 'views/dashboard.html', title: 'Command Center' },
+    applications: { init: window.appViewInit, content: 'views/applications.html', title: 'Applications' },
+    devices: { init: window.deviceViewInit, content: 'views/devices.html', title: 'Devices' },
+    performance: { init: window.perfViewInit, content: 'views/perf.html', title: 'Performance' },
+    security: { init: window.securityViewInit, content: 'views/security.html', title: 'Security' },
+    reports: { init: window.reportsViewInit, content: 'views/reports.html', title: 'Reports' },
   };
 
   let currentView = 'dashboard';
@@ -19,9 +20,9 @@
       return;
     }
 
-    const container = document.getElementById('view-content');
+    const container = document.getElementById('view-container');
     if (!container) {
-      console.error('#view-content container not found!');
+      console.error('#view-container container not found!');
       return;
     }
 
@@ -43,6 +44,9 @@
     // Update the active state in the sidebar
     updateActiveNav(viewName);
     
+    // Update page title
+    updatePageTitle(view.title || viewName);
+    
     // Set the current view initializer for refreshes
     window.currentViewInit = () => loadView(viewName);
   }
@@ -56,6 +60,22 @@
         link.closest('.nav-item').classList.remove('active');
       }
     });
+  }
+
+  function updatePageTitle(title) {
+    // Update both the header title and the browser title
+    const headerTitle = document.querySelector('#page-title-container .page-title');
+    const viewTitle = document.getElementById('view-title');
+    
+    if (headerTitle) {
+      headerTitle.textContent = title;
+    }
+    if (viewTitle) {
+      viewTitle.textContent = title;
+    }
+    
+    // Update browser title
+    document.title = `${title} - MagenSec Command Center`;
   }
 
   function init() {

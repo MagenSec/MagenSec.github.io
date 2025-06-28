@@ -40,6 +40,14 @@ window.dataService = (() => {
           sessionStorage.removeItem(key);
         }
       }
+    },
+    clearAll: function() {
+      console.log('Clearing all cache entries...');
+      for (const key in sessionStorage) {
+        if (key.startsWith(this._prefix)) {
+          sessionStorage.removeItem(key);
+        }
+      }
     }
   };
 
@@ -117,7 +125,8 @@ window.dataService = (() => {
 
   async function fetchOData(table, org, params = {}) {
     const orgString = org || sessionStorage.getItem('org') || 'all';
-    const key = `${table}:${orgString}:${JSON.stringify(params)}`;
+    const deviceId = sessionStorage.getItem('selectedDeviceId'); // Check for device filter
+    const key = `${table}:${orgString}:${deviceId || 'all'}:${JSON.stringify(params)}`;
     const cachedItem = cache.getItem(key);
 
     if (cachedItem && Date.now() < cachedItem.expiry) {
@@ -137,6 +146,11 @@ window.dataService = (() => {
     if (orgs.length > 0 && orgs[0] !== 'all') {
         const orgFilter = orgs.map(o => `Context1 eq '${o}'`).join(' or ');
         filterClauses.push(orgs.length > 1 ? `(${orgFilter})` : orgFilter);
+    }
+
+    // Handle device filter (only if not 'all' and device ID is provided)
+    if (deviceId && deviceId !== 'all') {
+        filterClauses.push(`Context2 eq '${deviceId}'`);
     }
 
     // Handle incoming params, especially $filter
@@ -473,8 +487,8 @@ window.dataService = (() => {
       console.warn('Perf metrics: No data available.');
       return {
           summary: { 
-              avgCpu: 0, peakCpu: 0, 
-              avgMem: 0, peakMem: 0, 
+              avgCpu: 0, minCpu: 0, peakCpu: 0, 
+              avgMem: 0, minMem: 0, peakMem: 0, 
               avgDiskRead: 0, avgDiskWrite: 0,
               deviceCount: 0
           },
@@ -494,8 +508,10 @@ window.dataService = (() => {
 
     const summary = {
         avgCpu: cpuVals.length > 0 ? (cpuVals.reduce((a, b) => a + b, 0) / cpuVals.length).toFixed(1) : 0,
+        minCpu: cpuVals.length > 0 ? Math.min(...cpuVals).toFixed(1) : 0,
         peakCpu: cpuVals.length > 0 ? Math.max(...cpuVals).toFixed(1) : 0,
         avgMem: memVals.length > 0 ? Math.round(memVals.reduce((a, b) => a + b, 0) / memVals.length) : 0,
+        minMem: memVals.length > 0 ? Math.round(Math.min(...memVals)) : 0,
         peakMem: memVals.length > 0 ? Math.round(Math.max(...memVals)) : 0,
         avgDiskRead: diskReadVals.length > 0 ? (diskReadVals.reduce((a, b) => a + b, 0) / diskReadVals.length).toFixed(2) : 0,
         avgDiskWrite: diskWriteVals.length > 0 ? (diskWriteVals.reduce((a, b) => a + b, 0) / diskWriteVals.length).toFixed(2) : 0,
@@ -503,20 +519,26 @@ window.dataService = (() => {
     };
 
     // Create aggregated time series from all data for context
+    // For each time bucket, aggregate per-device and compute per-device averages only for devices reporting in that bucket
     const timeSeriesMap = new Map();
     perfs.forEach(p => {
         // Round timestamp to the nearest hour for a cleaner graph
         const d = new Date(p.Timestamp);
         d.setMinutes(0, 0, 0);
         const timestampKey = d.getTime();
-
         if (!timeSeriesMap.has(timestampKey)) {
             timeSeriesMap.set(timestampKey, {
                 timestamp: d,
                 cpu: [],
                 memory: [],
                 diskRead: [],
-                diskWrite: []
+                diskWrite: [],
+                dbSize: [],
+                netSent: [],
+                netRecv: [],
+                netReq: [],
+                netFail: [],
+                deviceIds: new Set()
             });
         }
         const entry = timeSeriesMap.get(timestampKey);
@@ -524,15 +546,40 @@ window.dataService = (() => {
         entry.memory.push(parseFloat(p.MemAvgMB) || 0);
         entry.diskRead.push(parseFloat(p.IoReadLatencyMs) || 0);
         entry.diskWrite.push(parseFloat(p.IoWriteLatencyMs) || 0);
+        entry.dbSize.push(parseFloat(p.NetworkByteSent) || 0);
+        entry.netSent.push(parseFloat(p.NetworkByteSent) || 0);
+        entry.netRecv.push(parseFloat(p.NetworkByteReceived) || 0);
+        entry.netReq.push(parseFloat(p.NetworkRequests) || 0);
+        entry.netFail.push(parseFloat(p.NetworkFailures) || 0);
+        if (p.Context2) entry.deviceIds.add(p.Context2);
     });
 
-    const timeSeries = Array.from(timeSeriesMap.values()).map(entry => ({
-        timestamp: entry.timestamp,
-        cpu: entry.cpu.reduce((a, b) => a + b, 0) / entry.cpu.length,
-        memory: entry.memory.reduce((a, b) => a + b, 0) / entry.memory.length,
-        diskRead: entry.diskRead.reduce((a, b) => a + b, 0) / entry.diskRead.length,
-        diskWrite: entry.diskWrite.reduce((a, b) => a + b, 0) / entry.diskWrite.length,
-    })).sort((a, b) => a.timestamp - b.timestamp);
+    const timeSeries = Array.from(timeSeriesMap.values()).map(entry => {
+        // For each time bucket, compute per-device average for network/db metrics (only for devices reporting in that bucket)
+        const deviceCount = entry.deviceIds.size || 1;
+        return {
+            timestamp: entry.timestamp,
+            cpu: entry.cpu.reduce((a, b) => a + b, 0) / entry.cpu.length, // average for CPU
+            memory: entry.memory.reduce((a, b) => a + b, 0) / entry.memory.length, // average for memory
+            diskRead: entry.diskRead.reduce((a, b) => a + b, 0) / entry.diskRead.length, // average
+            diskWrite: entry.diskWrite.reduce((a, b) => a + b, 0) / entry.diskWrite.length, // average
+            DbSizeMB: deviceCount > 0 ? entry.dbSize.reduce((a, b) => a + b, 0) / deviceCount : 0, // avg per reporting device
+            NetworkByteSent: deviceCount > 0 ? entry.netSent.reduce((a, b) => a + b, 0) / deviceCount : 0, // avg per reporting device
+            NetworkByteReceived: deviceCount > 0 ? entry.netRecv.reduce((a, b) => a + b, 0) / deviceCount : 0, // avg per reporting device
+            NetworkRequests: deviceCount > 0 ? entry.netReq.reduce((a, b) => a + b, 0) / deviceCount : 0, // avg per reporting device
+            NetworkFailures: deviceCount > 0 ? entry.netFail.reduce((a, b) => a + b, 0) / deviceCount : 0, // avg per reporting device
+            deviceCount: deviceCount
+        };
+    }).sort((a, b) => a.timestamp - b.timestamp);
+
+    // Debug: Log all raw perf telemetry for network fields
+    console.log('PerfTelemetry raw perfs:', perfs.map(p => ({
+      org: p.Context1,
+      device: p.Context2,
+      ts: p.Timestamp,
+      NetworkByteSent: p.NetworkByteSent,
+      NetworkByteReceived: p.NetworkByteReceived
+    })));
 
     return { summary, timeSeries };
   }
@@ -682,6 +729,18 @@ window.dataService = (() => {
         } else {
             d.status = 'Offline';
         }
+        
+        // Calculate device age based on install timestamp
+        if (d.installTimestamp) {
+            const installDate = new Date(d.installTimestamp);
+            const now = new Date();
+            const diffDays = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
+            d.deviceAge = diffDays;
+            d.deviceAgeText = diffDays < 1 ? '< 1 day' : diffDays === 1 ? '1 day' : `${diffDays} days`;
+        } else {
+            d.deviceAge = null;
+            d.deviceAgeText = 'Unknown';
+        }
     });
 
     // FIX: Add missing summary calculations
@@ -703,6 +762,7 @@ window.dataService = (() => {
 
     const memoryDistribution = calculateDistribution(deviceList, 'ram', val => `${Math.round(val / 1024)} GB`);
     const cpuCoreDistribution = calculateDistribution(deviceList, 'cpu');
+    const secureBootDistribution = calculateDistribution(deviceList, 'secureBoot', val => val ? 'Enabled' : 'Disabled');
 
     const summary = {
         total: deviceList.length,
@@ -713,7 +773,8 @@ window.dataService = (() => {
         mostCommonMemory: getMostCommon(memoryDistribution),
         mostCommonCpu: getMostCommon(cpuCoreDistribution),
         memoryDistribution,
-        cpuCoreDistribution
+        cpuCoreDistribution,
+        secureBootDistribution
     };
 
     return { devices: deviceList, summary };
@@ -910,36 +971,33 @@ window.dataService = (() => {
         entry.versions.add(app.version);
         if (app.exploitProbability > entry.maxRisk) {
             entry.maxRisk = app.exploitProbability;
-            if (entry.maxRisk > 0.9) entry.riskLevel = 'Critical';
-            else if (entry.maxRisk > 0.7) entry.riskLevel = 'High';
-            else if (entry.maxRisk > 0.4) entry.riskLevel = 'Medium';
-            else if (entry.maxRisk > 0) entry.riskLevel = 'Low';
+            if (app.exploitProbability > 0.7) {
+                entry.riskLevel = 'High';
+            } else if (app.exploitProbability > 0.3) {
+                entry.riskLevel = 'Medium';
+            } else if (app.exploitProbability > 0) {
+                entry.riskLevel = 'Low';
+            }
         }
-    });
-
-    // Convert map back to array and join versions
-    report.applications = Array.from(appMap.values()).map(app => {
-        app.versions = Array.from(app.versions).join(', ');
-        return app;
     });
 
     return report;
   }
 
-
-  // =================================================================
-  // Public API
-  // =================================================================
   return {
     init,
+    getOrgList,
     fetchOData,
     getDashboardMetrics,
-    getDeviceData,
+    getPerfData,
     getApplicationData,
-    getPerformanceData: getPerfData,
+    getDeviceData,
     getInstallsData,
     getSecurityData,
     getReportsData,
-    getOrgList
+    getExpiry,
+    setExpiry,
+    cache, // Expose cache for manual testing
+    getPerformanceData: getPerfData,
   };
 })();

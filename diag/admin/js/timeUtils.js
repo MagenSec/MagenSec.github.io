@@ -70,7 +70,7 @@
 
       // Re-render the view to apply the new time format
       if (window.currentViewInit && typeof window.currentViewInit === 'function') {
-          const container = document.getElementById('view-content');
+          const container = document.getElementById('view-container');
           // FIX: Pass the dataService dependency, which all views now require for re-initialization.
           if (container && window.dataService) {
             window.currentViewInit(container, { dataService: window.dataService });
@@ -83,11 +83,20 @@
     updateAppearance();
   }
 
+  /**
+   * Checks if the user prefers UTC time display.
+   * @returns {boolean} True if UTC time is preferred, false for local time.
+   */
+  function isUtc() {
+    return !getUseLocalTime(); // Inverse of getUseLocalTime
+  }
+
   // Expose the utility functions to the global window object
   window.timeUtils = {
     formatTimestamp,
     getUseLocalTime,
-    formatRelativeTime
+    formatRelativeTime,
+    isUtc
   };
 
   console.log('timeUtils.js loaded.');

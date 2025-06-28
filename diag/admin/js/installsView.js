@@ -1,110 +1,113 @@
 // installsView.js: Handles install telemetry view
 // Modernized to use dataService and render KPI cards and a paginated table.
-window.installsViewInit = async function(container, { dataService }) {
-    if (!container) {
-        console.error('Installs view requires a container element.');
-        return;
+(function() {
+    if (!window.viewInitializers) {
+        window.viewInitializers = {};
     }
+    window.viewInitializers.installs = async function(container, { dataService }) {
+        if (!container) {
+            console.error('Installs view requires a container element.');
+            return;
+        }
 
-    container.innerHTML = `
-        <div id="installs-kpi-row" class="row row-deck row-cards"></div>
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3 class="card-title">Installations Over Time</h3>
-            </div>
-            <div id="installs-timeline-chart" class="p-3" style="height: 300px;"></div>
-        </div>
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3 class="card-title">Installation Logs</h3>
-                 <div class="ms-auto d-flex align-items-center">
-                    <div class="text-muted me-3">
-                        Status:
-                        <div class="ms-2 d-inline-block">
-                            <select id="installs-status-filter" class="form-select form-select-sm">
-                                <option value="all">All</option>
-                                <option value="successful">Successful</option>
-                                <option value="failed">Failed</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="text-muted">
-                        Search:
-                        <div class="ms-2 d-inline-block">
-                            <input type="text" id="installs-search" class="form-control form-control-sm" aria-label="Search install logs">
-                        </div>
-                    </div>
+        container.innerHTML = `
+            <div id="installs-kpi-row" class="row row-deck row-cards"></div>
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3 class="card-title">Installations Over Time</h3>
                 </div>
+                <div id="installs-timeline-chart" class="p-3" style="height: 300px;"></div>
             </div>
-            <div id="installs-table-container"></div>
-        </div>
-    `;
-
-    const kpiRow = container.querySelector('#installs-kpi-row');
-    const tableContainer = container.querySelector('#installs-table-container');
-    const timelineChartContainer = container.querySelector('#installs-timeline-chart');
-
-    kpiRow.innerHTML = '<div class="text-muted">Loading KPIs...</div>';
-    tableContainer.innerHTML = '<div class="text-muted p-3">Loading installation logs...</div>';
-    timelineChartContainer.innerHTML = '<div class="text-muted">Loading chart...</div>';
-
-    const data = await (dataService.getInstallData ? dataService.getInstallData() : null);
-
-    if (!data || !data.summary) {
-        kpiRow.innerHTML = '<div class="alert alert-warning">Could not load installation summary.</div>';
-        tableContainer.innerHTML = '';
-        return;
-    }
-
-    const { summary, installs } = data;
-
-    // --- Render KPIs ---
-    const kpiMap = {
-        total: { title: 'Total Installs', icon: 'package' },
-        successful: { title: 'Successful', icon: 'circle-check' },
-        failed: { title: 'Failed', icon: 'alert-circle' },
-        last24h: { title: 'Last 24 Hours', icon: 'clock-hour-4' },
-        last7d: { title: 'Last 7 Days', icon: 'calendar-event' },
-    };
-
-    let kpiHtml = '';
-    Object.entries(kpiMap).forEach(([key, config]) => {
-        const value = summary[key] !== undefined ? summary[key] : 'N/A';
-        kpiHtml += `
-            <div class="col-lg col-md-4 col-sm-6">
-                <div class="card kpi-tile">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="subheader">${config.title}</div>
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3 class="card-title">Installation Logs</h3>
+                     <div class="ms-auto d-flex align-items-center">
+                        <div class="text-muted me-3">
+                            Status:
+                            <div class="ms-2 d-inline-block">
+                                <select id="installs-status-filter" class="form-select form-select-sm">
+                                    <option value="all">All</option>
+                                    <option value="successful">Successful</option>
+                                    <option value="failed">Failed</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="d-flex align-items-baseline mt-3">
-                            <div class="h1 mb-0 me-2">${value}</div>
-                            <div class="ms-auto">
-                                <span class="text-secondary"><i class="ti ti-${config.icon} icon-lg"></i></span>
+                        <div class="text-muted">
+                            Search:
+                            <div class="ms-2 d-inline-block">
+                                <input type="text" id="installs-search" class="form-control form-control-sm" aria-label="Search install logs">
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>`;
-    });
-    kpiRow.innerHTML = kpiHtml;
+                <div id="installs-table-container"></div>
+            </div>
+        `;
 
-    // --- Render Timeline Chart ---
-    if (installs && installs.length > 0) {
-        google.charts.load('current', { packages: ['corechart'] });
-        google.charts.setOnLoadCallback(() => renderTimelineChart(installs, timelineChartContainer));
-    } else {
-        timelineChartContainer.innerHTML = '<div class="text-muted p-3">No data available to display a timeline chart.</div>';
-    }
+        const kpiRow = container.querySelector('#installs-kpi-row');
+        const tableContainer = container.querySelector('#installs-table-container');
+        const timelineChartContainer = container.querySelector('#installs-timeline-chart');
 
-    // --- Render Table ---
-    if (!installs || installs.length === 0) {
-        tableContainer.innerHTML = '<div class="p-3 text-muted">No installation logs found for this organization.</div>';
-        return;
-    }
+        kpiRow.innerHTML = '<div class="text-muted">Loading KPIs...</div>';
+        tableContainer.innerHTML = '<div class="text-muted p-3">Loading installation logs...</div>';
+        timelineChartContainer.innerHTML = '<div class="text-muted">Loading chart...</div>';
 
-    addInstallEventListeners(installs, tableContainer);
-};
+        const data = await (dataService.getInstallData ? dataService.getInstallData() : null);
+
+        if (!data || !data.summary) {
+            kpiRow.innerHTML = '<div class="alert alert-warning">Could not load installation summary.</div>';
+            tableContainer.innerHTML = '';
+            return;
+        }
+
+        const { summary, installs } = data;
+
+        // --- Render KPIs ---
+        const kpiMap = {
+            total: { title: 'Total Installs', icon: 'package' },
+            successful: { title: 'Successful', icon: 'circle-check' },
+            failed: { title: 'Failed', icon: 'alert-circle' },
+            last24h: { title: 'Last 24 Hours', icon: 'clock-hour-4' },
+            last7d: { title: 'Last 7 Days', icon: 'calendar-event' },
+        };
+
+        let kpiHtml = '';
+        Object.entries(kpiMap).forEach(([key, config]) => {
+            const value = summary[key] !== undefined ? summary[key] : 'N/A';
+            kpiHtml += `
+                <div class="col-lg col-md-4 col-sm-6">
+                    <div class="card kpi-tile">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="subheader">${config.title}</div>
+                            </div>
+                            <div class="d-flex align-items-baseline mt-3">
+                                <div class="h1 mb-0 me-2">${value}</div>
+                                <div class="ms-auto">
+                                    <span class="text-secondary"><i class="ti ti-${config.icon} icon-lg"></i></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        });
+        kpiRow.innerHTML = kpiHtml;
+
+        // --- Render Timeline Chart ---
+        if (installs && installs.length > 0) {
+            await window.charting.googleChartsLoaded;
+            renderTimelineChart(installs, timelineChartContainer);
+        } else {
+            timelineChartContainer.innerHTML = '<div class="text-muted p-3">No data available to display a timeline chart.</div>';
+        }
+
+        // --- Render Table ---
+        renderInstallationsTable(installs, tableContainer);
+
+        // --- Add Event Listeners ---
+        addInstallEventListeners(installs, tableContainer);
+    };
+})();
 
 function addInstallEventListeners(allInstalls, tableContainer) {
     const searchInput = document.getElementById('installs-search');
@@ -208,7 +211,7 @@ function addInstallEventListeners(allInstalls, tableContainer) {
             }
 
             if (typeof valA === 'string') {
-                return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                return sortDirection === 'asc' ? valA.localeCompare(valA) : valB.localeCompare(valA);
             } else {
                 return sortDirection === 'asc' ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
             }
@@ -263,39 +266,22 @@ function renderTimelineChart(installs, container) {
         return;
     }
 
-    const dataTable = new google.visualization.DataTable();
-    dataTable.addColumn('string', 'Date');
-    dataTable.addColumn('number', 'Successful');
-    dataTable.addColumn('number', 'Failed');
-
-    last30DaysData.forEach(dateStr => {
+    const header = ['Date', 'Successful', 'Failed'];
+    const rows = last30DaysData.map(dateStr => {
         const data = dataByDay[dateStr];
         const d = new Date(dateStr);
-        // Use a consistent format like MM/DD for the axis
         const formattedDate = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
-        dataTable.addRow([formattedDate, data.successful, data.failed]);
+        return [formattedDate, data.successful, data.failed];
     });
 
     const options = {
-        chartArea: { width: '90%', height: '75%' },
-        legend: { position: 'top', alignment: 'end' },
-        hAxis: { slantedText: false, gridlines: { color: 'transparent' } },
-        vAxis: { title: 'Installs', minValue: 0, format: '0', gridlines: { color: 'transparent' } },
         isStacked: true,
         colors: ['#2fb344', '#d63939'], // Tabler success and danger colors
-        areaOpacity: 0.3,
-        pointSize: 4,
-        lineWidth: 2,
-        animation: {
-            duration: 500,
-            easing: 'out',
-            startup: true
-        },
-        tooltip: { isHtml: true, trigger: 'both' }
+        vAxisTitle: 'Installs',
+        hAxisFormat: 'MM/dd'
     };
 
-    const chart = new google.visualization.AreaChart(container);
-    chart.draw(dataTable, options);
+    window.charting.renderAreaChart(container.id, rows, header, options);
 }
 
 // Set this as the current view initializer for timezone/theme refresh

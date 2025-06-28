@@ -1,7 +1,7 @@
 // js/themeSwitcher.js
 
 function themeSwitcherInit() {
-    const themeToggle = document.querySelector('#themeToggleBtn');
+    const themeToggle = document.querySelector('#theme-toggle-btn');
     if (!themeToggle) {
         console.log('Theme toggle button not found.');
         return;
@@ -23,11 +23,20 @@ function themeSwitcherInit() {
         localStorage.setItem('theme', theme);
         updateIcon(theme);
 
+        const navbar = document.querySelector('.navbar');
+        if (navbar) {
+            if (theme === 'dark') {
+                navbar.classList.add('navbar-dark');
+            } else {
+                navbar.classList.remove('navbar-dark');
+            }
+        }
+
         // Redraw charts with a delay to allow theme to apply
         if (window.currentViewInit && typeof window.currentViewInit === 'function') {
-            const container = document.getElementById('view-content');
-            if (container) {
-                setTimeout(() => window.currentViewInit(container), 50);
+            const container = document.getElementById('view-container');
+            if (container && window.currentViewDependencies) {
+                setTimeout(() => window.currentViewInit(container, window.currentViewDependencies), 50);
             }
         }
     };
