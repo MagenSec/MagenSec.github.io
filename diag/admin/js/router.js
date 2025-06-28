@@ -2,12 +2,12 @@
 (function() {
   // Map view names to their initializer functions and content URLs
   const views = {
-    dashboard: { init: window.dashboardViewInit, content: 'views/dashboard.html', title: 'Command Center' },
-    applications: { init: window.appViewInit, content: 'views/applications.html', title: 'Applications' },
-    devices: { init: window.deviceViewInit, content: 'views/devices.html', title: 'Devices' },
-    performance: { init: window.perfViewInit, content: 'views/perf.html', title: 'Performance' },
-    security: { init: window.securityViewInit, content: 'views/security.html', title: 'Security' },
-    reports: { init: window.reportsViewInit, content: 'views/reports.html', title: 'Reports' },
+    dashboard: { init: () => window.viewInitializers.dashboard, content: 'views/dashboard.html', title: 'Command Center' },
+    applications: { init: () => window.viewInitializers.applications, content: 'views/applications.html', title: 'Applications' },
+    devices: { init: () => window.viewInitializers.devices, content: 'views/devices.html', title: 'Devices' },
+    performance: { init: () => window.viewInitializers.performance, content: 'views/perf.html', title: 'Performance' },
+    security: { init: () => window.viewInitializers.security, content: 'views/security.html', title: 'Security' },
+    reports: { init: () => window.viewInitializers.reports, content: 'views/reports.html', title: 'Reports' },
   };
 
   let currentView = 'dashboard';
@@ -31,8 +31,9 @@
 
     try {
       // The view's init function is now responsible for all rendering
-      if (typeof view.init === 'function') {
-        await view.init(container);
+      const viewInit = view.init();
+      if (typeof viewInit === 'function') {
+        await viewInit(container, { dataService: window.dataService });
       } else {
         throw new Error(`Initializer for view '${viewName}' is not a function.`);
       }

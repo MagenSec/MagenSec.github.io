@@ -252,7 +252,7 @@ function renderPerfView(container, summary, timeSeries, prevTimeSeries) {
     </div>
     ${kpiRow}
     <div class="row row-deck row-cards mt-4">
-      <div class="col-lg-12">
+      <div class="col-lg-6">
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">CPU Utilization Over Time (Hourly Avg)</h3>
@@ -262,7 +262,7 @@ function renderPerfView(container, summary, timeSeries, prevTimeSeries) {
           </div>
         </div>
       </div>
-      <div class="col-lg-12">
+      <div class="col-lg-6">
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">Memory Usage Over Time (Hourly Avg)</h3>
@@ -272,7 +272,9 @@ function renderPerfView(container, summary, timeSeries, prevTimeSeries) {
           </div>
         </div>
       </div>
-      <div class="col-lg-12">
+    </div>
+    <div class="row row-deck row-cards mt-4">
+      <div class="col-lg-6">
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">Network Usage Over Time</h3>
@@ -282,7 +284,7 @@ function renderPerfView(container, summary, timeSeries, prevTimeSeries) {
           </div>
         </div>
       </div>
-      <div class="col-lg-12">
+      <div class="col-lg-6">
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">Database Size Over Time</h3>

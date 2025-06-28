@@ -158,7 +158,7 @@ window.initDeviceFilter = async function initDeviceFilter(dataService) {
 
         // Re-render the filter to show the new selection and then reload view
         renderDeviceFilter(true); // Pass true to indicate an update, not a full re-render
-        window.router.route(); 
+        window.router.loadView(window.router.getCurrentView());
     }
 
     /**
