@@ -47,7 +47,7 @@ jobs:
       - name: Check for changes and prepare commit
         id: git_status # Assign an ID to this step to access its outputs
         run: |
-          git add data/known_exploited_vulnerabilities.json
+          git add diag/admin/data/known_exploited_vulnerabilities.json
           # Check if there are any changes staged for commit compared to HEAD.
           # --quiet suppresses output, making it suitable for scripting.
           # If there are differences, git diff exits with status 1.
