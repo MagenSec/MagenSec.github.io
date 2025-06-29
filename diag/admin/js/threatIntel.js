@@ -2,7 +2,7 @@
 console.log('threatIntel.js loaded');
 
 window.threatIntel = (() => {
-    const KEV_CATALOG_URL = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json';
+    const LOCAL_KEV_URL = './data/known_exploited_vulnerabilities.json';
     const CACHE_KEY = 'magenSecCache:kevCatalog';
     const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -21,13 +21,11 @@ window.threatIntel = (() => {
             return;
         }
 
-        console.log('[ThreatIntel] Fetching fresh KEV catalog from CISA...');
+        console.log('[ThreatIntel] Fetching KEV catalog from local file...');
         try {
-            // NOTE: This direct fetch might be blocked by CORS in a real browser environment.
-            // In a production scenario, this would be proxied through our own backend.
-            const response = await fetch(KEV_CATALOG_URL);
+            const response = await fetch(LOCAL_KEV_URL);
             if (!response.ok) {
-                throw new Error(`Failed to fetch KEV catalog: ${response.statusText}`);
+                throw new Error(`Failed to fetch local KEV catalog: ${response.statusText}`);
             }
             const data = await response.json();
             
@@ -41,30 +39,18 @@ window.threatIntel = (() => {
                 expiry: Date.now() + CACHE_TTL
             }));
 
-            console.log(`[ThreatIntel] Successfully loaded and cached ${kevCatalog.size} KEVs.`);
-
+            console.log(`[ThreatIntel] Successfully loaded and cached ${kevCatalog.size} KEVs from local file.`);
+            console.log(`[ThreatIntel] KEV catalog version: ${data.catalogVersion || 'unknown'}, released: ${data.dateReleased || 'unknown'}`);
+            console.log(`[ThreatIntel] Sample KEVs: ${Array.from(kevCatalog).slice(0, 5).join(', ')}`);
         } catch (error) {
             console.error('[ThreatIntel] Could not load KEV catalog:', error);
-            // Use stale cache if available, otherwise operate without KEV data
+            // Use stale cache if available
             if (cachedItem) {
                 console.warn('[ThreatIntel] Using stale KEV catalog from cache.');
                 kevCatalog = new Set(cachedItem.data);
             } else {
-                console.warn('[ThreatIntel] No cache available. Using demo KEV data for testing.');
-                // Fallback to some known KEVs for demo/testing purposes
-                const demoKevs = [
-                    'CVE-2021-44228', // Log4j
-                    'CVE-2021-4028',  // Log4j
-                    'CVE-2022-40684', // Fortinet
-                    'CVE-2021-34527', // PrintNightmare
-                    'CVE-2021-26855', // Exchange ProxyLogon
-                    'CVE-2022-41082', // Exchange
-                    'CVE-2023-34362', // MOVEit
-                    'CVE-2024-43498', // Example from your data
-                    'CVE-2024-43499'  // Example from your data
-                ];
-                kevCatalog = new Set(demoKevs);
-                console.log(`[ThreatIntel] Using ${kevCatalog.size} demo KEVs for testing.`);
+                console.error('[ThreatIntel] No KEV data available. KEV checking will be disabled.');
+                kevCatalog = new Set(); // Empty set - no KEV data available
             }
         }
     }
