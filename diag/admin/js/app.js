@@ -115,11 +115,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Handle logout
-    const logoutBtn = document.getElementById('logoutBtn');
+    const logoutBtn = document.getElementById('logoutBtn') || document.getElementById('logoutButton');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', (e) => {
             e.preventDefault();
             sessionStorage.clear();
+            localStorage.clear();
+            // Remove all cookies for a clean logout
+            document.cookie.split(';').forEach(function(c) {
+                document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
+            });
             window.location.href = 'login.html';
         });
     }
