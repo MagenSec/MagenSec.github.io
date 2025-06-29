@@ -111,7 +111,13 @@
                           <th class="sortable" data-sort="publisher">Publisher</th>
                           <th class="sortable" data-sort="device">Device</th>
                           <th class="sortable text-center" data-sort="exploitProbability">Risk</th>
-                          <th class="sortable" data-sort="lifecycleState">Status</th>
+                          <th class="sortable" data-sort="lifecycleState">
+                              Status 
+                              <i class="ti ti-info-circle ms-1" 
+                                 data-bs-toggle="tooltip" 
+                                 data-bs-placement="top" 
+                                 title="Installed: Application is currently installed on the device. From Disk: Application was detected from disk scan but may not be actively managed."></i>
+                          </th>
                           <th class="sortable" data-sort="uninstalledOn">Remediated On</th>
                       </tr>
                   </thead>
@@ -211,6 +217,25 @@
               return `<span class="badge bg-secondary-lt">None</span>`;
           };
 
+          // FIX: Create status badge with user-friendly labels
+          const getStatusBadge = (lifecycleState, uninstalledOn) => {
+              // If app is uninstalled, show that status
+              if (uninstalledOn) {
+                  return `<span class="badge bg-gray-lt">Uninstalled</span>`;
+              }
+              
+              // Map lifecycle states to user-friendly labels
+              const state = (lifecycleState || '').toLowerCase();
+              if (state.includes('installed') || state === 'active' || state === 'running') {
+                  return `<span class="badge bg-green-lt">Installed</span>`;
+              } else if (state.includes('disk') || state.includes('detected') || state === 'discovered') {
+                  return `<span class="badge bg-blue-lt">From Disk</span>`;
+              } else {
+                  // Default to "Installed" for active applications
+                  return `<span class="badge bg-green-lt">Installed</span>`;
+              }
+          };
+
           const tableBody = tableContainer.querySelector('tbody');
           if (tableBody) {
               // FIX: Use correct properties and add fallbacks for robust rendering
@@ -221,7 +246,7 @@
                       <td>${app.publisher}</td>
                       <td>${app.device}</td>
                       <td class="text-center">${getRiskBadge(app.exploitProbability)}</td>
-                      <td><span class="badge bg-secondary-lt">${app.lifecycleState}</span></td>
+                      <td>${getStatusBadge(app.lifecycleState, app.uninstalledOn)}</td>
                       <td data-timestamp="${app.uninstalledOn ? new Date(app.uninstalledOn).getTime() : '0'}">${app.uninstalledOn ? new Date(app.uninstalledOn).toLocaleDateString() : 'N/A'}</td>
                   </tr>
               `).join('');
@@ -238,6 +263,14 @@
                   currentPage = page;
                   renderTable();
               }, currentPage);
+          }
+
+          // 7. Initialize Bootstrap tooltips
+          if (typeof bootstrap !== 'undefined') {
+              const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+              tooltipTriggerList.map(function (tooltipTriggerEl) {
+                  return new bootstrap.Tooltip(tooltipTriggerEl);
+              });
           }
       }
 

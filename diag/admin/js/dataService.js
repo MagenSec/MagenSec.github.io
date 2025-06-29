@@ -589,9 +589,9 @@ window.dataService = (() => {
   // =================================================================
   async function getApplicationData(org) {
     org = org || sessionStorage.getItem('org');
-    // FIX: Explicitly select all required fields to avoid missing data.
+    // FIX: Use correct field names from the database schema
     const appData = await fetchOData('AppTelemetry', org, {
-        '$select': 'AppName,AppVersion,Publisher,InstallDate,ExploitProbability,Context2,FirstDetectedOn,UninstalledOn,LifecycleState'
+        '$select': 'AppName,ApplicationVersion,AppVendor,InstallDate,ExploitProbability,Context2,FirstDetectedOn,UninstalledOn,LifecycleState'
     });
 
     if (!appData || !appData.value || appData.value.length === 0) {
@@ -612,8 +612,8 @@ window.dataService = (() => {
     // 1. Create the clean app list first, with fallbacks for robustness.
     const appList = rawApps.map(a => ({
         appName: a.AppName || 'Unknown App',
-        version: a.AppVersion || 'N/A',
-        publisher: a.Publisher || 'Unknown Publisher',
+        version: a.ApplicationVersion || 'N/A',
+        publisher: a.AppVendor || 'Unknown Publisher',
         installDate: a.InstallDate, // Dates can be null, view should handle it
         exploitProbability: a.ExploitProbability || 0,
         device: a.Context2 || 'Unknown Device',
