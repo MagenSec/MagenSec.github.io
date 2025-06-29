@@ -1,0 +1,76 @@
+name: Update CISA KEV JSON
+
+# Defines the triggers for this workflow
+on:
+  # Automated trigger: Runs every 6 hours
+  # '0 */6 * * *' means:
+  # - At minute 0
+  # - Of every 6th hour (00:00, 06:00, 12:00, 18:00 UTC)
+  # - Every day of the month
+  # - Every month
+  # - Every day of the week
+  schedule:
+    - cron: '0 */6 * * *'
+
+  # Manual trigger: Allows you to run the workflow from the GitHub UI
+  workflow_dispatch:
+
+jobs:
+  download_and_commit:
+    # Use the latest Ubuntu Linux runner for cost-effectiveness.
+    # ubuntu-latest currently points to ubuntu-22.04 and will automatically
+    # upgrade to newer LTS versions (like 24.04) when they become 'latest'.
+    # This is fine for simple scripts like this.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # This token is automatically provided by GitHub Actions for the current workflow run.
+          # It has the necessary permissions to push changes to the repository.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create data directory (if it doesn't exist)
+        # The -p flag ensures that if 'data' already exists, it won't throw an error.
+        run: mkdir -p data
+
+      - name: Download CISA KEV JSON
+        # Use curl to download the file.
+        # -s: Silent mode (don't show progress bar).
+        # -S: Show errors if they occur.
+        # -L: Follow redirects.
+        # -o: Output to the specified file. This will overwrite the file if it exists.
+        run: |
+          curl -sSL "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json" -o diag/admin/data/known_exploited_vulnerabilities.json
+
+      - name: Check for changes and prepare commit
+        id: git_status # Assign an ID to this step to access its outputs
+        run: |
+          git add data/known_exploited_vulnerabilities.json
+          # Check if there are any changes staged for commit compared to HEAD.
+          # --quiet suppresses output, making it suitable for scripting.
+          # If there are differences, git diff exits with status 1.
+          if git diff --staged --quiet; then
+            echo "::set-output name=has_changes::false"
+            echo "No changes detected. Skipping commit."
+          else
+            echo "::set-output name=has_changes::true"
+            echo "Changes detected. Preparing to commit."
+          fi
+
+      - name: Commit and Push if changes exist
+        # This step will only run if the 'has_changes' output from the previous step is 'true'.
+        if: steps.git_status.outputs.has_changes == 'true'
+        run: |
+          # Configure Git user for the automated commit
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Commit the changes. The -a flag adds modified and deleted files that are already
+          # tracked, but 'git add' earlier handles new files as well.
+          # -m provides the commit message.
+          git commit -m "Automated: Update CISA KEV JSON"
+          
+          # Push the changes to the default branch (e.g., main or master)
+          git push
