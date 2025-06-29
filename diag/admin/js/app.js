@@ -33,7 +33,7 @@ window.addEventListener('resize', () => {
 async function initializeApp(container) {
     
     async function loadView(viewName) {
-        container.innerHTML = `<div class="d-flex justify-content-center align-items-center" style="height: 80vh;"><div class="spinner-border" role="status"></div></div>`;
+        // container.innerHTML = `<div class="d-flex justify-content-center align-items-center" style="height: 80vh;"><div class="spinner-border" role="status"></div></div>`;
 
         // Deactivate all nav links in the main navbar
         document.querySelectorAll('#navbar-menu .nav-link').forEach(link => link.parentElement.classList.remove('active'));
@@ -50,16 +50,39 @@ async function initializeApp(container) {
         }
 
         try {
+            // Use the router's view mappings if available
+            const viewMappings = {
+                dashboard: 'dashboard.html',
+                applications: 'applications.html', 
+                devices: 'devices.html',
+                performance: 'perf.html',  // Map performance to perf.html
+                security: 'security.html',
+                vulnerabilities: 'vulnerabilities.html',
+                reports: 'reports.html'
+            };
+
+            // 1. Fetch the HTML for the view using the correct mapping
+            const htmlFileName = viewMappings[viewName] || `${viewName}.html`;
+            const response = await fetch(`views/${htmlFileName}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch HTML for view ${viewName}: ${response.statusText}`);
+            }
+            const viewHtml = await response.text();
+            container.innerHTML = viewHtml;
+
+            // 2. Get the corresponding view initializer
             const viewInitializer = window.viewInitializers[viewName];
             if (!viewInitializer) {
                 throw new Error(`View initializer for "${viewName}" not found. Ensure its script is loaded and it registers itself.`);
             }
             
-            // Set the current view initializer for theme/timezone refreshes
             window.currentViewInit = viewInitializer;
             
-            // Initialize the view, passing dependencies
-            await viewInitializer(container, { dataService: window.dataService });
+            // 3. Initialize the view, passing dependencies
+            await viewInitializer(container, { 
+                dataService: window.dataService,
+                threatIntel: window.threatIntel
+            });
 
         } catch (error) {
             console.error(`Error loading view: ${viewName}`, error);
@@ -139,7 +162,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 await window.dataService.init();
                 console.log('dataService initialized successfully.');
 
-                // Now that dataService is ready, initialize the rest of the app.
+                // Initialize threat intel service before the rest of the app
+                console.log('Checking for window.threatIntel:', window.threatIntel);
+                if (window.threatIntel && typeof window.threatIntel.init === 'function') {
+                    console.log('Initializing threat intelligence service...');
+                    await window.threatIntel.init();
+                    console.log('Threat intelligence service initialized.');
+                } else {
+                    console.warn('ThreatIntel service not available or init method missing');
+                }
+
+                // Now that services are ready, initialize the rest of the app.
                 initializeApp(contentContainer);
                 await initOrgSwitcher(window.dataService);
                 initDeviceFilter(window.dataService); // Initialize the device filter UI
@@ -188,3 +221,67 @@ document.addEventListener('DOMContentLoaded', () => {
         window.__debugLog = function(){};
     }
 })();
+
+class App {
+    constructor() {
+        this.dataService = new DataService();
+        this.threatIntel = new ThreatIntel();
+        this.currentView = null; // To hold the current view instance
+    }
+
+    async initializeApp() {
+        console.log('Initializing app');
+
+        // Initialize services
+        await this.dataService.initialize();
+        await this.threatIntel.initialize();
+
+        // Initial load
+        this.loadView();
+
+        // Listen for hash changes to load different views
+        window.addEventListener('hashchange', () => this.loadView());
+    }
+
+    async loadView() {
+        const viewName = location.hash.substring(2) || 'dashboard';
+        const container = document.getElementById('viewContent');
+        if (!container) {
+            console.error('#viewContent container not found');
+            return;
+        }
+
+        // Clean up the previous view
+        if (this.currentView && typeof this.currentView.destroy === 'function') {
+            this.currentView.destroy();
+            this.currentView = null;
+        }
+
+        // Fetch and inject the view's HTML
+        try {
+            const response = await fetch(`views/${viewName}.html`);
+            if (!response.ok) {
+                throw new Error(`Failed to load view: ${viewName}`);
+            }
+            container.innerHTML = await response.text();
+
+            // Initialize the new view
+            const initializer = window.viewInitializers[viewName];
+            if (typeof initializer === 'function') {
+                const dependencies = { dataService: this.dataService, threatIntel: this.threatIntel };
+                this.currentView = initializer(container, dependencies);
+
+                // The view is now responsible for its own initial rendering via its initialize method.
+                if (this.currentView && typeof this.currentView.initialize === 'function') {
+                    await this.currentView.initialize();
+                }
+            } else {
+                console.warn(`No initializer found for view: ${viewName}`);
+                container.innerHTML = `<div class="alert alert-warning">View '${viewName}' not found or is not implemented correctly.</div>`;
+            }
+        } catch (error) {
+            console.error('Error loading view:', error);
+            container.innerHTML = `<div class="alert alert-danger">Error loading page. Please try again.</div>`;
+        }
+    }
+}

@@ -1,5 +1,4 @@
 // deviceFilter.js: Global device-scoped filtering functionality
-console.log('deviceFilter.js loaded');
 
 /**
  * Initializes the global device filter dropdown in the navbar.
@@ -149,7 +148,6 @@ window.initDeviceFilter = async function initDeviceFilter(dataService) {
      * @param {string} deviceId - The ID of the device to select
      */
     function selectDevice(deviceId) {
-        console.log(`Device selected: ${deviceId}`);
         sessionStorage.setItem('selectedDeviceId', deviceId);
         currentDeviceId = deviceId;
         
@@ -158,7 +156,14 @@ window.initDeviceFilter = async function initDeviceFilter(dataService) {
 
         // Re-render the filter to show the new selection and then reload view
         renderDeviceFilter(true); // Pass true to indicate an update, not a full re-render
-        window.router.loadView(window.router.getCurrentView());
+        
+        // Small delay to ensure the current view state is properly set before reloading
+        setTimeout(() => {
+            const currentView = window.router.getCurrentView();
+            if (currentView) {
+                window.router.loadView(currentView);
+            }
+        }, 50);
     }
 
     /**
@@ -172,7 +177,6 @@ window.initDeviceFilter = async function initDeviceFilter(dataService) {
 
     // Listen for org changes to reload the device list
     document.addEventListener('orgChanged', (e) => {
-        console.log('Org changed, reloading device list...');
         // Reset device to all when org changes
         sessionStorage.removeItem('selectedDeviceId');
         currentDeviceId = 'all';

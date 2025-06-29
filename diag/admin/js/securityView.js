@@ -211,9 +211,9 @@
 
         const paginationContainer = tableContainer.querySelector('.pagination');
         if (paginationContainer) {
-            window.setupPagination(paginationContainer, page, pageCount, (newPage) => {
+            window.uiUtils.setupPagination(paginationContainer, pageCount, (newPage) => {
                 renderTablePage(events, tableContainer, newPage);
-            });
+            }, page);
         }
     }
 
@@ -295,7 +295,7 @@
 
             const paginationElement = document.getElementById(`${tableId}-pagination`);
             const totalPages = Math.ceil(currentEvents.length / pageSize);
-            window.setupPagination(paginationElement, totalPages, renderTablePage, currentPage);
+            window.uiUtils.setupPagination(paginationElement, totalPages, renderTablePage, currentPage);
 
             tableContainer.querySelectorAll('th.sortable').forEach(th => {
                 th.classList.remove('asc', 'desc');

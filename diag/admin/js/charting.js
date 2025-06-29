@@ -177,6 +177,45 @@ window.charting = {
     },
     
     /**
+     * Renders a generic Scatter chart.
+     * @param {string} elementId The ID of the container element.
+     * @param {Array<Array>} dataRows The data rows.
+     * @param {string[]} header The header row.
+     * @param {object} [optionsConfig] Optional configuration.
+     */
+    async renderScatterChart(elementId, dataRows, header, optionsConfig = {}) {
+        await this.googleChartsLoaded;
+        const chartEl = document.getElementById(elementId);
+        if (!chartEl) return;
+
+        if (!dataRows || dataRows.length === 0) {
+            chartEl.innerHTML = '<div class="text-muted text-center p-5">No data available.</div>';
+            return;
+        }
+
+        const data = google.visualization.arrayToDataTable([header, ...dataRows]);
+        const isDark = document.body.classList.contains('theme-dark');
+        const textStyle = { color: isDark ? '#e5e5e5' : '#424242', fontName: 'inherit' };
+        const gridlineColor = isDark ? '#555' : '#e9ecef';
+
+        const options = {
+            backgroundColor: 'transparent',
+            chartArea: { left: 60, top: 20, width: '80%', height: '75%' },
+            legend: 'none',
+            hAxis: { title: 'CVSS Score', minValue: 0, maxValue: 10, textStyle: textStyle, gridlines: { color: gridlineColor }, titleTextStyle: textStyle },
+            vAxis: { title: 'EPSS Probability (%)', minValue: 0, maxValue: 100, textStyle: textStyle, gridlines: { color: gridlineColor }, titleTextStyle: textStyle },
+            tooltip: { isHtml: false, textStyle: { fontName: 'inherit' } },
+            colors: ['#d63939'],
+            crosshair: { trigger: 'both', orientation: 'both' },
+            ...optionsConfig.extraOptions,
+        };
+
+        const chart = new google.visualization.ScatterChart(chartEl);
+        chart.draw(data, options);
+        chartEl.chartInstance = { chart, data, options, type: 'ScatterChart' };
+    },
+
+    /**
      * Renders a Google Timeline chart.
      * @param {string} elementId The ID of the container element.
      * @param {Array<Array>} dataRows The data rows for the timeline.

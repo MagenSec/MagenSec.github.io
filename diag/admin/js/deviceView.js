@@ -3,278 +3,174 @@
     if (!window.viewInitializers) {
         window.viewInitializers = {};
     }
+    
     window.viewInitializers.devices = async function(container, { dataService }) {
-      if (!container) {
-        console.error('Device view requires a container element.');
-        return;
-      }
+        if (!container) {
+            console.error('Device view requires a container element.');
+            return;
+        }
   
-      console.log('Initializing Device Fleet Management view...');
-      container.innerHTML = `<div class="page-preloader"><div class="spinner"></div></div>`;
-  
-      try {
-        const org = sessionStorage.getItem('org') || 'Global';
-        const { devices, summary } = await dataService.getDeviceData(org);
-  
-        await window.charting.googleChartsLoaded; // Wait for global chart loader
-        renderDeviceView(container, devices, summary);
-        addDeviceEventListeners(devices);
-  
-      } catch (error) {
-        console.error('Error initializing device view:', error);
-        container.innerHTML = `<div class="alert alert-danger">Failed to load device data. Please try again later.</div>`;
-      }
-    };
-  
-    function renderDeviceView(container, devices, summary) {
-      // FIX: Updated KPI cards to be more relevant and use correct summary data.
-      container.innerHTML = `
-        <div class="row row-deck row-cards">
-          <!-- KPI Cards -->
-          <div class="col-sm-6 col-lg-3">
-            <div class="card">
-              <div class="card-body">
-                <div class="d-flex align-items-center">
-                  <div class="subheader">Total Devices</div>
-                  <div class="ms-auto lh-1"><i class="ti ti-device-desktop text-muted"></i></div>
-                </div>
-                <div class="h1 mb-3">${summary.total}</div>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-6 col-lg-3">
-            <div class="card">
-              <div class="card-body">
-                <div class="d-flex align-items-center">
-                  <div class="subheader">Online</div>
-                   <div class="ms-auto lh-1"><i class="ti ti-wifi text-success"></i></div>
-                </div>
-                <div class="h1 mb-3 text-success">${summary.online}</div>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-6 col-lg-3">
-            <div class="card">
-              <div class="card-body">
-                <div class="d-flex align-items-center">
-                  <div class="subheader">Secure Boot Enabled</div>
-                  <div class="ms-auto lh-1"><i class="ti ti-lock text-muted"></i></div>
-                </div>
-                <div class="h1 mb-3">${summary.secureBoot}</div>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-6 col-lg-3">
-            <div class="card">
-              <div class="card-body">
-                <div class="d-flex align-items-center">
-                  <div class="subheader">TPM Enabled</div>
-                  <div class="ms-auto lh-1"><i class="ti ti-chip text-muted"></i></div>
-                </div>
-                <div class="h1 mb-3">${summary.tpmEnabled}</div>
-              </div>
-            </div>
-          </div>
-  
-          <!-- Hardware Spec Charts -->
-          <div class="col-lg-4">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">CPU Architecture</h3>
-              </div>
-              <div class="card-body">
-                <div id="cpu-dist-chart" style="height: 250px" data-chart-type="google"></div>
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-4">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">Memory Distribution (${summary.mostCommonMemory})</h3>
-              </div>
-              <div class="card-body">
-                <div id="mem-dist-chart" style="height: 250px" data-chart-type="google"></div>
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-4">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">Secure Boot Status</h3>
-              </div>
-              <div class="card-body">
-                <div id="secure-boot-chart" style="height: 250px" data-chart-type="google"></div>
-              </div>
-            </div>
-          </div>
-  
-          <!-- Devices Table -->
-          <div class="col-12">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">Managed Devices</h3>
-                <div class="ms-auto text-muted">
-                  Search: 
-                  <div class="ms-2 d-inline-block">
-                    <input type="text" id="device-search" class="form-control form-control-sm" aria-label="Search devices">
-                  </div>
-                </div>
-              </div>
-              <div id="devices-table-container">
-                 <!-- Paginated table will be rendered here -->
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-  
-      const chartColors = ['#206bc4', '#79a6dc', '#d1e0f6', '#f0f6ff', '#a6cffc', '#6c7a89', '#95a5a6'];
-      const cpuData = Object.entries(summary.cpuCoreDistribution || {});
-      const memData = Object.entries(summary.memoryDistribution || {});
-      const secureBootData = Object.entries(summary.secureBootDistribution || {});
-  
-      window.charting.renderPieChart('cpu-dist-chart', cpuData, ['CPU Architecture', 'Count'], { colors: chartColors });
-      window.charting.renderPieChart('mem-dist-chart', memData, ['Memory Specs', 'Count'], { colors: chartColors });
-      window.charting.renderPieChart('secure-boot-chart', secureBootData, ['Secure Boot', 'Count'], { colors: chartColors });
-    }
-  
-    function addDeviceEventListeners(allDevices) {
-        const tableContainer = document.getElementById('devices-table-container');
-        const searchInput = document.getElementById('device-search');
+        console.log('Initializing Device Fleet Management view...');
         
-        let currentDevices = [...allDevices];
-        let currentPage = 1;
-        const pageSize = 15;
-        let sortColumn = 'lastSeenTimestamp';
-        let sortDirection = 'desc';
-  
-        const renderTablePage = (page) => {
-            currentPage = page;
-            const start = (page - 1) * pageSize;
-            const end = start + pageSize;
-            const pageData = currentDevices.slice(start, end);
-  
-            const tableId = 'devices-table';
-            if (tableContainer.querySelector(`#${tableId}`) === null) {
-                tableContainer.innerHTML = `
-                    <div class="table-responsive">
-                        <table id="${tableId}" class="table card-table table-vcenter text-nowrap datatable">
-                            <thead>
-                                <tr>
-                                    <!-- FIX: Updated table headers for new data -->
-                                    <th class="w-1 sortable" data-sort="hostname">Hostname</th>
-                                    <th class="sortable" data-sort="osVersion">Operating System</th>
-                                    <th class="sortable" data-sort="clientVersion">Client Version</th>
-                                    <th class="sortable" data-sort="status">Status</th>
-                                    <th class="sortable" data-sort="lastSeen">Last Seen</th>
-                                    <th class="sortable" data-sort="deviceAge">Device Age</th>
-                                    <th class="sortable" data-sort="secureBoot">Secure Boot</th>
-                                    <th class="sortable" data-sort="tmp">TPM</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                    <div class="card-footer d-flex align-items-center">
-                        <p class="m-0 text-muted">Showing <span id="${tableId}-start">1</span> to <span id="${tableId}-end">10</span> of <span id="${tableId}-total">${currentDevices.length}</span> entries</p>
-                        <ul id="${tableId}-pagination" class="pagination m-0 ms-auto"></ul>
-                    </div>
-                `;
+        // Load the HTML content first
+        try {
+            const response = await fetch('views/devices.html');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+            const htmlContent = await response.text();
+            container.innerHTML = htmlContent;
+        } catch (error) {
+            console.error('Error loading devices view HTML:', error);
+            container.innerHTML = `<div class="alert alert-danger">Error loading device management view. Please try again later.</div>`;
+            return;
+        }
   
-            const tableBody = tableContainer.querySelector(`#${tableId} tbody`);
-            const timeUtils = window.timeUtils;
-            // FIX: Status check is now boolean-based
-            const getStatusColor = (status) => status === 'Online' ? 'green' : 'gray';
+        try {
+            const org = sessionStorage.getItem('org') || 'Global';
+            const { devices, summary } = await dataService.getDeviceData(org);
   
-            if (pageData.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No devices found matching your criteria.</td></tr>';
-            } else {
-                // FIX: Use correct properties from dataService and add fallbacks
-                tableBody.innerHTML = pageData.map(device => `
-                    <tr>
-                        <td><div class="text-truncate" style="max-width: 250px;" title="Device ID: ${device.id}">${device.hostname}</div></td>
-                        <td>${device.osVersion}</td>
-                        <td>${device.clientVersion}</td>
-                        <td>
-                            <span class="badge bg-${getStatusColor(device.status)}-lt">${device.status}</span>
-                        </td>
-                        <td data-timestamp="${device.lastSeen}">${timeUtils.formatTimestamp(device.lastSeen)}</td>
-                        <td>${device.deviceAgeText || 'Unknown'}</td>
-                        <td>
-                            <span class="badge bg-${device.secureBoot ? 'success' : 'danger'}-lt">
-                                ${device.secureBoot ? 'Enabled' : 'Disabled'}
-                            </span>
-                        </td>
-                        <td>
-                            <span class="badge bg-${device.tmp ? 'success' : 'danger'}-lt">
-                                ${device.tmp ? 'Enabled' : 'Disabled'}
-                            </span>
-                        </td>
-                    </tr>
-                `).join('');
-            }
+            populateDeviceStats(summary);
+            populateDeviceTable(devices);
+            addDeviceEventListeners(devices);
   
-            document.getElementById(`${tableId}-start`).textContent = currentDevices.length > 0 ? start + 1 : 0;
-            document.getElementById(`${tableId}-end`).textContent = Math.min(end, currentDevices.length);
-            document.getElementById(`${tableId}-total`).textContent = currentDevices.length;
-  
-            const paginationElement = document.getElementById(`${tableId}-pagination`);
-            const totalPages = Math.ceil(currentDevices.length / pageSize);
-            window.setupPagination(paginationElement, totalPages, renderTablePage, currentPage);
-            
-            tableContainer.querySelectorAll('th.sortable').forEach(th => {
-                th.classList.remove('asc', 'desc');
-                if (th.dataset.sort === sortColumn) {
-                    th.classList.add(sortDirection);
-                }
-            });
-        };
-  
-        const applySearchAndSort = () => {
-            const searchTerm = searchInput.value.toLowerCase();
-            
-            // FIX: Search against correct and available properties
-            currentDevices = allDevices.filter(device => {
-                const searchableString = `${device.id} ${device.hostname} ${device.osVersion} ${device.clientVersion} ${device.status}`.toLowerCase();
-                return searchableString.includes(searchTerm);
-            });
-  
-            currentDevices.sort((a, b) => {
-                let valA = a[sortColumn];
-                let valB = b[sortColumn];
-                if (valA === null || valA === undefined) valA = '';
-                if (valB === null || valB === undefined) valB = '';
-  
-                if (typeof valA === 'string') {
-                    return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                } else {
-                    return sortDirection === 'asc' ? valA - valB : valB - valA;
-                }
-            });
-  
-            renderTablePage(1);
-        };
-  
-        searchInput.addEventListener('keyup', applySearchAndSort);
-  
-        tableContainer.addEventListener('click', (e) => {
-            const header = e.target.closest('th.sortable');
-            if (header) {
-                const newSortColumn = header.dataset.sort;
-                if (newSortColumn === sortColumn) {
-                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    sortColumn = newSortColumn;
-                    sortDirection = (newSortColumn.toLowerCase().includes('timestamp')) ? 'desc' : 'asc';
-                }
-                applySearchAndSort();
-            }
-        });
-  
-        applySearchAndSort();
+        } catch (error) {
+            console.error('Error initializing device view:', error);
+            const alertDiv = container.querySelector('.container-xl') || container;
+            alertDiv.innerHTML = `<div class="alert alert-danger">Failed to load device data. Please try again later.</div>`;
+        }
+    };
+
+    function populateDeviceStats(summary) {
+        // Update the KPI cards with real data
+        const totalElement = document.getElementById('totalDevices');
+        const onlineElement = document.getElementById('onlineDevices');
+        const alertElement = document.getElementById('alertDevices');
+        const offlineElement = document.getElementById('offlineDevices');
+
+        if (totalElement) totalElement.textContent = summary?.total || '--';
+        if (onlineElement) onlineElement.textContent = summary?.online || '--';
+        if (alertElement) alertElement.textContent = summary?.alerts || '--';
+        if (offlineElement) offlineElement.textContent = summary?.offline || '--';
     }
-  
-    // Set this as the current view initializer for timezone/theme refresh
-    window.currentViewInit = window.deviceViewInit;
-  })();
+
+    function populateDeviceTable(devices) {
+        const tableBody = document.getElementById('devicesTableBody');
+        if (!tableBody) {
+            console.warn('devicesTableBody element not found');
+            return;
+        }
+
+        if (!devices || devices.length === 0) {
+            tableBody.innerHTML = 
+                '<tr><td colspan="8" class="text-center text-muted">No devices found.</td></tr>';
+            return;
+        }
+
+        const timeUtils = window.timeUtils || {
+            formatTimestamp: (ts) => ts ? new Date(ts).toLocaleString() : 'Never'
+        };
+        
+        const getStatusColor = (status) => {
+            if (status === 'Online') return 'success';
+            if (status === 'Offline') return 'danger';
+            return 'warning';
+        };
+
+        // Populate table with device data (show first 10 for simplicity)
+        tableBody.innerHTML = devices.slice(0, 10).map(device => `
+            <tr>
+                <td>
+                    <div class="d-flex">
+                        <span class="avatar avatar-sm me-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <rect x="3" y="4" width="18" height="12" rx="1"/>
+                                <path d="M7 20h10"/>
+                                <path d="M9 16v4"/>
+                                <path d="M15 16v4"/>
+                            </svg>
+                        </span>
+                        <div>
+                            <div class="font-weight-medium">${device.hostname || device.name || 'Unknown Device'}</div>
+                            <div class="text-muted text-sm">${device.id || ''}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge badge-outline text-muted">${device.deviceType || device.type || 'Unknown'}</span>
+                </td>
+                <td>${device.ipAddress || device.ip || 'N/A'}</td>
+                <td>
+                    <span class="badge bg-${getStatusColor(device.status)}">${device.status || 'Unknown'}</span>
+                </td>
+                <td>${device.lastSeen ? timeUtils.formatTimestamp(device.lastSeen) : 'Never'}</td>
+                <td>${device.clientVersion || device.agentVersion || 'N/A'}</td>
+                <td>${device.osVersion || device.os || 'Unknown'}</td>
+                <td>
+                    <div class="btn-list flex-nowrap">
+                        <a href="#" class="btn btn-sm btn-outline-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/>
+                                <path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"/>
+                            </svg>
+                        </a>
+                        <a href="#" class="btn btn-sm btn-outline-secondary">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1"/>
+                                <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z"/>
+                                <path d="M16 5l3 3"/>
+                            </svg>
+                        </a>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        // Update pagination info
+        const paginationInfo = document.getElementById('devicePaginationInfo');
+        if (paginationInfo) {
+            const totalDevices = devices.length;
+            const currentShow = Math.min(10, totalDevices);
+            paginationInfo.innerHTML = 
+                `Showing <span>1 to ${currentShow}</span> of <span>${totalDevices}</span> entries`;
+        }
+    }
+
+    // Add search and refresh functionality
+    function addDeviceEventListeners(devices) {
+        // Add search functionality
+        const searchInput = document.getElementById('deviceSearchInput');
+        const searchBtn = document.getElementById('deviceSearchBtn');
+        const refreshBtn = document.getElementById('refreshDevicesBtn');
+
+        if (searchInput && searchBtn) {
+            const performSearch = () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filtered = devices.filter(device => 
+                    (device.hostname || '').toLowerCase().includes(searchTerm) ||
+                    (device.ipAddress || '').toLowerCase().includes(searchTerm) ||
+                    (device.osVersion || '').toLowerCase().includes(searchTerm)
+                );
+                populateDeviceTable(filtered);
+            };
+
+            searchBtn.addEventListener('click', performSearch);
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') performSearch();
+            });
+        }
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                // Reload the current view
+                if (window.currentViewInit) {
+                    window.currentViewInit();
+                }
+            });
+        }
+    }
+
+})();
