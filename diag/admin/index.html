@@ -45,25 +45,30 @@
           <div class="nav-item dropdown">
             <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
               <span id="user-avatar" class="avatar avatar-sm"></span>
-              <div class="d-none d-xl-block ps-2">
-                <div id="user-name">Guest</div>
-                <div id="user-role" class="mt-1 small text-muted">User</div>
-              </div>
             </a>
             <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-              <a href="#" class="dropdown-item">Profile</a>
-              <a href="#" class="dropdown-item">Settings</a>
+              <div class="dropdown-header">
+                <div id="user-name" class="fw-bold">Guest</div>
+                <div id="user-role" class="text-muted small opacity-75">User</div>
+              </div>
               <div class="dropdown-divider"></div>
               <div class="dropdown-item">
-                <a href="#" id="theme-toggle-btn" class="nav-link px-0" title="Toggle theme">
-                    <i class="ti ti-moon me-2"></i> Theme
+                <i class="ti ti-moon me-2"></i> 
+                <a href="#" id="theme-toggle-btn" class="text-decoration-none text-reset" title="Toggle theme">
+                    Theme
                 </a>
               </div>
                <div class="dropdown-item">
                     <i class="ti ti-clock me-2"></i> Timezone: <span id="user-timezone"></span>
                </div>
               <div class="dropdown-divider"></div>
-              <a href="#" id="logoutButton" class="dropdown-item">Logout</a>
+              <a href="#" class="dropdown-item" data-view="performance" id="userMenuPerformance">
+                <i class="ti ti-activity me-2"></i> Performance
+              </a>
+              <div class="dropdown-divider"></div>
+              <a href="#" id="logoutButton" class="dropdown-item">
+                <i class="ti ti-logout me-2"></i> Logout
+              </a>
             </div>
           </div>
         </div>
@@ -97,16 +102,6 @@
                   </span>
                   <span class="nav-link-title">
                     Devices
-                  </span>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="#" data-view="performance">
-                  <span class="nav-link-icon d-md-none d-lg-inline-block">
-                    <i class="ti ti-activity"></i>
-                  </span>
-                  <span class="nav-link-title">
-                    Performance
                   </span>
                 </a>
               </li>

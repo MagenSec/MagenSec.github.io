@@ -33,9 +33,36 @@
         chartsSection.innerHTML = ''; // Clear other sections
 
         // Fetch data
+        const isLoggedIn = sessionStorage.getItem('isLoggedIn');
+        const username = sessionStorage.getItem('username');
+        const org = sessionStorage.getItem('org');
+        if (!isLoggedIn || !username || !org) {
+            kpiMainRow.innerHTML = `
+                <div class="alert alert-danger d-flex align-items-center" role="alert">
+                  <span class="me-3"><i class="ti ti-lock ti-lg"></i></span>
+                  <div>
+                    <strong>Session expired or not logged in.</strong><br>
+                    Please <a href="login.html" class="alert-link">log in</a> to view your dashboard.
+                  </div>
+                  <button class="btn btn-sm btn-primary ms-auto" onclick="window.location.href='login.html'">Login</button>
+                </div>
+            `;
+            setTimeout(() => { window.location.href = 'login.html'; }, 3500);
+            chartsSection.innerHTML = '';
+            return;
+        }
+
         const data = await (dataService.getDashboardMetrics ? dataService.getDashboardMetrics() : null);
         if (!data || !data.kpis) {
-            kpiMainRow.innerHTML = '<div class="alert alert-warning">No dashboard data available for this organization.</div>';
+            container.innerHTML = `
+                <div class="alert alert-warning d-flex align-items-center m-4" role="alert">
+                  <span class="me-3"><i class="ti ti-database-off ti-lg"></i></span>
+                  <div>
+                    <strong>No dashboard data available.</strong><br>
+                    This may be due to missing telemetry, backend issues, or session problems.
+                  </div>
+                </div>
+            `;
             return;
         }
 

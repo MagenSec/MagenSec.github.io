@@ -1,5 +1,11 @@
 // auth.js: Handles login, password hash check, and org/session storage
 (async function() {
+  // If already logged in, redirect to dashboard
+  if (sessionStorage.getItem('isLoggedIn')) {
+    window.location.href = 'index.html';
+    return;
+  }
+
   const form = document.getElementById('loginForm');
   const errorDiv = document.getElementById('loginError');
   let passwords = {};
@@ -25,22 +31,47 @@
   form.onsubmit = async (e) => {
     e.preventDefault();
     errorDiv.textContent = '';
+    errorDiv.classList.add('d-none');
+    
     const username = form.username.value.trim();
     const password = form.password.value;
     if (!username || !password) return;
-    await loadPasswords();
-    if (!passwords[username]) {
-      errorDiv.textContent = 'Invalid username or password.';
-      return;
-    }
-    const hashVal = await hash(password);
-    if (hashVal === passwords[username].hash) {
-      // Store org/session info
-      sessionStorage.setItem('org', passwords[username].org || username);
-      sessionStorage.setItem('isAdmin', passwords[username].admin ? '1' : '0');
-      window.location.href = 'index.html';
-    } else {
-      errorDiv.textContent = 'Invalid username or password.';
+    
+    // Show loading state
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="ti ti-loader-2 ti-spin me-2"></i>Signing in...';
+    submitBtn.disabled = true;
+    
+    try {
+      await loadPasswords();
+      
+      // Make username lookup case-insensitive
+      const normalizedUsername = username.toLowerCase();
+      const userRecord = Object.keys(passwords).find(key => key.toLowerCase() === normalizedUsername);
+      
+      if (!userRecord) {
+        throw new Error('Invalid username or password.');
+      }
+      
+      const hashVal = await hash(password);
+      if (hashVal === passwords[userRecord].hash) {
+        // Store org/session info with original case username
+        sessionStorage.setItem('org', passwords[userRecord].org || userRecord);
+        sessionStorage.setItem('username', userRecord);
+        sessionStorage.setItem('isAdmin', passwords[userRecord].admin ? '1' : '0');
+        sessionStorage.setItem('isLoggedIn', '1');
+        window.location.href = 'index.html';
+      } else {
+        throw new Error('Invalid username or password.');
+      }
+    } catch (error) {
+      errorDiv.textContent = error.message;
+      errorDiv.classList.remove('d-none');
+      
+      // Reset button state
+      submitBtn.innerHTML = originalBtnText;
+      submitBtn.disabled = false;
     }
   };
 })();

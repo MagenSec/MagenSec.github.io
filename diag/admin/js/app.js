@@ -125,6 +125,17 @@ async function initializeApp(container) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM fully loaded and parsed');
 
+    // Check if user is logged in before initializing the app
+    const isLoggedIn = sessionStorage.getItem('isLoggedIn');
+    if (!isLoggedIn) {
+        console.log('User not logged in, redirecting to login page');
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // Update user info in the UI
+    updateUserInfo();
+
     // Initialize theme switcher from the global scope
     if (window.themeSwitcherInit) {
         window.themeSwitcherInit();
@@ -185,6 +196,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+/**
+ * Updates the user information displayed in the UI
+ */
+function updateUserInfo() {
+    const username = sessionStorage.getItem('username') || 'Guest';
+    const isAdmin = sessionStorage.getItem('isAdmin') === '1';
+    const org = sessionStorage.getItem('org') || 'Unknown';
+    
+    const userNameElement = document.getElementById('user-name');
+    const userRoleElement = document.getElementById('user-role');
+    const userAvatarElement = document.getElementById('user-avatar');
+    
+    if (userNameElement) {
+        userNameElement.textContent = username;
+    }
+    
+    if (userRoleElement) {
+        userRoleElement.textContent = isAdmin ? 'Administrator' : 'User';
+    }
+    
+    if (userAvatarElement) {
+        // Create avatar with first letter of username
+        const initial = username.charAt(0).toUpperCase();
+        userAvatarElement.textContent = initial;
+        userAvatarElement.style.backgroundColor = '#206bc4';
+        userAvatarElement.style.color = 'white';
+        userAvatarElement.style.display = 'flex';
+        userAvatarElement.style.alignItems = 'center';
+        userAvatarElement.style.justifyContent = 'center';
+    }
+}
 
 // --- Global Debug Log Viewer ---
 (function setupDebugLogWindow() {
@@ -284,4 +327,15 @@ class App {
             container.innerHTML = `<div class="alert alert-danger">Error loading page. Please try again.</div>`;
         }
     }
+}
+
+// Add handler for Performance in user menu
+const perfMenu = document.getElementById('userMenuPerformance');
+if (perfMenu) {
+    perfMenu.addEventListener('click', (e) => {
+        e.preventDefault();
+        // Simulate navbar view switch
+        const perfNav = document.querySelector('[data-view="performance"]');
+        if (perfNav) perfNav.click();
+    });
 }
