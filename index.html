@@ -1,402 +1,1275 @@
-<!DOCTYPE HTML>
-<html>
-	<head>
-		<title>MagenSec by Gigabits | Fortify your digital defenses with MagenSec, your all-in-one security solution.</title>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-		<link rel="stylesheet" href="assets/css/main.css" />
-		<link rel="icon" type="image/x-icon" href="favicon.ico">
-		<style>
-			#blink {
-				font-size: 20px;
-				font-weight: bold;
-				font-family: sans-serif;
-			}
-		</style>
-	</head>
-	<body class="is-preload">
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>MagenSec by Gigabits ⚡ | Stop Cyber Attacks Before They Start 🛡️</title>
+    <meta name="description" content="Break the cyber attack kill chain with MagenSec. Simple, powerful security that protects your family and business from day one. 7-day free trial, then just $4.99/year."/>
+    
+    <!-- Tabler CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css" rel="stylesheet"/>
+    
+    <!-- MagenSec Custom Styles -->
+    <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
+    
+    <!-- Custom Styles -->
+    <style>
+        :root {
+            --tblr-primary: #0066cc;
+            --tblr-primary-rgb: 0, 102, 204;
+            --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004499 100%);
+            --gradient-success: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+        
+        .hero-section {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 4rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .feature-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: none;
+            height: 100%;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        
+        .stats-section {
+            background: var(--gradient-success);
+            color: white;
+        }
+        
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            display: block;
+            color: white;
+        }
+        
+        .pricing-card {
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        
+        .pricing-card:hover {
+            transform: scale(1.05);
+        }
+        
+        .pricing-card.featured {
+            border: 2px solid var(--tblr-primary);
+            transform: scale(1.05);
+        }
+        
+        .pricing-badge {
+            position: absolute;
+            top: 1rem;
+            right: -2rem;
+            background: var(--tblr-primary);
+            color: white;
+            padding: 0.5rem 3rem;
+            transform: rotate(45deg);
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        
+        .testimonial-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin: 1rem;
+        }
+        
+        .threat-demo {
+            background: #1a1a1a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin: 2rem 0;
+        }
+        
+        .typing-animation {
+            border-right: 2px solid #00ff00;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { border-color: #00ff00; }
+            51%, 100% { border-color: transparent; }
+        }
+        
+        .shield-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1rem;
+            display: block;
+        }
+        
+        .navbar-brand img {
+            height: 32px;
+            width: auto;
+        }
+        
+        .section-padding {
+            padding: 4rem 0;
+        }
+        
+        .bg-light-blue {
+            background: #f8fbff;
+        }
 
-		<!-- Nav -->
-			<nav id="nav">
-				<ul class="container">
-					<li><a href="#top">Home</a></li>
-					<li><a href="#features">Features</a></li>
-					<li><a href="#download">Download</a></li>
-					<li><a href="#license">License</a></li>
-					<li><a href="#contact">Contact</a></li>
-				</ul>
-			</nav>
+        .bg-light-green {
+            background: rgba(40, 167, 69, 0.1);
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--tblr-primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            z-index: 1000;
+            cursor: pointer;
+            will-change: transform;
+        }
+        
+        .back-to-top:hover {
+            background: var(--tblr-primary);
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+        
+        .back-to-top.show {
+            display: flex;
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
-		<!-- Home -->
-			<article id="top"  class="wrapper style1">
-				
-			
-				<header class="special container">
-					<h1><strong>MagenSec</strong></h1>
-					<h3>Your Proactive Defense Against Cyber Threats</h3>
-				</header>
-				<div class="container">
-					<div class="row">
-						<div class="col-4 col-5-large col-12-medium">
-							<p></p>
-							<span class="image fit"><img src="images/green_icon.ico" alt="MagenSec logo" /></span>
-							<p></p>
-							<p style="text-align:center;" id="blink">🎁 Limited Time 🎁 <br />
-								Secure Unlimited Devices for Just $4.99!
-							</p>
-						</div>
-						<div class="col-8 col-7-large col-12-medium">
-                            <p>In today's digital age, cyber threats are constantly evolving. Individuals and Small businesses are the target of 43% of cyberattacks. Cybercriminals don't wait, and neither should your security. </p>
-							<p>MagenSec, developed by ⚡ <strong><a href="http://gigabits.co.in">Gigabits</a></strong>, provides comprehensive security auditing and automated hardening to protect you from evolving threats and shield your devices from advanced cyber threats. For a limited time, secure all your devices for just <strong>$4.99</strong> per year.</p>
-                            <p>Reduce the risk of data breaches and gain peace of mind. Take control of your cybersecurity now.</p>
-							<a href="#download" class="button large scrolly">Secure Your Devices - Download Now!</a>
-						</div>
-					</div>
-				</div>
-			</article>
+        .flow-step {
+            position: relative;
+            margin-bottom: 2rem;
+        }
 
-		<!-- features -->
-			<article id="features" class="wrapper style2">
-				<div class="container">
-					<header>
-						<h2>MagenSec: Your First Line of Defense</h2>
-						<p>Think of antivirus as a soldier fighting after the enemy is inside. MagenSec is your fortress – we close the doors, reinforce the walls, and eliminate vulnerabilities before an attack can even begin.</p>
-                        <p>We make your devices impenetrable.</p>
-					</header>
-                    <section class="box style2" style="background-color:lemonchiffon">
-                        <strong>Empower Your Team</strong>: MagenSec provides comprehensive security reports that highlights potential employee security risks. Empower your team to be your first line of defense with clear, actionable data. MagenSec's reporting features can be used to monitor and detect risky user behaviors, which helps to train employees, and reduce insider threats. Invest in employee training for a stronger security posture.
-                    </section>
-                    <h3>Here's how MagenSec protects you:</h3>
-					<div class="row aln-center">
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 50px;">🔒</span>
-								<p></p>
-								<h3>Advanced Vulnerability Scanning</h3>
-								<p>Pinpoints and eliminates potential security weaknesses, reducing the risk of data breaches by up to 70%.</p>
-							</section>
-						</div>
+        .flow-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 50px;
+            top: 80px;
+            width: 2px;
+            height: 40px;
+            background: #dee2e6;
+            z-index: 0;
+        }
 
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">🛠️</span>
-								<p></p>
-								<h3>Automated Hardening</h3>
-								<p>Strengthens your system against attacks, saving you valuable time and reducing IT costs by automating complex security configurations.</p>
-							</section>
-						</div>
+        .flow-step.solution-step::after {
+            background: var(--gradient-success);
+            height: 20px;
+        }
 
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">📈</span>
-								<p></p>
-								<h3>Performance Optimization</h3>
-								<p>Strengthen your defenses through security best practices without compromising device performance.</p>
-							</section>
-						</div>
+        .flow-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
 
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">📊</span>
-								<p></p>
-								<h3>Detailed Reporting</h3>
-								<p>Provides clear, actionable insights into your device's security posture, simplifying compliance and giving you peace of mind.</p>
-							</section>
-						</div>
+        .attack-flow {
+            position: relative;
+        }
+    </style>
+    
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="page">
+        <!-- Navbar -->
+        <header class="navbar navbar-expand-md navbar-light d-print-none">
+            <div class="container-xl">
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                    <a href="index.html" class="text-decoration-none">
+                        <span style="font-size: 1.5rem;">🛡️</span>
+                        <strong>MagenSec</strong>
+                        <span class="text-muted small">by Gigabits</span>
+                    </a>
+                </h1>
+                <div class="navbar-nav flex-row order-md-last">
+                    <div class="nav-item d-none d-md-flex me-3">
+                        <div class="btn-list">
+                            <a href="#download" class="btn btn-primary">
+                                📥 Download Free Trial
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="collapse navbar-collapse" id="navbar-menu">
+                    <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="nav-link" href="#how-it-works">How It Works</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#features">Features</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#pricing">Pricing</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="about.html">About</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="FixIt.html">Security Guide</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#contact">Contact</a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">                                <div class="nav-link-icon d-md-none d-lg-inline-block">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-layout-dashboard" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
+                                </div>
+                                    Admin Tools
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="diag/admin/" target="_blank">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 7v5l3 3"/></svg>
+                                        Command Center
+                                        <span class="badge bg-success ms-auto">Live</span>
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    <h6 class="dropdown-header">For Organizations</h6>
+                                    <p class="dropdown-item text-muted small mb-0">
+                                        Multi-device security management, reports, and threat intelligence dashboard for IT administrators.
+                                    </p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">🛡️</span>
-								<p></p>
-								<h3>Real-Time Threat Detection</h3>
-								<p>Instantly identifies and neutralizes emerging cyber threats, keeping you ahead of the curve.</p>
-							</section>
-						</div>
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <div class="container-xl hero-content">
+                <div class="row align-items-center">
+                    <div class="col-lg-6">
+                        <h1 class="display-4 fw-bold mb-4 text-center text-lg-start">
+                            🛡️ Audit-Ready Security<br/>
+                            <span class="text-success">Without the Enterprise Price Tag</span>
+                        </h1>
+                        <p class="lead mb-4">
+                            Whether you're a family protecting personal data, a school securing student information, or a startup showing investors you're serious about security - MagenSec makes compliance simple and affordable.
+                        </p>
+                        <div class="alert mb-4" style="background: rgba(255,255,255,0.95); border: 2px solid #ffc107; color: #212529;">
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    <span style="font-size: 3rem;">⚠️</span>
+                                </div>
+                                <div>
+                                    <strong>Reality Check:</strong> One compliance violation fine averages <strong>$25,000+</strong>. Security consultants charge <strong>$15,000+</strong> per audit. MagenSec costs less than a coffee per month.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-3 mb-4">
+                            <a href="#download" class="btn btn-warning btn-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+                                Start 7-Day Free Trial
+                            </a>
+                            <a href="#how-it-works" class="btn btn-outline-light btn-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 4v16l13 -8z"/></svg>
+                                See How It Works
+                            </a>
+                        </div>
+                        <div class="row text-center text-lg-start">
+                            <div class="col-4">
+                                <div class="stats-number">99.9%</div>
+                                <small class="text-white-75">Audit Ready Score</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="stats-number">$4.99</div>
+                                <small class="text-white-75">Per Year (50% Off)</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="stats-number">5 min</div>
+                                <small class="text-white-75">Setup Time</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 text-center">
+                        <div style="background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%); border-radius: 20px; padding: 2rem; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);">
+                            <img src="assets/black_shield.png" alt="MagenSec Security Shield" class="img-fluid" style="max-width: 300px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3)); background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.1) 70%); border-radius: 15px; padding: 1rem;">
+                            <div class="mt-3">
+                                <span class="badge bg-success fs-6 px-3 py-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
+                                    Protected & Secure
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">🌐</span>
-								<p></p>
-								<h3>Unlimited Device Protection</h3>
-								<p>Secure all your devices with a single, affordable license, ensuring complete coverage.</p>
-							</section>
-						</div>
+        <!-- How Cyber Attacks Work -->
+        <div id="how-it-works" class="section-padding">
+            <div class="container-xl">
+                <div class="row justify-content-center mb-5">
+                    <div class="col-lg-8 text-center">
+                        <h2 class="display-5 fw-bold mb-4">Here's How Hackers Attack Your Computer</h2>
+                        <p class="lead text-muted">Understanding the attack chain helps you see why protection at every step matters</p>
+                    </div>
+                </div>
+                
+                <div class="row justify-content-center">
+                    <div class="col-lg-10">
+                        <div class="attack-flow">
+                            <!-- Step 1 -->
+                            <div class="flow-step">
+                                <div class="row align-items-center">
+                                    <div class="col-md-2 text-center">
+                                        <div class="flow-icon bg-danger">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="M3 7l9 6l9 -6"/></svg>
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">STEP 1</small>
+                                    </div>
+                                    <div class="col-md-10">
+                                        <div class="card border-start border-danger border-3">
+                                            <div class="card-body">
+                                                <h5 class="text-danger">📧 The Trap: Phishing Email</h5>
+                                                <p class="mb-0">You receive an email that looks real - maybe from your bank, a delivery company, or even a friend. You click a link or download an attachment.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">🔍</span>
-								<p></p>
-								<h3>Continuous Monitoring</h3>
-								<p>Vigilantly watches your system for suspicious activity, providing real-time alerts.</p>
-							</section>
-						</div>
+                            <!-- Step 2 -->
+                            <div class="flow-step">
+                                <div class="row align-items-center">
+                                    <div class="col-md-2 text-center">
+                                        <div class="flow-icon bg-danger">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M12 11l0 .01"/><path d="M12 8l0 .01"/></svg>
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">STEP 2</small>
+                                    </div>
+                                    <div class="col-md-10">
+                                        <div class="card border-start border-danger border-3">
+                                            <div class="card-body">
+                                                <h5 class="text-danger">🕳️ The Entry: Finding Vulnerabilities</h5>
+                                                <p class="mb-0">The malicious link exploits a security hole (vulnerability) in your browser, PDF reader, or other software. This is where <strong>most attacks succeed</strong>.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">📝</span>
-								<p></p>
-								<h3>Comprehensive Security Audits</h3>
-								<p>Conducts thorough scans to uncover and address vulnerabilities.</p>
-							</section>
-						</div>
+                            <!-- Step 3 -->
+                            <div class="flow-step">
+                                <div class="row align-items-center">
+                                    <div class="col-md-2 text-center">
+                                        <div class="flow-icon bg-danger">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l10 -10"/><path d="M2 12l5 5m5 -5l5 -5"/></svg>
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">STEP 3</small>
+                                    </div>
+                                    <div class="col-md-10">
+                                        <div class="card border-start border-danger border-3">
+                                            <div class="card-body">
+                                                <h5 class="text-danger">🎯 The Takeover: Installing Malware</h5>
+                                                <p class="mb-0">Now the hacker has a foothold. They install malware that gives them remote control of your computer, often without you noticing anything.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
+                            <!-- Step 4 -->
+                            <div class="flow-step">
+                                <div class="row align-items-center">
+                                    <div class="col-md-2 text-center">
+                                        <div class="flow-icon bg-danger">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"/></svg>
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">STEP 4</small>
+                                    </div>
+                                    <div class="col-md-10">
+                                        <div class="card border-start border-danger border-3">
+                                            <div class="card-body">
+                                                <h5 class="text-danger">💰 The Damage: Stealing & Encrypting</h5>
+                                                <p class="mb-0">They steal your passwords, photos, documents, and banking info. They might encrypt your files and demand ransom, or use your computer to attack others.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">🔮</span>
-								<p></p>
-								<h3>Cross-Platform Support</h3>
-								<p>Seamlessly protects your Windows, Linux, macOS, Android and iOS mobile devices*.</p>
-							</section>
-						</div>
+                            <!-- MagenSec Solution -->
+                            <div class="flow-step solution-step">
+                                <div class="row align-items-center">
+                                    <div class="col-md-2 text-center">
+                                        <div class="flow-icon bg-success">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M9 12l2 2l4 -4"/></svg>
+                                        </div>
+                                        <small class="text-success mt-2 d-block fw-bold">MAGENSEC</small>
+                                    </div>
+                                    <div class="col-md-10">
+                                        <div class="card border-start border-success border-3 bg-light-green">
+                                            <div class="card-body">
+                                                <h5 class="text-success">🛡️ How MagenSec Breaks The Chain</h5>
+                                                <p class="mb-2"><strong>Before Step 2:</strong> We find and help you fix vulnerabilities before hackers can exploit them.</p>
+                                                <p class="mb-2"><strong>During Step 3:</strong> We optimize your built-in Windows Defender to catch malware installations.</p>
+                                                <p class="mb-0"><strong>Continuous Protection:</strong> We monitor 24/7 and keep your security always up-to-date.</p>
+                                                <div class="mt-3">
+                                                    <span class="badge bg-success me-2">No Chain = No Attack</span>
+                                                    <span class="badge bg-success">Prevention > Cure</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-						<!--div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">📡</span>
-								<p></p>
-								<h3>Find Vulnerabilities</h3>
-								<p>Identifies vulnerable applications on your system and help you stay protected through patching.</p>
-							</section>
-						</div>
-						<div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">📋</span>
-								<p></p>
-								<h3>Meeting Compliance</h3>
-								<p>Helps SMBs meet industry compliance standards. Help you identify gaps and maintain posture.</p>
-							</section>
-						</div>
-						<div class="col-4 col-6-medium col-12-small">
-							<section class="box style1">
-								<span style="font-size: 80px;">🛡️</span>
-								<p></p>
-								<h3>Complement Antivirus</h3>
-								<p>Enhances your existing protection from Antivirus by reducing the attack surface and breaking the kill-chain.</p>
-							</section>
-						</div-->
-                        <!-- Device Protection, Monitoring -->
-                        <!-- Benefits: Reduced risk of data breaches. Improved security posture. Simplified compliance. Time and cost savings. Peace of mind. -->
-                        <!--
-                         Individual and SMB Pain points
-                         Number and Statistics to quantify benefits
-                         Review and remove tecchnical jargons to simplify the language
-                         Emphasize the importance of cybersecurity in today's digital landscape. And importance of taking action/Urgency
-                            Highlight the consequences of inaction, such as data breaches, financial losses, and reputational damage.
-                            Use statistics and real-world examples to illustrate the risks and the need for proactive measures.
-                            Create a sense of urgency by emphasizing that cyber threats are constantly evolving and that individuals and SMBs need to stay ahead of the curve.
-                            Use phrases like "Don't wait until it's too late" or "Protect your digital life today" to encourage immediate action.
-                            Highlight the importance of regular software updates and security audits to maintain a strong defense against cyber threats.
-                            Emphasize the need for continuous monitoring and proactive measures to stay ahead of evolving threats.
-                            Use phrases like "Stay one step ahead of cybercriminals" or "Be proactive, not reactive" to convey the message that cybersecurity is an ongoing process.
-                            Highlight the importance of employee training and awareness in preventing cyber incidents.
-                            Emphasize that employees are often the first line of defense against cyber threats and that their awareness and training can significantly reduce risks.
-                            Use phrases like "Empower your team to be your first line of defense" or "Invest in employee training for a stronger security posture" to convey this message.
-                            Use testimonials or case studies from satisfied customers to build trust and credibility.
-                            Highlight the positive experiences of individuals and SMBs who have successfully used the software to enhance their security.
-                            Use phrases like "Join thousands of satisfied users" or "See how our software has made a difference for others" to encourage potential customers to take action.
-                            Include a clear call to action, such as "Download now" or "Get started today," to prompt individuals and SMBs to take the next step in securing their digital lives.
-                            Use phrases like "Take control of your cybersecurity" or "Start your journey to a safer digital life" to encourage immediate action.
-                            Provide a clear and compelling call to action that encourages individuals and SMBs to take the next step in securing their digital lives.
-                         -->
-                        <!-- 
-                         Target Audience Sections tailored to individuals and SMBs, addressing their specific needs and concerns.
-                            For Individuals: Emphasize ease of use, affordability, and protection against common threats.
-                            For SMBs: Highlight scalability, compliance features, and cost-effectiveness.
-                            Testimonials/Case Studies from satisfied customers or case studies that demonstrate the software's effectiveness.
-                            FAQ Section to address common questions and concerns.
-                            Blog/Resources with articles and guides on cybersecurity topics.
-                        Screenshots/Videos to showcase the software's interface and features.
-                        SEO Optimization
-                         -->
+        <!-- Threat Demo Section -->
+        <div class="container-xl my-5">
+            <div class="row justify-content-center">
+                <div class="col-lg-10">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title text-center">🖥️ Live Security Simulation</h3>
+                            <p class="text-center text-muted mb-0">See the difference MagenSec makes - Side by Side</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Without MagenSec -->
+                                <div class="col-md-6">
+                                    <div class="card bg-danger-subtle border-danger">
+                                        <div class="card-header bg-danger text-white">
+                                            <h5 class="mb-3 text-white">❌ Without MagenSec Protection</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="threat-demo-without">
+                                                <div id="threat-simulation-without">
+                                                    <div class="mb-2">$ <span class="typing-animation">Normal computer usage...</span></div>
+                                                    <div class="mb-2 d-none" id="vuln-exists">⚠️ Unknown vulnerability in Adobe Reader v21.0</div>
+                                                    <div class="mb-2 d-none" id="exploit-incoming">🔴 Malicious email attachment opened</div>
+                                                    <div class="mb-2 d-none" id="exploit-succeeds">💀 EXPLOIT SUCCESSFUL - System compromised!</div>
+                                                    <div class="d-none" id="system-breached">🚨 Data stolen, ransomware deployed!</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- With MagenSec -->
+                                <div class="col-md-6">
+                                    <div class="card bg-success-subtle border-success">
+                                        <div class="card-header bg-success text-white">
+                                            <h5 class="mb-3 text-white">✅ With MagenSec Protection</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="threat-demo-with">
+                                                <div id="threat-simulation-with">
+                                                    <div class="mb-2">$ <span class="typing-animation">MagenSec scanning...</span></div>
+                                                    <div class="mb-2 d-none" id="vuln-detected">⚠️ CRITICAL: CVE-2024-1234 found in Adobe Reader v21.0</div>
+                                                    <div class="mb-2 d-none" id="patch-recommended">📋 MagenSec: Update Adobe Reader to v24.2 now!</div>
+                                                    <div class="mb-2 d-none" id="user-patches">🔧 User applies security update</div>
+                                                    <div class="d-none" id="attack-fails">🛡️ Later exploit attempt fails - System secure!</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center mt-3">
+                                <button class="btn btn-primary" onclick="runComparisonDemo()">▶️ Run Side-by-Side Comparison</button>
+                                <p class="small text-muted mt-2">See how proactive vulnerability management breaks the attack chain</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-					</div>
-					<footer>
-                        <h3>Try MagenSec Today!</h3>
-						<p>Free download with limited preview functionality is available for Windows.</p>
-						<!--div id="intelAMD64">
-							<a href="http://intel-amd64-download-link">Download Intel/AMD64</a>
-						  </div>
-						  <div id="arm64">
-							<a href="http://arm64-download-link">Download ARM64</a>
-						  </div-->
-						<a href="#download" class="button large scrolly">Download</a>
-					</footer>
-				</div>
-			</article>
+        <!-- Features Section -->
+        <div id="features" class="section-padding bg-light-blue">
+            <div class="container-xl">
+                <div class="row">
+                    <div class="col-12 text-center mb-5">
+                        <h2 class="display-5 fw-bold">Why Families & Businesses Choose MagenSec</h2>
+                        <p class="lead text-muted">Simple protection that works behind the scenes</p>
+                    </div>
+                </div>
+                <div class="row g-4">
+                    <div class="col-lg-4 col-md-6">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <div style="background: white; border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                                    <img src="assets/red_shield.png" alt="Find Problems" style="width: 60px; height: 60px; object-fit: contain;">
+                                </div>
+                                <h4 class="card-title">🔍 Finds Hidden Problems</h4>
+                                <p class="card-text">Like a health checkup for your computer - we find security problems before hackers do. No technical knowledge needed!</p>
+                                <div class="mt-3">
+                                    <span class="badge bg-success">Automatic Scanning</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <div style="background: white; border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                                    <img src="assets/green_shield.png" alt="Uses Built-in Security" style="width: 60px; height: 60px; object-fit: contain;">
+                                </div>
+                                <h4 class="card-title">💡 Makes Windows Defender Smarter</h4>
+                                <p class="card-text">Instead of buying expensive antivirus, we make your built-in Windows security work like a pro. Save money, get better protection!</p>
+                                <div class="mt-3">
+                                    <span class="badge bg-primary">Save on AV Licenses</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 2px solid rgba(0,102,204,0.1);">
+                                    <img src="assets/black_shield.png" alt="Keeps Everything Updated" style="width: 60px; height: 60px; object-fit: contain;">
+                                </div>
+                                <h4 class="card-title">🔄 Never Miss Updates Again</h4>
+                                <p class="card-text">We automatically schedule scans and keep your security signatures updated. The boring stuff happens while you sleep!</p>
+                                <div class="mt-3">
+                                    <span class="badge bg-warning">Set & Forget</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <div class="avatar avatar-xl mb-3 mx-auto" style="background: var(--tblr-primary-lt);">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock text-primary" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 7v5l3 3"/></svg>
+                                </div>
+                                <h4 class="card-title">👥 Supports Your Whole Family</h4>
+                                <p class="card-text">One license protects ALL your devices - your laptop, kids' computers, parents' tablets. Perfect for families and small businesses.</p>
+                                <div class="mt-3">
+                                    <span class="badge bg-info">Multi-Device</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <div class="avatar avatar-xl mb-3 mx-auto" style="background: var(--tblr-success-lt);">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-bulb text-success" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 21l1.65 -3.8a9 9 0 1 1 9.35 0l1.65 3.8"/><path d="M9 10a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/></svg>
+                                </div>
+                                <h4 class="card-title">🌍 24/7 Global Support</h4>
+                                <p class="card-text">Our expert teams in India, Germany, and USA are always ready to help. Get human support when you need it most.</p>
+                                <div class="mt-3">
+                                    <span class="badge bg-success">3 Continents</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <div class="avatar avatar-xl mb-3 mx-auto" style="background: var(--tblr-danger-lt);">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-shield-star text-danger" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="3"/><path d="m12 1l3 6l6 3l-6 3l-3 6l-3 -6l-6 -3l6 -3z"/></svg>
+                                </div>
+                                <h4 class="card-title">⚡ Works on Windows 10+</h4>
+                                <p class="card-text">Easy 5-minute setup on Windows 10 and 11. No complicated configurations. Download, install, and you're protected instantly.</p>
+                                <div class="mt-3">
+                                    <span class="badge bg-danger">One-Click Install</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-		<!-- downoad -->
-			<article id="download" class="wrapper style1">
-				<div class="container">
-					<header>
-						<h2>Download MagenSec</h2>
-						<p>Protect your devices with MagenSec.<br /> Download the free version for a limited preview, or unlock the full power with a license.</p>
-					</header>
-                    <h3>Choose Your Download</h3>
-					<div class="row aln-center">
-						<div class="col-4 col-6-medium col-12-small">
-							<article class="box style2">
-								<a href="https://magensec.short.gy/x64msi" class="image featured"><img src="https://miro.medium.com/v2/resize:fit:600/1*-myaPUfUbx_x33WCFxFaSg.jpeg" alt="" /></a>
-								<!-- https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS8c5zQtCQM9CWVC9JdsJ3nNdddefutWEtgSQ&s
-								 	 https://miro.medium.com/v2/resize:fit:600/1*-myaPUfUbx_x33WCFxFaSg.jpeg
-									 https://d2t1xqejof9utc.cloudfront.net/screenshots/pics/20c7bb303e03562259c35e92f22e4225/large.jpg" -->
-								<h3><a href="https://magensec.short.gy/x64msi">Intel/AMD</a></h3>
-								<p>For Windows devices with Intel or AMD 64-bit processors.</p>
-							</article>
-						</div>
-						<div class="col-4 col-6-medium col-12-small">
-							<article class="box style2">
-								<a href="https://magensec.short.gy/arm64msi" class="image featured"><img src="data:image/jpeg;base64,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" alt="" /></a>
-								<!-- https://overclockers.ru/st/legacy/blog/432884/586301_O.png -->
-								<h3><a href="https://magensec.short.gy/arm64msi">ARM64</a></h3>
-								<p>For Windows devices with ARM 64-bit processors.</p>
-							</article>
-						</div>
-					</div>
-					<!-- How To -->
-					 <p></p>
-					<div id="deviceTypeContainer">
-						<div class="device-type-info" id="deviceTypeToggle">
-						  	<span>Find your device type</span>
-							  <span class="device-type-icon" id="deviceTypeIcon">⨠</span>
-						</div>
-						<div class="device-type-details" id="deviceTypeDetails">
-							Press the Windows key and type <strong>Settings</strong>.
-							Click on <strong>Settings</strong>.
-							Select <strong>System</strong> > <strong>About</strong>.
-							Under "Device Specifications", check <strong>System Type</strong>.<br>
-						  	It will show either "x64-based processor" for x64 Intel/AMD Chip or "ARM-based processor" for ARM64 chip.<br>
-						  <img src="https://support.prometheanworld.com/servlet/rtaImage?eid=ka0PQ0000007IRd&feoid=00N1400000B7wen&refid=0EMPQ00000BGeRN" alt="Device Type x64-based" width="300" height="200">
-						  <img src="https://support.prometheanworld.com/servlet/rtaImage?eid=ka0PQ0000007IRd&feoid=00N1400000B7wen&refid=0EMPQ00000BGb26" alt="Device Type arm64-based" width="300" height="200">
-						</div>
-					</div>
-					<footer>
-                        <h3>Unlock Full Protection</h3>
-						<p>Pair your download with a MagenSec license to activate all features and secure all your devices.</p>
-						<a href="#license" class="button large scrolly">Buy License</a>
-					</footer>
-				</div>
-			</article>
+                <!-- Key Benefits -->
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <div class="alert alert-primary" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: none;">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h5 class="alert-title mb-2">💰 Better Security + Lower Costs</h5>
+                                    <p class="mb-0">Stop paying $50-100/year for antivirus licenses. MagenSec costs just $4.99/year and gives you enterprise-grade protection using your computer's built-in security.</p>
+                                </div>
+                                <div class="col-md-4 text-center">
+                                    <div class="d-flex justify-content-center align-items-center">
+                                        <div class="me-3">
+                                            <small class="text-muted">Traditional AV</small>
+                                            <div class="fs-3 text-danger">$99/year</div>
+                                        </div>
+                                        <div class="mx-2">→</div>
+                                        <div class="ms-3">
+                                            <small class="text-muted">MagenSec</small>
+                                            <div class="fs-3 text-success">$4.99/year</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-				<!-- License -->
-			<article id="license" class="wrapper style3">
-				<div class="container">
-					<header>
-						<h2>MagenSec License: Secure All Your Devices for Just $4.99/Year!</h2>
-						<p>For a limited time, get complete protection for all your devices for only $4.99 per year!</p>
-					</header>
-                    
-                    <h3>Choose Your Payment Method</h3>
-					<div class="row aln-center">
-						<div class="col-4 col-6-medium col-12-small">
-							<article class="box style2">
-								<a href="#" class="image featured"><img src="images/qrcode.png" alt="" /></a>
-								<!--h3><a href="#">Scan and Pay</a></h3>
-								<p>Scan the QR code with your mobile payment app.</p>
-							</article>
-						</div>
-						<div class="col-4 col-6-medium col-12-small">
-							<article class="box style2">
-								<a href="#" class="image featured"><img src="images/pic04.jpg" alt="" /></a-->
-								<form action="https://www.paypal.com/ncp/payment/EZP5AJQHDDVM8" method="post" target="_blank" style="display:inline-grid;justify-items:center;align-content:start;gap:0.5rem;">
-                                    <input class="pp-EZP5AJQHDDVM8" type="submit" value="Buy Now" />
-                                    <img src=https://www.paypalobjects.com/images/Debit_Credit_APM.svg alt="cards" />
-                                    <section> Powered by <img src="https://www.paypalobjects.com/paypal-ui/logos/svg/paypal-wordmark-color.svg" alt="paypal" style="height:0.875rem;vertical-align:middle;"/></section>
-                                </form>
-                                <p></p>
-                                <p>Scan the <strong>QR code</strong> with your mobile payment app or <br /> Securely <strong>Pay online</strong>.</p>
-							</article>
-						</div>
-					</div>
-					<footer>
-						<p id="blink">🎁 Limited Period Offer: Buy License for $4.99 and Use on Unlimited Devices</p>
-						<!--p><span style="font-size: 80px;">📢</span><h4>GMail ID shared while paying for license will be tied to the license and you will have to use that to login to the product.</h4></p-->
-						<!--a href="#contact" class="button large scrolly">Get in touch with us</a-->
-					</footer>
-				</div>
-			</article>
+        <!-- Statistics Section -->
+        <div class="stats-section section-padding">
+            <div class="container-xl">
+                <div class="row text-center">
+                    <div class="col-12 mb-4">
+                        <h2 class="display-5 fw-bold">Trusted by Thousands Worldwide</h2>
+                    </div>
+                </div>
+                <div class="row text-center">
+                    <div class="col-lg-3 col-md-6 mb-4">
+                        <div class="stats-number">5,000+</div>
+                        <p class="mb-0">Protected Devices</p>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-4">
+                        <div class="stats-number">99.9%</div>
+                        <p class="mb-0">Threat Detection Rate</p>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-4">
+                        <div class="stats-number">1M+</div>
+                        <p class="mb-0">Threats Blocked</p>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-4">
+                        <div class="stats-number">24/7</div>
+                        <p class="mb-0">Support Available</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-		<!-- Contact -->
-			<article id="contact" class="wrapper style4">
-				<div class="container medium">
-					<header>
-						<h2>Contact Gigabits</h2>
-						<p>We're here to help! Please reach out with any questions or feedback.</p>
-					</header>
-					<div class="row">
-						<div class="col-12">
-							<form
-								action="https://formspree.io/f/xeoazbre"
-								method="POST"
-								>
-								<label>
-									Your Email
-									<input type="email" name="email">
-								</label>
-								<label>
-									Your Message
-									<textarea name="message">Message</textarea>
-								</label>
-								<!-- your other form fields go here -->
-								<button type="submit">Send Message</button>
-								</form>
-						</div>
-                        <p> 📧 Email Us Directly: <a href=mailto:magensec@gigabits.co.in>MagenSec@Gigabits</a></p>
-						<div class="col-12">
-							<hr />
-							<h3>Connect With Us</h3>
-							<ul class="social">
-								<li><a href="#" class="icon brands fa-twitter"><span class="label">Twitter</span></a></li>
-								<li><a href="#" class="icon brands fa-facebook-f"><span class="label">Facebook</span></a></li>
-								<li><a href="#" class="icon brands fa-dribbble"><span class="label">Dribbble</span></a></li>
-								<li><a href="#" class="icon brands fa-linkedin-in"><span class="label">LinkedIn</span></a></li>
-								<li><a href="#" class="icon brands fa-tumblr"><span class="label">Tumblr</span></a></li>
-								<li><a href="#" class="icon brands fa-google-plus"><span class="label">Google+</span></a></li>
-								<li><a href="#" class="icon brands fa-github"><span class="label">Github</span></a></li>
-							</ul>
-							<hr />
-						</div>
-					</div>
-					<footer>
-                        <a href="terms.html" class="button small scrolly">Privacy, Policy, Terms and Conditions</a>
-                        <hr />
-						<ul id="copyright">
-							<li>&copy; MagenSec. All rights reserved.</li><li>Developed by: <a href="http://www.gigabits.co.in">Gigabits</a></li>
-						</ul>
-					</footer>
-				</div>
-			</article>
+        <!-- Pricing Section -->
+        <div id="pricing" class="section-padding">
+            <div class="container-xl">
+                <div class="row">
+                    <div class="col-12 text-center mb-5">
+                        <h2 class="display-5 fw-bold">💰 Compliance Made Affordable</h2>
+                        <p class="lead text-muted">Audit-ready security without the enterprise price tag</p>
+                        <div class="alert alert-warning d-inline-block">
+                            <strong>🎯 Launch Special:</strong> 50% off regular pricing - Lock in these rates for your first year!
+                        </div>
+                        <div class="row justify-content-center mt-3">
+                            <div class="col-lg-8">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center py-3">
+                                        <h5 class="mb-2 text-primary">💡 <strong>Why MagenSec Costs Less Than Your Coffee Budget:</strong></h5>
+                                        <p class="small text-muted mb-0">
+                                            One compliance violation fine ($25,000+) or security consultant ($15,000) costs more than 50 years of MagenSec. <br />
+                                            We're making enterprise-grade audit prep accessible to everyone.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row justify-content-center">
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card pricing-card">
+                            <div class="card-body text-center p-4">
+                                <h5 class="card-title">🆓 Free Trial</h5>
+                                <div class="display-6 fw-bold mb-3">$0</div>
+                                <p class="text-muted">7 days • No credit card needed</p>
+                                <ul class="list-unstyled mb-4 text-start">
+                                    <li class="mb-2">✅ Find all security vulnerabilities</li>
+                                    <li class="mb-2">✅ Smart Windows Defender setup</li>
+                                    <li class="mb-2">✅ Automatic updates & scans</li>
+                                    <li class="mb-2">✅ Protection for unlimited devices</li>
+                                    <li class="mb-2">✅ Basic email support</li>
+                                </ul>
+                                <a href="#download" class="btn btn-outline-primary w-100 btn-lg">Start Free Trial</a>
+                                <small class="text-muted d-block mt-2">Cancel anytime during trial</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card pricing-card featured">
+                            <div class="pricing-badge">👥 Families</div>
+                            <div class="card-body text-center p-4">
+                                <h5 class="card-title">🏠 Personal & Family</h5>
+                                <div class="display-6 fw-bold mb-1">
+                                    <span class="text-decoration-line-through text-muted">$9.99</span>
+                                    <span class="text-success">$4.99</span>
+                                </div>
+                                <p class="text-muted">per year • All your family devices</p>
+                                <div class="alert alert-success py-2 mb-3">
+                                    <small><strong>Why families choose this:</strong> Sleep better knowing kids' laptops, your work computer, and family tablets are audit-ready and protected</small>
+                                </div>
+                                <ul class="list-unstyled mb-4 text-start">
+                                    <li class="mb-2">✅ Compliance reports for school/work requirements</li>
+                                    <li class="mb-2">✅ <strong>ALL family devices</strong> (laptops, PCs, tablets)</li>
+                                    <li class="mb-2">✅ Automatic security scorecard updates</li>
+                                    <li class="mb-2">✅ In-app security dashboard</li>
+                                    <li class="mb-2">✅ Priority family support</li>
+                                </ul>
+                                <a href="https://www.paypal.com/ncp/payment/EZP5AJQHDDVM8" class="btn btn-primary w-100 btn-lg" target="_blank">💳 Secure My Family</a>
+                                <small class="text-success d-block mt-2">⚡ Most popular • Saves $5/year</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card pricing-card">
+                            <div class="card-body text-center p-4">
+                                <h5 class="card-title">🚀 Schools & Startups</h5>
+                                <div class="display-6 fw-bold mb-1">
+                                    <span class="text-decoration-line-through text-muted">$3.99</span>
+                                    <span class="text-success">$1.99</span>
+                                </div>
+                                <p class="text-muted">per user per year</p>
+                                <div class="alert alert-info py-2 mb-3">
+                                    <small><strong>Perfect for:</strong> Show investors, parents, or auditors you're serious about security without breaking the budget</small>
+                                </div>
+                                <ul class="list-unstyled mb-4 text-start">
+                                    <li class="mb-2">✅ Everything in Personal plan</li>
+                                    <li class="mb-2">✅ <strong>Team audit dashboard</strong> for compliance</li>
+                                    <li class="mb-2">✅ Student data protection reports</li>
+                                    <li class="mb-2">✅ Investor-ready security documentation</li>
+                                    <li class="mb-2">✅ Multi-device team management</li>
+                                    <li class="mb-2">✅ Grant-application friendly pricing</li>
+                                </ul>
+                                <a href="#contact" class="btn btn-outline-primary w-100 btn-lg">Get School/Startup Pricing</a>
+                                <small class="text-muted d-block mt-2">Perfect for 5-50 people • Saves $2/user/year</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Enterprise Option -->
+                <div class="row justify-content-center mt-4">
+                    <div class="col-lg-8">
+                        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            <div class="card-body text-center p-4">
+                                <h5 class="card-title text-white mb-3">🏭 Enterprise & Managed Compliance</h5>
+                                <p class="mb-4">Let our experts handle your audit prep while you focus on your business. One failed audit costs more than 10 years of this service.</p>
+                                <div class="row justify-content-center">
+                                    <div class="col-md-5 mb-3">
+                                        <div class="text-start">
+                                            <h5 class="text-white mb-3 fw-bold">💼 What You Get:</h5>
+                                            <ul class="list-unstyled">
+                                                <li class="mb-2">• Audit-ready documentation delivered monthly</li>
+                                                <li class="mb-2">• 24/7 compliance monitoring by experts</li>
+                                                <li class="mb-2">• Custom security reviews & recommendations</li>
+                                                <li class="mb-2">• Regulator-friendly reports & dashboards</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5 mb-3">
+                                        <div class="text-start">
+                                            <h5 class="text-white mb-3 fw-bold">🎯 Who This Helps:</h5>
+                                            <ul class="list-unstyled">
+                                                <li class="mb-2">• Companies facing compliance audits</li>
+                                                <li class="mb-2">• Healthcare & finance organizations</li>
+                                                <li class="mb-2">• Growing businesses (50+ employees)</li>
+                                                <li class="mb-2">• Teams without dedicated IT security</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="alert alert-light text-dark mb-3">
+                                    <small><strong>💰 ROI Reality Check:</strong> Compliance consultants charge $150-300/hour. One audit prep project costs $15,000+. We do this ongoing for a fraction of that cost.</small>
+                                </div>
+                                <a href="#contact" class="btn btn-light btn-lg mt-2">Get Custom Compliance Quote</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-		<!-- Scripts -->
-			<script src="assets/js/jquery.min.js"></script>
-			<script src="assets/js/jquery.scrolly.min.js"></script>
-			<script src="assets/js/browser.min.js"></script>
-			<script src="assets/js/breakpoints.min.js"></script>
-			<script src="assets/js/download-links.js"></script>
-			<script src="assets/js/util.js"></script>
-			<script src="assets/js/main.js"></script>
-			<script type="text/javascript">
-				let blinkElements = document.querySelectorAll('#blink');
-			
-				setInterval(function () {
-					blinkElements.forEach(function (blink) {
-						blink.style.opacity = (blink.style.opacity == 0 ? 1 : 0);
-					});
-				}, 1000);
-			</script>
-			<script>
-				const deviceTypeToggle = document.getElementById('deviceTypeToggle');
-				const deviceTypeDetails = document.getElementById('deviceTypeDetails');
-				const deviceTypeIcon = document.getElementById('deviceTypeIcon');
+                <!-- Payment QR Code -->
+                <div class="row justify-content-center mt-5">
+                    <div class="col-md-6 text-center">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">📱 Quick Payment Option</h5>
+                                <p class="text-muted">Scan to activate your Personal/Family license instantly</p>
+                                <img src="MagenSec-qrcode.png" alt="Payment QR Code" class="img-fluid" style="max-width: 200px;">
+                                <p class="small text-muted mt-2">Or <a href="https://www.paypal.com/ncp/payment/EZP5AJQHDDVM8" target="_blank">click here to pay online</a></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pricing Disclaimer -->
+                <div class="row justify-content-center mt-5">
+                    <div class="col-lg-10">
+                        <div class="alert alert-info text-center">
+                            <div class="d-flex justify-content-center mb-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="m12 16h.01"/></svg>
+                                <strong>🎯 Lock In Launch Pricing</strong>
+                            </div>
+                            <p class="mb-2">
+                                <strong>These 50% off rates help students, families, and startups get audit-ready affordably.</strong><br>
+                                As we add premium compliance features, regular pricing ($9.99 Personal, $3.99 Business) will apply to new customers.
+                            </p>
+                            <p class="small text-muted mb-0">
+                                <strong>Early adopters keep launch rates for 12 months.</strong> Future pricing reflects enterprise-grade compliance value that typically costs $15,000+ per audit.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-				deviceTypeToggle.addEventListener('click', function() {
-				if (deviceTypeDetails.style.display === 'none' || deviceTypeDetails.style.display === '') {
-					deviceTypeDetails.style.display = 'block';
-					deviceTypeIcon.textContent = '⩔';
-				} else {
-					deviceTypeDetails.style.display = 'none';
-					deviceTypeIcon.textContent = '⨠';
-				}
-				});
-			</script>
-	</body>
+        <!-- Download Section -->
+        <div id="download" class="section-padding bg-light-blue">
+            <div class="container-xl">
+                <div class="row align-items-center">
+                    <div class="col-lg-6">
+                        <h2 class="display-5 fw-bold mb-4">🚀 Ready to Get Protected?</h2>
+                        <p class="lead mb-4">Download MagenSec today and start your 7-day free trial. No credit card required.</p>
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar avatar-sm me-3" style="background: var(--gradient-success);">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
+                                    </div>
+                                    <span>5-minute setup</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar avatar-sm me-3" style="background: var(--gradient-success);">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
+                                    </div>
+                                    <span>No credit card needed</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar avatar-sm me-3" style="background: var(--gradient-success);">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
+                                    </div>
+                                    <span>Works on all your devices</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar avatar-sm me-3" style="background: var(--gradient-success);">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
+                                    </div>
+                                    <span>24/7 global support</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-warning">
+                            <div class="d-flex align-items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01"/><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75"/></svg>
+                                <div>
+                                    <strong>Don't wait!</strong> Hackers attack <strong>345 million times per day</strong>. Protect yourself now.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title">💻 Download MagenSec</h4>
+                                <p class="text-muted mb-0">Choose the right version for your Windows computer</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold">Select your Windows version:</label>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="card border-2" style="border-color: #0066cc;">
+                                                <div class="card-body text-center p-3">
+                                                    <div class="mb-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-primary" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17.8 20l-12 -1.5c-1 -.1 -1.8 -.9 -1.8 -1.9v-9.2c0 -1 .8 -1.8 1.8 -1.9l12 -1.5c1.2 -.1 2.2 .8 2.2 1.9v12.2c0 1.1 -1 2 -2.2 1.9z"/><path d="M12 5l0 14"/><path d="M4 12l16 0"/></svg>
+                                                    </div>
+                                                    <h5 class="card-title">Windows x64</h5>
+                                                    <p class="small text-muted mb-3">For most computers (Intel/AMD processors)</p>
+                                                    <a href="#" class="btn btn-primary w-100" onclick="downloadForPlatform('windows-x64')">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+                                                        Download x64
+                                                    </a>
+                                                    <small class="text-muted d-block mt-1">~100 MB</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card border-2" style="border-color: #28a745;">
+                                                <div class="card-body text-center p-3">
+                                                    <div class="mb-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-success" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17.8 20l-12 -1.5c-1 -.1 -1.8 -.9 -1.8 -1.9v-9.2c0 -1 .8 -1.8 1.8 -1.9l12 -1.5c1.2 -.1 2.2 .8 2.2 1.9v12.2c0 1.1 -1 2 -2.2 1.9z"/><path d="M12 5l0 14"/><path d="M4 12l16 0"/></svg>
+                                                    </div>
+                                                    <h5 class="card-title">Windows ARM64</h5>
+                                                    <p class="small text-muted mb-3">For ARM-based computers (Surface Pro X, etc.)</p>
+                                                    <a href="#" class="btn btn-success w-100" onclick="downloadForPlatform('windows-arm64')">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+                                                        Download ARM64
+                                                    </a>
+                                                    <small class="text-muted d-block mt-1">~100 MB</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info mb-3">
+                                    <h5 class="alert-title">📋 System Requirements:</h5>
+                                    <ul class="mb-0">
+                                        <li><strong>OS:</strong> Windows 10 or Windows 11</li>
+                                        <li><strong>Framework:</strong> .NET 9.0 (included automatically)</li>
+                                        <li><strong>Disk Space:</strong> 130 MB + up to 2 GB for intelligence cache</li>
+                                        <li><strong>Memory:</strong> 2 GB RAM minimum</li>
+                                    </ul>
+                                </div>
+                                
+                                <div class="text-center">
+                                    <p class="small text-muted mb-2">Not sure which version? Try Intel/AMD x64 first - it works on most computers!</p>
+                                    <button class="btn btn-primary btn-lg w-100" onclick="downloadForPlatform('auto')">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+                                        🚀 Auto-Detect & Download
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Section -->
+        <div id="about" class="section-padding">
+            <div class="container-xl">
+                <div class="row align-items-center">
+                    <div class="col-lg-6 mb-4">
+                        <h2 class="display-5 fw-bold mb-4">About MagenSec</h2>
+                        <p class="lead mb-4">
+                            Developed by <strong>Gigabits</strong>, MagenSec is born from years of experience in cybersecurity and the growing need for accessible, powerful security tools for everyone.
+                        </p>
+                        <p class="mb-4">
+                            Our mission is simple: make enterprise-grade security accessible to individuals and small businesses. We believe that everyone deserves protection from cyber threats, regardless of their technical expertise or budget.
+                        </p>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <h5><strong>Our Values</strong></h5>
+                                <ul class="list-unstyled">
+                                    <li>🛡️ Security First</li>
+                                    <li>🎯 Simplicity</li>
+                                    <li>💎 Transparency</li>
+                                    <li>🚀 Innovation</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <h5><strong>Why Choose Us</strong></h5>
+                                <ul class="list-unstyled">
+                                    <li>✅ No vendor lock-in</li>
+                                    <li>✅ Regular updates</li>
+                                    <li>✅ Open architecture</li>
+                                    <li>✅ Expert support</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 text-center">
+                        <img src="assets/GoldShield.webp" alt="About MagenSec" class="img-fluid" style="max-width: 400px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Section -->
+        <div id="contact" class="section-padding bg-light-blue">
+            <div class="container-xl">
+                <div class="row">
+                    <div class="col-lg-8 mx-auto">
+                        <div class="text-center mb-5">
+                            <h2 class="display-5 fw-bold">Get in Touch</h2>
+                            <p class="lead text-muted">Have questions? Need support? We're here to help.</p>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-4 text-center">
+                                <div class="avatar avatar-xl mx-auto mb-3" style="background: var(--gradient-primary);">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="m3 7l9 6l9 -6"/></svg>
+                                </div>
+                                <h5>Email Support</h5>
+                                <p class="text-muted mb-3">Get help from our expert team</p>
+                                <a href="mailto:magensec@gigabits.co.in" class="btn btn-outline-primary">magensec@gigabits.co.in</a>
+                            </div>
+                            <div class="col-md-4 mb-4 text-center">
+                                <div class="avatar avatar-xl mx-auto mb-3" style="background: var(--gradient-success);">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 12c0 1.54 -1.336 3.14 -4 4c-2.664 .86 -6.5 1 -7 1c-2.5 0 -4 -1.5 -4 -4s1.5 -4 4 -4c.5 0 4.336 .14 7 1c2.664 .86 4 2.46 4 4z"/><path d="M10 17c0 .5 .5 1 1 1s1 -.5 1 -1"/><path d="M16 7c0 -.5 -.5 -1 -1 -1s-1 .5 -1 1"/></svg>
+                                </div>
+                                <h5>Live Chat</h5>
+                                <p class="text-muted mb-3">Chat with us in real-time</p>
+                                <button class="btn btn-outline-primary">Start Chat</button>
+                            </div>
+                            <div class="col-md-4 mb-4 text-center">
+                                <div class="avatar avatar-xl mx-auto mb-3" style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="4"/><path d="m12 1l3 6l6 3l-6 3l-3 6l-3 -6l-6 -3l6 -3z"/></svg>
+                                </div>
+                                <h5>Documentation</h5>
+                                <p class="text-muted mb-3">Browse our help resources</p>
+                                <a href="FixIt.html" class="btn btn-outline-primary">View Docs</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer footer-transparent d-print-none">
+            <div class="container-xl">
+                <div class="row text-center align-items-center flex-row-reverse">
+                    <div class="col-lg-auto ms-lg-auto">
+                        <ul class="list-inline list-inline-dots mb-0">
+                            <li class="list-inline-item">
+                                <a href="terms.html" class="link-secondary">Terms & Privacy</a>
+                            </li>
+                            <li class="list-inline-item">
+                                <a href="#about" class="link-secondary">About</a>
+                            </li>
+                            <li class="list-inline-item">
+                                <a href="#contact" class="link-secondary">Support</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-12 col-lg-auto mt-3 mt-lg-0">
+                        <ul class="list-inline list-inline-dots mb-0">
+                            <li class="list-inline-item">
+                                Copyright &copy; 2025
+                                <a href="http://gigabits.co.in" class="link-secondary">Gigabits</a>.
+                                All rights reserved.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+    
+    <!-- Back to Top Button -->
+    <button class="back-to-top" id="backToTop" onclick="scrollToTop()" title="Back to top" aria-label="Scroll to top of page">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m18 15-6-6-6 6"/>
+        </svg>
+    </button>
+
+    <!-- Tabler Core -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
+    
+    <!-- Custom Scripts -->
+    <script>
+        // Threat simulation comparison demo
+        function runComparisonDemo() {
+            // Reset all elements
+            const elementsWithout = ['vuln-exists', 'exploit-incoming', 'exploit-succeeds', 'system-breached'];
+            const elementsWith = ['vuln-detected', 'patch-recommended', 'user-patches', 'attack-fails'];
+            
+            [...elementsWithout, ...elementsWith].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.classList.add('d-none');
+            });
+            
+            // Run both simulations simultaneously but with different timings
+            let withoutIndex = 0;
+            let withIndex = 0;
+            
+            // Start the "without MagenSec" scenario (faster, more dramatic)
+            const withoutInterval = setInterval(() => {
+                if (withoutIndex < elementsWithout.length) {
+                    const element = document.getElementById(elementsWithout[withoutIndex]);
+                    if (element) element.classList.remove('d-none');
+                    withoutIndex++;
+                } else {
+                    clearInterval(withoutInterval);
+                }
+            }, 1200);
+            
+            // Start the "with MagenSec" scenario (slightly delayed, shows prevention)
+            setTimeout(() => {
+                const withInterval = setInterval(() => {
+                    if (withIndex < elementsWith.length) {
+                        const element = document.getElementById(elementsWith[withIndex]);
+                        if (element) element.classList.remove('d-none');
+                        withIndex++;
+                    } else {
+                        clearInterval(withInterval);
+                        // Reset after showing results
+                        setTimeout(() => {
+                            [...elementsWithout, ...elementsWith].forEach(id => {
+                                const element = document.getElementById(id);
+                                if (element) element.classList.add('d-none');
+                            });
+                        }, 4000);
+                    }
+                }, 1300);
+            }, 200);
+        }
+        
+        // Legacy function for compatibility
+        function runThreatDemo() {
+            runComparisonDemo();
+        }
+
+        // Download functionality with platform detection
+        function downloadForPlatform(platform) {
+            let downloadUrl = '';
+            let fileName = '';
+            
+            if (platform === 'auto') {
+                // Auto-detect platform (simplified - you'd implement proper detection)
+                platform = 'windows-x64'; // Default to x64 for now
+            }
+            
+            switch(platform) {
+                case 'windows-x64':
+                    downloadUrl = 'https://magensec.short.gy/x64msi';
+                    fileName = 'MagenSec-Setup-x64.msi';
+                    break;
+                case 'windows-arm64':
+                    downloadUrl = 'https://magensec.short.gy/arm64msi';
+                    fileName = 'MagenSec-Setup-arm64.msi';
+                    break;
+                default:
+                    downloadUrl = 'https://magensec.short.gy/x64msi';
+                    fileName = 'MagenSec-Setup-x64.msi';
+            }
+            
+            // Track download attempt
+            console.log('Download initiated for platform:', platform);
+            
+            // Show download message
+            const platformName = platform === 'windows-arm64' ? 'Windows ARM64' : 'Windows x64';
+            const message = `🚀 Starting download of MagenSec for ${platformName}!\n\n` +
+                          `📁 File: ${fileName}\n` +
+                          `💾 Size: ~100 MB\n` +
+                          `⏱️ Time: 2-5 minutes\n\n` +
+                          `❓ Need help? Contact: magensec@gigabits.co.in`;
+            
+            alert(message);
+            
+            // Trigger download without showing forwarder page
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = fileName;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Auto-run threat demo on page load
+        setTimeout(() => {
+            runComparisonDemo();
+        }, 2000);
+        
+        // Back to top functionality
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+        
+        // Show/hide back to top button
+        window.addEventListener('scroll', () => {
+            const backToTopBtn = document.getElementById('backToTop');
+            if (window.pageYOffset > 300) {
+                backToTopBtn.classList.add('show');
+            } else {
+                backToTopBtn.classList.remove('show');
+            }
+        });
+
+        // Add animation class when elements come into view
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        // Apply fade-in animation to cards
+        document.querySelectorAll('.feature-card, .pricing-card').forEach(card => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(card);
+        });
+    </script>
+</body>
 </html>

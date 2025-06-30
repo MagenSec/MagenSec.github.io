@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>Page Not Found | MagenSec</title>
+    <meta name="description" content="The page you're looking for could not be found. Return to MagenSec's homepage or contact our support team."/>
+    
+    <!-- Tabler CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
+    
+    <style>
+        :root {
+            --tblr-primary: #0066cc;
+            --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004499 100%);
+        }
+        
+        .error-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            background: var(--gradient-primary);
+            color: white;
+        }
+        
+        .error-number {
+            font-size: 8rem;
+            font-weight: bold;
+            line-height: 1;
+            opacity: 0.8;
+        }
+        
+        .navbar-brand img {
+            height: 32px;
+            width: auto;
+        }
+    </style>
+    
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="page">
+        <!-- Navbar -->
+        <header class="navbar navbar-expand-md navbar-dark d-print-none" style="background: rgba(0,0,0,0.1);">
+            <div class="container-xl">
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                    <a href="index.html">
+                        <img src="assets/logo.png" alt="MagenSec" class="navbar-brand-image">
+                        MagenSec
+                    </a>
+                </h1>
+            </div>
+        </header>
+
+        <!-- Error Page -->
+        <div class="error-page">
+            <div class="container-xl">
+                <div class="row justify-content-center text-center">
+                    <div class="col-lg-6">
+                        <div class="error-number">404</div>
+                        <h1 class="display-4 fw-bold mb-4">Page Not Found</h1>
+                        <p class="lead mb-4">
+                            The page you're looking for doesn't exist or has been moved. <br/>
+                            Don't worry, our security is still protecting you!
+                        </p>
+                        <div class="d-flex flex-wrap gap-3 justify-content-center">
+                            <a href="index.html" class="btn btn-light btn-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l14 0"/><path d="m5 12l6 6"/><path d="m5 12l6 -6"/></svg>
+                                Go Home
+                            </a>
+                            <a href="mailto:magensec@gigabits.co.in" class="btn btn-outline-light btn-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="m3 7l9 6l9 -6"/></svg>
+                                Contact Support
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabler Core -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
+</body>
+</html>

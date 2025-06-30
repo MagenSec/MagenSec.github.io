@@ -1,86 +1,606 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<title>Privacy, Policy, Terms & Conditions</title>
-<style>
-body {
-  font-family: sans-serif;
-  line-height: 1.6;
-  margin: 20px;
-}
-h2 {
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 5px;
-}
-</style>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>Terms, Privacy & Policies | MagenSec</title>
+    <meta name="description" content="Read MagenSec's terms of service, privacy policy, and other important policies. Transparent and user-friendly policies for our cybersecurity software."/>
+    
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="Terms, Privacy & Policies | MagenSec"/>
+    <meta property="og:description" content="Read MagenSec's terms of service, privacy policy, and other important policies. Transparent and user-friendly policies for our cybersecurity software."/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:url" content="https://magensec.gigabits.co.in/terms.html"/>
+    <meta property="og:image" content="https://magensec.gigabits.co.in/assets/silver_shield.webp"/>
+    
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="Terms, Privacy & Policies | MagenSec"/>
+    <meta name="twitter:description" content="Transparent and user-friendly policies for our cybersecurity software."/>
+    <meta name="twitter:image" content="https://magensec.gigabits.co.in/assets/silver_shield.webp"/>
+    
+    <!-- Additional SEO Tags -->
+    <meta name="keywords" content="terms of service, privacy policy, cybersecurity, MagenSec, software policies"/>
+    <meta name="author" content="Gigabits"/>
+    <meta name="robots" content="index, follow"/>
+    <link rel="canonical" href="https://magensec.gigabits.co.in/terms.html"/>
+    
+    <!-- Tabler CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css" rel="stylesheet"/>
+    
+    <!-- MagenSec Custom Styles -->
+    <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
+    
+    <!-- Custom Styles -->
+    <style>
+        :root {
+            --tblr-primary: #0066cc;
+            --tblr-primary-rgb: 0, 102, 204;
+            --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004499 100%);
+        }
+        
+        .hero-section {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 3rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .section-padding {
+            padding: 4rem 0;
+        }
+        
+        .bg-light-blue {
+            background: #f8fbff;
+        }
+        
+        .navbar-brand img {
+            height: 32px;
+            width: auto;
+        }
+        
+        .toc-nav {
+            position: sticky;
+            top: 2rem;
+        }
+        
+        .section-anchor {
+            padding-top: 4rem;
+            margin-top: -4rem;
+        }
+        
+        .policy-section {
+            margin-bottom: 3rem;
+        }
+        
+        .policy-section h2 {
+            color: var(--tblr-primary);
+            border-bottom: 2px solid var(--tblr-primary);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .policy-section h3 {
+            color: #495057;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .highlight-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0.375rem;
+        }
+        
+        .contact-box {
+            background: #d1ecf1;
+            border-left: 4px solid #bee5eb;
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0.375rem;
+        }
+        
+        .last-updated {
+            background: #e2e3e5;
+            color: #495057;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-size: 0.9rem;
+            text-align: center;
+            margin-top: 2rem;
+        }
+    </style>
+    
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
+    <div class="page">
+        <!-- Navbar -->
+        <header class="navbar navbar-expand-md navbar-light d-print-none">
+            <div class="container-xl">
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                    <a href="index.html" class="text-decoration-none">
+                        <img src="assets/logo.png" alt="MagenSec" class="navbar-brand-image">
+                        MagenSec
+                    </a>
+                </h1>
+                <div class="navbar-nav flex-row order-md-last">
+                    <div class="nav-item d-none d-md-flex me-3">
+                        <div class="btn-list">
+                            <a href="index.html#download" class="btn btn-primary">
+                                Download Free Trial
+                            </a>
+                        </div>
+                    </div>
+                    <div class="d-none d-md-flex">
+                        <a href="?theme=dark" class="nav-link px-0 hide-theme-dark" title="Enable dark mode" data-bs-toggle="tooltip" data-bs-placement="bottom">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/></svg>
+                        </a>
+                        <a href="?theme=light" class="nav-link px-0 hide-theme-light" title="Enable light mode" data-bs-toggle="tooltip" data-bs-placement="bottom">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"/></svg>
+                        </a>
+                    </div>
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
+                <div class="collapse navbar-collapse" id="navbar-menu">
+                    <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="nav-link" href="index.html">Home</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="index.html#features">Features</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="index.html#pricing">Pricing</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="about.html">About</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="FixIt.html">Security Guide</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="index.html#contact">Contact</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-  <h1>Privacy, Policy, Terms & Conditions</h1>
+        <!-- Breadcrumb -->
+        <div class="page-header d-print-none">
+            <div class="container-xl">
+                <div class="row g-2 align-items-center">
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="index.html">Home</a></li>
+                                <li class="breadcrumb-item active" aria-current="page">Terms & Privacy</li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-<p><a href="/">Back to Home</a></p>
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <div class="container-xl hero-content">
+                <div class="row align-items-center">
+                    <div class="col-lg-8 mx-auto text-center">
+                        <h1 class="display-4 fw-bold mb-4">
+                            Terms, Privacy & Policies
+                        </h1>
+                        <p class="lead mb-4">
+                            Transparent policies for your peace of mind
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-  <h2>Terms and Conditions</h2>
+        <!-- Content -->
+        <div class="section-padding">
+            <div class="container-xl">
+                <div class="row">
+                    <!-- Table of Contents -->
+                    <div class="col-lg-3 mb-4">
+                        <div class="toc-nav">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">Quick Navigation</h5>
+                                </div>
+                                <div class="card-body">
+                                    <nav class="nav nav-pills flex-column">
+                                        <a class="nav-link" href="#terms">Terms & Conditions</a>
+                                        <a class="nav-link" href="#privacy">Privacy Policy</a>
+                                        <a class="nav-link" href="#subscription">Subscription & Payment</a>
+                                        <a class="nav-link" href="#refund">Refund Policy</a>
+                                        <a class="nav-link" href="#support">Support & Contact</a>
+                                    </nav>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-  <p>Welcome to Gigabits MagenSec. By downloading, installing, or using our software, you agree to comply with and be bound by the following terms and conditions. Please read them carefully.</p>
+                    <!-- Main Content -->
+                    <div class="col-lg-9">
+                        <!-- Terms and Conditions -->
+                        <section id="terms" class="policy-section section-anchor">
+                            <h2>Terms and Conditions</h2>
+                            <p class="lead">
+                                Welcome to Gigabits MagenSec. By downloading, installing, or using our software, 
+                                you agree to comply with and be bound by the following terms and conditions.
+                            </p>
 
-  <ol>
-    <li><strong>Software Description:</strong> Gigabits MagenSec is an auditing tool designed to help users identify potential security vulnerabilities on their devices. It utilizes public vulnerability databases and other information sources to perform its audits.</li>
-    <li><strong>No System Alterations:</strong> Our software does not make any changes to your system unless explicitly requested by the user. It is primarily an auditing tool.</li>
-    <li><strong>Limitation of Liability:</strong>
-      <ul>
-        <li>Gigabits MagenSec is provided "as is" and "as available." We make no warranties, express or implied, regarding the accuracy, completeness, or reliability of the software's output.</li>
-        <li>We shall not be liable for any errors, inaccuracies, or omissions in the software's reports, including but not limited to false positives or true negatives.</li>
-        <li>You acknowledge and agree that your use of the software is at your sole risk. We shall not be liable for any direct, indirect, incidental, consequential, or punitive damages arising from your use of the software.</li>
-        <li>We do not guarantee that the software will identify all potential vulnerabilities on your system.</li>
-        <li>We are not responsible for any damage or loss resulting from the use of information provided by our software.</li>
-      </ul>
-    </li>
-    <li><strong>Subscription and Payment:</strong>
-      <ul>
-        <li>The software is free to download, but full functionality requires a paid monthly or annual subscription.</li>
-        <li>License activation may experience delays due to technical issues.</li>
-      </ul>
-    </li>
-    <li><strong>License Activation:</strong> Customers should contact magensec@gigabits.co.in for any license activation or technical issues.</li>
-    <li><strong>Changes to Terms:</strong> We reserve the right to modify these terms and conditions at any time. Any changes will be posted on this page.</li>
-  </ol>
+                            <h3>1. Software Description</h3>
+                            <p>
+                                Gigabits MagenSec is an advanced cybersecurity auditing tool designed to help users 
+                                identify potential security vulnerabilities on their devices. It utilizes public 
+                                vulnerability databases, threat intelligence feeds, and other security information 
+                                sources to perform comprehensive security assessments.
+                            </p>
 
-  <h2>Contact Details</h2>
+                            <h3>2. Software Capabilities</h3>
+                            <p>Our software provides the following capabilities:</p>
+                            <ul>
+                                <li><strong>Vulnerability Scanning:</strong> Identifies known security weaknesses</li>
+                                <li><strong>Threat Detection:</strong> Real-time monitoring for security threats</li>
+                                <li><strong>Security Hardening:</strong> Automated application of security configurations</li>
+                                <li><strong>Compliance Checking:</strong> Verification against industry security standards</li>
+                                <li><strong>Reporting:</strong> Detailed security assessments and recommendations</li>
+                            </ul>
 
-  <p>For support, inquiries, or subscription cancellations, please contact us at:</p>
-  <p>Email: <a href="mailto:magensec@gigabits.co.in">magensec@gigabits.co.in</a></p>
+                            <h3>3. System Modifications</h3>
+                            <div class="highlight-box">
+                                <strong>Important:</strong> Our software does not make unauthorized changes to your system. 
+                                Any modifications are performed only with explicit user consent and clear notification.
+                            </div>
 
-  <h2>Shipping and Delivery</h2>
+                            <h3>4. Limitation of Liability</h3>
+                            <p>Please read these limitations carefully:</p>
+                            <ul>
+                                <li>
+                                    <strong>Software Warranty:</strong> Gigabits MagenSec is provided "as is" and 
+                                    "as available." We make no warranties, express or implied, regarding the accuracy, 
+                                    completeness, or reliability of the software's output.
+                                </li>
+                                <li>
+                                    <strong>False Positives and Negatives:</strong> We shall not be liable for any 
+                                    errors, inaccuracies, or omissions in the software's reports, including but not 
+                                    limited to false positive alerts or undetected vulnerabilities.
+                                </li>
+                                <li>
+                                    <strong>User Risk:</strong> You acknowledge and agree that your use of the software 
+                                    is at your sole risk. We shall not be liable for any direct, indirect, incidental, 
+                                    consequential, or punitive damages arising from your use of the software.
+                                </li>
+                                <li>
+                                    <strong>Coverage Limitations:</strong> We do not guarantee that the software will 
+                                    identify all potential vulnerabilities on your system. New threats emerge daily, 
+                                    and no security solution can provide 100% protection.
+                                </li>
+                                <li>
+                                    <strong>Information Usage:</strong> We are not responsible for any damage or loss 
+                                    resulting from decisions made based on information provided by our software.
+                                </li>
+                            </ul>
 
-  <p>As Gigabits MagenSec is a digital product, there is no physical shipping. Delivery consists of granting access to the full functionality of the software upon successful subscription and license activation. Please check your email and the software itself for confirmation of activation. If you have any problems, please contact us.</p>
+                            <h3>5. License Activation</h3>
+                            <p>
+                                License activation may experience delays due to technical issues or verification processes. 
+                                Customers should contact <a href="mailto:magensec@gigabits.co.in">magensec@gigabits.co.in</a> 
+                                for any license activation or technical issues.
+                            </p>
 
-  <h2>Refund Policy</h2>
+                            <h3>6. Changes to Terms</h3>
+                            <p>
+                                We reserve the right to modify these terms and conditions at any time. Any changes 
+                                will be posted on this page with an updated revision date. Continued use of the 
+                                software after changes are posted constitutes acceptance of the new terms.
+                            </p>
+                        </section>
 
-  <p>All subscription payments are non-refundable. However, you may cancel your subscription at any time. To cancel your subscription, please email us at magensec@gigabits.co.in. Cancellations will be processed within 15 business days.</p>
+                        <!-- Privacy Policy -->
+                        <section id="privacy" class="policy-section section-anchor">
+                            <h2>Privacy Policy</h2>
+                            <p class="lead">
+                                We are committed to protecting your privacy. This policy explains how we collect, 
+                                use, and protect your information when you use MagenSec.
+                            </p>
 
-  <h2>Privacy Policy</h2>
+                            <h3>1. Information Collection</h3>
+                            <p>We collect the following types of information:</p>
+                            <ul>
+                                <li>
+                                    <strong>Account Information:</strong> Email address, name, and payment information 
+                                    for subscription management
+                                </li>
+                                <li>
+                                    <strong>Usage Data:</strong> Anonymous software usage statistics to improve our 
+                                    product (no personal files or sensitive data)
+                                </li>
+                                <li>
+                                    <strong>System Information:</strong> Basic hardware and software configuration 
+                                    data to provide appropriate security recommendations
+                                </li>
+                                <li>
+                                    <strong>Vulnerability Data:</strong> Information about detected security issues 
+                                    (anonymized and aggregated for threat intelligence)
+                                </li>
+                            </ul>
 
-  <p>We are committed to protecting your privacy. This policy explains how we collect, use, and protect your information.</p>
+                            <h3>2. Use of Information</h3>
+                            <p>We use collected information for:</p>
+                            <ul>
+                                <li><strong>Service Provision:</strong> Delivering security services and support</li>
+                                <li><strong>Product Improvement:</strong> Enhancing our threat detection capabilities</li>
+                                <li><strong>Customer Support:</strong> Providing technical assistance and troubleshooting</li>
+                                <li><strong>Security Research:</strong> Developing better protection against emerging threats</li>
+                                <li><strong>Legal Compliance:</strong> Meeting regulatory requirements and legal obligations</li>
+                            </ul>
 
-  <ol>
-    <li><strong>Information Collection:</strong>
-      <ul>
-        <li>We collect information about your device, including installed software, detected vulnerabilities, logged-on user, and device metadata.</li>
-        <li>We collect your email address.</li>
-        <li>We use OAuth (primarily Google) for user authentication and collect your username, profile picture, and email address.</li>
-      </ul>
-    </li>
-    <li><strong>Use of Information:</strong>
-      <ul>
-        <li>We use the collected information to improve our software, provide customer support, and enhance user experience.</li>
-        <li>We do not sell or share your personal information with third parties except as required by law.</li>
-      </ul>
-    </li>
-    <li><strong>Data Security:</strong> We take reasonable measures to protect your data from unauthorized access, use, or disclosure.</li>
-    <li><strong>Data Retention:</strong> We retain your data for as long as necessary to provide you with our services and as required by law.</li>
-  </ol>
+                            <h3>3. Data Protection</h3>
+                            <div class="highlight-box">
+                                <strong>Security Measures:</strong> We implement industry-standard security measures 
+                                including encryption, access controls, and regular security audits to protect your data 
+                                from unauthorized access, use, or disclosure.
+                            </div>
 
-  <p>🗒 Last Updated on March 1, 2025</p>
+                            <h3>4. Data Sharing</h3>
+                            <p>We do not sell, trade, or share your personal information with third parties except:</p>
+                            <ul>
+                                <li>With your explicit consent</li>
+                                <li>To comply with legal requirements</li>
+                                <li>To protect our rights and safety</li>
+                                <li>With trusted service providers under strict confidentiality agreements</li>
+                            </ul>
+
+                            <h3>5. Data Retention</h3>
+                            <p>
+                                We retain your data for as long as necessary to provide you with our services and 
+                                as required by law. You may request deletion of your personal data by contacting us.
+                            </p>
+                        </section>
+
+                        <!-- Subscription and Payment -->
+                        <section id="subscription" class="policy-section section-anchor">
+                            <h2>Subscription and Payment</h2>
+
+                            <h3>1. Free Trial</h3>
+                            <p>
+                                The software is free to download and includes a 7-day free trial with full functionality. 
+                                No credit card is required for the trial period.
+                            </p>
+
+                            <h3>2. Paid Subscriptions</h3>
+                            <p>After the trial period, continued access to full functionality requires a paid subscription:</p>
+                            <ul>
+                                <li><strong>Personal & Family Plan:</strong> $4.99 per year (introductory price, down from $9.99) - covers unlimited family devices</li>
+                                <li><strong>Schools & Startups Plan:</strong> $1.99 per user per year (introductory price, down from $3.99) - ideal for small organizations</li>
+                                <li><strong>Enterprise/Managed Services:</strong> Custom pricing based on organization size and requirements</li>
+                            </ul>
+
+                            <h3>3. Payment Processing</h3>
+                            <p>
+                                Payments are processed securely through trusted payment providers. We do not store 
+                                your complete payment information on our servers.
+                            </p>
+
+                            <h3>4. Automatic Renewal</h3>
+                            <p>
+                                Subscriptions automatically renew at the end of each billing period unless cancelled. 
+                                You can cancel your subscription at any time by contacting our support team.
+                            </p>
+
+                            <h3>5. License Activation Delays</h3>
+                            <div class="highlight-box">
+                                <strong>Please Note:</strong> License activation may experience delays due to technical 
+                                issues or verification processes. If you experience any problems, please contact our 
+                                support team immediately.
+                            </div>
+                        </section>
+
+                        <!-- Refund Policy -->
+                        <section id="refund" class="policy-section section-anchor">
+                            <h2>Refund Policy</h2>
+
+                            <h3>1. General Policy</h3>
+                            <p>
+                                All subscription payments are generally non-refundable. However, we understand that 
+                                circumstances can vary, and we handle refund requests on a case-by-case basis.
+                            </p>
+
+                            <h3>2. Refund Eligibility</h3>
+                            <p>You may be eligible for a refund in the following situations:</p>
+                            <ul>
+                                <li>Technical issues that prevent software functionality</li>
+                                <li>Billing errors or unauthorized charges</li>
+                                <li>Software incompatibility with your system (verified by our support team)</li>
+                                <li>Service not delivered due to our technical problems</li>
+                            </ul>
+
+                            <h3>3. Refund Process</h3>
+                            <p>
+                                To request a refund, please email <a href="mailto:magensec@gigabits.co.in">magensec@gigabits.co.in</a> 
+                                with your license details and reason for the refund request. Refund requests will be 
+                                processed within 15 business days.
+                            </p>
+
+                            <h3>4. Subscription Cancellation</h3>
+                            <p>
+                                You may cancel your subscription at any time. Cancellations will be processed within 
+                                15 business days, and you will continue to have access to the software until the end 
+                                of your current billing period.
+                            </p>
+                        </section>
+
+                        <!-- Support and Contact -->
+                        <section id="support" class="policy-section section-anchor">
+                            <h2>Support and Contact</h2>
+
+                            <h3>1. Customer Support</h3>
+                            <p>
+                                Our support team is here to help you with any questions, technical issues, or concerns 
+                                about MagenSec.
+                            </p>
+
+                            <div class="contact-box">
+                                <h5><strong>Contact Information</strong></h5>
+                                <p class="mb-2">
+                                    <strong>Email:</strong> <a href="mailto:magensec@gigabits.co.in">magensec@gigabits.co.in</a>
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Response Time:</strong> We aim to respond to all inquiries within 24 hours during business days
+                                </p>
+                                <p class="mb-0">
+                                    <strong>Support Hours:</strong> Monday to Friday, 9:00 AM to 6:00 PM IST
+                                </p>
+                            </div>
+
+                            <h3>2. Technical Support</h3>
+                            <p>For technical issues, please include:</p>
+                            <ul>
+                                <li>Your license key or email address used for registration</li>
+                                <li>Description of the problem you're experiencing</li>
+                                <li>Your operating system and version</li>
+                                <li>Any error messages you've received</li>
+                            </ul>
+
+                            <h3>3. License Activation Support</h3>
+                            <p>
+                                If you experience issues with license activation, please contact us immediately. 
+                                We will work quickly to resolve any activation problems.
+                            </p>
+
+                            <h3>4. Feedback and Suggestions</h3>
+                            <p>
+                                We value your feedback and suggestions for improving MagenSec. Please feel free to 
+                                share your thoughts with our development team.
+                            </p>
+                        </section>
+
+                        <!-- Shipping and Delivery -->
+                        <section class="policy-section">
+                            <h2>Shipping and Delivery</h2>
+                            <p>
+                                As Gigabits MagenSec is a digital product, there is no physical shipping involved. 
+                                Delivery consists of:
+                            </p>
+                            <ul>
+                                <li>Immediate download access after registration</li>
+                                <li>License activation upon successful subscription</li>
+                                <li>Email confirmation of activation status</li>
+                            </ul>
+                            <p>
+                                Please check your email and the software itself for confirmation of activation. 
+                                If you have any problems, please contact our support team immediately.
+                            </p>
+                        </section>
+
+                        <div class="last-updated">
+                            📅 Last Updated: March 1, 2025
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer footer-transparent d-print-none">
+            <div class="container-xl">
+                <div class="row text-center align-items-center flex-row-reverse">
+                    <div class="col-lg-auto ms-lg-auto">
+                        <ul class="list-inline list-inline-dots mb-0">
+                            <li class="list-inline-item">
+                                <a href="terms.html" class="link-secondary">Terms & Privacy</a>
+                            </li>
+                            <li class="list-inline-item">
+                                <a href="about.html" class="link-secondary">About</a>
+                            </li>
+                            <li class="list-inline-item">
+                                <a href="index.html#contact" class="link-secondary">Support</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-12 col-lg-auto mt-3 mt-lg-0">
+                        <ul class="list-inline list-inline-dots mb-0">
+                            <li class="list-inline-item">
+                                Copyright &copy; 2025
+                                <a href="http://gigabits.co.in" class="link-secondary">Gigabits</a>.
+                                All rights reserved.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Tabler Core -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
+    
+    <!-- Custom Scripts -->
+    <script>
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Update navigation active states based on scroll position
+        window.addEventListener('scroll', () => {
+            const sections = document.querySelectorAll('.section-anchor');
+            const navLinks = document.querySelectorAll('.toc-nav .nav-link');
+            
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 100;
+                if (pageYOffset >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
