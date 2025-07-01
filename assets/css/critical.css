@@ -1,0 +1,147 @@
+/* Critical CSS for MagenSec - Above the fold content only */
+/* Load this inline in <head> for better performance */
+
+:root {
+    --tblr-primary: #0066cc;
+    --tblr-primary-rgb: 0, 102, 204;
+    --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004499 100%);
+    --gradient-secondary: linear-gradient(135deg, #00cc66 0%, #009944 100%);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif;
+    font-size: 0.875rem;
+    line-height: 1.4285714286;
+    color: #182433;
+    background: #f8fafc;
+}
+
+/* Navbar Critical Styles */
+.navbar {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    background: var(--gradient-primary);
+}
+
+.navbar-brand {
+    padding-top: 0.3125rem;
+    padding-bottom: 0.3125rem;
+    margin-right: 1rem;
+    font-size: 1.25rem;
+    text-decoration: none;
+    white-space: nowrap;
+    color: white;
+}
+
+.navbar-brand img {
+    height: 32px;
+    width: auto;
+}
+
+.container-xl {
+    width: 100%;
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+    margin-right: auto;
+    margin-left: auto;
+    max-width: 1320px;
+}
+
+/* Hero Section Critical Styles */
+.hero-section {
+    background: var(--gradient-primary);
+    color: white;
+    padding: 4rem 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-content {
+    text-align: center;
+    position: relative;
+    z-index: 2;
+}
+
+.hero-title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.hero-subtitle {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+    opacity: 0.95;
+    font-weight: 300;
+}
+
+/* Button Critical Styles */
+.btn {
+    display: inline-block;
+    font-weight: 600;
+    color: #182433;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    user-select: none;
+    background-color: transparent;
+    border: 1px solid transparent;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.4285714286;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: all 0.15s ease-in-out;
+}
+
+.btn-primary {
+    color: #fff;
+    background-color: #0066cc;
+    border-color: #0066cc;
+}
+
+.btn-outline-light {
+    color: #f8f9fa;
+    border-color: #f8f9fa;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.125rem;
+    border-radius: 6px;
+}
+
+/* Hide non-critical content initially */
+.stats-section,
+.features-section,
+.pricing-section,
+.footer {
+    display: none;
+}
+
+/* Mobile responsiveness for critical content */
+@media (max-width: 768px) {
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.25rem;
+    }
+    
+    .container-xl {
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+}

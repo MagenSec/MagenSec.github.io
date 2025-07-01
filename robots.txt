@@ -1,2 +1,13 @@
 User-agent: *
 Disallow: /diag/
+Disallow: /backup-original/
+
+# Sitemap
+Sitemap: https://magensec.gigabits.co.in/sitemap.xml
+
+# Allow all major search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /

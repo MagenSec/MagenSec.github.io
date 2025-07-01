@@ -1,0 +1,92 @@
+/* Print Stylesheet for MagenSec */
+@media print {
+    /* Hide navigation and interactive elements */
+    .navbar,
+    .btn,
+    .alert,
+    .card-header,
+    .footer,
+    .dropdown,
+    #threat-simulation-with,
+    #threat-simulation-without,
+    .d-print-none {
+        display: none !important;
+    }
+    
+    /* Optimize layout for print */
+    body {
+        font-size: 12pt;
+        line-height: 1.4;
+        color: #000;
+        background: #fff;
+    }
+    
+    .container-xl {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* Headers */
+    h1 { font-size: 18pt; }
+    h2 { font-size: 16pt; }
+    h3 { font-size: 14pt; }
+    h4, h5, h6 { font-size: 12pt; }
+    
+    /* Remove gradients and backgrounds */
+    .hero-section,
+    .bg-light-blue,
+    .stats-section {
+        background: #fff !important;
+        color: #000 !important;
+    }
+    
+    /* Optimize cards for print */
+    .card {
+        border: 1px solid #ddd;
+        margin-bottom: 1rem;
+        break-inside: avoid;
+    }
+    
+    /* Pricing tables */
+    .pricing-card {
+        border: 2px solid #000;
+        margin-bottom: 2rem;
+    }
+    
+    /* Images */
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+    
+    /* Links */
+    a {
+        color: #000;
+        text-decoration: none;
+    }
+    
+    a[href^="http"]:after {
+        content: " (" attr(href) ")";
+        font-size: 10pt;
+        color: #666;
+    }
+    
+    /* Page breaks */
+    .section-padding {
+        page-break-inside: avoid;
+    }
+    
+    /* Hide large images that aren't essential */
+    .hero-section img,
+    .attack-demo {
+        display: none;
+    }
+    
+    /* Ensure text is readable */
+    .text-white,
+    .text-light,
+    .text-muted {
+        color: #000 !important;
+    }
+}
