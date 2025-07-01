@@ -70,218 +70,6 @@
     </script>
     
     <!-- Custom Styles -->
-    <style>
-        :root {
-            --tblr-primary: #0066cc;
-            --tblr-primary-rgb: 0, 102, 204;
-            --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004499 100%);
-            --gradient-success: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-        }
-        
-        .hero-section {
-            background: var(--gradient-primary);
-            color: white;
-            padding: 4rem 0;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .hero-section::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
-            opacity: 0.3;
-        }
-        
-        .hero-content {
-            position: relative;
-            z-index: 1;
-        }
-        
-        .feature-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: none;
-            height: 100%;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        }
-        
-        .stats-section {
-            background: var(--gradient-success);
-            color: white;
-        }
-        
-        .stats-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            display: block;
-            color: white;
-        }
-        
-        .pricing-card {
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.3s ease;
-        }
-        
-        .pricing-card:hover {
-            transform: scale(1.05);
-        }
-        
-        .pricing-card.featured {
-            border: 2px solid var(--tblr-primary);
-            transform: scale(1.05);
-        }
-        
-        .pricing-badge {
-            position: absolute;
-            top: 1rem;
-            right: -2rem;
-            background: var(--tblr-primary);
-            color: white;
-            padding: 0.5rem 3rem;
-            transform: rotate(45deg);
-            font-size: 0.75rem;
-            font-weight: bold;
-        }
-        
-        .testimonial-card {
-            background: white;
-            border-radius: 1rem;
-            padding: 2rem;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            margin: 1rem;
-        }
-        
-        .threat-demo {
-            background: #1a1a1a;
-            color: #00ff00;
-            font-family: 'Courier New', monospace;
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            margin: 2rem 0;
-        }
-        
-        .typing-animation {
-            border-right: 2px solid #00ff00;
-            animation: blink 1s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 50% { border-color: #00ff00; }
-            51%, 100% { border-color: transparent; }
-        }
-        
-        .shield-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 1rem;
-            display: block;
-        }
-        
-        .navbar-brand img {
-            height: 32px;
-            width: auto;
-        }
-        
-        .section-padding {
-            padding: 4rem 0;
-        }
-        
-        .bg-light-blue {
-            background: #f8fbff;
-        }
-
-        .bg-light-green {
-            background: rgba(40, 167, 69, 0.1);
-        }
-        
-        .back-to-top {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: var(--tblr-primary);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            z-index: 1000;
-            cursor: pointer;
-            will-change: transform;
-        }
-        
-        .back-to-top:hover {
-            background: var(--tblr-primary);
-            transform: translateY(-2px) scale(1.05);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-        }
-        
-        .back-to-top.show {
-            display: flex;
-            animation: fadeInUp 0.3s ease;
-        }
-        
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .flow-step {
-            position: relative;
-            margin-bottom: 2rem;
-        }
-
-        .flow-step:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            left: 50px;
-            top: 80px;
-            width: 2px;
-            height: 40px;
-            background: #dee2e6;
-            z-index: 0;
-        }
-
-        .flow-step.solution-step::after {
-            background: var(--gradient-success);
-            height: 20px;
-        }
-
-        .flow-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto;
-            position: relative;
-            z-index: 1;
-        }
-
-        .attack-flow {
-            position: relative;
-        }
-    </style>
     
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
@@ -438,13 +226,13 @@
                             <!-- Step 1 -->
                             <div class="flow-step">
                                 <div class="row align-items-center">
-                                    <div class="col-md-2 text-center">
+                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
                                         <div class="flow-icon bg-danger">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="M3 7l9 6l9 -6"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="M3 7l9 6l9 -6"/></svg>
                                         </div>
-                                        <small class="text-muted mt-2 d-block">STEP 1</small>
+                                        <small class="text-danger fw-bold d-block">STEP 1</small>
                                     </div>
-                                    <div class="col-md-10">
+                                    <div class="col-12 col-md-10">
                                         <div class="card border-start border-danger border-3">
                                             <div class="card-body">
                                                 <h5 class="text-danger">📧 The Trap: Phishing Email</h5>
@@ -458,13 +246,13 @@
                             <!-- Step 2 -->
                             <div class="flow-step">
                                 <div class="row align-items-center">
-                                    <div class="col-md-2 text-center">
+                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
                                         <div class="flow-icon bg-danger">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M12 11l0 .01"/><path d="M12 8l0 .01"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M12 11l0 .01"/><path d="M12 8l0 .01"/></svg>
                                         </div>
-                                        <small class="text-muted mt-2 d-block">STEP 2</small>
+                                        <small class="text-danger fw-bold d-block">STEP 2</small>
                                     </div>
-                                    <div class="col-md-10">
+                                    <div class="col-12 col-md-10">
                                         <div class="card border-start border-danger border-3">
                                             <div class="card-body">
                                                 <h5 class="text-danger">🕳️ The Entry: Finding Vulnerabilities</h5>
@@ -478,13 +266,13 @@
                             <!-- Step 3 -->
                             <div class="flow-step">
                                 <div class="row align-items-center">
-                                    <div class="col-md-2 text-center">
+                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
                                         <div class="flow-icon bg-danger">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l10 -10"/><path d="M2 12l5 5m5 -5l5 -5"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l10 -10"/><path d="M2 12l5 5m5 -5l5 -5"/></svg>
                                         </div>
-                                        <small class="text-muted mt-2 d-block">STEP 3</small>
+                                        <small class="text-danger fw-bold d-block">STEP 3</small>
                                     </div>
-                                    <div class="col-md-10">
+                                    <div class="col-12 col-md-10">
                                         <div class="card border-start border-danger border-3">
                                             <div class="card-body">
                                                 <h5 class="text-danger">🎯 The Takeover: Installing Malware</h5>
@@ -498,13 +286,13 @@
                             <!-- Step 4 -->
                             <div class="flow-step">
                                 <div class="row align-items-center">
-                                    <div class="col-md-2 text-center">
+                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
                                         <div class="flow-icon bg-danger">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"/></svg>
                                         </div>
-                                        <small class="text-muted mt-2 d-block">STEP 4</small>
+                                        <small class="text-danger fw-bold d-block">STEP 4</small>
                                     </div>
-                                    <div class="col-md-10">
+                                    <div class="col-12 col-md-10">
                                         <div class="card border-start border-danger border-3">
                                             <div class="card-body">
                                                 <h5 class="text-danger">💰 The Damage: Stealing & Encrypting</h5>
@@ -518,13 +306,13 @@
                             <!-- MagenSec Solution -->
                             <div class="flow-step solution-step">
                                 <div class="row align-items-center">
-                                    <div class="col-md-2 text-center">
+                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
                                         <div class="flow-icon bg-success">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M9 12l2 2l4 -4"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M9 12l2 2l4 -4"/></svg>
                                         </div>
-                                        <small class="text-success mt-2 d-block fw-bold">MAGENSEC</small>
+                                        <small class="text-success fw-bold d-block">MAGENSEC</small>
                                     </div>
-                                    <div class="col-md-10">
+                                    <div class="col-12 col-md-10">
                                         <div class="card border-start border-success border-3 bg-light-green">
                                             <div class="card-body">
                                                 <h5 class="text-success">🛡️ How MagenSec Breaks The Chain</h5>
@@ -1198,7 +986,7 @@
                     </div>
                     <div class="col-md-6 text-md-end mt-2 mt-md-0">
                         <small class="text-muted">
-                            Made with ❤️ for better cybersecurity
+                            Made with ❤️ for better CyberSecurity
                         </small>
                     </div>
                 </div>

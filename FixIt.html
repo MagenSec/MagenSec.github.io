@@ -33,210 +33,7 @@
     <!-- MagenSec Custom Styles -->
     <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
     
-    <!-- Custom Styles -->
-    <style>
-        :root {
-            --tblr-primary: #0066cc;
-            --tblr-primary-rgb: 0, 102, 204;
-            --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004499 100%);
-            --gradient-success: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            --gradient-danger: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-        }
-        
-        .hero-section {
-            background: var(--gradient-primary);
-            color: white;
-            padding: 3rem 0;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .hero-section::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
-            opacity: 0.3;
-        }
-        
-        .hero-content {
-            position: relative;
-            z-index: 1;
-        }
-        
-        .section-padding {
-            padding: 4rem 0;
-        }
-        
-        .bg-light-blue {
-            background: #f8fbff;
-        }
-        
-        .navbar-brand img {
-            height: 32px;
-            width: auto;
-        }
-        
-        .attack-flow {
-            background: #2d3748;
-            color: #e2e8f0;
-            padding: 2rem;
-            border-radius: 1rem;
-            font-family: 'Monaco', 'Consolas', monospace;
-            margin: 2rem 0;
-        }
-        
-        .flow-step {
-            padding: 1rem 0;
-            border-bottom: 1px solid #4a5568;
-            display: flex;
-            align-items: center;
-        }
-        
-        .flow-step:last-child {
-            border-bottom: none;
-        }
-        
-        .flow-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 1rem;
-            font-weight: bold;
-        }
-        
-        .flow-step.danger .flow-icon {
-            background: #dc3545;
-            color: white;
-        }
-        
-        .flow-step.success .flow-icon {
-            background: #28a745;
-            color: white;
-        }
-        
-        .vulnerability-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: none;
-            height: 100%;
-        }
-        
-        .vulnerability-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        }
-        
-        .severity-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.5rem;
-            font-size: 0.75rem;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        
-        .severity-critical {
-            background: #dc3545;
-            color: white;
-        }
-        
-        .severity-high {
-            background: #fd7e14;
-            color: white;
-        }
-        
-        .severity-medium {
-            background: #ffc107;
-            color: #000;
-        }
-        
-        .severity-low {
-            background: #6c757d;
-            color: white;
-        }
-        
-        .stats-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: var(--tblr-primary);
-        }
-        
-        .timeline-item {
-            position: relative;
-            padding-left: 3rem;
-            margin-bottom: 2rem;
-        }
-        
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: 15px;
-            top: 0;
-            width: 2px;
-            height: 100%;
-            background: #dee2e6;
-        }
-        
-        .timeline-icon {
-            position: absolute;
-            left: 0;
-            top: 0.5rem;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: var(--tblr-primary);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.75rem;
-            font-weight: bold;
-        }
-        
-        .timeline-icon.danger {
-            background: #dc3545;
-        }
-        
-        .timeline-icon.success {
-            background: #28a745;
-        }
-        
-        .protection-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin: 2rem 0;
-        }
-        
-        .protection-item {
-            background: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-        
-        .protection-item:hover {
-            transform: translateY(-5px);
-        }
-        
-        .protection-icon {
-            width: 60px;
-            height: 60px;
-            margin: 0 auto 1rem;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-        }
-    </style>
+
     
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
@@ -354,7 +151,7 @@
                         </div>
                         
                         <div class="row g-4 mb-5">
-                            <div class="col-md-6">
+                            <div class="col-12 col-md-6">
                                 <div class="vulnerability-card card h-100">
                                     <div class="card-body">
                                         <h5 class="card-title">
@@ -369,7 +166,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-12 col-md-6">
                                 <div class="vulnerability-card card h-100">
                                     <div class="card-body">
                                         <h5 class="card-title">
@@ -384,7 +181,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-12 col-md-6">
                                 <div class="vulnerability-card card h-100">
                                     <div class="card-body">
                                         <h5 class="card-title">
@@ -399,7 +196,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-12 col-md-6">
                                 <div class="vulnerability-card card h-100">
                                     <div class="card-body">
                                         <h5 class="card-title">
@@ -469,17 +266,17 @@
                         </div>
                         
                         <div class="row mt-4">
-                            <div class="col-md-4 text-center">
+                            <div class="col-12 col-md-4 text-center mb-3 mb-md-0">
                                 <div class="stats-number text-danger">24</div>
                                 <p class="fw-bold">Hours</p>
                                 <small class="text-muted">Average time until exploits appear after vulnerability disclosure</small>
                             </div>
-                            <div class="col-md-4 text-center">
+                            <div class="col-12 col-md-4 text-center mb-3 mb-md-0">
                                 <div class="stats-number text-warning">72</div>
                                 <p class="fw-bold">Hours</p>
                                 <small class="text-muted">Until active attacks begin in the wild</small>
                             </div>
-                            <div class="col-md-4 text-center">
+                            <div class="col-12 col-md-4 text-center">
                                 <div class="stats-number text-success">5</div>
                                 <p class="fw-bold">Minutes</p>
                                 <small class="text-muted">MagenSec detection and alert time</small>
@@ -607,7 +404,7 @@
                         </div>
                         
                         <div class="row g-3">
-                            <div class="col-md-4">
+                            <div class="col-12 col-md-4 mb-3">
                                 <div class="protection-item">
                                     <div class="protection-icon" style="background: var(--gradient-danger);">
                                         💰
@@ -616,7 +413,7 @@
                                     <p class="small mb-0">Motivated by profit, they invest in exploit development for high-value targets</p>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-12 col-md-4 mb-3">
                                 <div class="protection-item">
                                     <div class="protection-icon" style="background: var(--gradient-primary);">
                                         🏛️
@@ -625,13 +422,13 @@
                                     <p class="small mb-0">Government-sponsored groups with advanced capabilities and unlimited resources</p>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-12 col-md-4 mb-3">
                                 <div class="protection-item">
                                     <div class="protection-icon" style="background: linear-gradient(135deg, #6f42c1 0%, #e83e8c 100%);">
                                         🎯
                                     </div>
                                     <h6 class="fw-bold">Targeted Attacks</h6>
-                                    <p class="small mb-0">Attackers who specifically target your business or personal data</p> .<br/> 
+                                    <p class="small mb-0">Attackers who specifically target your business or personal data</p>
                                 </div>
                             </div>
                         </div>

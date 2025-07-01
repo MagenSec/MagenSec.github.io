@@ -93,19 +93,76 @@
     z-index: 1;
 }
 
-/* Statistics display */
+/* ===== PAGE-SPECIFIC STYLES ===== */
+
+/* Hero Section */
+.hero-section {
+    background: var(--gradient-primary);
+    color: white;
+    padding: 4rem 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+    opacity: 0.3;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 1;
+}
+
+/* Layout and Backgrounds */
+.section-padding {
+    padding: 4rem 0;
+}
+
+.bg-light-blue {
+    background: #f8fbff;
+}
+
+.bg-light-green {
+    background: rgba(40, 167, 69, 0.1);
+}
+
+/* Feature Cards */
+.feature-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: none;
+    height: 100%;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+/* Statistics Section */
+.stats-section {
+    background: var(--gradient-success);
+    color: white;
+}
+
 .stats-number {
     font-size: 2.5rem;
     font-weight: bold;
-    color: var(--magensec-primary);
     display: block;
+    color: white;
 }
 
 .stats-card {
     background: white;
     border-radius: 1rem;
     padding: 2rem;
-    box-shadow: var(--magensec-card-shadow);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     text-align: center;
     height: 100%;
     transition: transform 0.3s ease;
@@ -115,11 +172,53 @@
     transform: translateY(-5px);
 }
 
-/* Terminal/Console styling */
-.terminal-window {
+.stats-card .stats-number {
+    color: var(--tblr-primary);
+}
+
+/* Pricing Cards */
+.pricing-card {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease;
+}
+
+.pricing-card:hover {
+    transform: scale(1.05);
+}
+
+.pricing-card.featured {
+    border: 2px solid var(--tblr-primary);
+    transform: scale(1.05);
+}
+
+.pricing-badge {
+    position: absolute;
+    top: 1rem;
+    right: -2rem;
+    background: var(--tblr-primary);
+    color: white;
+    padding: 0.5rem 3rem;
+    transform: rotate(45deg);
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+/* Testimonials */
+.testimonial-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    margin: 1rem;
+}
+
+/* Attack Demo and Terminal Styles */
+.threat-demo,
+.attack-demo {
     background: #1a1a1a;
     color: #00ff00;
-    font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+    font-family: 'Courier New', monospace;
     padding: 1.5rem;
     border-radius: 0.5rem;
     margin: 2rem 0;
@@ -127,7 +226,7 @@
     overflow: hidden;
 }
 
-.terminal-window::before {
+.attack-demo::before {
     content: '';
     position: absolute;
     top: 0;
@@ -138,7 +237,7 @@
     border-bottom: 1px solid #555;
 }
 
-.terminal-window::after {
+.attack-demo::after {
     content: '●●●';
     position: absolute;
     top: 8px;
@@ -147,21 +246,441 @@
     font-size: 12px;
 }
 
-.terminal-content {
-    margin-top: 30px;
+.demo-content {
+    background: #1e1e1e;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    overflow-x: auto;
 }
 
-.typing-cursor {
-    border-right: 2px solid #00ff00;
-    animation: blink 1s infinite;
+.demo-content div {
+    margin-bottom: 0.25rem;
 }
 
-@keyframes blink {
-    0%, 50% { border-color: #00ff00; }
-    51%, 100% { border-color: transparent; }
+.demo-content .text-warning {
+    color: #ffc107 !important;
 }
 
-/* Vulnerability severity badges */
+.demo-content .text-danger {
+    color: #dc3545 !important;
+}
+
+.demo-content .text-success {
+    color: #28a745 !important;
+}
+
+.demo-content .text-info {
+    color: #17a2b8 !important;
+}
+
+.demo-content .text-muted {
+    color: #6c757d !important;
+}
+
+/* Prevention Demo Specific Styles */
+.prevention-demo .demo-section {
+    border-left: 4px solid #28a745;
+    padding-left: 1rem;
+    margin-bottom: 1rem;
+}
+
+.prevention-demo .demo-section:last-child {
+    border-left-color: #6c757d;
+}
+
+/* Attack Demo Styles */
+.attack-demo .demo-content {
+    border: 2px solid #dc3545;
+    position: relative;
+}
+
+.attack-demo .demo-content::before {
+    content: '⚠️ ATTACK SIMULATION';
+    position: absolute;
+    top: -12px;
+    left: 10px;
+    background: #dc3545;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 0.25rem;
+    font-weight: bold;
+}
+
+/* Threat Timeline Styles */
+.threat-timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.threat-timeline::before {
+    content: '';
+    position: absolute;
+    left: 1rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #dc3545, #28a745);
+}
+
+.threat-step {
+    position: relative;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.threat-step.danger {
+    border-left: 4px solid #dc3545;
+}
+
+.threat-step.success {
+    border-left: 4px solid #28a745;
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.05) 0%, rgba(40, 167, 69, 0.1) 100%);
+}
+
+.threat-step::before {
+    content: '';
+    position: absolute;
+    left: -2.5rem;
+    top: 1.5rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #dc3545;
+}
+
+.threat-step.success::before {
+    border-color: #28a745;
+    background: #28a745;
+}
+
+/* CVE Tag Styles */
+.cve-tag {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cve-tag.severity-critical {
+    background: #dc3545;
+    color: white;
+}
+
+.cve-tag.severity-high {
+    background: #fd7e14;
+    color: white;
+}
+
+.cve-tag.severity-medium {
+    background: #ffc107;
+    color: #212529;
+}
+
+.cve-tag.severity-low {
+    background: #6c757d;
+    color: white;
+}
+
+/* Vulnerability Example Styles */
+.vulnerability-example {
+    background: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    margin: 1rem 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    border: 1px solid #e9ecef;
+}
+
+/* Demo Section Headers */
+.demo-section h6 {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+/* Responsive adjustments for demos */
+@media (max-width: 768px) {
+    .demo-content {
+        font-size: 0.75rem;
+        padding: 0.75rem;
+    }
+    
+    .threat-timeline {
+        padding-left: 1.5rem;
+    }
+    
+    .threat-step::before {
+        left: -2rem;
+        width: 0.75rem;
+        height: 0.75rem;
+    }
+    
+    .threat-step {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+}
+
+/* Icons and Images */
+.shield-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem;
+    display: block;
+}
+
+.navbar-brand img {
+    height: 32px;
+    width: auto;
+}
+
+/* Back to Top Button */
+.back-to-top {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--tblr-primary);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    z-index: 1000;
+    cursor: pointer;
+}
+
+.back-to-top:hover {
+    background: var(--tblr-primary);
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.back-to-top.show {
+    display: flex;
+    animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Flow and Timeline Styles */
+.flow-step {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.flow-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 50px;
+    top: 80px;
+    width: 2px;
+    height: 40px;
+    background: #dee2e6;
+    z-index: 0;
+}
+
+.flow-step.solution-step::after {
+    background: var(--gradient-success);
+    height: 20px;
+}
+
+.flow-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+.attack-flow {
+    position: relative;
+}
+
+/* Threat Timeline (About page) */
+.threat-timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.threat-timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--tblr-primary);
+}
+
+.threat-step {
+    position: relative;
+    margin-bottom: 2rem;
+    padding-left: 2rem;
+}
+
+.threat-step::before {
+    content: '';
+    position: absolute;
+    left: -9px;
+    top: 0.5rem;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--tblr-primary);
+    border: 3px solid white;
+    box-shadow: 0 0 0 3px var(--tblr-primary);
+}
+
+.threat-step.danger::before {
+    background: #dc3545;
+    box-shadow: 0 0 0 3px #dc3545;
+}
+
+.threat-step.success::before {
+    background: #28a745;
+    box-shadow: 0 0 0 3px #28a745;
+}
+
+/* Vulnerability Examples */
+.vulnerability-example {
+    background: #2d3748;
+    color: #e2e8f0;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.9rem;
+    margin: 1rem 0;
+}
+
+.cve-tag {
+    background: #dc3545;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.severity-critical {
+    background: #dc3545;
+}
+
+.severity-high {
+    background: #fd7e14;
+}
+
+.severity-medium {
+    background: #ffc107;
+    color: #000;
+}
+
+/* 404 Page Styles */
+.error-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gradient-primary);
+    color: white;
+}
+
+.error-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+.error-code {
+    font-size: 8rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    background: var(--gradient-warning);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Terms and Legal Pages */
+.legal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: var(--magensec-card-shadow);
+    margin-bottom: 2rem;
+}
+
+.legal-content h2 {
+    color: var(--magensec-primary);
+    border-bottom: 2px solid var(--magensec-primary);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.legal-content h3 {
+    color: var(--magensec-primary-dark);
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+/* Security Guide Page */
+.guide-section {
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--magensec-card-shadow);
+}
+
+.guide-section h2 {
+    color: var(--magensec-primary);
+    border-left: 4px solid var(--magensec-primary);
+    padding-left: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+/* ===== FIXIT PAGE SPECIFIC STYLES ===== */
+
+.vulnerability-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: none;
+    height: 100%;
+}
+
+.vulnerability-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
 .severity-badge {
     padding: 0.25rem 0.75rem;
     border-radius: 0.5rem;
@@ -170,162 +689,474 @@
     text-transform: uppercase;
 }
 
-.severity-critical {
-    background: #dc3545;
-    color: white;
-}
-
-.severity-high {
-    background: #fd7e14;
-    color: white;
-}
-
-.severity-medium {
-    background: #ffc107;
-    color: #000;
-}
-
 .severity-low {
     background: #6c757d;
     color: white;
 }
 
-/* Timeline styling */
-.timeline {
-    position: relative;
-    padding-left: 2rem;
-}
-
-.timeline::before {
-    content: '';
-    position: absolute;
-    left: 15px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: var(--magensec-primary);
-}
-
 .timeline-item {
     position: relative;
+    padding-left: 3rem;
     margin-bottom: 2rem;
-    padding-left: 2rem;
 }
 
 .timeline-item::before {
     content: '';
     position: absolute;
-    left: -9px;
-    top: 0.5rem;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--magensec-primary);
-    border: 3px solid white;
-    box-shadow: 0 0 0 3px var(--magensec-primary);
+    left: 15px;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #dee2e6;
 }
 
-.timeline-item.danger::before {
-    background: var(--magensec-danger);
-    box-shadow: 0 0 0 3px var(--magensec-danger);
-}
-
-.timeline-item.success::before {
-    background: var(--magensec-secondary);
-    box-shadow: 0 0 0 3px var(--magensec-secondary);
-}
-
-/* Pricing card enhancements */
-.pricing-card {
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.3s ease;
-    border: 2px solid transparent;
-}
-
-.pricing-card:hover {
-    transform: scale(1.02);
-}
-
-.pricing-card.featured {
-    border-color: var(--magensec-primary);
-    transform: scale(1.05);
-}
-
-.pricing-badge {
+.timeline-icon {
     position: absolute;
-    top: 1rem;
-    right: -2rem;
-    background: var(--magensec-primary);
+    left: 0;
+    top: 0.5rem;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--tblr-primary);
     color: white;
-    padding: 0.5rem 3rem;
-    transform: rotate(45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.75rem;
     font-weight: bold;
 }
 
-/* Section utilities */
-.section-padding {
-    padding: 4rem 0;
+.timeline-icon.danger {
+    background: #dc3545;
 }
 
-.bg-light-blue {
-    background: var(--magensec-light-bg);
+.timeline-icon.success {
+    background: #28a745;
 }
 
-/* Enhanced form styling */
-.form-floating-magensec .form-control {
-    border: 2px solid #e9ecef;
-    border-radius: 0.5rem;
-    transition: border-color 0.3s ease;
+.protection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin: 2rem 0;
 }
 
-.form-floating-magensec .form-control:focus {
-    border-color: var(--magensec-primary);
-    box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.25);
+.protection-item {
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    text-align: center;
+    transition: transform 0.3s ease;
 }
 
-/* Feature highlight boxes */
-.feature-highlight {
-    background: var(--magensec-light-bg);
-    border-left: 4px solid var(--magensec-primary);
+.protection-item:hover {
+    transform: translateY(-5px);
+}
+
+.protection-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+/* How Cyber Attacks Work Section */
+.attack-flow {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 2rem;
+    border-radius: 1rem;
+    margin: 2rem 0;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.flow-step {
+    padding: 1.5rem 0;
+    position: relative;
+}
+
+.flow-step:not(:last-child) {
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 1rem;
+}
+
+.flow-step:last-child {
+    border-bottom: none;
+}
+
+.flow-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.flow-step .card {
+    background: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-radius: 0.75rem;
+}
+
+.flow-step .card-body {
     padding: 1.5rem;
-    border-radius: 0.375rem;
-    margin: 1.5rem 0;
 }
 
-.feature-highlight.warning {
+.flow-step .card h5 {
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
+
+.flow-step .card p {
+    color: #495057;
+    line-height: 1.6;
+}
+
+/* Success step styling */
+.flow-step.solution-step .card {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border: 2px solid #10b981;
+}
+
+.flow-step.solution-step .card-body {
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.flow-step.solution-step .card h5 {
+    color: #059669;
+}
+
+/* ===== TERMS PAGE SPECIFIC STYLES ===== */
+
+.toc-nav {
+    position: sticky;
+    top: 2rem;
+}
+
+.section-anchor {
+    padding-top: 4rem;
+    margin-top: -4rem;
+}
+
+.policy-section {
+    margin-bottom: 3rem;
+}
+
+.policy-section h2 {
+    color: var(--tblr-primary);
+    border-bottom: 2px solid var(--tblr-primary);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.policy-section h3 {
+    color: #495057;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+.highlight-box {
     background: #fff3cd;
-    border-left-color: var(--magensec-accent);
+    border-left: 4px solid #ffc107;
+    padding: 1rem 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0.375rem;
 }
 
-.feature-highlight.success {
-    background: #d1f2dd;
-    border-left-color: var(--magensec-secondary);
+.contact-box {
+    background: #d1ecf1;
+    border-left: 4px solid #bee5eb;
+    padding: 1rem 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0.375rem;
 }
 
-.feature-highlight.danger {
-    background: #f8d7da;
-    border-left-color: var(--magensec-danger);
+.last-updated {
+    background: #e2e3e5;
+    color: #495057;
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.9rem;
+    text-align: center;
+    margin-top: 2rem;
 }
 
-/* Responsive utilities */
+/* ===== 404 ERROR PAGE STYLES ===== */
+
+.error-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    background: var(--gradient-primary);
+    color: white;
+}
+
+.error-number {
+    font-size: 8rem;
+    font-weight: bold;
+    line-height: 1;
+    opacity: 0.8;
+}
+
+.risk-level {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.risk-critical {
+    background: #dc3545;
+    color: white;
+}
+
+.risk-high {
+    background: #fd7e14;
+    color: white;
+}
+
+.risk-medium {
+    background: #ffc107;
+    color: #212529;
+}
+
+.risk-low {
+    background: #28a745;
+    color: white;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-    .stats-number {
-        font-size: 2rem;
-    }
-    
-    .shield-icon {
-        width: 50px;
-        height: 50px;
-    }
-    
     .hero-section {
         padding: 2rem 0;
     }
     
     .section-padding {
         padding: 2rem 0;
+    }
+    
+    .stats-number {
+        font-size: 2rem;
+    }
+    
+    .error-code {
+        font-size: 4rem;
+    }
+    
+    .pricing-badge {
+        font-size: 0.65rem;
+        padding: 0.3rem 2rem;
+    }
+    
+    .back-to-top {
+        width: 45px;
+        height: 45px;
+        bottom: 15px;
+        right: 15px;
+    }
+    
+    /* Attack Flow Mobile Responsiveness */
+    .attack-flow {
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .flow-step {
+        padding: 1rem 0;
+    }
+    
+    .flow-step .row {
+        margin: 0;
+    }
+    
+    .flow-step .col-md-2 {
+        margin-bottom: 1rem;
+    }
+    
+    .flow-icon {
+        width: 50px;
+        height: 50px;
+        margin: 0 auto 0.5rem;
+    }
+    
+    .flow-step .card-body {
+        padding: 1rem;
+    }
+    
+    .flow-step .card h5 {
+        font-size: 1.1rem;
+    }
+    
+    .flow-step .card p {
+        font-size: 0.9rem;
+    }
+}
+
+/* Mobile specific styles */
+@media (max-width: 576px) {
+    /* Ensure hero images don't exceed mobile screen */
+    .hero-section img {
+        max-width: 250px !important;
+    }
+    
+    /* QR code sizing for mobile */
+    img[alt*="QR Code"] {
+        max-width: 150px !important;
+    }
+    
+    /* Shield images mobile sizing */
+    img[alt*="Shield"],
+    img[alt*="MagenSec"] {
+        max-width: 200px !important;
+    }
+}
+
+/* Container improvements for mobile */
+@media (max-width: 768px) {
+    .container-xl {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    /* Better alert spacing on mobile */
+    .alert {
+        margin-bottom: 1rem;
+        padding: 0.75rem 1rem;
+    }
+    
+    /* Improve card spacing in rows */
+    .row.g-4 > * {
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Better badge sizing */
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.35em 0.65em;
+    }
+}
+
+/* Tablet landscape improvements */
+@media (min-width: 577px) and (max-width: 991px) {
+    .feature-card,
+    .stats-card,
+    .vulnerability-card {
+        height: auto;
+        min-height: 250px;
+    }
+    
+    .pricing-card {
+        margin-bottom: 2rem;
+    }
+    
+    .hero-section {
+        padding: 3rem 0;
+    }
+}
+
+/* Large mobile/small tablet portrait */
+@media (max-width: 768px) {
+    /* Better spacing for cards in rows */
+    .row > [class*="col-"] {
+        margin-bottom: 1rem;
+    }
+    
+    .row > [class*="col-"]:last-child {
+        margin-bottom: 0;
+    }
+    
+    /* Improve text readability */
+    body {
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    
+    h1 { font-size: 1.75rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.25rem; }
+    h4 { font-size: 1.125rem; }
+    h5 { font-size: 1rem; }
+    
+    /* Better button sizing */
+    .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+    }
+    
+    /* Better navbar toggler */
+    .navbar-toggler {
+        padding: 0.25rem 0.5rem;
+        font-size: 1rem;
+        border-radius: 0.375rem;
+    }
+}
+
+/* Touch target improvements for mobile */
+@media (max-width: 768px) {
+    /* Ensure buttons meet minimum touch target size (44x44px) */
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 0.75rem 1rem;
+    }
+    
+    .btn-sm {
+        min-height: 38px;
+        min-width: 38px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    /* Improve nav link touch targets */
+    .nav-link {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    /* Better dropdown menu spacing */
+    .dropdown-menu .dropdown-item {
+        padding: 0.75rem 1rem;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+    
+    /* Improve form control touch targets */
+    .form-control,
+    .form-select {
+        min-height: 44px;
+        padding: 0.75rem;
+    }
+    
+    /* Better card interaction areas */
+    .card[role="button"],
+    .card.clickable {
+        min-height: 44px;
+    }
+}
+
+/* Improved focus styles for mobile accessibility */
+@media (max-width: 768px) {
+    .btn:focus,
+    .nav-link:focus,
+    a:focus,
+    .form-control:focus,
+    .form-select:focus {
+        outline: 3px solid var(--magensec-primary);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.25);
     }
 }
 
@@ -396,5 +1227,83 @@ a:focus {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+}
+
+/* Mobile navigation improvements */
+@media (max-width: 767px) {
+    /* Better mobile menu styling */
+    .navbar-collapse {
+        background: white;
+        border-radius: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 1rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .navbar-nav .nav-link {
+        padding: 0.75rem 1rem;
+        border-radius: 0.375rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .navbar-nav .nav-link:hover,
+    .navbar-nav .nav-link.active {
+        background-color: var(--tblr-primary);
+        color: white;
+    }
+    
+    /* Better dropdown menu on mobile */
+    .dropdown-menu {
+        border: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-top: 0.5rem;
+    }
+    
+    /* Mobile-specific button adjustments */
+    .btn-list .btn {
+        margin-bottom: 0.75rem;
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* Better mobile navbar brand */
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+    
+    .navbar-brand img {
+        max-height: 28px;
+    }
+}
+
+/* Cross-browser fixes for mobile */
+@media (max-width: 768px) {
+    /* iOS Safari fixes */
+    input[type="email"],
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    select,
+    textarea {
+        -webkit-appearance: none;
+        appearance: none;
+        border-radius: 0.375rem;
+    }
+    
+    /* Android Chrome fixes */
+    input:focus,
+    select:focus,
+    textarea:focus {
+        outline: none;
+        border-color: var(--magensec-primary);
+        box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.25);
+    }
+    
+    /* Better scrolling */
+    body {
+        -webkit-overflow-scrolling: touch;
     }
 }

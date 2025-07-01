@@ -8,23 +8,7 @@
     <meta name="description" content="Learn about MagenSec's mission to make enterprise-grade cybersecurity accessible to everyone. Discover our approach to threat detection and vulnerability management."/>
     
     <!-- Open Graph Tags -->
-                                                                           <div class="d-flex align-items-center mb-3">
-                                    <picture>
-                                        <source srcset="assets/silver_shield.webp" type="image/webp">
-                                        <img src="assets/silver_shield.png" alt="Compliance" class="shield-icon me-3" style="width: 40px; height: 40px;">
-                                    </picture>                <div class="d-flex align-items-center mb-3">
-                                    <picture>
-                                        <source srcset="assets/black_shield.webp" type="image/webp">
-                                        <img src="assets/black_shield.png" alt="Hardening" class="shield-icon me-3" style="width: 40px; height: 40px;">
-                                    </picture>                <div class="d-flex align-items-center mb-3">
-                                    <picture>
-                                        <source srcset="assets/red_shield.webp" type="image/webp">
-                                        <img src="assets/red_shield.png" alt="Prevention" class="shield-icon me-3" style="width: 40px; height: 40px;">
-                                    </picture>                <div class="d-flex align-items-center mb-3">
-                                    <picture>
-                                        <source srcset="assets/green_shield.webp" type="image/webp">
-                                        <img src="assets/green_shield.png" alt="Detection" class="shield-icon me-3" style="width: 40px; height: 40px;">
-                                    </picture> <meta property="og:title" content="About MagenSec | Advanced Cybersecurity Solutions"/>
+    <meta property="og:title" content="About MagenSec | Advanced Cybersecurity Solutions"/>
     <meta property="og:description" content="Learn about MagenSec's mission to make enterprise-grade cybersecurity accessible to everyone. Discover our approach to threat detection and vulnerability management."/>
     <meta property="og:type" content="website"/>
     <meta property="og:url" content="https://magensec.gigabits.co.in/about.html"/>
@@ -49,201 +33,7 @@
     <!-- MagenSec Custom Styles -->
     <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
     
-    <!-- Custom Styles -->
-    <style>
-        :root {
-            --tblr-primary: #0066cc;
-            --tblr-primary-rgb: 0, 102, 204;
-            --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004499 100%);
-            --gradient-success: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            --gradient-danger: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-        }
-        
-        .hero-section {
-            background: var(--gradient-primary);
-            color: white;
-            padding: 4rem 0;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .hero-section::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
-            opacity: 0.3;
-        }
-        
-        .hero-content {
-            position: relative;
-            z-index: 1;
-        }
-        
-        .section-padding {
-            padding: 4rem 0;
-        }
-        
-        .bg-light-blue {
-            background: #f8fbff;
-        }
-        
-        .threat-timeline {
-            position: relative;
-            padding-left: 2rem;
-        }
-        
-        .threat-timeline::before {
-            content: '';
-            position: absolute;
-            left: 15px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: var(--tblr-primary);
-        }
-        
-        .threat-step {
-            position: relative;
-            margin-bottom: 2rem;
-            padding-left: 2rem;
-        }
-        
-        .threat-step::before {
-            content: '';
-            position: absolute;
-            left: -9px;
-            top: 0.5rem;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: var(--tblr-primary);
-            border: 3px solid white;
-            box-shadow: 0 0 0 3px var(--tblr-primary);
-        }
-        
-        .threat-step.danger::before {
-            background: #dc3545;
-            box-shadow: 0 0 0 3px #dc3545;
-        }
-        
-        .threat-step.success::before {
-            background: #28a745;
-            box-shadow: 0 0 0 3px #28a745;
-        }
-        
-        .attack-demo {
-            background: #1a1a1a;
-            color: #00ff00;
-            font-family: 'Courier New', monospace;
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            margin: 2rem 0;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .attack-demo::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 30px;
-            background: #333;
-            border-bottom: 1px solid #555;
-        }
-        
-        .attack-demo::after {
-            content: '●●●';
-            position: absolute;
-            top: 8px;
-            left: 15px;
-            color: #ff5f56;
-            font-size: 12px;
-        }
-        
-        .demo-content {
-            margin-top: 30px;
-        }
-        
-        .typing-text {
-            border-right: 2px solid #00ff00;
-            animation: blink 1s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 50% { border-color: #00ff00; }
-            51%, 100% { border-color: transparent; }
-        }
-        
-        .shield-icon {
-            width: 60px;
-            height: 60px;
-            margin: 0 auto 1rem;
-            display: block;
-        }
-        
-        .stats-card {
-            background: white;
-            border-radius: 1rem;
-            padding: 2rem;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            text-align: center;
-            height: 100%;
-            transition: transform 0.3s ease;
-        }
-        
-        .stats-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .stats-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: var(--tblr-primary);
-        }
-        
-        .navbar-brand img {
-            height: 32px;
-            width: auto;
-        }
-        
-        .vulnerability-example {
-            background: #2d3748;
-            color: #e2e8f0;
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 0.9rem;
-            margin: 1rem 0;
-        }
-        
-        .cve-tag {
-            background: #dc3545;
-            color: white;
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.25rem;
-            font-size: 0.75rem;
-            font-weight: bold;
-        }
-        
-        .severity-critical {
-            background: #dc3545;
-        }
-        
-        .severity-high {
-            background: #fd7e14;
-        }
-        
-        .severity-medium {
-            background: #ffc107;
-            color: #000;
-        }
-    </style>
+
     
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
@@ -387,7 +177,7 @@
         <!-- How Attacks Work -->
         <div class="section-padding bg-light-blue">
             <div class="container-xl">
-                <div class="row">
+                <div class="row align-items-center">
                     <div class="col-lg-6 mb-4">
                         <h2 class="display-6 fw-bold mb-4">How Cyber Attacks Actually Work</h2>
                         <p class="lead mb-4">
@@ -416,39 +206,53 @@
                             </div>
                             
                             <div class="threat-step success">
-                                <h5 class="fw-bold text-success">🛡️ MagenSec Intervention</h5>
-                                <p><strong>We break this chain by detecting vulnerabilities before attackers can exploit them!</strong></p>
+                                <h5 class="fw-bold text-success">🛡️ MagenSec Prevention Strategy</h5>
+                                <p><strong>We break this chain at step 1 by detecting vulnerabilities early and guiding you through patching before attackers can exploit them!</strong></p>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="col-lg-6">
-                        <div class="card h-100">
+                    <div class="col-lg-6 d-flex align-items-center">
+                        <div class="card h-100 w-100">
                             <div class="card-header">
-                                <h4 class="card-title">Real Attack Example: Remote Code Execution</h4>
+                                <h4 class="card-title">MagenSec's Prevention Approach</h4>
                             </div>
                             <div class="card-body">
-                                <div class="attack-demo">
-                                    <div class="demo-content">
-                                        <div class="mb-2">$ scanning target 192.168.1.100...</div>
-                                        <div class="mb-2 text-warning">⚠ Found: Adobe Reader v21.0.012</div>
-                                        <div class="mb-2"><span class="cve-tag severity-critical">CVE-2024-1234</span> CRITICAL - RCE vulnerability</div>
-                                        <div class="mb-2">$ exploit.py --target 192.168.1.100</div>
-                                        <div class="mb-2 text-danger">✗ Sending malicious PDF...</div>
-                                        <div class="mb-2 text-danger">✗ Payload executed successfully</div>
-                                        <div class="mb-2 text-danger">✗ Remote shell established</div>
-                                        <div class="text-success">🛡️ <strong>BLOCKED BY MAGENSEC</strong></div>
+                                <div class="prevention-demo">
+                                    <div class="demo-section mb-3">
+                                        <h6 class="fw-bold text-success">🔍 MagenSec Detection Phase</h6>
+                                        <div class="demo-content">
+                                            <div class="mb-2">🛡️ MagenSec scanning system...</div>
+                                            <div class="mb-2 text-warning">⚠️ Found: Adobe Reader v21.0.012</div>
+                                            <div class="mb-2"><span class="cve-tag severity-critical">CVE-2024-1234</span> CRITICAL - RCE vulnerability</div>
+                                            <div class="mb-2 text-success">✅ Alert sent to user with patch instructions</div>
+                                            <div class="mb-2 text-success">✅ User updates to Adobe Reader v24.2</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="demo-section">
+                                        <h6 class="fw-bold text-muted">❌ Later Attack Attempt (Now Fails)</h6>
+                                        <div class="demo-content">
+                                            <div class="mb-2">$ scanning target 192.168.1.100...</div>
+                                            <div class="mb-2 text-info">ℹ️ Found: Adobe Reader v24.2 (patched)</div>
+                                            <div class="mb-2">$ exploit.py --target 192.168.1.100</div>
+                                            <div class="mb-2 text-muted">✗ Exploit failed - vulnerability patched</div>
+                                            <div class="text-success">🛡️ <strong>ATTACK PREVENTED BY PRIOR PATCHING</strong></div>
+                                        </div>
                                     </div>
                                 </div>
                                 
                                 <div class="mt-3">
-                                    <h6 class="fw-bold">What just happened?</h6>
+                                    <h6 class="fw-bold">How MagenSec Actually Protects You:</h6>
                                     <ol class="small">
-                                        <li>Attacker found an outdated Adobe Reader installation</li>
-                                        <li>Exploited a known vulnerability (CVE-2024-1234)</li>
-                                        <li>Attempted to gain remote control of the system</li>
-                                        <li><strong>MagenSec detected and blocked the attack</strong></li>
+                                        <li><strong>Detects</strong> vulnerable software before attacks happen</li>
+                                        <li><strong>Alerts</strong> you with clear, actionable instructions</li>
+                                        <li><strong>Guides</strong> you through the patching process</li>
+                                        <li><strong>Prevents</strong> future attacks by eliminating the vulnerability</li>
                                     </ol>
+                                    <div class="alert alert-info mt-2 py-2">
+                                        <small><strong>Key Point:</strong> MagenSec doesn't block attacks in real-time. Instead, it prevents them by helping you fix vulnerabilities before attackers can exploit them.</small>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -557,7 +361,10 @@
                         <div class="row mb-4">
                             <div class="col-12 mb-3">
                                 <div class="d-flex align-items-center">
-                                    <img src="assets/green_shield.webp" alt="Detection" class="shield-icon me-3" style="width: 40px; height: 40px;">
+                                    <picture>
+                                        <source srcset="assets/green_shield.webp" type="image/webp">
+                                        <img src="assets/green_shield.png" alt="Detection" class="shield-icon me-3" style="width: 40px; height: 40px;">
+                                    </picture>
                                     <div>
                                         <h5 class="mb-1">Continuous Vulnerability Scanning</h5>
                                         <p class="mb-0 text-muted">Real-time detection of security weaknesses using the latest threat intelligence</p>
@@ -567,17 +374,23 @@
                             
                             <div class="col-12 mb-3">
                                 <div class="d-flex align-items-center">
-                                    <img src="assets/red_shield.webp" alt="Prevention" class="shield-icon me-3" style="width: 40px; height: 40px;">
+                                    <picture>
+                                        <source srcset="assets/red_shield.webp" type="image/webp">
+                                        <img src="assets/red_shield.png" alt="Prevention" class="shield-icon me-3" style="width: 40px; height: 40px;">
+                                    </picture>
                                     <div>
-                                        <h5 class="mb-1">Proactive Threat Prevention</h5>
-                                        <p class="mb-0 text-muted">Block attacks before they can compromise your system</p>
+                                        <h5 class="mb-1">Proactive Vulnerability Management</h5>
+                                        <p class="mb-0 text-muted">Identify and patch security weaknesses before attackers can exploit them</p>
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="col-12 mb-3">
                                 <div class="d-flex align-items-center">
-                                    <img src="assets/black_shield.webp" alt="Hardening" class="shield-icon me-3" style="width: 40px; height: 40px;">
+                                    <picture>
+                                        <source srcset="assets/black_shield.webp" type="image/webp">
+                                        <img src="assets/black_shield.png" alt="Hardening" class="shield-icon me-3" style="width: 40px; height: 40px;">
+                                    </picture>
                                     <div>
                                         <h5 class="mb-1">Automated Security Hardening</h5>
                                         <p class="mb-0 text-muted">Apply security configurations and patches automatically</p>
@@ -587,7 +400,10 @@
                             
                             <div class="col-12 mb-3">
                                 <div class="d-flex align-items-center">
-                                    <img src="assets/silver_shield.webp" alt="Compliance" class="shield-icon me-3" style="width: 40px; height: 40px;">
+                                    <picture>
+                                        <source srcset="assets/silver_shield.webp" type="image/webp">
+                                        <img src="assets/silver_shield.png" alt="Compliance" class="shield-icon me-3" style="width: 40px; height: 40px;">
+                                    </picture>
                                     <div>
                                         <h5 class="mb-1">Clear, Actionable Guidance</h5>
                                         <p class="mb-0 text-muted">Simple instructions for fixing security issues, no technical expertise required</p>
@@ -597,10 +413,10 @@
                         </div>
                         
                         <div class="alert alert-success">
-                            <h6 class="alert-heading">🎯 Our Approach</h6>
+                            <h6 class="alert-heading">🎯 Our Prevention Approach</h6>
                             <p class="mb-0">
-                                <strong>Prevention is better than cure.</strong> By fixing vulnerabilities quickly, 
-                                you eliminate the attack vectors that cybercriminals rely on. MagenSec makes this process 
+                                <strong>Prevention through early detection and patching.</strong> By identifying vulnerabilities quickly and providing clear remediation guidance, 
+                                you eliminate the attack vectors that cybercriminals rely on before they can be exploited. MagenSec makes this process 
                                 simple and automated.
                             </p>
                         </div>
