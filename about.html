@@ -30,6 +30,9 @@
     <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
     <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css" rel="stylesheet"/>
     
+    <!-- Plyr.io Video Player CSS -->
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    
     <!-- MagenSec Custom Styles -->
     <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
     
@@ -443,6 +446,81 @@
                             The window of opportunity for cybercriminals grows larger every day a vulnerability remains unpatched.
                         </p>
                         
+                        <!-- Video Section -->
+                        <div class="row justify-content-center mb-5">
+                            <div class="col-lg-10">
+                                <div class="video-container">
+                                    <div class="card">
+                                        <div class="card-header bg-primary text-white">
+                                            <h5 class="card-title mb-0 text-white">
+                                                🎬 The Cyber Attack Timeline
+                                            </h5>
+                                            <p class="text-white-75 mb-0 small">: See how quickly vulnerabilities turn into active threats</p>
+                                        </div>
+                                        <div class="card-body p-0">
+                                            <!-- MagenSec Attack Timeline Video -->
+                                            <div class="video-wrapper" id="about-video-wrapper">
+                                                <!-- Collapsed State (Click to Expand) -->
+                                                <div class="video-collapsed d-none" id="about-video-collapsed">
+                                                    <div class="video-preview" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; color: white; cursor: pointer;" onclick="expandVideo('about')">
+                                                        <div class="text-center">
+                                                            <div class="play-button-large mb-3">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="64" height="64" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                    <path d="M7 4v16l13 -8z"/>
+                                                                </svg>
+                                                            </div>
+                                                            <h4 class="mb-2">Watch: The Cyber Attack Timeline</h4>
+                                                            <p class="mb-0">See how quickly vulnerabilities turn into active threats</p>
+                                                            <div class="mt-3">
+                                                                <span class="badge bg-white text-primary me-2">60 Seconds</span>
+                                                                <span class="badge bg-white text-primary me-2">Visual Timeline</span>
+                                                                <span class="badge bg-white text-primary">Real Statistics</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Expanded State (Video Playing - Default) -->
+                                                <div class="video-expanded" id="about-video-expanded">
+                                                    <div class="video-controls-header">
+                                                        <div class="d-flex justify-content-between align-items-center p-2 bg-dark text-white">
+                                                            <span class="small">Cyber Attack Timeline - Why Every Minute Counts</span>
+                                                            <button class="btn btn-sm btn-outline-light" onclick="collapseVideo('about')" title="Collapse Video">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                    <path d="M18 6l-12 12"/><path d="M6 6l12 12"/>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="plyr__video-embed" id="about-video-player">
+                                                        <iframe src="https://www.youtube.com/embed/8z1vNSBEelQ?origin=https://magensec.gigabits.co.in&amp;iv_load_policy=3&amp;modestbranding=1&amp;playsinline=1&amp;showinfo=0&amp;rel=0&amp;enablejsapi=1&amp;disablekb=1&amp;fs=1&amp;hl=en" allowfullscreen allowtransparency title="Cyber Attack Timeline - Why Every Minute Counts" sandbox="allow-scripts allow-same-origin allow-presentation" loading="lazy"></iframe>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card-footer bg-light">
+                                            <div class="row text-center">
+                                                <div class="col-4">
+                                                    <strong class="text-danger">24 Hours</strong>
+                                                    <br><small class="text-muted">Exploit Development</small>
+                                                </div>
+                                                <div class="col-4">
+                                                    <strong class="text-warning">72 Hours</strong>
+                                                    <br><small class="text-muted">Active Attacks</small>
+                                                </div>
+                                                <div class="col-4">
+                                                    <strong class="text-success">5 Minutes</strong>
+                                                    <br><small class="text-muted">MagenSec Detection</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="row g-4 mt-4">
                             <div class="col-md-4">
                                 <div class="stats-card">
@@ -538,6 +616,216 @@
 
     <!-- Tabler Core -->
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
+    
+    <!-- Plyr.io Video Player JS -->
+    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+    
+    <!-- Initialize Plyr Video Players -->
+    <script>
+        // Global error handler to suppress extension-related errors
+        window.addEventListener('error', function(event) {
+            const errorMessage = event.message || '';
+            const errorSource = event.filename || '';
+            
+            // Suppress known extension errors that don't affect functionality
+            const suppressedErrors = [
+                'videoElement_redirect.ts',
+                'mediaSource_redirect.ts',
+                'sourceBuffer_redirect.ts',
+                'remoteObjectManager.ts',
+                'nativeMessagingPageProxy.ts',
+                'reading \'proxy\'',
+                'MMR readInjectionParameters'
+            ];
+            
+            const shouldSuppress = suppressedErrors.some(pattern => 
+                errorMessage.includes(pattern) || errorSource.includes(pattern)
+            );
+            
+            if (shouldSuppress) {
+                event.preventDefault();
+                return false;
+            }
+        });
+        
+        // Suppress unhandled promise rejections from extensions
+        window.addEventListener('unhandledrejection', function(event) {
+            const reason = event.reason || '';
+            if (typeof reason === 'string' && reason.includes('proxy')) {
+                event.preventDefault();
+            }
+        });
+        
+        let videoTimers = {};
+        let players = {};
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize video players that start expanded
+            initializeExpandedVideos();
+            
+            // Set up intersection observer for video pause/play when scrolling
+            setupVideoScrollObserver();
+            
+            // Video collapse/expand functionality
+            window.expandVideo = function(videoId) {
+                const collapsed = document.getElementById(`${videoId}-video-collapsed`);
+                const expanded = document.getElementById(`${videoId}-video-expanded`);
+                
+                collapsed.classList.add('d-none');
+                expanded.classList.remove('d-none');
+                
+                // Initialize Plyr for this video when expanded
+                initializeVideoPlayer(videoId);
+                
+                // Auto-play when expanded (with error handling)
+                setTimeout(() => {
+                    if (players[videoId]) {
+                        try {
+                            players[videoId].play().catch(error => {
+                                console.log('Auto-play prevented by browser policy - user interaction required');
+                            });
+                        } catch (error) {
+                            console.log('Auto-play error handled');
+                        }
+                    }
+                }, 500);
+            };
+            
+            window.collapseVideo = function(videoId) {
+                const collapsed = document.getElementById(`${videoId}-video-collapsed`);
+                const expanded = document.getElementById(`${videoId}-video-expanded`);
+                
+                // Pause video before collapsing
+                if (players[videoId]) {
+                    try {
+                        players[videoId].pause();
+                        // Reset to beginning for next play
+                        setTimeout(() => {
+                            if (players[videoId]) {
+                                players[videoId].currentTime = 0;
+                            }
+                        }, 100);
+                    } catch (error) {
+                        console.log('Video pause error handled');
+                    }
+                }
+                
+                expanded.classList.add('d-none');
+                collapsed.classList.remove('d-none');
+            };
+            
+            // Initialize videos that start expanded
+            function initializeExpandedVideos() {
+                // Find all video sections that are expanded by default
+                const expandedVideos = document.querySelectorAll('.video-expanded:not(.d-none)');
+                expandedVideos.forEach(expanded => {
+                    const videoId = expanded.id.replace('-video-expanded', '');
+                    initializeVideoPlayer(videoId);
+                });
+            }
+            
+            // Initialize individual video player
+            function initializeVideoPlayer(videoId) {
+                const playerElement = document.getElementById(`${videoId}-video-player`);
+                
+                if (playerElement && !players[videoId]) {
+                    try {
+                        players[videoId] = new Plyr(playerElement, {
+                            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
+                            youtube: {
+                                noCookie: false,
+                                rel: 0,
+                                showinfo: 0,
+                                iv_load_policy: 3,
+                                modestbranding: 1
+                            },
+                            // Add defensive options to reduce extension conflicts
+                            hideControls: false,
+                            resetOnEnd: false,
+                            disableContextMenu: false
+                        });
+                        
+                        // Set up timer to collapse video before it ends with error protection
+                        players[videoId].on('timeupdate', () => {
+                            try {
+                                const duration = players[videoId].duration;
+                                const currentTime = players[videoId].currentTime;
+                                
+                                // Collapse 1 second before video ends
+                                if (duration && currentTime && (duration - currentTime) <= 1) {
+                                    collapseVideo(videoId);
+                                }
+                            } catch (error) {
+                                // Silently handle timeupdate errors
+                            }
+                        });
+                        
+                        // Handle player errors gracefully
+                        players[videoId].on('error', (error) => {
+                            console.log('Video player error handled:', error);
+                        });
+                        
+                        // Additional event handlers to prevent extension conflicts
+                        players[videoId].on('ready', () => {
+                            try {
+                                // Ensure the player is properly initialized
+                                const iframe = playerElement.querySelector('iframe');
+                                if (iframe) {
+                                    // Add additional attributes to prevent extension interference
+                                    iframe.setAttribute('data-plyr-provider', 'youtube');
+                                    iframe.setAttribute('data-plyr-embed-id', videoId);
+                                }
+                            } catch (error) {
+                                // Silently handle initialization errors
+                            }
+                        });
+                        
+                    } catch (error) {
+                        console.log('Player initialization error handled:', error);
+                    }
+                }
+            }
+            
+            // Set up intersection observer to pause videos when scrolled out of view
+            function setupVideoScrollObserver() {
+                const observerOptions = {
+                    root: null,
+                    rootMargin: '-50px 0px -50px 0px', // Pause when 50px out of view
+                    threshold: 0.5 // At least 50% visible
+                };
+                
+                const videoObserver = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        const videoWrapper = entry.target;
+                        const videoId = videoWrapper.id.replace('-video-wrapper', '');
+                        
+                        if (players[videoId]) {
+                            try {
+                                if (entry.isIntersecting) {
+                                    // Video is in view - allow it to play if user interacts
+                                    console.log(`Video ${videoId} is in view`);
+                                } else {
+                                    // Video is out of view - pause it
+                                    if (!players[videoId].paused) {
+                                        players[videoId].pause();
+                                        console.log(`Video ${videoId} paused (out of view)`);
+                                    }
+                                }
+                            } catch (error) {
+                                console.log('Video scroll observer error handled');
+                            }
+                        }
+                    });
+                }, observerOptions);
+                
+                // Observe all video wrappers
+                const videoWrappers = document.querySelectorAll('.video-wrapper');
+                videoWrappers.forEach(wrapper => {
+                    videoObserver.observe(wrapper);
+                });
+            }
+        });
+    </script>
     
     <!-- Custom Scripts -->
     <script>
