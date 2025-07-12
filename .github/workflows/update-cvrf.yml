@@ -1,0 +1,60 @@
+name: CVRF Security Updates
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      max_updates:
+        description: 'Maximum number of updates to process'
+        required: false
+        default: '1000'
+        type: string
+      force_refresh:
+        description: 'Force full refresh (ignore cache)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  update-cvrf-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run CVRF parser
+        shell: bash
+        run: |
+          MAX_UPDATES=${{ github.event.inputs.max_updates }}
+          FORCE_REFRESH_FLAG=""
+          if [ "${{ github.event.inputs.force_refresh }}" = "true" ]; then
+            FORCE_REFRESH_FLAG="-ForceRefresh"
+          fi
+          pwsh -NoProfile -NonInteractive diag/cvrf-parser.ps1 \
+            -OutputFile "diag/cvrf_products.json" \
+            -CacheFile "diag/cvrf_cache.json" \
+            -MaxUpdates $MAX_UPDATES $FORCE_REFRESH_FLAG
+
+      - name: Check for changes
+        id: check
+        shell: bash
+        run: |
+          git diff --quiet diag/cvrf_products.json diag/cvrf_cache.json || \
+            echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push updates
+        if: ${{ steps.check.outputs.changed == 'true' }}
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add diag/cvrf_products.json diag/cvrf_cache.json
+          git commit -m "Update CVRF data (${{ github.event_name }}) #${{ github.run_number }}"
+          git push
+
+      - name: Notify on failure
+        if: ${{ failure() }}
+        run: echo "❌ CVRF update workflow failed!"
