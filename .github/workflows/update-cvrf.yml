@@ -43,11 +43,13 @@ jobs:
         id: check
         shell: bash
         run: |
+          CHANGED=false
           if [ ! -f diag/cvrf_products.json ] || [ ! -f diag/cvrf_cache.json ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
+            CHANGED=false
           elif ! git diff --quiet diag/cvrf_products.json diag/cvrf_cache.json; then
-            echo "changed=true" >> $GITHUB_OUTPUT
+            CHANGED=false
           fi
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
 
       - name: Commit and push updates
         if: ${{ steps.check.outputs.changed == 'true' }}
