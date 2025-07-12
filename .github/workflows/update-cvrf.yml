@@ -39,24 +39,24 @@ jobs:
             -CacheFile "diag/cvrf_cache.json" \
             -MaxUpdates $MAX_UPDATES $FORCE_REFRESH_FLAG
 
-      - name: Check for changes
-        id: check
+      - name: Check for changes and prepare commit
+        id: git_status
         shell: bash
         run: |
-          CHANGED=false
-          if [ ! -f diag/cvrf_products.json ] || [ ! -f diag/cvrf_cache.json ]; then
-            CHANGED=true
-          elif ! git diff --quiet diag/cvrf_products.json diag/cvrf_cache.json; then
-            CHANGED=true
+          git add diag/cvrf_products.json diag/cvrf_cache.json
+          if git diff --staged --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected. Skipping commit."
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected. Preparing to commit."
           fi
-          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
 
       - name: Commit and push updates
-        if: ${{ steps.check.outputs.changed == 'true' }}
+        if: ${{ steps.git_status.outputs.has_changes == 'true' }}
         run: |
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          git add diag/cvrf_products.json diag/cvrf_cache.json
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Update CVRF data (${{ github.event_name }}) #${{ github.run_number }}"
           git push
 
