@@ -45,9 +45,9 @@ jobs:
         run: |
           CHANGED=false
           if [ ! -f diag/cvrf_products.json ] || [ ! -f diag/cvrf_cache.json ]; then
-            CHANGED=false
+            CHANGED=true
           elif ! git diff --quiet diag/cvrf_products.json diag/cvrf_cache.json; then
-            CHANGED=false
+            CHANGED=true
           fi
           echo "changed=$CHANGED" >> $GITHUB_OUTPUT
 
