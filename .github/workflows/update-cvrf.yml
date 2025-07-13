@@ -30,6 +30,9 @@ jobs:
         shell: bash
         run: |
           MAX_UPDATES=${{ github.event.inputs.max_updates }}
+          if [ -z "$MAX_UPDATES" ]; then
+            MAX_UPDATES=1000
+          fi
           FORCE_REFRESH_FLAG=""
           if [ "${{ github.event.inputs.force_refresh }}" = "true" ]; then
             FORCE_REFRESH_FLAG="-ForceRefresh"
