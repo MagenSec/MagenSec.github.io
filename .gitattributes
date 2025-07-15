@@ -1,0 +1,15 @@
+# Force LF line endings for JSON files to prevent CRLF issues
+*.json text eol=lf
+
+# Force LF for other text files that should be consistent
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

@@ -277,6 +277,15 @@ try {
                 $existingProductIds = $allProducts | ForEach-Object { $_.ProductId }
                 
                 foreach ($product in $products) {
+                    # Skip CBL Mariner and Azure Linux .rpm packages
+                    if ($product.Name -and ($product.Name -match "\.rpm on CBL Mariner" -or $product.Name -match "\.rpm on Azure Linux")) {
+                        if ($Debug) {
+                            $rpmType = if ($product.Name -match "CBL Mariner") { "CBL Mariner" } else { "Azure Linux" }
+                            Write-Host "  Skipping $rpmType RPM: $($product.Name)"
+                        }
+                        continue
+                    }
+                    
                     if ($product.ProductId -notin $existingProductIds) {
                         $newProducts += $product
                     }
@@ -313,7 +322,10 @@ try {
     
     # Save results
     Write-Host "Saving $($allProducts.Count) products to $OutputFile"
-    $allProducts | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputFile -Encoding UTF8
+    $jsonOutput = $allProducts | ConvertTo-Json -Depth 10
+    # Force LF line endings to prevent CRLF issues in Git
+    $jsonOutput -replace "`r`n", "`n" | Set-Content -Path $OutputFile -Encoding UTF8 -NoNewline
+    Add-Content -Path $OutputFile -Value "`n" -Encoding UTF8 -NoNewline
     
     # Only update products timestamp if we actually processed new updates
     if ($hasNewData) {
@@ -321,7 +333,10 @@ try {
     }
     
     # Save cache
-    $cache | ConvertTo-Json -Depth 10 | Set-Content -Path $CacheFile -Encoding UTF8
+    $cacheOutput = $cache | ConvertTo-Json -Depth 10
+    # Force LF line endings to prevent CRLF issues in Git
+    $cacheOutput -replace "`r`n", "`n" | Set-Content -Path $CacheFile -Encoding UTF8 -NoNewline
+    Add-Content -Path $CacheFile -Value "`n" -Encoding UTF8 -NoNewline
     
     # Summary
     Write-Host ""
