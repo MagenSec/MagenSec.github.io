@@ -18,13 +18,26 @@ if ($outputDir -and !(Test-Path $outputDir)) {
 $cache = @{}
 if ((Test-Path $CacheFile) -and !$ForceRefresh) {
     try {
-        $cacheJson = Get-Content $CacheFile | ConvertFrom-Json
+        $cacheContent = Get-Content $CacheFile -Raw
+        $cacheJson = $cacheContent | ConvertFrom-Json
         # Convert PSCustomObject to hashtable for PowerShell compatibility
         $cache = @{}
         foreach ($property in $cacheJson.PSObject.Properties) {
-            $cache[$property.Name] = $property.Value
+            $key = $property.Name
+            $value = $property.Value
+            # Ensure the value is stored as string to prevent type conversion issues
+            $cache[$key] = if ($value -eq $null) { "" } else { $value.ToString() }
         }
         Write-Host "Loaded cache with $($cache.Count) entries"
+        if ($Debug) {
+            Write-Host "Cache sample entries:"
+            $sampleKeys = $cache.Keys | Select-Object -First 3
+            foreach ($key in $sampleKeys) {
+                Write-Host "  $key = '$($cache[$key])'"
+            }
+            Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
+            Write-Host "OS: $($PSVersionTable.OS)"
+        }
     }
     catch {
         Write-Warning "Failed to load cache: $($_.Exception.Message)"
@@ -259,26 +272,65 @@ try {
         $processed++
         Write-Host "[$processed/$($sortedUpdates.Count)] Processing: $($update.DocumentTitle)"
         
-        # Check cache
+        # Check cache with case-insensitive fallback for PowerShell Core compatibility
         $cacheKey = $update.ID
         $needsUpdate = $ForceRefresh
         
-        if (!$needsUpdate -and $cache.ContainsKey($cacheKey)) {
-            $cached = $cache[$cacheKey]
-            # Handle both old and new cache formats
-            $cachedReleaseDate = if ($cached -is [string]) { $cached } else { $cached.CurrentReleaseDate }
-            if ($cachedReleaseDate -eq $update.CurrentReleaseDate) {
-                Write-Host "  Cached (no changes) - Release: $cachedReleaseDate"
-                $skipped++
-                continue
+        if (!$needsUpdate) {
+            $cached = $null
+            if ($cache.ContainsKey($cacheKey)) {
+                $cached = $cache[$cacheKey]
+            }
+            elseif ($cache.Count -gt 0) {
+                # Fallback: case-insensitive lookup for PowerShell Core compatibility
+                $matchingKey = $cache.Keys | Where-Object { $_ -ieq $cacheKey } | Select-Object -First 1
+                if ($matchingKey) {
+                    $cached = $cache[$matchingKey]
+                    if ($Debug) { Write-Host "  DEBUG - Used case-insensitive fallback: '$matchingKey'" }
+                }
+            }
+            
+            if ($cached -ne $null) {
+                # Handle both old and new cache formats
+                $cachedReleaseDate = if ($cached -is [string]) { $cached } else { $cached.CurrentReleaseDate }
+                if ($Debug) {
+                    Write-Host "  DEBUG - CacheKey: '$cacheKey'"
+                    Write-Host "  DEBUG - Cached raw: '$cached'"
+                    Write-Host "  DEBUG - Cached processed: '$cachedReleaseDate'"
+                    Write-Host "  DEBUG - Current: '$($update.CurrentReleaseDate)'"
+                    Write-Host "  DEBUG - Types: Cached=$($cachedReleaseDate.GetType().Name), Current=$($update.CurrentReleaseDate.GetType().Name)"
+                }
+                # Skip comparison if cached value is empty/null (treat as cache miss)
+                if ([string]::IsNullOrWhiteSpace($cachedReleaseDate)) {
+                    if ($Debug) { Write-Host "  DEBUG - Empty cache value, treating as cache miss" }
+                    $needsUpdate = $true
+                }
+                else {
+                    # Normalize both dates to ISO format for reliable comparison
+                    try {
+                        $cachedDate = [DateTime]::Parse($cachedReleaseDate)
+                        $currentDate = [DateTime]::Parse($update.CurrentReleaseDate)
+                        $cachedIso = $cachedDate.ToString("yyyy-MM-ddTHH:mm:ssZ")
+                        $currentIso = $currentDate.ToString("yyyy-MM-ddTHH:mm:ssZ")
+                        
+                        if ($cachedIso -eq $currentIso) {
+                            Write-Host "  Cached (no changes) - Release: $cachedIso"
+                            $skipped++
+                            continue
+                        }
+                        else {
+                            Write-Host "  Cache outdated - Cached: $cachedIso, Current: $currentIso"
+                        }
+                    }
+                    catch {
+                        Write-Host "  Date parsing error, reprocessing - Cached: '$cachedReleaseDate', Current: '$($update.CurrentReleaseDate)'"
+                    }
+                }
             }
             else {
-                Write-Host "  Cache outdated - Cached: $cachedReleaseDate, Current: $($update.CurrentReleaseDate)"
-            }
-        }
-        else {
-            if (!$ForceRefresh) {
-                Write-Host "  Not in cache - will download"
+                if (!$ForceRefresh) {
+                    Write-Host "  Not in cache - will download"
+                }
             }
         }
         
