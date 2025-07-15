@@ -76,21 +76,23 @@ function Get-ProductsFromXml($xmlContent, $updateId, $updateTitle, $updateDate) 
             
             if ($productId -and $name) {
                 if (!$productMap.ContainsKey($productId) -or ($cpe -and !$productMap[$productId].Cpe)) {
-                    $productMap[$productId] = @{
+                    # Create ordered dictionary to ensure consistent JSON property order
+                    $product = [ordered]@{
                         ProductId = $productId
                         Name = $name
-                        Cpe = if ($cpe) { $cpe } else { $null }
                         UpdateId = $updateId
                         UpdateTitle = $updateTitle
                         UpdateReleaseDate = $updateDate.ToString("yyyy-MM-ddTHH:mm:ssZ")
-                        Url = $null          # Will be populated if available
-                        FixedBuild = $null   # Will be populated if available
+                        Cpe = if ($cpe) { $cpe } else { $null }
                         CvssBaseScore = $null
                         CvssTemporalScore = $null
                         CvssVector = $null
                         ThreatSeverity = $null
                         ThreatImpact = $null
+                        Url = $null          # Will be populated if available
+                        FixedBuild = $null   # Will be populated if available
                     }
+                    $productMap[$productId] = $product
                 }
             }
         }
@@ -238,6 +240,21 @@ try {
     $skipped = 0
     $hasNewData = $false  # Track if we processed any new data
     
+    # Load existing products if output file exists (for when all updates are cached)
+    $existingProducts = @()
+    if ((Test-Path $OutputFile) -and !$ForceRefresh) {
+        try {
+            $existingJson = Get-Content $OutputFile | ConvertFrom-Json
+            if ($existingJson -and $existingJson.Count -gt 0) {
+                $existingProducts = $existingJson
+                Write-Host "Loaded $($existingProducts.Count) existing products from $OutputFile"
+            }
+        }
+        catch {
+            Write-Warning "Failed to load existing products: $($_.Exception.Message)"
+        }
+    }
+    
     foreach ($update in $sortedUpdates) {
         $processed++
         Write-Host "[$processed/$($sortedUpdates.Count)] Processing: $($update.DocumentTitle)"
@@ -251,9 +268,17 @@ try {
             # Handle both old and new cache formats
             $cachedReleaseDate = if ($cached -is [string]) { $cached } else { $cached.CurrentReleaseDate }
             if ($cachedReleaseDate -eq $update.CurrentReleaseDate) {
-                Write-Host "  Cached (no changes)"
+                Write-Host "  Cached (no changes) - Release: $cachedReleaseDate"
                 $skipped++
                 continue
+            }
+            else {
+                Write-Host "  Cache outdated - Cached: $cachedReleaseDate, Current: $($update.CurrentReleaseDate)"
+            }
+        }
+        else {
+            if (!$ForceRefresh) {
+                Write-Host "  Not in cache - will download"
             }
         }
         
@@ -321,11 +346,42 @@ try {
     }
     
     # Save results
-    Write-Host "Saving $($allProducts.Count) products to $OutputFile"
-    $jsonOutput = $allProducts | ConvertTo-Json -Depth 10
-    # Force LF line endings to prevent CRLF issues in Git
-    $jsonOutput -replace "`r`n", "`n" | Set-Content -Path $OutputFile -Encoding UTF8 -NoNewline
-    Add-Content -Path $OutputFile -Value "`n" -Encoding UTF8 -NoNewline
+    Write-Host "Saving products to $OutputFile"
+    
+    # Merge existing and new products, removing duplicates (prefer newer products)
+    $finalProducts = @()
+    if ($allProducts.Count -gt 0) {
+        # We have new products, use them
+        $finalProducts = $allProducts
+        Write-Host "Using $($finalProducts.Count) newly processed products"
+    }
+    elseif ($existingProducts.Count -gt 0) {
+        # No new products but we have existing ones, use existing
+        $finalProducts = $existingProducts
+        Write-Host "Using $($finalProducts.Count) existing products (all updates cached)"
+    }
+    else {
+        Write-Host "No products to save"
+    }
+    
+    if ($finalProducts.Count -gt 0) {
+        # Sort products by ProductId to ensure consistent ordering
+        # Handle both numeric and non-numeric ProductIds
+        $sortedProducts = $finalProducts | Sort-Object { 
+            $id = $_.ProductId
+            # Try to parse as integer, fallback to string comparison
+            if ($id -match '^\d+$') {
+                [int]$id
+            } else {
+                # For non-numeric IDs, use string sorting with high numeric prefix to sort after numeric ones
+                [int]::MaxValue.ToString() + $id
+            }
+        }
+        $jsonOutput = $sortedProducts | ConvertTo-Json -Depth 10
+        # Force LF line endings to prevent CRLF issues in Git
+        $jsonOutput -replace "`r`n", "`n" | Set-Content -Path $OutputFile -Encoding UTF8 -NoNewline
+        Add-Content -Path $OutputFile -Value "`n" -Encoding UTF8 -NoNewline
+    }
     
     # Only update products timestamp if we actually processed new updates
     if ($hasNewData) {
@@ -341,14 +397,14 @@ try {
     # Summary
     Write-Host ""
     Write-Host "Summary:"
-    Write-Host "Total products: $($allProducts.Count)"
+    Write-Host "Total products: $($finalProducts.Count)"
     Write-Host "Updates processed: $processed"
     Write-Host "Updates skipped: $skipped"
-    Write-Host "Products with CPE: $(($allProducts | Where-Object { $_.Cpe }).Count)"
-    Write-Host "Products with CVSS: $(($allProducts | Where-Object { $_.CvssBaseScore }).Count)"
-    Write-Host "Products with FixedBuild: $(($allProducts | Where-Object { $_.FixedBuild }).Count)"
-    Write-Host "Products with URL: $(($allProducts | Where-Object { $_.Url }).Count)"
-    Write-Host "Products with Threat data: $(($allProducts | Where-Object { $_.ThreatSeverity -or $_.ThreatImpact }).Count)"
+    Write-Host "Products with CPE: $(($finalProducts | Where-Object { $_.Cpe }).Count)"
+    Write-Host "Products with CVSS: $(($finalProducts | Where-Object { $_.CvssBaseScore }).Count)"
+    Write-Host "Products with FixedBuild: $(($finalProducts | Where-Object { $_.FixedBuild }).Count)"
+    Write-Host "Products with URL: $(($finalProducts | Where-Object { $_.Url }).Count)"
+    Write-Host "Products with Threat data: $(($finalProducts | Where-Object { $_.ThreatSeverity -or $_.ThreatImpact }).Count)"
     
     exit 0
 }
