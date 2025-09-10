@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MagenSec Command Center - Dashboard</title>
+    <link rel="icon" type="image/png" href="../assets/favicon.png">
+    
+    <!-- Tabler CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons-sprite.svg" rel="stylesheet"/>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        .navbar-brand img {
+            height: 32px;
+            margin-right: 0.5rem;
+        }
+        
+        .stat-card {
+            transition: all 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.1);
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .activity-item {
+            border-left: 3px solid var(--tblr-primary);
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .activity-time {
+            font-size: 0.8rem;
+            color: var(--tblr-muted);
+        }
+        
+        .security-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .status-good { color: var(--tblr-success); }
+        .status-warning { color: var(--tblr-warning); }
+        .status-critical { color: var(--tblr-danger); }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Navbar -->
+        <header class="navbar navbar-expand-md navbar-dark d-print-none">
+            <div class="container-xl">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                    <a href=".">
+                        <img src="../assets/logo.png" alt="MagenSec" class="navbar-brand-image">
+                        MagenSec
+                    </a>
+                </h1>
+                <div class="navbar-nav flex-row order-md-last">
+                    <div class="d-none d-md-flex">
+                        <div class="nav-item dropdown d-none d-md-flex me-3">
+                            <a href="#" class="nav-link px-0" data-bs-toggle="dropdown" tabindex="-1" aria-label="Show notifications">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M10 5a2 2 0 0 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"/>
+                                    <path d="M9 17v1a3 3 0 0 0 6 0v-1"/>
+                                </svg>
+                                <span id="notificationBadge" class="badge bg-red"></span>
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-arrow dropdown-menu-end dropdown-menu-card">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Security Alerts</h3>
+                                    </div>
+                                    <div id="notificationList" class="list-group list-group-flush list-group-hoverable">
+                                        <!-- Notifications will be loaded here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+                            <span id="userAvatar" class="avatar avatar-sm" style="background-image: url()"></span>
+                            <div class="d-none d-xl-block ps-2">
+                                <div id="userName">User</div>
+                                <div id="userRole" class="mt-1 small text-muted">Role</div>
+                            </div>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                            <a href="#" class="dropdown-item">Profile</a>
+                            <a href="#" class="dropdown-item">Settings</a>
+                            <div class="dropdown-divider"></div>
+                            <a href="#" class="dropdown-item" onclick="logout()">Logout</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="collapse navbar-collapse" id="navbar-menu">
+                    <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                        <ul class="navbar-nav">
+                            <li class="nav-item active">
+                                <a class="nav-link" href="#dashboard">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <rect x="4" y="4" width="6" height="8" rx="1"/>
+                                            <rect x="4" y="16" width="6" height="4" rx="1"/>
+                                            <rect x="14" y="4" width="6" height="4" rx="1"/>
+                                            <rect x="14" y="12" width="6" height="8" rx="1"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Dashboard</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#devices">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <rect x="3" y="4" width="18" height="12" rx="1"/>
+                                            <line x1="7" y1="20" x2="17" y2="20"/>
+                                            <line x1="9" y1="16" x2="15" y2="16"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Devices</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#security">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Security</span>
+                                </a>
+                            </li>
+                            <li id="adminNav" class="nav-item" style="display: none;">
+                                <a class="nav-link" href="#admin">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                            <path d="M12 1v6m0 6v6"/>
+                                            <path d="M21 12h-6m-6 0H3"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Administration</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Page wrapper -->
+        <div class="page-wrapper">
+            <!-- Page body -->
+            <div class="page-body">
+                <div class="container-xl">
+                    <!-- Welcome Section -->
+                    <div class="row row-deck row-cards mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col">
+                                            <h2 id="welcomeMessage" class="card-title mb-1">Welcome back!</h2>
+                                            <p id="welcomeDescription" class="text-muted mb-0">Here's your security overview</p>
+                                        </div>
+                                        <div class="col-auto">
+                                            <div id="securityScore" class="d-flex align-items-center">
+                                                <div class="text-end me-3">
+                                                    <div class="text-muted">Security Score</div>
+                                                    <div class="h2 mb-0">--</div>
+                                                </div>
+                                                <div class="progress progress-sm" style="width: 80px;">
+                                                    <div class="progress-bar" style="width: 0%" role="progressbar"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats Cards -->
+                    <div class="row row-deck row-cards mb-4">
+                        <div id="statsContainer" class="col-12">
+                            <!-- Stats cards will be dynamically inserted here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Dashboard Content -->
+                    <div class="row row-deck row-cards">
+                        <!-- Charts Section -->
+                        <div class="col-lg-8">
+                            <div class="row row-cards">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h3 class="card-title">Security Trends</h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="trendsChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h3 class="card-title">Threat Distribution</h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="threatsChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h3 class="card-title">Device Status</h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="devicesChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Activity Feed -->
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Recent Activity</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="activityFeed">
+                                        <!-- Activity items will be loaded here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabler JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
+    
+    <script>
+        class DashboardManager {
+            constructor() {
+                this.apiBase = this.getApiBase();
+                this.user = null;
+                this.organization = null;
+                this.charts = {};
+                this.init();
+            }
+            
+            getApiBase() {
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    return 'http://localhost:5000';
+                }
+                return 'https://ms-central-api.braveisland-ad151ae6.eastus.azurecontainerapps.io';
+            }
+            
+            async init() {
+                // Check authentication
+                if (!await this.checkAuth()) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                // Load user data and dashboard
+                await this.loadUserData();
+                await this.loadDashboard();
+            }
+            
+            async checkAuth() {
+                const token = localStorage.getItem('mscc_session_token');
+                if (!token) return false;
+                
+                // Check for development session
+                if (token.startsWith('dev_')) {
+                    const devSession = localStorage.getItem('mscc_dev_session');
+                    if (devSession) {
+                        this.user = JSON.parse(devSession);
+                        this.organization = this.user.organization;
+                        return true;
+                    }
+                    return false;
+                }
+                
+                // Verify with API
+                try {
+                    const response = await fetch(`${this.apiBase}/api/oauth/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ sessionToken: token })
+                    });
+                    
+                    if (response.ok) {
+                        const session = await response.json();
+                        if (session.isValid) {
+                            this.user = session.user;
+                            this.organization = session.organization;
+                            return true;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Auth check failed:', error);
+                }
+                
+                return false;
+            }
+            
+            async loadUserData() {
+                // Update UI with user info
+                document.getElementById('userName').textContent = this.user.name;
+                document.getElementById('userRole').textContent = this.organization.name;
+                document.getElementById('userAvatar').style.backgroundImage = `url(${this.user.picture})`;
+                
+                // Update welcome message
+                const welcomeMsg = document.getElementById('welcomeMessage');
+                const welcomeDesc = document.getElementById('welcomeDescription');
+                
+                switch(this.organization.type) {
+                    case 'individual':
+                        welcomeMsg.textContent = `Welcome back, ${this.user.name.split(' ')[0]}!`;
+                        welcomeDesc.textContent = 'Your personal security dashboard';
+                        break;
+                    case 'business':
+                        welcomeMsg.textContent = `Good day, ${this.user.name.split(' ')[0]}!`;
+                        welcomeDesc.textContent = `Managing security for ${this.organization.name}`;
+                        break;
+                    case 'site-admin':
+                        welcomeMsg.textContent = `Hello, ${this.user.name.split(' ')[0]}!`;
+                        welcomeDesc.textContent = 'Global security command center';
+                        document.getElementById('adminNav').style.display = 'block';
+                        break;
+                }
+            }
+            
+            async loadDashboard() {
+                await this.loadStats();
+                await this.loadCharts();
+                await this.loadActivity();
+                await this.loadNotifications();
+            }
+            
+            async loadStats() {
+                const statsData = this.getMockStats();
+                const container = document.getElementById('statsContainer');
+                
+                container.innerHTML = '<div class="row">' + 
+                    statsData.map(stat => `
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">${stat.label}</div>
+                                        <div class="ms-auto lh-1">
+                                            <div class="dropdown">
+                                                <a class="dropdown-toggle text-muted" href="#" data-bs-toggle="dropdown">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                        <circle cx="12" cy="12" r="1"/>
+                                                        <circle cx="12" cy="19" r="1"/>
+                                                        <circle cx="12" cy="5" r="1"/>
+                                                    </svg>
+                                                </a>
+                                                <div class="dropdown-menu dropdown-menu-end">
+                                                    <a class="dropdown-item" href="#">View details</a>
+                                                    <a class="dropdown-item" href="#">Export data</a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-3">${stat.value}</div>
+                                    <div class="d-flex mb-2">
+                                        <div class="text-${stat.trend > 0 ? 'green' : 'red'} d-flex align-items-center lh-1">
+                                            ${stat.trend > 0 ? '↗' : '↘'} ${Math.abs(stat.trend)}%
+                                            <div class="ms-1">${stat.trendLabel}</div>
+                                        </div>
+                                    </div>
+                                    <div class="progress progress-sm">
+                                        <div class="progress-bar bg-${stat.color}" style="width: ${stat.progress}%" role="progressbar"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('') + 
+                '</div>';
+                
+                // Update security score
+                const securityScore = document.getElementById('securityScore');
+                const score = statsData.find(s => s.label === 'Security Score')?.value || '85';
+                securityScore.querySelector('.h2').textContent = score;
+                securityScore.querySelector('.progress-bar').style.width = `${score}%`;
+            }
+            
+            getMockStats() {
+                switch(this.organization.type) {
+                    case 'individual':
+                        return [
+                            { label: 'Devices Protected', value: '4', trend: 0, trendLabel: 'stable', progress: 80, color: 'primary' },
+                            { label: 'Security Score', value: '85', trend: 5, trendLabel: 'this week', progress: 85, color: 'success' },
+                            { label: 'Threats Blocked', value: '12', trend: -2, trendLabel: 'this month', progress: 60, color: 'warning' },
+                            { label: 'Updates Pending', value: '2', trend: -1, trendLabel: 'this week', progress: 30, color: 'info' }
+                        ];
+                    case 'business':
+                        return [
+                            { label: 'Total Devices', value: '47', trend: 8, trendLabel: 'this month', progress: 75, color: 'primary' },
+                            { label: 'Security Score', value: '78', trend: 3, trendLabel: 'this week', progress: 78, color: 'success' },
+                            { label: 'Active Threats', value: '3', trend: -5, trendLabel: 'this week', progress: 40, color: 'danger' },
+                            { label: 'Monthly Cost', value: '$234', trend: 2, trendLabel: 'vs last month', progress: 60, color: 'info' }
+                        ];
+                    case 'site-admin':
+                        return [
+                            { label: 'Organizations', value: '1,247', trend: 12, trendLabel: 'this month', progress: 90, color: 'primary' },
+                            { label: 'Global Threats', value: '156', trend: -8, trendLabel: 'this week', progress: 65, color: 'danger' },
+                            { label: 'Platform Health', value: '99.2%', trend: 0.1, trendLabel: 'uptime', progress: 99, color: 'success' },
+                            { label: 'Revenue', value: '$124K', trend: 15, trendLabel: 'this month', progress: 85, color: 'info' }
+                        ];
+                }
+            }
+            
+            async loadCharts() {
+                // Trends Chart
+                const trendsCtx = document.getElementById('trendsChart').getContext('2d');
+                this.charts.trends = new Chart(trendsCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        datasets: [{
+                            label: 'Security Score',
+                            data: [75, 78, 82, 79, 85, 88],
+                            borderColor: '#206bc4',
+                            backgroundColor: 'rgba(32, 107, 196, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100
+                            }
+                        }
+                    }
+                });
+                
+                // Threats Chart
+                const threatsCtx = document.getElementById('threatsChart').getContext('2d');
+                this.charts.threats = new Chart(threatsCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Malware', 'Phishing', 'Ransomware', 'Other'],
+                        datasets: [{
+                            data: [35, 25, 20, 20],
+                            backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#6c757d']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+                
+                // Devices Chart
+                const devicesCtx = document.getElementById('devicesChart').getContext('2d');
+                this.charts.devices = new Chart(devicesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Protected', 'Warning', 'Critical'],
+                        datasets: [{
+                            data: [42, 3, 2],
+                            backgroundColor: ['#198754', '#ffc107', '#dc3545']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+            
+            async loadActivity() {
+                const activities = this.getMockActivity();
+                const container = document.getElementById('activityFeed');
+                
+                container.innerHTML = activities.map(activity => `
+                    <div class="activity-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="security-status">
+                                    <span class="status-${activity.type}">${activity.icon}</span>
+                                    <strong>${activity.title}</strong>
+                                </div>
+                                <div class="text-muted small">${activity.description}</div>
+                                <div class="activity-time">${activity.time}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            getMockActivity() {
+                const commonActivities = [
+                    { icon: '🛡️', title: 'Security scan completed', description: 'All devices scanned successfully', time: '2 minutes ago', type: 'good' },
+                    { icon: '⚠️', title: 'Update available', description: 'Windows security update pending', time: '1 hour ago', type: 'warning' },
+                    { icon: '🔄', title: 'System restart', description: 'DESKTOP-MAIN rebooted', time: '3 hours ago', type: 'good' }
+                ];
+                
+                switch(this.organization.type) {
+                    case 'business':
+                        return [
+                            { icon: '🚨', title: 'Threat detected', description: 'Malware blocked on USER-PC-047', time: '15 minutes ago', type: 'critical' },
+                            ...commonActivities,
+                            { icon: '👤', title: 'New device enrolled', description: 'LAPTOP-NEW-001 joined network', time: '6 hours ago', type: 'good' }
+                        ];
+                    case 'site-admin':
+                        return [
+                            { icon: '🌐', title: 'Global threat update', description: 'New ransomware variant detected', time: '5 minutes ago', type: 'warning' },
+                            { icon: '📊', title: 'Platform statistics', description: 'Daily report generated', time: '30 minutes ago', type: 'good' },
+                            ...commonActivities
+                        ];
+                    default:
+                        return commonActivities;
+                }
+            }
+            
+            async loadNotifications() {
+                const notifications = this.getMockNotifications();
+                const badge = document.getElementById('notificationBadge');
+                const list = document.getElementById('notificationList');
+                
+                badge.textContent = notifications.length;
+                badge.style.display = notifications.length > 0 ? 'inline' : 'none';
+                
+                list.innerHTML = notifications.map(notif => `
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <span class="status-dot status-dot-animated bg-${notif.color}"></span>
+                            </div>
+                            <div class="col text-truncate">
+                                <strong>${notif.title}</strong>
+                                <div class="text-muted">${notif.message}</div>
+                            </div>
+                            <div class="col-auto">
+                                <small class="text-muted">${notif.time}</small>
+                            </div>
+                        </div>
+                    </a>
+                `).join('');
+            }
+            
+            getMockNotifications() {
+                return [
+                    { title: 'Security Alert', message: 'Suspicious activity detected', time: '5m', color: 'red' },
+                    { title: 'Update Available', message: 'Critical security patch ready', time: '1h', color: 'yellow' },
+                    { title: 'Scan Complete', message: 'All systems clean', time: '2h', color: 'green' }
+                ];
+            }
+        }
+        
+        function logout() {
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.href = 'login.html';
+        }
+        
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new DashboardManager();
+        });
+    </script>
+</body>
+</html>

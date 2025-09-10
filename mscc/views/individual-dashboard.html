@@ -1,0 +1,382 @@
+<!-- MagenSec Command Center - Individual User Dashboard -->
+<div id="individual-dashboard" class="dashboard-view" data-view-section="individual">
+    
+    <!-- Welcome Section -->
+    <div class="page-header">
+        <h1 class="page-title">Security Dashboard</h1>
+        <p class="page-subtitle">Keep your devices safe and secure</p>
+        <div class="page-actions">
+            <button id="scan-devices-btn" class="btn btn-primary">
+                <span class="btn-icon">🔍</span>
+                Scan Devices
+            </button>
+            <button id="refresh-btn" class="btn btn-secondary">
+                <span class="btn-icon">🔄</span>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Status Cards -->
+    <div class="grid grid-cols-4 mb-8">
+        <div class="card">
+            <div class="card-content text-center">
+                <div class="metric-value success" id="secure-devices-count">0</div>
+                <div class="metric-label">Secure Devices</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-content text-center">
+                <div class="metric-value warning" id="at-risk-devices-count">0</div>
+                <div class="metric-label">Devices At Risk</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-content text-center">
+                <div class="metric-value info" id="total-devices-count">0</div>
+                <div class="metric-label">Total Devices</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-content text-center">
+                <div class="metric-value" id="security-score">0%</div>
+                <div class="metric-label">Security Score</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Grid -->
+    <div class="dashboard-grid">
+        
+        <!-- Device Health Overview -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Your Devices</h3>
+                <button class="widget-action" onclick="window.dashboardManager.refreshDevices()">
+                    <span>🔄</span>
+                </button>
+            </div>
+            <div class="widget-content">
+                <div id="device-health-list" class="space-y-4">
+                    <!-- Device cards will be populated here -->
+                    <div class="loading-container">
+                        <div class="loading-spinner"></div>
+                        <p>Loading your devices...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Windows Defender Status -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Windows Defender</h3>
+                <button class="widget-action" onclick="window.dashboardManager.refreshDefender()">
+                    <span>🔄</span>
+                </button>
+            </div>
+            <div class="widget-content">
+                <div id="defender-status-display">
+                    <div class="loading-container">
+                        <div class="loading-spinner"></div>
+                        <p>Checking Windows Defender...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Critical Security Alerts -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Security Alerts</h3>
+                <span class="badge badge-danger" id="alert-count">0</span>
+            </div>
+            <div class="widget-content">
+                <div id="security-alerts-list">
+                    <div class="loading-container">
+                        <div class="loading-spinner"></div>
+                        <p>Checking for security issues...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Quick Actions</h3>
+            </div>
+            <div class="widget-content">
+                <div class="space-y-3">
+                    <button class="btn btn-secondary w-full" onclick="window.dashboardManager.runSecurityScan()">
+                        <span class="btn-icon">🔍</span>
+                        Run Security Scan
+                    </button>
+                    <button class="btn btn-secondary w-full" onclick="window.dashboardManager.updateAllDevices()">
+                        <span class="btn-icon">⬆️</span>
+                        Update All Devices
+                    </button>
+                    <button class="btn btn-secondary w-full" onclick="window.dashboardManager.generateReport()">
+                        <span class="btn-icon">📊</span>
+                        Generate Report
+                    </button>
+                    <button class="btn btn-secondary w-full" onclick="window.dashboardManager.showHelp()">
+                        <span class="btn-icon">❓</span>
+                        Get Help
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Tips -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Security Tips</h3>
+            </div>
+            <div class="widget-content">
+                <div id="security-tips">
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-3">
+                            <span class="text-green-500">✅</span>
+                            <div class="text-sm">
+                                <strong>Keep Windows Updated</strong><br>
+                                Enable automatic updates to get the latest security patches.
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-green-500">✅</span>
+                            <div class="text-sm">
+                                <strong>Use Strong Passwords</strong><br>
+                                Create unique passwords for all your accounts.
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-green-500">✅</span>
+                            <div class="text-sm">
+                                <strong>Regular Backups</strong><br>
+                                Back up important files to protect against data loss.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Recent Activity</h3>
+            </div>
+            <div class="widget-content">
+                <div id="recent-activity" class="activity-feed">
+                    <div class="loading-container">
+                        <div class="loading-spinner"></div>
+                        <p>Loading recent activity...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Device Details Modal -->
+    <div id="device-details-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Device Details</h3>
+                <button class="modal-close" onclick="window.dashboardManager.closeDeviceModal()">
+                    <span>×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="device-details-content">
+                    <!-- Device details will be populated here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="window.dashboardManager.closeDeviceModal()">
+                    Close
+                </button>
+                <button class="btn btn-primary" onclick="window.dashboardManager.manageDevice()">
+                    Manage Device
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Scan Modal -->
+    <div id="security-scan-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Security Scan</h3>
+                <button class="modal-close" onclick="window.dashboardManager.closeScanModal()">
+                    <span>×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="security-scan-content">
+                    <div class="text-center">
+                        <div class="loading-spinner"></div>
+                        <p class="mt-4">Scanning your devices for security issues...</p>
+                        <div class="mt-4">
+                            <div class="progress-bar">
+                                <div id="scan-progress" class="progress-bar-fill info" style="width: 0%"></div>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-2">
+                                <span id="scan-status">Initializing scan...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-scan-btn" class="btn btn-secondary" onclick="window.dashboardManager.cancelScan()">
+                    Cancel Scan
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal Base Styles (if not already included) -->
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    position: relative;
+    background-color: var(--bg-primary);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-xl);
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.modal-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: var(--font-size-xl);
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    color: var(--text-secondary);
+    border-radius: var(--border-radius);
+}
+
+.modal-close:hover {
+    background-color: var(--gray-100);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: var(--spacing-lg);
+    flex: 1;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+.space-y-3 > * + * {
+    margin-top: 0.75rem;
+}
+
+.space-y-4 > * + * {
+    margin-top: 1rem;
+}
+
+.w-full {
+    width: 100%;
+}
+
+.text-sm {
+    font-size: var(--font-size-sm);
+}
+
+.text-center {
+    text-align: center;
+}
+
+.flex {
+    display: flex;
+}
+
+.items-start {
+    align-items: flex-start;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.gap-3 {
+    gap: 0.75rem;
+}
+
+.mt-2 {
+    margin-top: 0.5rem;
+}
+
+.mt-4 {
+    margin-top: 1rem;
+}
+
+.mb-8 {
+    margin-bottom: 2rem;
+}
+
+.text-green-500 {
+    color: var(--success-color);
+}
+
+.text-gray-600 {
+    color: var(--text-secondary);
+}
+</style>

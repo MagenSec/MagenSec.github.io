@@ -1,0 +1,436 @@
+<!-- MagenSec Command Center - Business Admin Dashboard -->
+<div id="business-dashboard" class="dashboard-view" data-view-section="business">
+    
+    <!-- Welcome Section -->
+    <div class="page-header">
+        <h1 class="page-title">Business Security Center</h1>
+        <p class="page-subtitle">Manage your organization's security posture and optimize costs</p>
+        <div class="page-actions">
+            <button id="generate-report-btn" class="btn btn-primary">
+                <span class="btn-icon">📊</span>
+                Generate Report
+            </button>
+            <button id="manage-licenses-btn" class="btn btn-secondary">
+                <span class="btn-icon">🔑</span>
+                Manage Licenses
+            </button>
+            <button id="refresh-business-btn" class="btn btn-secondary">
+                <span class="btn-icon">🔄</span>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Executive Summary Cards -->
+    <div class="grid grid-cols-4 mb-8">
+        <div class="card">
+            <div class="card-content text-center">
+                <div class="metric-value info" id="total-employees">0</div>
+                <div class="metric-label">Employees</div>
+                <div class="metric-change positive" id="employee-change">
+                    <span>↗</span> +5% this month
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-content text-center">
+                <div class="metric-value success" id="compliant-devices">0</div>
+                <div class="metric-label">Compliant Devices</div>
+                <div class="metric-change positive" id="compliance-change">
+                    <span>↗</span> +12% this week
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-content text-center">
+                <div class="metric-value warning" id="security-incidents">0</div>
+                <div class="metric-label">Open Incidents</div>
+                <div class="metric-change negative" id="incidents-change">
+                    <span>↘</span> -8% from last week
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-content text-center">
+                <div class="metric-value" id="monthly-cost">$0</div>
+                <div class="metric-label">Monthly Cost</div>
+                <div class="metric-change neutral" id="cost-change">
+                    <span>→</span> Optimized
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Business Dashboard Grid -->
+    <div class="dashboard-grid grid-large">
+        
+        <!-- Security Overview Chart -->
+        <div class="widget chart-widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Security Posture Trends</h3>
+                <div class="flex gap-2">
+                    <select id="security-timeframe" class="form-select" style="width: auto;">
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d" selected>Last 30 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                    </select>
+                    <button class="widget-action" onclick="window.dashboardManager.refreshSecurityTrends()">
+                        <span>🔄</span>
+                    </button>
+                </div>
+            </div>
+            <div class="widget-content">
+                <div class="chart-container">
+                    <canvas id="security-trends-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Management Overview -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Device Inventory</h3>
+                <button class="widget-action" onclick="window.dashboardManager.exportDeviceList()">
+                    <span>📥</span>
+                </button>
+            </div>
+            <div class="widget-content">
+                <div id="device-inventory-summary">
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="text-center">
+                            <div class="metric-value success" id="online-devices">0</div>
+                            <div class="metric-label">Online</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="metric-value warning" id="offline-devices">0</div>
+                            <div class="metric-label">Offline</div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="progress-item">
+                            <div class="progress-label">Windows 11</div>
+                            <div class="progress-value" id="win11-count">0</div>
+                            <div class="progress-bar">
+                                <div id="win11-progress" class="progress-bar-fill info" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <div class="progress-label">Windows 10</div>
+                            <div class="progress-value" id="win10-count">0</div>
+                            <div class="progress-bar">
+                                <div id="win10-progress" class="progress-bar-fill info" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <div class="progress-label">Servers</div>
+                            <div class="progress-value" id="server-count">0</div>
+                            <div class="progress-bar">
+                                <div id="server-progress" class="progress-bar-fill info" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="widget-footer">
+                <a href="#" onclick="window.dashboardManager.showDeviceDetails()" class="text-primary">View all devices →</a>
+            </div>
+        </div>
+
+        <!-- Compliance Dashboard -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Compliance Status</h3>
+                <span class="badge badge-success" id="overall-compliance">85%</span>
+            </div>
+            <div class="widget-content">
+                <div id="compliance-frameworks">
+                    <div class="space-y-3">
+                        <div class="progress-item">
+                            <div class="progress-label">SOC 2 Type II</div>
+                            <div class="progress-value">92%</div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill success" style="width: 92%"></div>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <div class="progress-label">ISO 27001</div>
+                            <div class="progress-value">88%</div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill success" style="width: 88%"></div>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <div class="progress-label">GDPR</div>
+                            <div class="progress-value">95%</div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill success" style="width: 95%"></div>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <div class="progress-label">NIST Framework</div>
+                            <div class="progress-value">78%</div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill warning" style="width: 78%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="widget-footer">
+                <a href="#" onclick="window.dashboardManager.showComplianceDetails()" class="text-primary">View compliance report →</a>
+            </div>
+        </div>
+
+        <!-- Cost Optimization -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Cost Optimization</h3>
+                <span class="badge badge-success">Optimized</span>
+            </div>
+            <div class="widget-content">
+                <div id="cost-breakdown">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm font-medium">License Costs</span>
+                            <span class="text-sm" id="license-cost">$2,450/month</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm font-medium">Cloud Storage</span>
+                            <span class="text-sm" id="storage-cost">$180/month</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm font-medium">Support & Training</span>
+                            <span class="text-sm" id="support-cost">$300/month</span>
+                        </div>
+                        <div class="border-t pt-2">
+                            <div class="flex justify-between items-center font-semibold">
+                                <span>Total Monthly</span>
+                                <span id="total-monthly-cost">$2,930</span>
+                            </div>
+                        </div>
+                        <div class="alert-widget success">
+                            <div class="alert-icon">💰</div>
+                            <div class="alert-message">
+                                <strong>Potential Savings:</strong> $420/month by optimizing unused licenses
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="widget-footer">
+                <a href="#" onclick="window.dashboardManager.showCostOptimization()" class="text-primary">View optimization recommendations →</a>
+            </div>
+        </div>
+
+        <!-- Vulnerability Management -->
+        <div class="widget chart-widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Vulnerability Overview</h3>
+                <button class="widget-action" onclick="window.dashboardManager.refreshVulnerabilities()">
+                    <span>🔄</span>
+                </button>
+            </div>
+            <div class="widget-content">
+                <div class="chart-container">
+                    <canvas id="vulnerability-breakdown-chart"></canvas>
+                </div>
+                <div class="chart-legend">
+                    <div class="chart-legend-item">
+                        <div class="chart-legend-color" style="background-color: #ef4444;"></div>
+                        <span>Critical</span>
+                    </div>
+                    <div class="chart-legend-item">
+                        <div class="chart-legend-color" style="background-color: #f59e0b;"></div>
+                        <span>High</span>
+                    </div>
+                    <div class="chart-legend-item">
+                        <div class="chart-legend-color" style="background-color: #3b82f6;"></div>
+                        <span>Medium</span>
+                    </div>
+                    <div class="chart-legend-item">
+                        <div class="chart-legend-color" style="background-color: #22c55e;"></div>
+                        <span>Low</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Security Events -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Recent Security Events</h3>
+                <button class="widget-action" onclick="window.dashboardManager.refreshSecurityEvents()">
+                    <span>🔄</span>
+                </button>
+            </div>
+            <div class="widget-content">
+                <div id="security-events" class="activity-feed">
+                    <div class="activity-item">
+                        <div class="activity-icon warning">⚠️</div>
+                        <div class="activity-content">
+                            <div class="activity-title">Failed login attempts detected</div>
+                            <div class="activity-description">Multiple failed login attempts from IP 192.168.1.100</div>
+                            <div class="activity-time">2 hours ago</div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-icon success">✅</div>
+                        <div class="activity-content">
+                            <div class="activity-title">Security patch deployed</div>
+                            <div class="activity-description">Windows update KB5028185 installed on 45 devices</div>
+                            <div class="activity-time">4 hours ago</div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-icon info">ℹ️</div>
+                        <div class="activity-content">
+                            <div class="activity-title">New device registered</div>
+                            <div class="activity-description">LAPTOP-DEV-007 joined the organization</div>
+                            <div class="activity-time">6 hours ago</div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-icon danger">🚨</div>
+                        <div class="activity-content">
+                            <div class="activity-title">Malware detection</div>
+                            <div class="activity-description">Potential threat quarantined on DESKTOP-SALES-03</div>
+                            <div class="activity-time">1 day ago</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="widget-footer">
+                <a href="#" onclick="window.dashboardManager.showAllEvents()" class="text-primary">View all events →</a>
+            </div>
+        </div>
+
+        <!-- Team Management -->
+        <div class="widget">
+            <div class="widget-header">
+                <h3 class="widget-title">Team Security Status</h3>
+                <button class="widget-action" onclick="window.dashboardManager.addTeamMember()">
+                    <span>➕</span>
+                </button>
+            </div>
+            <div class="widget-content">
+                <div id="team-security-status">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm">
+                                    JS
+                                </div>
+                                <div>
+                                    <div class="font-medium">John Smith</div>
+                                    <div class="text-sm text-gray-600">john.smith@company.com</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="status-dot green"></span>
+                                <span class="text-sm">3 devices</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm">
+                                    AD
+                                </div>
+                                <div>
+                                    <div class="font-medium">Alice Davis</div>
+                                    <div class="text-sm text-gray-600">alice.davis@company.com</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="status-dot yellow"></span>
+                                <span class="text-sm">2 devices</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm">
+                                    BJ
+                                </div>
+                                <div>
+                                    <div class="font-medium">Bob Johnson</div>
+                                    <div class="text-sm text-gray-600">bob.johnson@company.com</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="status-dot green"></span>
+                                <span class="text-sm">4 devices</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="widget-footer">
+                <a href="#" onclick="window.dashboardManager.manageTeam()" class="text-primary">Manage team →</a>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Additional Styles for Business Dashboard -->
+<style>
+.border-t {
+    border-top: 1px solid var(--border-color);
+}
+
+.pt-2 {
+    padding-top: 0.5rem;
+}
+
+.font-medium {
+    font-weight: 500;
+}
+
+.font-semibold {
+    font-weight: 600;
+}
+
+.justify-between {
+    justify-content: space-between;
+}
+
+.w-8 {
+    width: 2rem;
+}
+
+.h-8 {
+    height: 2rem;
+}
+
+.bg-gray-50 {
+    background-color: var(--gray-50);
+}
+
+.bg-green-500 {
+    background-color: var(--success-color);
+}
+
+.bg-blue-500 {
+    background-color: var(--primary-color);
+}
+
+.bg-purple-500 {
+    background-color: #8b5cf6;
+}
+
+.rounded {
+    border-radius: var(--border-radius);
+}
+
+.rounded-full {
+    border-radius: 50%;
+}
+
+.text-white {
+    color: white;
+}
+
+.p-3 {
+    padding: 0.75rem;
+}
+</style>
