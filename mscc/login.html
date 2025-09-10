@@ -434,6 +434,7 @@
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = callbackUrl;
+                form.enctype = 'application/x-www-form-urlencoded';
                 form.style.display = 'none';
                 
                 // Add form fields
