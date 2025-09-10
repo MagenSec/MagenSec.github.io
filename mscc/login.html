@@ -167,24 +167,19 @@
     <script>
         class AuthManager {
             constructor() {
-                this.apiBase = this.getApiBase();
+                this.apiBase = null; // Will be resolved dynamically
                 this.isDevelopment = this.checkDevelopmentMode();
                 this.init();
             }
             
-            getApiBase() {
-                // Use config from msccConfig if available
-                if (window.msccConfig && window.msccConfig.apiBase) {
-                    return window.msccConfig.apiBase;
+            async getApiBase() {
+                if (this.apiBase) {
+                    return this.apiBase;
                 }
                 
-                // Try to detect API base from current location
-                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                    return 'http://localhost:5000'; // Local development API
-                }
-                
-                // For production, use the correct Container App URL
-                return 'https://magensec.gigabits.co.in';
+                // Use the dynamic API resolver
+                this.apiBase = await window.apiResolver.resolveApiBase();
+                return this.apiBase;
             }
             
             checkDevelopmentMode() {
@@ -195,6 +190,10 @@
             }
             
             async init() {
+                // Resolve API base first
+                await this.getApiBase();
+                console.log('API base resolved to:', this.apiBase);
+                
                 // Show development mode if applicable
                 if (this.isDevelopment) {
                     document.getElementById('devModeSection').style.display = 'block';
@@ -401,8 +400,17 @@
             try {
                 const authManager = new AuthManager();
                 
+                // Ensure API base is resolved
+                const apiBase = await authManager.getApiBase();
+                
+                console.log('OAuth callback started:', { code: code.substring(0, 10) + '...', state });
+                console.log('Resolved API Base:', apiBase);
+                
                 // Use the OAuth endpoint we configured in Cloud API
-                const response = await fetch(`${authManager.apiBase}/oauth/callback`, {
+                const callbackUrl = `${apiBase}/oauth/callback`;
+                console.log('Calling OAuth callback URL:', callbackUrl);
+                
+                const response = await fetch(callbackUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -414,6 +422,8 @@
                     })
                 });
                 
+                console.log('OAuth callback response status:', response.status);
+                
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('OAuth callback error:', errorText);
@@ -421,6 +431,7 @@
                 }
                 
                 const result = await response.json();
+                console.log('OAuth callback success:', { hasUser: !!result.user, hasOrg: !!result.organization });
                 
                 // Store session data
                 localStorage.setItem('mscc_session_token', result.sessionToken || result.access_token);
