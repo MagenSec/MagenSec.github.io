@@ -161,6 +161,9 @@
     <!-- Tabler JS -->
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
     
+    <!-- Configuration -->
+    <script src="assets/js/config.js"></script>
+    
     <script>
         class AuthManager {
             constructor() {
@@ -170,12 +173,18 @@
             }
             
             getApiBase() {
+                // Use config from msccConfig if available
+                if (window.msccConfig && window.msccConfig.apiBase) {
+                    return window.msccConfig.apiBase;
+                }
+                
                 // Try to detect API base from current location
                 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                     return 'http://localhost:5000'; // Local development API
                 }
+                
                 // For production, use the correct Container App URL
-                return 'https://ms-central-api.braveisland-ad151ae6.eastus.azurecontainerapps.io';
+                return 'https://magensec.gigabits.co.in';
             }
             
             checkDevelopmentMode() {
@@ -200,14 +209,25 @@
             
             async setupGoogleAuth() {
                 try {
-                    // Get OAuth config from API
-                    const response = await fetch(`${this.apiBase}/api/oauth/config`);
-                    if (!response.ok) {
-                        throw new Error('Failed to get OAuth config');
+                    // Use OAuth config from config.js
+                    if (window.msccConfig && window.msccConfig.oauth && window.msccConfig.oauth.clientId) {
+                        this.oauthConfig = {
+                            googleClientId: window.msccConfig.oauth.clientId,
+                            redirectUri: window.msccConfig.oauth.redirectUri || window.location.href,
+                            responseType: 'code',
+                            scopes: ['openid', 'email', 'profile'],
+                            accessType: 'offline'
+                        };
+                        console.log('Using OAuth config from msccConfig');
+                    } else {
+                        // Fallback to API endpoint
+                        const response = await fetch(`${this.apiBase}/api/oauth/config`);
+                        if (!response.ok) {
+                            throw new Error('Failed to get OAuth config');
+                        }
+                        this.oauthConfig = await response.json();
+                        console.log('Using OAuth config from API');
                     }
-                    
-                    const config = await response.json();
-                    this.oauthConfig = config;
                     
                     // Set up Google OAuth button
                     document.getElementById('googleLogin').addEventListener('click', () => {
@@ -216,6 +236,11 @@
                     
                 } catch (error) {
                     console.error('OAuth setup failed:', error);
+                    // For GitHub Pages, show error but allow dev mode
+                    if (this.isDevelopment || window.location.hostname.includes('github.io')) {
+                        console.log('OAuth setup failed, but allowing dev mode for static hosting');
+                        return;
+                    }
                     this.showError('Authentication service unavailable. Please try again later.');
                 }
             }
@@ -376,22 +401,29 @@
             try {
                 const authManager = new AuthManager();
                 
-                const response = await fetch(`${authManager.apiBase}/api/oauth/callback`, {
+                // Use the OAuth endpoint we configured in Cloud API
+                const response = await fetch(`${authManager.apiBase}/oauth/callback`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ code, state })
+                    body: JSON.stringify({ 
+                        code: code, 
+                        state: state,
+                        redirectUri: window.msccConfig?.oauth?.redirectUri || window.location.origin + '/mscc/login.html'
+                    })
                 });
                 
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('OAuth callback error:', errorText);
                     throw new Error('Authentication failed');
                 }
                 
                 const result = await response.json();
                 
-                // Store session
-                localStorage.setItem('mscc_session_token', result.sessionToken);
+                // Store session data
+                localStorage.setItem('mscc_session_token', result.sessionToken || result.access_token);
                 localStorage.setItem('mscc_user', JSON.stringify(result.user));
                 localStorage.setItem('mscc_organization', JSON.stringify(result.organization));
                 

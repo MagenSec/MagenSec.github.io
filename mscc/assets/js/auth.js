@@ -58,14 +58,7 @@ class AuthManager {
                 return;
             }
             
-            // For GitHub Pages and production, use Portal API auth
-            if (window.location.hostname.includes('github.io') || 
-                window.location.protocol === 'https:') {
-                this.setupPortalAuth();
-                return;
-            }
-            
-            // Fallback to Google OAuth for other cases
+            // For all production cases (GitHub Pages, HTTPS), use Google OAuth
             await this.initGoogleAuth();
             
             console.log('Auth system initialized successfully');
@@ -81,14 +74,17 @@ class AuthManager {
      */
     async loadConfig() {
         try {
-            // In a real implementation, this would load from a secure config endpoint
-            // For now, we'll use a placeholder
-            this.googleClientId = 'your-google-oauth-client-id.googleusercontent.com';
-            
-            // TODO: Load from secure configuration endpoint
-            // const response = await fetch('/api/config/auth');
-            // const config = await response.json();
-            // this.googleClientId = config.googleClientId;
+            // Load from window.msccConfig (set by config.js)
+            if (window.msccConfig && window.msccConfig.oauth && window.msccConfig.oauth.clientId) {
+                this.googleClientId = window.msccConfig.oauth.clientId;
+                this.redirectUri = window.msccConfig.oauth.redirectUri;
+                console.log('Loaded OAuth config from msccConfig');
+            } else {
+                // Fallback configuration
+                this.googleClientId = '530204671754-ev6q9q91d61cpiepvrfetk72m3og7s0k.apps.googleusercontent.com';
+                this.redirectUri = window.location.origin + '/mscc/login.html';
+                console.log('Using fallback OAuth config');
+            }
         } catch (error) {
             console.error('Failed to load auth config:', error);
             throw new Error('Authentication configuration not available');
