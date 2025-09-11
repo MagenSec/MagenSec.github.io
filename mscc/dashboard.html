@@ -279,8 +279,9 @@
     <!-- Tabler JS -->
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
     
-    <!-- Configuration -->
+    <!-- Configuration and Data Services -->
     <script src="assets/js/config.js"></script>
+    <script src="assets/js/dataService.js"></script>
     
     <script>
         class DashboardManager {
@@ -365,42 +366,139 @@
             }
             
             showDashboardView() {
-                // Dashboard view is the default content - no need to change anything
+                // Show the main dashboard content and hide other views
+                this.hideAllViews();
+                this.showDashboardContent();
                 console.log('Showing dashboard view');
             }
             
-            showDevicesView() {
-                // Show devices content inline instead of redirecting
+            async loadViewFromFile(filename, containerId) {
+                try {
+                    const response = await fetch(filename);
+                    if (!response.ok) {
+                        throw new Error(`Failed to load ${filename}: ${response.status}`);
+                    }
+                    const html = await response.text();
+                    
+                    // Parse the HTML and extract the body content
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const pageWrapper = doc.querySelector('.page-wrapper') || doc.querySelector('.page-body') || doc.body;
+                    
+                    // Create container for the view
+                    const container = document.createElement('div');
+                    container.id = containerId;
+                    container.style.display = 'none';
+                    container.innerHTML = pageWrapper.innerHTML;
+                    
+                    // Add to the main page wrapper
+                    document.querySelector('.page-wrapper').appendChild(container);
+                    
+                    // Load and execute any scripts from the loaded content
+                    const scripts = doc.querySelectorAll('script');
+                    scripts.forEach(script => {
+                        if (script.src) {
+                            // External script
+                            const newScript = document.createElement('script');
+                            newScript.src = script.src;
+                            newScript.async = true;
+                            document.head.appendChild(newScript);
+                        } else if (script.textContent) {
+                            // Inline script
+                            const newScript = document.createElement('script');
+                            newScript.textContent = script.textContent;
+                            document.head.appendChild(newScript);
+                        }
+                    });
+                    
+                    return container;
+                } catch (error) {
+                    console.error('Error loading view:', error);
+                    
+                    // Fallback content
+                    const container = document.createElement('div');
+                    container.id = containerId;
+                    container.style.display = 'none';
+                    container.innerHTML = `
+                        <div class="page-header d-print-none">
+                            <div class="container-xl">
+                                <div class="row g-2 align-items-center">
+                                    <div class="col">
+                                        <h2 class="page-title">Content Loading Error</h2>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="page-body">
+                            <div class="container-xl">
+                                <div class="alert alert-warning">
+                                    <h4>Unable to load content</h4>
+                                    <p>Error loading ${filename}: ${error.message}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.querySelector('.page-wrapper').appendChild(container);
+                    return container;
+                }
+            }
+            
+            showDashboardContent() {
+                const dashboardContent = document.querySelector('.page-body');
+                if (dashboardContent) {
+                    dashboardContent.style.display = 'block';
+                }
+            }
+            
+            hideDashboardContent() {
+                const dashboardContent = document.querySelector('.page-body');
+                if (dashboardContent) {
+                    dashboardContent.style.display = 'none';
+                }
+            }
+            
+            async showDevicesView() {
                 this.hideAllViews();
+                this.hideDashboardContent();
                 let devicesContent = document.getElementById('devicesContent');
                 if (!devicesContent) {
-                    devicesContent = this.createDevicesView();
+                    devicesContent = await this.loadViewFromFile('devices.html', 'devicesContent');
                 }
                 devicesContent.style.display = 'block';
-                this.loadDevicesData();
+                // Initialize devices functionality after content is loaded
+                if (window.DeviceManager) {
+                    window.DeviceManager.init();
+                }
             }
             
-            showSecurityView() {
-                // Show security content inline instead of redirecting
+            async showSecurityView() {
                 this.hideAllViews();
+                this.hideDashboardContent();
                 let securityContent = document.getElementById('securityContent');
                 if (!securityContent) {
-                    securityContent = this.createSecurityView();
+                    securityContent = await this.loadViewFromFile('security.html', 'securityContent');
                 }
                 securityContent.style.display = 'block';
-                this.loadSecurityData();
+                // Initialize security functionality after content is loaded
+                if (window.SecurityMonitor) {
+                    window.SecurityMonitor.init();
+                }
             }
             
-            showAdminView() {
+            async showAdminView() {
                 // For admin users, show admin content inline
                 if (this.organization?.type === 'site-admin' || this.organization?.type === 'global-admin') {
                     this.hideAllViews();
+                    this.hideDashboardContent();
                     let adminContent = document.getElementById('adminContent');
                     if (!adminContent) {
-                        adminContent = this.createAdminView();
+                        adminContent = await this.loadViewFromFile('admin-dashboard.html', 'adminContent');
                     }
                     adminContent.style.display = 'block';
-                    this.loadAdminData();
+                    // Initialize admin functionality after content is loaded
+                    if (window.AdminDashboard) {
+                        window.AdminDashboard.init();
+                    }
                 } else {
                     // Non-admin users shouldn't see this, redirect to dashboard
                     window.location.hash = 'dashboard';
@@ -413,120 +511,6 @@
                     const view = document.getElementById(viewId);
                     if (view) view.style.display = 'none';
                 });
-            }
-            
-            createDevicesView() {
-                const container = document.createElement('div');
-                container.id = 'devicesContent';
-                container.innerHTML = `
-                    <div class="page-header d-print-none">
-                        <div class="container-xl">
-                            <div class="row g-2 align-items-center">
-                                <div class="col">
-                                    <h2 class="page-title">Device Management</h2>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="page-body">
-                        <div class="container-xl">
-                            <div class="row">
-                                <div class="col-12">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <h3>Devices</h3>
-                                            <p>Device management functionality will be loaded here.</p>
-                                            <div id="devicesTable">Loading devices...</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.querySelector('.page-wrapper').appendChild(container);
-                return container;
-            }
-            
-            createSecurityView() {
-                const container = document.createElement('div');
-                container.id = 'securityContent';
-                container.innerHTML = `
-                    <div class="page-header d-print-none">
-                        <div class="container-xl">
-                            <div class="row g-2 align-items-center">
-                                <div class="col">
-                                    <h2 class="page-title">Security Overview</h2>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="page-body">
-                        <div class="container-xl">
-                            <div class="row">
-                                <div class="col-12">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <h3>Security Monitoring</h3>
-                                            <p>Security monitoring and threat detection will be loaded here.</p>
-                                            <div id="securityAlerts">Loading security data...</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.querySelector('.page-wrapper').appendChild(container);
-                return container;
-            }
-            
-            createAdminView() {
-                const container = document.createElement('div');
-                container.id = 'adminContent';
-                container.innerHTML = `
-                    <div class="page-header d-print-none">
-                        <div class="container-xl">
-                            <div class="row g-2 align-items-center">
-                                <div class="col">
-                                    <h2 class="page-title">Administrator Dashboard</h2>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="page-body">
-                        <div class="container-xl">
-                            <div class="row">
-                                <div class="col-12">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <h3>Global Administration</h3>
-                                            <p>Global administration features will be loaded here.</p>
-                                            <div id="adminPanel">Loading admin data...</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.querySelector('.page-wrapper').appendChild(container);
-                return container;
-            }
-            
-            loadDevicesData() {
-                // TODO: Load real device data from Azure Tables
-                document.getElementById('devicesTable').innerHTML = 'Devices data would be loaded from Azure Tables here.';
-            }
-            
-            loadSecurityData() {
-                // TODO: Load real security data from Azure Tables  
-                document.getElementById('securityAlerts').innerHTML = 'Security data would be loaded from Azure Tables here.';
-            }
-            
-            loadAdminData() {
-                // TODO: Load real admin data from Azure Tables
-                document.getElementById('adminPanel').innerHTML = 'Admin data would be loaded from Azure Tables here.';
             }
             
             async checkAuth() {
@@ -606,7 +590,94 @@
             }
             
             async loadStats() {
-                const statsData = this.getMockStats();
+                try {
+                    // Initialize data service if not already done
+                    await window.msccDataService.init();
+                    
+                    // Fetch real data from Azure Tables
+                    const [devices, telemetry, securityEvents] = await Promise.all([
+                        window.msccDataService.fetchOData('DeviceInventory', null, { $top: 100 }),
+                        window.msccDataService.fetchOData('PerfTelemetry', null, { 
+                            $top: 100, 
+                            $orderby: 'Timestamp desc',
+                            $filter: "Timestamp gt datetime'" + new Date(Date.now() - 24*60*60*1000).toISOString() + "'"
+                        }),
+                        window.msccDataService.fetchOData('SecurityEvents', null, { 
+                            $top: 100, 
+                            $orderby: 'Timestamp desc',
+                            $filter: "Timestamp gt datetime'" + new Date(Date.now() - 30*24*60*60*1000).toISOString() + "'"
+                        })
+                    ]);
+                    
+                    // Calculate real statistics
+                    const onlineDevices = devices.filter(d => d.Status === 'Online').length;
+                    const totalDevices = devices.length;
+                    const recentThreats = securityEvents.filter(e => e.Severity === 'High' || e.Severity === 'Critical').length;
+                    const pendingUpdates = devices.filter(d => d.Status === 'Maintenance' || d.UpdatePending).length;
+                    
+                    // Calculate security score based on real data
+                    const threatRatio = totalDevices > 0 ? (recentThreats / totalDevices) : 0;
+                    const onlineRatio = totalDevices > 0 ? (onlineDevices / totalDevices) : 1;
+                    const securityScore = Math.max(20, Math.min(100, Math.round((onlineRatio * 100) - (threatRatio * 20))));
+                    
+                    const statsData = this.generateStatsFromData({
+                        totalDevices,
+                        onlineDevices,
+                        securityScore,
+                        recentThreats,
+                        pendingUpdates
+                    });
+                    
+                    this.renderStats(statsData);
+                    
+                } catch (error) {
+                    console.error('Error loading real stats, falling back to demo data:', error);
+                    // Fallback to mock data
+                    const statsData = this.getMockStats();
+                    this.renderStats(statsData);
+                }
+            }
+            
+            generateStatsFromData(data) {
+                const { totalDevices, onlineDevices, securityScore, recentThreats, pendingUpdates } = data;
+                
+                return [
+                    { 
+                        label: 'Devices Protected', 
+                        value: totalDevices.toString(), 
+                        trend: onlineDevices > totalDevices * 0.8 ? 2 : -1, 
+                        trendLabel: 'online now', 
+                        progress: totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0, 
+                        color: 'primary' 
+                    },
+                    { 
+                        label: 'Security Score', 
+                        value: securityScore.toString(), 
+                        trend: securityScore > 80 ? 5 : securityScore > 60 ? 0 : -3, 
+                        trendLabel: 'current status', 
+                        progress: securityScore, 
+                        color: securityScore > 80 ? 'success' : securityScore > 60 ? 'warning' : 'danger' 
+                    },
+                    { 
+                        label: 'Threats Detected', 
+                        value: recentThreats.toString(), 
+                        trend: recentThreats > 5 ? -5 : recentThreats > 0 ? -2 : 2, 
+                        trendLabel: 'last 30 days', 
+                        progress: Math.min(100, recentThreats * 10), 
+                        color: recentThreats > 5 ? 'danger' : recentThreats > 0 ? 'warning' : 'success' 
+                    },
+                    { 
+                        label: 'Updates Pending', 
+                        value: pendingUpdates.toString(), 
+                        trend: pendingUpdates > 2 ? -3 : 1, 
+                        trendLabel: 'action needed', 
+                        progress: Math.min(100, pendingUpdates * 20), 
+                        color: pendingUpdates > 2 ? 'warning' : 'info' 
+                    }
+                ];
+            }
+            
+            renderStats(statsData) {
                 const container = document.getElementById('statsContainer');
                 
                 container.innerHTML = '<div class="row">' + 
@@ -773,7 +844,137 @@
             }
             
             async loadActivity() {
-                const activities = this.getMockActivity();
+                try {
+                    // Fetch recent telemetry and security events
+                    const [telemetryEvents, securityEvents] = await Promise.all([
+                        window.msccDataService.fetchOData('PerfTelemetry', null, { 
+                            $top: 10, 
+                            $orderby: 'Timestamp desc',
+                            $filter: "Timestamp gt datetime'" + new Date(Date.now() - 24*60*60*1000).toISOString() + "'"
+                        }),
+                        window.msccDataService.fetchOData('SecurityEvents', null, { 
+                            $top: 5, 
+                            $orderby: 'Timestamp desc',
+                            $filter: "Timestamp gt datetime'" + new Date(Date.now() - 24*60*60*1000).toISOString() + "'"
+                        })
+                    ]);
+                    
+                    // Combine and format activities
+                    const activities = this.formatRealActivities(telemetryEvents, securityEvents);
+                    this.renderActivity(activities);
+                    
+                } catch (error) {
+                    console.error('Error loading real activity, falling back to demo data:', error);
+                    const activities = this.getMockActivity();
+                    this.renderActivity(activities);
+                }
+            }
+            
+            formatRealActivities(telemetryEvents, securityEvents) {
+                const activities = [];
+                
+                // Add security events first (highest priority)
+                securityEvents.forEach(event => {
+                    const timeAgo = this.getTimeAgo(event.Timestamp);
+                    let icon, type;
+                    
+                    switch (event.Severity) {
+                        case 'Critical':
+                            icon = '🚨';
+                            type = 'critical';
+                            break;
+                        case 'High':
+                            icon = '⚠️';
+                            type = 'warning';
+                            break;
+                        case 'Medium':
+                            icon = '🔍';
+                            type = 'warning';
+                            break;
+                        default:
+                            icon = 'ℹ️';
+                            type = 'good';
+                    }
+                    
+                    activities.push({
+                        icon,
+                        title: event.ThreatType || 'Security Event',
+                        description: `${event.Description} on ${event.DeviceId}`,
+                        time: timeAgo,
+                        type
+                    });
+                });
+                
+                // Add telemetry events
+                telemetryEvents.slice(0, 8).forEach(event => {
+                    const timeAgo = this.getTimeAgo(event.Timestamp);
+                    let icon, type;
+                    
+                    switch (event.EventType) {
+                        case 'system-start':
+                            icon = '🔄';
+                            type = 'good';
+                            break;
+                        case 'scan-complete':
+                            icon = '🛡️';
+                            type = 'good';
+                            break;
+                        case 'threat-detected':
+                            icon = '⚠️';
+                            type = 'warning';
+                            break;
+                        case 'update-complete':
+                            icon = '✅';
+                            type = 'good';
+                            break;
+                        default:
+                            icon = 'ℹ️';
+                            type = 'good';
+                    }
+                    
+                    activities.push({
+                        icon,
+                        title: this.formatEventTitle(event.EventType),
+                        description: `${event.Message} on ${event.DeviceId}`,
+                        time: timeAgo,
+                        type
+                    });
+                });
+                
+                // Sort by timestamp and return top 10
+                return activities.slice(0, 10);
+            }
+            
+            formatEventTitle(eventType) {
+                switch (eventType) {
+                    case 'system-start':
+                        return 'System started';
+                    case 'scan-complete':
+                        return 'Security scan completed';
+                    case 'threat-detected':
+                        return 'Threat detected';
+                    case 'update-complete':
+                        return 'Update completed';
+                    default:
+                        return 'System event';
+                }
+            }
+            
+            getTimeAgo(timestamp) {
+                const now = new Date();
+                const eventTime = new Date(timestamp);
+                const diffMs = now - eventTime;
+                const diffMins = Math.floor(diffMs / (1000 * 60));
+                const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                
+                if (diffMins < 1) return 'Just now';
+                if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+                if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+                return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+            }
+            
+            renderActivity(activities) {
                 const container = document.getElementById('activityFeed');
                 
                 container.innerHTML = activities.map(activity => `
