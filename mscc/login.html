@@ -430,43 +430,35 @@
                 const callbackUrl = `${apiBase}/api/oauth/callback`;
                 console.log('Calling OAuth callback URL:', callbackUrl);
                 
-                // Create a form to bypass CORS issues
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = callbackUrl;
-                form.enctype = 'application/x-www-form-urlencoded';
-                form.style.display = 'none';
+                // Use fetch with form data instead of form submission
+                const formData = new FormData();
+                formData.append('code', code);
+                formData.append('state', state);
+                formData.append('redirectUri', window.msccConfig?.oauth?.redirectUri || window.location.origin + '/mscc/login.html');
+                formData.append('source', 'mscc');
                 
-                // Add form fields
-                const codeField = document.createElement('input');
-                codeField.type = 'hidden';
-                codeField.name = 'code';
-                codeField.value = code;
-                form.appendChild(codeField);
+                console.log('Sending OAuth callback request...');
                 
-                const stateField = document.createElement('input');
-                stateField.type = 'hidden';
-                stateField.name = 'state';
-                stateField.value = state;
-                form.appendChild(stateField);
+                const response = await fetch(callbackUrl, {
+                    method: 'POST',
+                    body: formData
+                });
                 
-                const redirectUriField = document.createElement('input');
-                redirectUriField.type = 'hidden';
-                redirectUriField.name = 'redirectUri';
-                redirectUriField.value = window.msccConfig?.oauth?.redirectUri || window.location.origin + '/mscc/login.html';
-                form.appendChild(redirectUriField);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 
-                // Add a field to indicate this is from MSCC portal
-                const sourceField = document.createElement('input');
-                sourceField.type = 'hidden';
-                sourceField.name = 'source';
-                sourceField.value = 'mscc';
-                form.appendChild(sourceField);
+                const result = await response.json();
+                console.log('OAuth callback successful:', result);
                 
-                document.body.appendChild(form);
+                // Store session token and user info
+                localStorage.setItem('mscc_session_token', result.sessionToken);
+                localStorage.setItem('mscc_user', JSON.stringify(result.user));
+                localStorage.setItem('mscc_organization', JSON.stringify(result.organization));
+                localStorage.setItem('mscc_session_expires', result.expiresAt);
                 
-                console.log('Submitting form to bypass CORS...');
-                form.submit();
+                // Redirect to dashboard
+                window.location.href = '/mscc/dashboard.html';
                 
             } catch (error) {
                 console.error('OAuth callback failed:', error);
