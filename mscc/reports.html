@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Reports - MagenSec Command Center</title>
+    <link rel="icon" type="image/png" href="../assets/favicon.png">
+    
+    <!-- Tabler CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons-sprite.svg" rel="stylesheet"/>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <style>
+        .report-card {
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .report-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.1);
+        }
+        
+        .compliance-gauge {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto;
+        }
+        
+        .risk-level-critical { background-color: rgba(220, 53, 69, 0.1); border-left: 4px solid #dc3545; }
+        .risk-level-high { background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; }
+        .risk-level-medium { background-color: rgba(255, 152, 0, 0.1); border-left: 4px solid #ff9800; }
+        .risk-level-low { background-color: rgba(40, 167, 69, 0.1); border-left: 4px solid #28a745; }
+        
+        .mitre-matrix {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .mitre-tactic {
+            border: 1px solid var(--tblr-border-color);
+            border-radius: var(--tblr-border-radius);
+            padding: 1rem;
+            background: var(--tblr-bg-surface);
+        }
+        
+        .security-finding {
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: var(--tblr-border-radius);
+        }
+        
+        .export-options {
+            background: var(--tblr-bg-surface);
+            border-radius: var(--tblr-border-radius);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .actionable-item {
+            background: var(--tblr-bg-surface-secondary);
+            border-left: 4px solid var(--tblr-primary);
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0 var(--tblr-border-radius) var(--tblr-border-radius) 0;
+        }
+        
+        .license-status-compliant { color: var(--tblr-success); }
+        .license-status-violation { color: var(--tblr-danger); }
+        .license-status-warning { color: var(--tblr-warning); }
+        
+        .posture-score {
+            font-size: 3rem;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .posture-excellent { color: var(--tblr-success); }
+        .posture-good { color: var(--tblr-success); }
+        .posture-fair { color: var(--tblr-warning); }
+        .posture-poor { color: var(--tblr-danger); }
+        
+        .report-filter-bar {
+            background: var(--tblr-bg-surface);
+            border-radius: var(--tblr-border-radius);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Navigation Header -->
+        <header class="navbar navbar-expand-md navbar-dark d-print-none">
+            <div class="container-xl">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                    <a href="dashboard.html">
+                        <img src="../assets/logo.png" alt="MagenSec" class="navbar-brand-image" style="height: 32px; margin-right: 0.5rem;">
+                        MagenSec
+                    </a>
+                </h1>
+                <div class="navbar-nav flex-row order-md-last">
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+                            <span id="userAvatar" class="avatar avatar-sm"></span>
+                            <div class="d-none d-xl-block ps-2">
+                                <div id="userName">User</div>
+                                <div id="userRole" class="mt-1 small text-muted">Role</div>
+                            </div>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                            <a href="dashboard.html" class="dropdown-item">Dashboard</a>
+                            <a href="#" class="dropdown-item">Settings</a>
+                            <div class="dropdown-divider"></div>
+                            <a href="#" class="dropdown-item" onclick="logout()">Logout</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="collapse navbar-collapse" id="navbar-menu">
+                    <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="nav-link" href="dashboard.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <rect x="4" y="4" width="6" height="8" rx="1"/>
+                                            <rect x="4" y="16" width="6" height="4" rx="1"/>
+                                            <rect x="14" y="4" width="6" height="4" rx="1"/>
+                                            <rect x="14" y="12" width="6" height="8" rx="1"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Dashboard</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="devices.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <rect x="3" y="4" width="18" height="12" rx="1"/>
+                                            <line x1="7" y1="20" x2="17" y2="20"/>
+                                            <line x1="9" y1="16" x2="15" y2="16"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Devices</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="security.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Security</span>
+                                </a>
+                            </li>
+                            <li class="nav-item business-only">
+                                <a class="nav-link" href="analytics.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Analytics</span>
+                                </a>
+                            </li>
+                            <li class="nav-item active">
+                                <a class="nav-link" href="reports.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+                                            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Reports</span>
+                                </a>
+                            </li>
+                            <li id="adminNav" class="nav-item" style="display: none;">
+                                <a class="nav-link" href="admin.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                            <path d="M12 1v6m0 6v6"/>
+                                            <path d="M21 12h-6m-6 0H3"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Administration</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Page Content -->
+        <div class="page-wrapper">
+            <div class="page-header d-print-none">
+                <div class="container-xl">
+                    <div class="row g-2 align-items-center">
+                        <div class="col">
+                            <h2 class="page-title">Security Reports & Compliance</h2>
+                            <div class="text-muted mt-1" id="reportsSummary">Comprehensive security posture and compliance reports</div>
+                        </div>
+                        <div class="col-auto ms-auto d-print-none">
+                            <div class="btn-list">
+                                <button class="btn btn-outline-primary" onclick="scheduleReport()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <circle cx="12" cy="12" r="9"/>
+                                        <polyline points="12,7 12,12 15,15"/>
+                                    </svg>
+                                    Schedule Report
+                                </button>
+                                <div class="dropdown">
+                                    <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+                                            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+                                        </svg>
+                                        Generate Report
+                                    </button>
+                                    <div class="dropdown-menu">
+                                        <a class="dropdown-item" href="#" onclick="generateReport('executive')">Executive Summary</a>
+                                        <a class="dropdown-item" href="#" onclick="generateReport('technical')">Technical Deep Dive</a>
+                                        <a class="dropdown-item" href="#" onclick="generateReport('compliance')">Compliance Report</a>
+                                        <a class="dropdown-item" href="#" onclick="generateReport('vulnerability')">Vulnerability Assessment</a>
+                                        <a class="dropdown-item" href="#" onclick="generateReport('incident')">Incident Response</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="page-body">
+                <div class="container-xl">
+                    <!-- Report Filter Bar -->
+                    <div class="report-filter-bar">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-3 admin-only" style="display: none;">
+                                <label class="form-label">Organization</label>
+                                <select class="form-select" id="orgFilter" onchange="updateReports()">
+                                    <option value="all">All Organizations</option>
+                                    <!-- Organizations will be populated dynamically -->
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Report Type</label>
+                                <select class="form-select" id="reportTypeFilter" onchange="updateReports()">
+                                    <option value="all">All Reports</option>
+                                    <option value="posture">Security Posture</option>
+                                    <option value="compliance">Compliance</option>
+                                    <option value="vulnerabilities">Vulnerabilities</option>
+                                    <option value="threats">Threat Analysis</option>
+                                    <option value="license">License Compliance</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Time Period</label>
+                                <select class="form-select" id="timePeriodFilter" onchange="updateReports()">
+                                    <option value="current">Current State</option>
+                                    <option value="week">Last Week</option>
+                                    <option value="month">Last Month</option>
+                                    <option value="quarter">Last Quarter</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Export Format</label>
+                                <select class="form-select" id="exportFormat">
+                                    <option value="pdf">PDF Report</option>
+                                    <option value="excel">Excel Workbook</option>
+                                    <option value="csv">CSV Data</option>
+                                    <option value="json">JSON Data</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Posture Overview -->
+                    <div class="row mb-4">
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Overall Security Posture</h3>
+                                </div>
+                                <div class="card-body text-center">
+                                    <div id="securityPostureScore" class="posture-score posture-good">82</div>
+                                    <div class="text-muted mb-3">Security Score</div>
+                                    <div class="progress mb-3">
+                                        <div class="progress-bar bg-success" style="width: 82%" role="progressbar"></div>
+                                    </div>
+                                    <div class="small text-muted">Last updated: <span id="postureLastUpdated">2 hours ago</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Compliance Framework Status</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="complianceOverview" class="row">
+                                        <!-- Compliance frameworks will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Key Security Metrics -->
+                    <div class="row mb-4">
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card report-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Critical Vulnerabilities</div>
+                                        <div class="ms-auto">
+                                            <span class="text-danger">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M12 9v2m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-3 text-danger" id="criticalVulns">3</div>
+                                    <div class="text-muted small">Require immediate attention</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card report-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">License Violations</div>
+                                        <div class="ms-auto">
+                                            <span class="text-warning">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M12 9v2m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-3 text-warning" id="licenseViolations">2</div>
+                                    <div class="text-muted small">Potential legal risks</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card report-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">MITRE TTPs Detected</div>
+                                        <div class="ms-auto">
+                                            <span class="text-info">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M12 3a6 6 0 0 0 -6 6c0 6 6 12 6 12s6 -6 6 -12a6 6 0 0 0 -6 -6"/>
+                                                    <circle cx="12" cy="9" r="2"/>
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-3 text-info" id="mitreTTPs">7</div>
+                                    <div class="text-muted small">Attack techniques observed</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card report-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Incidents Resolved</div>
+                                        <div class="ms-auto">
+                                            <span class="text-success">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M9 12l2 2l4 -4"/>
+                                                    <circle cx="12" cy="12" r="9"/>
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-3 text-success" id="incidentsResolved">15</div>
+                                    <div class="text-muted small">This month</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Interactive Reports -->
+                    <div class="row mb-4">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Threat Landscape Analysis</h3>
+                                    <div class="card-actions">
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                                                View Options
+                                            </button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="#" onclick="updateThreatChart('timeline')">Threat Timeline</a>
+                                                <a class="dropdown-item" href="#" onclick="updateThreatChart('mitre')">MITRE ATT&CK Map</a>
+                                                <a class="dropdown-item" href="#" onclick="updateThreatChart('geography')">Geographic Distribution</a>
+                                                <a class="dropdown-item" href="#" onclick="updateThreatChart('severity')">Severity Analysis</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div style="height: 400px;">
+                                        <canvas id="threatAnalysisChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Immediate Actions Required</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="actionableItems">
+                                        <!-- Actionable items will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detailed Report Sections -->
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">License Compliance Analysis</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="licenseComplianceDetails">
+                                        <!-- License compliance details will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Configuration Risks</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="configurationRisks">
+                                        <!-- Configuration risks will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Report Generation Modal -->
+    <div class="modal modal-blur fade" id="reportModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generate Security Report</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label class="form-label">Report Type</label>
+                                <select class="form-select" id="modalReportType">
+                                    <option value="executive">Executive Summary</option>
+                                    <option value="technical">Technical Deep Dive</option>
+                                    <option value="compliance">Compliance Report</option>
+                                    <option value="vulnerability">Vulnerability Assessment</option>
+                                    <option value="incident">Incident Response</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label class="form-label">Time Range</label>
+                                <select class="form-select" id="modalTimeRange">
+                                    <option value="current">Current State</option>
+                                    <option value="week">Last Week</option>
+                                    <option value="month">Last Month</option>
+                                    <option value="quarter">Last Quarter</option>
+                                    <option value="year">Last Year</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label class="form-label">Include Sections</label>
+                                <div class="form-selectgroup">
+                                    <label class="form-selectgroup-item">
+                                        <input type="checkbox" name="sections" value="executive" class="form-selectgroup-input" checked>
+                                        <span class="form-selectgroup-label">Executive Summary</span>
+                                    </label>
+                                    <label class="form-selectgroup-item">
+                                        <input type="checkbox" name="sections" value="vulnerabilities" class="form-selectgroup-input" checked>
+                                        <span class="form-selectgroup-label">Vulnerabilities</span>
+                                    </label>
+                                    <label class="form-selectgroup-item">
+                                        <input type="checkbox" name="sections" value="compliance" class="form-selectgroup-input" checked>
+                                        <span class="form-selectgroup-label">Compliance</span>
+                                    </label>
+                                    <label class="form-selectgroup-item">
+                                        <input type="checkbox" name="sections" value="recommendations" class="form-selectgroup-input" checked>
+                                        <span class="form-selectgroup-label">Recommendations</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label class="form-label">Delivery Method</label>
+                                <div class="form-selectgroup">
+                                    <label class="form-selectgroup-item">
+                                        <input type="radio" name="delivery" value="download" class="form-selectgroup-input" checked>
+                                        <span class="form-selectgroup-label">Download</span>
+                                    </label>
+                                    <label class="form-selectgroup-item">
+                                        <input type="radio" name="delivery" value="email" class="form-selectgroup-input">
+                                        <span class="form-selectgroup-label">Email</span>
+                                    </label>
+                                    <label class="form-selectgroup-item">
+                                        <input type="radio" name="delivery" value="schedule" class="form-selectgroup-input">
+                                        <span class="form-selectgroup-label">Schedule</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Additional Notes</label>
+                        <textarea class="form-control" rows="3" placeholder="Any additional context or specific requirements for this report..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="#" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</a>
+                    <a href="#" class="btn btn-primary ms-auto" onclick="processReportGeneration()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+                            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+                        </svg>
+                        Generate Report
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabler JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
+    
+    <!-- Configuration -->
+    <script src="assets/js/config.js"></script>
+    
+    <script>
+        class SecurityReportsManager {
+            constructor() {
+                this.apiBase = null;
+                this.user = null;
+                this.organization = null;
+                this.currentOrg = 'current';
+                this.charts = {};
+                this.reportData = {};
+                this.init();
+            }
+            
+            async init() {
+                // Resolve API base
+                this.apiBase = await window.apiResolver.resolveApiBase();
+                
+                // Check authentication
+                if (!await this.checkAuth()) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                // Load user data and reports
+                await this.loadUserData();
+                await this.loadReportData();
+                this.initializeCharts();
+                this.loadActionableItems();
+            }
+            
+            async checkAuth() {
+                const token = localStorage.getItem('mscc_session_token');
+                if (!token) return false;
+                
+                // Check for development session
+                if (token.startsWith('dev_')) {
+                    const devSession = localStorage.getItem('mscc_dev_session');
+                    if (devSession) {
+                        this.user = JSON.parse(devSession);
+                        this.organization = this.user.organization;
+                        return true;
+                    }
+                    return false;
+                }
+                
+                return false; // Disabled for now
+            }
+            
+            async loadUserData() {
+                // Update UI with user info
+                document.getElementById('userName').textContent = this.user.name;
+                document.getElementById('userRole').textContent = this.organization.name;
+                document.getElementById('userAvatar').style.backgroundImage = `url(${this.user.picture})`;
+                
+                // Update page content based on role
+                const reportsSummary = document.getElementById('reportsSummary');
+                switch(this.organization.type) {
+                    case 'individual':
+                        reportsSummary.textContent = 'Your personal security reports and compliance status';
+                        break;
+                    case 'business':
+                        reportsSummary.textContent = `Security reports and compliance for ${this.organization.name}`;
+                        break;
+                    case 'site-admin':
+                        reportsSummary.textContent = 'Global security reports and multi-organization compliance';
+                        document.getElementById('adminNav').style.display = 'block';
+                        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                        break;
+                }
+                
+                // Load organizations for admin
+                if (this.organization.type === 'site-admin') {
+                    await this.loadOrganizations();
+                }
+            }
+            
+            async loadOrganizations() {
+                // Mock organizations for admin view
+                const organizations = [
+                    { id: 'all', name: 'All Organizations' },
+                    { id: 'acme-corp', name: 'Acme Corporation' },
+                    { id: 'tech-solutions', name: 'Tech Solutions Inc' },
+                    { id: 'healthcare-plus', name: 'Healthcare Plus' },
+                    { id: 'legal-advisors', name: 'Legal Advisors LLC' }
+                ];
+                
+                const orgFilter = document.getElementById('orgFilter');
+                orgFilter.innerHTML = organizations.map(org => 
+                    `<option value="${org.id}">${org.name}</option>`
+                ).join('');
+            }
+            
+            async loadReportData() {
+                // Generate comprehensive mock security report data
+                this.reportData = this.generateMockReportData();
+                
+                // Update UI elements
+                this.updateSecurityMetrics();
+                this.updateComplianceOverview();
+                this.updateLicenseCompliance();
+                this.updateConfigurationRisks();
+                this.updateLastUpdated();
+            }
+            
+            generateMockReportData() {
+                const isIndividual = this.organization.type === 'individual';
+                const isAdmin = this.organization.type === 'site-admin';
+                const baseMultiplier = isIndividual ? 1 : isAdmin ? 50 : 5;
+                
+                return {
+                    securityPosture: {
+                        overallScore: Math.floor(Math.random() * 30) + 70,
+                        lastUpdated: new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000) // Within 2 hours
+                    },
+                    vulnerabilities: {
+                        critical: Math.floor(Math.random() * 5 * baseMultiplier),
+                        high: Math.floor(Math.random() * 15 * baseMultiplier),
+                        medium: Math.floor(Math.random() * 30 * baseMultiplier),
+                        low: Math.floor(Math.random() * 50 * baseMultiplier)
+                    },
+                    compliance: {
+                        frameworks: [
+                            { name: 'CIS Controls', score: Math.floor(Math.random() * 20) + 75, total: 20 },
+                            { name: 'NIST Cybersecurity Framework', score: Math.floor(Math.random() * 25) + 70, total: 23 },
+                            { name: 'ISO 27001', score: Math.floor(Math.random() * 15) + 80, total: 114 },
+                            { name: 'SOC 2', score: Math.floor(Math.random() * 20) + 75, total: 64 },
+                            { name: 'GDPR', score: Math.floor(Math.random() * 15) + 85, total: 99 }
+                        ]
+                    },
+                    licenseCompliance: this.generateLicenseData(baseMultiplier),
+                    mitreTTPs: this.generateMitreData(baseMultiplier),
+                    incidents: {
+                        resolved: Math.floor(Math.random() * 20 * baseMultiplier) + 5,
+                        open: Math.floor(Math.random() * 5 * baseMultiplier),
+                        avgResolutionTime: Math.floor(Math.random() * 24) + 2 // 2-26 hours
+                    },
+                    configurationRisks: this.generateConfigRisks(baseMultiplier),
+                    actionableItems: this.generateActionableItems(baseMultiplier)
+                };
+            }
+            
+            generateLicenseData(multiplier) {
+                const softwareProducts = [
+                    'Microsoft Office 365', 'Adobe Creative Suite', 'Autodesk AutoCAD',
+                    'Oracle Database', 'VMware vSphere', 'Salesforce CRM',
+                    'Slack Business', 'Zoom Pro', 'Dropbox Business',
+                    'Norton Antivirus', 'Splunk Enterprise', 'Jira Software'
+                ];
+                
+                const licenses = [];
+                const numProducts = Math.min(Math.floor(Math.random() * 8) + 3, softwareProducts.length);
+                
+                for (let i = 0; i < numProducts; i++) {
+                    const product = softwareProducts[i];
+                    const installed = Math.floor(Math.random() * 50 * multiplier) + 1;
+                    const licensed = Math.floor(installed * (0.8 + Math.random() * 0.4)); // 80-120% of installed
+                    const status = installed > licensed ? 'violation' : 
+                                  installed > licensed * 0.9 ? 'warning' : 'compliant';
+                    
+                    licenses.push({
+                        product,
+                        installed,
+                        licensed,
+                        status,
+                        risk: installed > licensed ? 'High' : installed > licensed * 0.9 ? 'Medium' : 'Low'
+                    });
+                }
+                
+                return licenses;
+            }
+            
+            generateMitreData(multiplier) {
+                const tactics = [
+                    'Initial Access', 'Execution', 'Persistence', 'Privilege Escalation',
+                    'Defense Evasion', 'Credential Access', 'Discovery', 'Lateral Movement',
+                    'Collection', 'Command and Control', 'Exfiltration', 'Impact'
+                ];
+                
+                const detectedTactics = [];
+                const numTactics = Math.floor(Math.random() * 8) + 2;
+                
+                for (let i = 0; i < numTactics; i++) {
+                    const tactic = tactics[Math.floor(Math.random() * tactics.length)];
+                    if (!detectedTactics.find(t => t.name === tactic)) {
+                        detectedTactics.push({
+                            name: tactic,
+                            techniques: Math.floor(Math.random() * 5) + 1,
+                            severity: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)]
+                        });
+                    }
+                }
+                
+                return detectedTactics;
+            }
+            
+            generateConfigRisks(multiplier) {
+                const riskTypes = [
+                    {
+                        title: 'RDP Ports Open to Internet',
+                        description: 'Remote Desktop Protocol (RDP) ports 3389 are exposed to the internet, creating high-risk attack vectors.',
+                        severity: 'Critical',
+                        devices: Math.floor(Math.random() * 3 * multiplier) + 1,
+                        recommendation: 'Close RDP ports or implement VPN access with multi-factor authentication.'
+                    },
+                    {
+                        title: 'Outdated SSL/TLS Configurations',
+                        description: 'Web servers are using deprecated SSL/TLS versions that are vulnerable to attacks.',
+                        severity: 'High',
+                        devices: Math.floor(Math.random() * 5 * multiplier) + 2,
+                        recommendation: 'Update to TLS 1.2 or higher and disable legacy protocols.'
+                    },
+                    {
+                        title: 'Default Administrative Accounts',
+                        description: 'Systems are using default administrator accounts with weak or default passwords.',
+                        severity: 'High',
+                        devices: Math.floor(Math.random() * 4 * multiplier) + 1,
+                        recommendation: 'Change default passwords and implement strong password policies.'
+                    },
+                    {
+                        title: 'Unnecessary Services Running',
+                        description: 'Systems have unnecessary services running that increase attack surface.',
+                        severity: 'Medium',
+                        devices: Math.floor(Math.random() * 8 * multiplier) + 3,
+                        recommendation: 'Disable unnecessary services and implement service hardening.'
+                    },
+                    {
+                        title: 'Weak Firewall Configurations',
+                        description: 'Firewall rules are too permissive and allow unnecessary network access.',
+                        severity: 'Medium',
+                        devices: Math.floor(Math.random() * 6 * multiplier) + 2,
+                        recommendation: 'Implement least-privilege firewall rules and network segmentation.'
+                    }
+                ];
+                
+                return riskTypes.slice(0, Math.floor(Math.random() * 4) + 2);
+            }
+            
+            generateActionableItems(multiplier) {
+                return [
+                    {
+                        priority: 'Critical',
+                        title: 'Patch Critical Vulnerabilities',
+                        description: `${this.reportData?.vulnerabilities?.critical || 3} critical vulnerabilities require immediate patching`,
+                        action: 'Deploy security patches within 24 hours',
+                        timeframe: '24 hours'
+                    },
+                    {
+                        priority: 'High',
+                        title: 'Address License Violations',
+                        description: 'Software license violations detected that could result in legal action',
+                        action: 'Purchase additional licenses or remove unauthorized software',
+                        timeframe: '1 week'
+                    },
+                    {
+                        priority: 'High',
+                        title: 'Close Open RDP Ports',
+                        description: 'RDP ports exposed to internet present significant security risk',
+                        action: 'Implement VPN access and close direct RDP exposure',
+                        timeframe: '48 hours'
+                    },
+                    {
+                        priority: 'Medium',
+                        title: 'Update Security Policies',
+                        description: 'Security policies are outdated and need review for compliance',
+                        action: 'Review and update security policies',
+                        timeframe: '2 weeks'
+                    },
+                    {
+                        priority: 'Medium',
+                        title: 'Implement User Training',
+                        description: 'Security awareness training needed to reduce human risk factors',
+                        action: 'Schedule security awareness training for all users',
+                        timeframe: '1 month'
+                    }
+                ];
+            }
+            
+            updateSecurityMetrics() {
+                const data = this.reportData;
+                
+                // Update security posture score
+                const scoreElement = document.getElementById('securityPostureScore');
+                scoreElement.textContent = data.securityPosture.overallScore;
+                scoreElement.className = `posture-score ${this.getPostureClass(data.securityPosture.overallScore)}`;
+                
+                // Update progress bar
+                const progressBar = scoreElement.parentElement.querySelector('.progress-bar');
+                progressBar.style.width = `${data.securityPosture.overallScore}%`;
+                progressBar.className = `progress-bar ${this.getProgressBarClass(data.securityPosture.overallScore)}`;
+                
+                // Update metric cards
+                document.getElementById('criticalVulns').textContent = data.vulnerabilities.critical;
+                document.getElementById('licenseViolations').textContent = 
+                    data.licenseCompliance.filter(l => l.status === 'violation').length;
+                document.getElementById('mitreTTPs').textContent = data.mitreTTPs.length;
+                document.getElementById('incidentsResolved').textContent = data.incidents.resolved;
+            }
+            
+            updateComplianceOverview() {
+                const container = document.getElementById('complianceOverview');
+                const frameworks = this.reportData.compliance.frameworks;
+                
+                container.innerHTML = frameworks.map(framework => {
+                    const percentage = Math.round((framework.score / framework.total) * 100);
+                    const statusClass = percentage >= 90 ? 'success' : percentage >= 75 ? 'warning' : 'danger';
+                    
+                    return `
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="text-center">
+                                <div class="compliance-gauge mx-auto mb-2">
+                                    <div class="progress progress-sm">
+                                        <div class="progress-bar bg-${statusClass}" style="width: ${percentage}%" role="progressbar"></div>
+                                    </div>
+                                </div>
+                                <h4 class="card-title text-${statusClass}">${percentage}%</h4>
+                                <div class="text-muted">${framework.name}</div>
+                                <div class="small text-muted">${framework.score}/${framework.total} controls</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            updateLicenseCompliance() {
+                const container = document.getElementById('licenseComplianceDetails');
+                const licenses = this.reportData.licenseCompliance;
+                
+                container.innerHTML = licenses.map(license => {
+                    const statusClass = license.status === 'violation' ? 'danger' : 
+                                       license.status === 'warning' ? 'warning' : 'success';
+                    const statusText = license.status === 'violation' ? 'VIOLATION' : 
+                                      license.status === 'warning' ? 'WARNING' : 'COMPLIANT';
+                    
+                    return `
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                            <div>
+                                <strong>${license.product}</strong>
+                                <div class="text-muted small">${license.installed} installed / ${license.licensed} licensed</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-${statusClass}">${statusText}</span>
+                                <div class="text-muted small">${license.risk} Risk</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            updateConfigurationRisks() {
+                const container = document.getElementById('configurationRisks');
+                const risks = this.reportData.configurationRisks;
+                
+                container.innerHTML = risks.map(risk => {
+                    const severityClass = risk.severity.toLowerCase() === 'critical' ? 'danger' : 
+                                         risk.severity.toLowerCase() === 'high' ? 'warning' : 'info';
+                    
+                    return `
+                        <div class="security-finding risk-level-${risk.severity.toLowerCase()} mb-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="mb-0">${risk.title}</h5>
+                                <span class="badge bg-${severityClass}">${risk.severity}</span>
+                            </div>
+                            <p class="text-muted mb-2">${risk.description}</p>
+                            <div class="small">
+                                <strong>Affected Devices:</strong> ${risk.devices}<br>
+                                <strong>Recommendation:</strong> ${risk.recommendation}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            loadActionableItems() {
+                const container = document.getElementById('actionableItems');
+                const items = this.reportData.actionableItems;
+                
+                container.innerHTML = items.map(item => {
+                    const priorityClass = item.priority.toLowerCase() === 'critical' ? 'danger' : 
+                                         item.priority.toLowerCase() === 'high' ? 'warning' : 'info';
+                    
+                    return `
+                        <div class="actionable-item mb-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0">${item.title}</h6>
+                                <span class="badge bg-${priorityClass}">${item.priority}</span>
+                            </div>
+                            <p class="text-muted small mb-2">${item.description}</p>
+                            <div class="small">
+                                <strong>Action:</strong> ${item.action}<br>
+                                <strong>Timeframe:</strong> ${item.timeframe}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            updateLastUpdated() {
+                const lastUpdated = this.formatTimeAgo(this.reportData.securityPosture.lastUpdated);
+                document.getElementById('postureLastUpdated').textContent = lastUpdated;
+            }
+            
+            formatTimeAgo(date) {
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / (1000 * 60));
+                const diffHours = Math.floor(diffMins / 60);
+                
+                if (diffMins < 1) return 'Just now';
+                if (diffMins < 60) return `${diffMins} minutes ago`;
+                if (diffHours < 24) return `${diffHours} hours ago`;
+                return date.toLocaleDateString();
+            }
+            
+            getPostureClass(score) {
+                if (score >= 90) return 'posture-excellent';
+                if (score >= 75) return 'posture-good';
+                if (score >= 60) return 'posture-fair';
+                return 'posture-poor';
+            }
+            
+            getProgressBarClass(score) {
+                if (score >= 90) return 'bg-success';
+                if (score >= 75) return 'bg-success';
+                if (score >= 60) return 'bg-warning';
+                return 'bg-danger';
+            }
+            
+            initializeCharts() {
+                // Threat Analysis Chart
+                this.charts.threatAnalysis = new Chart(document.getElementById('threatAnalysisChart'), {
+                    type: 'line',
+                    data: {
+                        labels: this.generateTimeLabels(),
+                        datasets: [{
+                            label: 'Threats Detected',
+                            data: this.generateThreatTimelineData(),
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            tension: 0.4
+                        }, {
+                            label: 'Threats Mitigated',
+                            data: this.generateMitigationTimelineData(),
+                            borderColor: '#28a745',
+                            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+            
+            generateTimeLabels() {
+                const labels = [];
+                for (let i = 29; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                }
+                return labels;
+            }
+            
+            generateThreatTimelineData() {
+                return Array.from({ length: 30 }, () => Math.floor(Math.random() * 20) + 5);
+            }
+            
+            generateMitigationTimelineData() {
+                return Array.from({ length: 30 }, () => Math.floor(Math.random() * 15) + 3);
+            }
+        }
+        
+        // Global functions
+        function updateReports() {
+            const orgId = document.getElementById('orgFilter')?.value || 'current';
+            const reportType = document.getElementById('reportTypeFilter').value;
+            const timePeriod = document.getElementById('timePeriodFilter').value;
+            
+            window.reportsManager.currentOrg = orgId;
+            window.reportsManager.loadReportData();
+        }
+        
+        function generateReport(type) {
+            document.getElementById('modalReportType').value = type;
+            const modal = new bootstrap.Modal(document.getElementById('reportModal'));
+            modal.show();
+        }
+        
+        function processReportGeneration() {
+            const reportType = document.getElementById('modalReportType').value;
+            const timeRange = document.getElementById('modalTimeRange').value;
+            const sections = Array.from(document.querySelectorAll('input[name="sections"]:checked')).map(el => el.value);
+            const delivery = document.querySelector('input[name="delivery"]:checked').value;
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
+            modal.hide();
+            
+            // Show generation progress
+            showReportProgress(reportType, delivery);
+        }
+        
+        function showReportProgress(reportType, delivery) {
+            // Show a toast notification about report generation
+            const toast = document.createElement('div');
+            toast.className = 'toast show';
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <strong class="me-auto">Report Generation</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">
+                    Generating ${reportType} report... This may take a few minutes.
+                </div>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Simulate report generation
+            setTimeout(() => {
+                toast.querySelector('.toast-body').innerHTML = 
+                    `${reportType} report generated successfully! ${delivery === 'download' ? 'Download starting...' : 'Report will be delivered via ' + delivery}`;
+                
+                if (delivery === 'download') {
+                    // Simulate download
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.download = `security-report-${reportType}-${new Date().toISOString().split('T')[0]}.pdf`;
+                    link.click();
+                }
+            }, 3000);
+        }
+        
+        function scheduleReport() {
+            alert('Report scheduling feature would be implemented here');
+        }
+        
+        function updateThreatChart(view) {
+            console.log('Updating threat chart to show:', view);
+            // This would update the chart based on the selected view
+        }
+        
+        function logout() {
+            localStorage.removeItem('mscc_session_token');
+            localStorage.removeItem('mscc_dev_session');
+            window.location.href = 'login.html';
+        }
+        
+        // Initialize
+        window.reportsManager = new SecurityReportsManager();
+    </script>
+</body>
+</html>

@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Analytics - MagenSec Command Center</title>
+    <link rel="icon" type="image/png" href="../assets/favicon.png">
+    
+    <!-- Tabler CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons-sprite.svg" rel="stylesheet"/>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <style>
+        .metric-card {
+            transition: all 0.2s;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.1);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .chart-container.large {
+            height: 400px;
+        }
+        
+        .severity-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .severity-critical { background-color: var(--tblr-danger); }
+        .severity-high { background-color: var(--tblr-warning); }
+        .severity-medium { background-color: var(--tblr-yellow); }
+        .severity-low { background-color: var(--tblr-success); }
+        
+        .security-score {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        
+        .score-excellent { color: var(--tblr-success); }
+        .score-good { color: var(--tblr-success); }
+        .score-fair { color: var(--tblr-warning); }
+        .score-poor { color: var(--tblr-danger); }
+        
+        .trend-up { color: var(--tblr-success); }
+        .trend-down { color: var(--tblr-danger); }
+        .trend-stable { color: var(--tblr-muted); }
+        
+        .alert-item {
+            border-left: 4px solid;
+            margin-bottom: 0.5rem;
+        }
+        
+        .alert-critical { border-left-color: var(--tblr-danger); }
+        .alert-high { border-left-color: var(--tblr-warning); }
+        .alert-medium { border-left-color: var(--tblr-yellow); }
+        .alert-low { border-left-color: var(--tblr-success); }
+        
+        .time-range-selector {
+            background: var(--tblr-bg-surface);
+            border-radius: var(--tblr-border-radius);
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Navigation Header -->
+        <header class="navbar navbar-expand-md navbar-dark d-print-none">
+            <div class="container-xl">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                    <a href="dashboard.html">
+                        <img src="../assets/logo.png" alt="MagenSec" class="navbar-brand-image" style="height: 32px; margin-right: 0.5rem;">
+                        MagenSec
+                    </a>
+                </h1>
+                <div class="navbar-nav flex-row order-md-last">
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+                            <span id="userAvatar" class="avatar avatar-sm"></span>
+                            <div class="d-none d-xl-block ps-2">
+                                <div id="userName">User</div>
+                                <div id="userRole" class="mt-1 small text-muted">Role</div>
+                            </div>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                            <a href="dashboard.html" class="dropdown-item">Dashboard</a>
+                            <a href="#" class="dropdown-item">Settings</a>
+                            <div class="dropdown-divider"></div>
+                            <a href="#" class="dropdown-item" onclick="logout()">Logout</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="collapse navbar-collapse" id="navbar-menu">
+                    <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="nav-link" href="dashboard.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <rect x="4" y="4" width="6" height="8" rx="1"/>
+                                            <rect x="4" y="16" width="6" height="4" rx="1"/>
+                                            <rect x="14" y="4" width="6" height="4" rx="1"/>
+                                            <rect x="14" y="12" width="6" height="8" rx="1"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Dashboard</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="devices.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <rect x="3" y="4" width="18" height="12" rx="1"/>
+                                            <line x1="7" y1="20" x2="17" y2="20"/>
+                                            <line x1="9" y1="16" x2="15" y2="16"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Devices</span>
+                                </a>
+                            </li>
+                            <li class="nav-item active">
+                                <a class="nav-link" href="security.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Security</span>
+                                </a>
+                            </li>
+                            <li id="adminNav" class="nav-item" style="display: none;">
+                                <a class="nav-link" href="admin.html">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                            <path d="M12 1v6m0 6v6"/>
+                                            <path d="M21 12h-6m-6 0H3"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Administration</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Page Content -->
+        <div class="page-wrapper">
+            <div class="page-header d-print-none">
+                <div class="container-xl">
+                    <div class="row g-2 align-items-center">
+                        <div class="col">
+                            <h2 class="page-title">Security Analytics</h2>
+                            <div class="text-muted mt-1" id="securitySummary">Real-time security insights and analytics</div>
+                        </div>
+                        <div class="col-auto ms-auto d-print-none">
+                            <div class="btn-list">
+                                <button class="btn btn-outline-primary" onclick="exportReport()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+                                        <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+                                        <line x1="9" y1="9" x2="10" y2="9"/>
+                                        <line x1="9" y1="13" x2="15" y2="13"/>
+                                        <line x1="9" y1="17" x2="15" y2="17"/>
+                                    </svg>
+                                    Export Report
+                                </button>
+                                <button class="btn btn-primary" onclick="refreshData()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <path d="M19.933 13.041a8 8 0 1 1 -9.925 -8.788c3.899 -1 7.935 1.007 9.425 4.747"/>
+                                        <path d="M20 4v5h-5"/>
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="page-body">
+                <div class="container-xl">
+                    <!-- Time Range Selector -->
+                    <div class="time-range-selector">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-auto">
+                                <span class="form-label">Time Range:</span>
+                            </div>
+                            <div class="col-auto">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary active" onclick="setTimeRange('24h')">24h</button>
+                                    <button type="button" class="btn btn-outline-primary" onclick="setTimeRange('7d')">7d</button>
+                                    <button type="button" class="btn btn-outline-primary" onclick="setTimeRange('30d')">30d</button>
+                                    <button type="button" class="btn btn-outline-primary" onclick="setTimeRange('90d')">90d</button>
+                                </div>
+                            </div>
+                            <div class="col-auto ms-auto">
+                                <span class="text-muted small" id="lastUpdated">Last updated: --</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Metrics Overview -->
+                    <div class="row mb-4">
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card metric-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Security Score</div>
+                                        <div class="ms-auto">
+                                            <span id="scoreChange" class="trend-stable">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                                </svg>
+                                                0%
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-baseline">
+                                        <div id="overallScore" class="security-score score-good">85</div>
+                                        <div class="ms-1 text-muted">/100</div>
+                                    </div>
+                                    <div class="text-muted small">Overall security posture</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card metric-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Active Threats</div>
+                                        <div class="ms-auto">
+                                            <span id="threatChange" class="trend-down">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <polyline points="7,13 12,8 17,13"/>
+                                                    <polyline points="12,8 12,21"/>
+                                                </svg>
+                                                -12%
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-3" id="activeThreats">7</div>
+                                    <div class="text-muted small">Requiring immediate attention</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card metric-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Vulnerabilities</div>
+                                        <div class="ms-auto">
+                                            <span id="vulnChange" class="trend-down">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <polyline points="7,13 12,8 17,13"/>
+                                                    <polyline points="12,8 12,21"/>
+                                                </svg>
+                                                -8%
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-3" id="totalVulns">23</div>
+                                    <div class="text-muted small">Across all devices</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card metric-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Compliance</div>
+                                        <div class="ms-auto">
+                                            <span id="complianceChange" class="trend-up">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <polyline points="7,11 12,6 17,11"/>
+                                                    <polyline points="12,18 12,6"/>
+                                                </svg>
+                                                +5%
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="h1 mb-3" id="complianceScore">92%</div>
+                                    <div class="text-muted small">Industry standards</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts Row -->
+                    <div class="row mb-4">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Security Trends</h3>
+                                    <div class="card-actions">
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                                                View Options
+                                            </button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="#" onclick="updateTrendChart('threats')">Threat Detection</a>
+                                                <a class="dropdown-item" href="#" onclick="updateTrendChart('vulnerabilities')">Vulnerabilities</a>
+                                                <a class="dropdown-item" href="#" onclick="updateTrendChart('incidents')">Security Incidents</a>
+                                                <a class="dropdown-item" href="#" onclick="updateTrendChart('compliance')">Compliance Score</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container large">
+                                        <canvas id="trendChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Threat Types</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="threatTypesChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detailed Analytics Row -->
+                    <div class="row mb-4">
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Vulnerability Severity</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="vulnerabilityChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Device Risk Assessment</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="deviceRiskChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Alerts -->
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Recent Security Alerts</h3>
+                                    <div class="card-actions">
+                                        <a href="#" class="btn btn-primary btn-sm">View All</a>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div id="recentAlerts" class="list-group list-group-flush">
+                                        <!-- Alerts will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Quick Actions</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-grid gap-2">
+                                        <button class="btn btn-primary" onclick="runFullScan()">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                <circle cx="12" cy="12" r="9"/>
+                                                <path d="M9 12l2 2l4 -4"/>
+                                            </svg>
+                                            Full Security Scan
+                                        </button>
+                                        
+                                        <button class="btn btn-outline-primary" onclick="updateDefinitions()">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                                                <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                                            </svg>
+                                            Update Definitions
+                                        </button>
+                                        
+                                        <button class="btn btn-outline-success" onclick="generateReport()">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+                                                <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+                                            </svg>
+                                            Generate Report
+                                        </button>
+                                        
+                                        <div class="mt-3">
+                                            <h4 class="subheader">System Status</h4>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="status-dot bg-success me-2"></div>
+                                                <span class="text-muted small">Real-time Protection: Active</span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="status-dot bg-success me-2"></div>
+                                                <span class="text-muted small">Firewall: Enabled</span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <div class="status-dot bg-warning me-2"></div>
+                                                <span class="text-muted small">Updates: Pending</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabler JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
+    
+    <!-- Configuration -->
+    <script src="assets/js/config.js"></script>
+    
+    <script>
+        class SecurityAnalytics {
+            constructor() {
+                this.apiBase = null;
+                this.user = null;
+                this.organization = null;
+                this.currentTimeRange = '24h';
+                this.charts = {};
+                this.init();
+            }
+            
+            async init() {
+                // Resolve API base
+                this.apiBase = await window.apiResolver.resolveApiBase();
+                
+                // Check authentication
+                if (!await this.checkAuth()) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                // Load user data and analytics
+                await this.loadUserData();
+                await this.loadSecurityData();
+                this.initializeCharts();
+                this.startAutoRefresh();
+            }
+            
+            async checkAuth() {
+                const token = localStorage.getItem('mscc_session_token');
+                if (!token) return false;
+                
+                // Check for development session
+                if (token.startsWith('dev_')) {
+                    const devSession = localStorage.getItem('mscc_dev_session');
+                    if (devSession) {
+                        this.user = JSON.parse(devSession);
+                        this.organization = this.user.organization;
+                        return true;
+                    }
+                    return false;
+                }
+                
+                return false; // Disabled for now
+            }
+            
+            async loadUserData() {
+                // Update UI with user info
+                document.getElementById('userName').textContent = this.user.name;
+                document.getElementById('userRole').textContent = this.organization.name;
+                document.getElementById('userAvatar').style.backgroundImage = `url(${this.user.picture})`;
+                
+                // Update page content based on role
+                const securitySummary = document.getElementById('securitySummary');
+                switch(this.organization.type) {
+                    case 'individual':
+                        securitySummary.textContent = 'Your personal security analytics';
+                        break;
+                    case 'business':
+                        securitySummary.textContent = `Security analytics for ${this.organization.name}`;
+                        break;
+                    case 'site-admin':
+                        securitySummary.textContent = 'Global security analytics dashboard';
+                        document.getElementById('adminNav').style.display = 'block';
+                        break;
+                }
+            }
+            
+            async loadSecurityData() {
+                // Generate mock security data based on time range and user role
+                const data = this.generateMockSecurityData();
+                
+                // Update metrics
+                this.updateMetrics(data);
+                this.updateRecentAlerts(data.alerts);
+                
+                // Update last updated time
+                document.getElementById('lastUpdated').textContent = 
+                    `Last updated: ${new Date().toLocaleTimeString()}`;
+            }
+            
+            generateMockSecurityData() {
+                const isIndividual = this.organization.type === 'individual';
+                const isAdmin = this.organization.type === 'site-admin';
+                
+                const baseMultiplier = isIndividual ? 1 : isAdmin ? 10 : 3;
+                
+                return {
+                    securityScore: Math.floor(Math.random() * 20) + 75,
+                    activeThreats: Math.floor(Math.random() * 15 * baseMultiplier),
+                    vulnerabilities: Math.floor(Math.random() * 50 * baseMultiplier),
+                    complianceScore: Math.floor(Math.random() * 15) + 85,
+                    trends: this.generateTrendData(),
+                    threatTypes: this.generateThreatTypeData(),
+                    vulnerabilityBreakdown: this.generateVulnerabilityData(),
+                    deviceRisks: this.generateDeviceRiskData(),
+                    alerts: this.generateRecentAlerts(baseMultiplier)
+                };
+            }
+            
+            generateTrendData() {
+                const now = new Date();
+                const data = [];
+                const hours = this.currentTimeRange === '24h' ? 24 : 
+                             this.currentTimeRange === '7d' ? 168 : 
+                             this.currentTimeRange === '30d' ? 720 : 2160;
+                
+                for (let i = hours; i >= 0; i--) {
+                    const time = new Date(now.getTime() - (i * 60 * 60 * 1000));
+                    data.push({
+                        time: time,
+                        threats: Math.floor(Math.random() * 20),
+                        vulnerabilities: Math.floor(Math.random() * 50),
+                        incidents: Math.floor(Math.random() * 5),
+                        compliance: Math.floor(Math.random() * 10) + 85
+                    });
+                }
+                
+                return data;
+            }
+            
+            generateThreatTypeData() {
+                return {
+                    malware: Math.floor(Math.random() * 20) + 10,
+                    phishing: Math.floor(Math.random() * 15) + 5,
+                    ransomware: Math.floor(Math.random() * 8) + 2,
+                    trojan: Math.floor(Math.random() * 12) + 3,
+                    spyware: Math.floor(Math.random() * 10) + 1,
+                    other: Math.floor(Math.random() * 5) + 1
+                };
+            }
+            
+            generateVulnerabilityData() {
+                return {
+                    critical: Math.floor(Math.random() * 5) + 1,
+                    high: Math.floor(Math.random() * 8) + 3,
+                    medium: Math.floor(Math.random() * 15) + 10,
+                    low: Math.floor(Math.random() * 20) + 15
+                };
+            }
+            
+            generateDeviceRiskData() {
+                return {
+                    high: Math.floor(Math.random() * 3) + 1,
+                    medium: Math.floor(Math.random() * 8) + 3,
+                    low: Math.floor(Math.random() * 15) + 10
+                };
+            }
+            
+            generateRecentAlerts(multiplier = 1) {
+                const severities = ['critical', 'high', 'medium', 'low'];
+                const alertTypes = [
+                    'Malware detected',
+                    'Suspicious network activity',
+                    'Unauthorized access attempt',
+                    'Vulnerability found',
+                    'System update required',
+                    'Firewall breach attempt',
+                    'Phishing email blocked',
+                    'USB device inserted',
+                    'Password policy violation',
+                    'Certificate expiring'
+                ];
+                
+                const alerts = [];
+                const count = Math.min(Math.floor(Math.random() * 10 * multiplier) + 5, 20);
+                
+                for (let i = 0; i < count; i++) {
+                    const severity = severities[Math.floor(Math.random() * severities.length)];
+                    const type = alertTypes[Math.floor(Math.random() * alertTypes.length)];
+                    const device = `Device-${Math.floor(Math.random() * 100) + 1}`;
+                    const time = new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000);
+                    
+                    alerts.push({
+                        id: `alert-${i}`,
+                        severity,
+                        type,
+                        device,
+                        time,
+                        description: `${type} on ${device}`
+                    });
+                }
+                
+                return alerts.sort((a, b) => b.time - a.time);
+            }
+            
+            updateMetrics(data) {
+                // Security Score
+                const scoreElement = document.getElementById('overallScore');
+                scoreElement.textContent = data.securityScore;
+                scoreElement.className = `security-score ${this.getScoreClass(data.securityScore)}`;
+                
+                // Other metrics
+                document.getElementById('activeThreats').textContent = data.activeThreats;
+                document.getElementById('totalVulns').textContent = data.vulnerabilities;
+                document.getElementById('complianceScore').textContent = `${data.complianceScore}%`;
+                
+                // Update trend indicators (mock changes)
+                this.updateTrendIndicator('scoreChange', Math.floor(Math.random() * 10) - 5);
+                this.updateTrendIndicator('threatChange', Math.floor(Math.random() * 20) - 15);
+                this.updateTrendIndicator('vulnChange', Math.floor(Math.random() * 15) - 10);
+                this.updateTrendIndicator('complianceChange', Math.floor(Math.random() * 8) - 2);
+            }
+            
+            getScoreClass(score) {
+                if (score >= 90) return 'score-excellent';
+                if (score >= 75) return 'score-good';
+                if (score >= 60) return 'score-fair';
+                return 'score-poor';
+            }
+            
+            updateTrendIndicator(elementId, change) {
+                const element = document.getElementById(elementId);
+                const absChange = Math.abs(change);
+                
+                if (change > 0) {
+                    element.className = 'trend-up';
+                    element.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="7,11 12,6 17,11"/>
+                            <polyline points="12,18 12,6"/>
+                        </svg>
+                        +${absChange}%
+                    `;
+                } else if (change < 0) {
+                    element.className = 'trend-down';
+                    element.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="7,13 12,8 17,13"/>
+                            <polyline points="12,8 12,21"/>
+                        </svg>
+                        -${absChange}%
+                    `;
+                } else {
+                    element.className = 'trend-stable';
+                    element.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        0%
+                    `;
+                }
+            }
+            
+            updateRecentAlerts(alerts) {
+                const container = document.getElementById('recentAlerts');
+                const maxAlerts = 10;
+                
+                container.innerHTML = alerts.slice(0, maxAlerts).map(alert => `
+                    <div class="list-group-item alert-item alert-${alert.severity}">
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <span class="severity-indicator severity-${alert.severity}"></span>
+                            </div>
+                            <div class="col">
+                                <div class="text-truncate">
+                                    <strong>${alert.type}</strong> on ${alert.device}
+                                </div>
+                                <div class="text-muted small">${this.formatTimeAgo(alert.time)}</div>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-sm btn-outline-primary" onclick="viewAlert('${alert.id}')">
+                                    View
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            formatTimeAgo(date) {
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / (1000 * 60));
+                const diffHours = Math.floor(diffMins / 60);
+                
+                if (diffMins < 1) return 'Just now';
+                if (diffMins < 60) return `${diffMins}m ago`;
+                if (diffHours < 24) return `${diffHours}h ago`;
+                return date.toLocaleDateString();
+            }
+            
+            initializeCharts() {
+                // Trend Chart
+                this.charts.trend = new Chart(document.getElementById('trendChart'), {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'Threats',
+                            data: [],
+                            borderColor: '#d63384',
+                            backgroundColor: 'rgba(214, 51, 132, 0.1)',
+                            tension: 0.4
+                        }, {
+                            label: 'Vulnerabilities',
+                            data: [],
+                            borderColor: '#fd7e14',
+                            backgroundColor: 'rgba(253, 126, 20, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    unit: this.currentTimeRange === '24h' ? 'hour' : 'day'
+                                }
+                            },
+                            y: {
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top'
+                            }
+                        }
+                    }
+                });
+                
+                // Threat Types Chart
+                this.charts.threatTypes = new Chart(document.getElementById('threatTypesChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Malware', 'Phishing', 'Ransomware', 'Trojan', 'Spyware', 'Other'],
+                        datasets: [{
+                            data: [0, 0, 0, 0, 0, 0],
+                            backgroundColor: [
+                                '#d63384',
+                                '#fd7e14',
+                                '#ffc107',
+                                '#198754',
+                                '#0d6efd',
+                                '#6c757d'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+                
+                // Vulnerability Chart
+                this.charts.vulnerability = new Chart(document.getElementById('vulnerabilityChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['Critical', 'High', 'Medium', 'Low'],
+                        datasets: [{
+                            label: 'Vulnerabilities',
+                            data: [0, 0, 0, 0],
+                            backgroundColor: [
+                                '#d63384',
+                                '#fd7e14',
+                                '#ffc107',
+                                '#198754'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+                
+                // Device Risk Chart
+                this.charts.deviceRisk = new Chart(document.getElementById('deviceRiskChart'), {
+                    type: 'pie',
+                    data: {
+                        labels: ['High Risk', 'Medium Risk', 'Low Risk'],
+                        datasets: [{
+                            data: [0, 0, 0],
+                            backgroundColor: [
+                                '#d63384',
+                                '#ffc107',
+                                '#198754'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+                
+                this.updateChartsWithData();
+            }
+            
+            updateChartsWithData() {
+                const data = this.generateMockSecurityData();
+                
+                // Update trend chart
+                const trendData = data.trends;
+                this.charts.trend.data.datasets[0].data = trendData.map(d => ({x: d.time, y: d.threats}));
+                this.charts.trend.data.datasets[1].data = trendData.map(d => ({x: d.time, y: d.vulnerabilities}));
+                this.charts.trend.update();
+                
+                // Update threat types chart
+                const threatTypes = data.threatTypes;
+                this.charts.threatTypes.data.datasets[0].data = [
+                    threatTypes.malware,
+                    threatTypes.phishing,
+                    threatTypes.ransomware,
+                    threatTypes.trojan,
+                    threatTypes.spyware,
+                    threatTypes.other
+                ];
+                this.charts.threatTypes.update();
+                
+                // Update vulnerability chart
+                const vulns = data.vulnerabilityBreakdown;
+                this.charts.vulnerability.data.datasets[0].data = [
+                    vulns.critical,
+                    vulns.high,
+                    vulns.medium,
+                    vulns.low
+                ];
+                this.charts.vulnerability.update();
+                
+                // Update device risk chart
+                const risks = data.deviceRisks;
+                this.charts.deviceRisk.data.datasets[0].data = [
+                    risks.high,
+                    risks.medium,
+                    risks.low
+                ];
+                this.charts.deviceRisk.update();
+            }
+            
+            startAutoRefresh() {
+                // Refresh data every 5 minutes
+                setInterval(() => {
+                    this.loadSecurityData();
+                    this.updateChartsWithData();
+                }, 5 * 60 * 1000);
+            }
+        }
+        
+        // Global functions
+        function setTimeRange(range) {
+            window.securityAnalytics.currentTimeRange = range;
+            
+            // Update button states
+            document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Refresh data
+            window.securityAnalytics.loadSecurityData();
+            window.securityAnalytics.updateChartsWithData();
+        }
+        
+        function refreshData() {
+            window.securityAnalytics.loadSecurityData();
+            window.securityAnalytics.updateChartsWithData();
+        }
+        
+        function updateTrendChart(metric) {
+            // This would update the trend chart to show the selected metric
+            console.log('Updating trend chart to show:', metric);
+        }
+        
+        function viewAlert(alertId) {
+            alert(`View alert details: ${alertId}`);
+        }
+        
+        function runFullScan() {
+            alert('Full security scan initiated');
+        }
+        
+        function updateDefinitions() {
+            alert('Security definitions update started');
+        }
+        
+        function generateReport() {
+            alert('Security report generation started');
+        }
+        
+        function exportReport() {
+            alert('Exporting security report');
+        }
+        
+        function logout() {
+            localStorage.removeItem('mscc_session_token');
+            localStorage.removeItem('mscc_dev_session');
+            window.location.href = 'login.html';
+        }
+        
+        // Initialize
+        window.securityAnalytics = new SecurityAnalytics();
+    </script>
+</body>
+</html>
