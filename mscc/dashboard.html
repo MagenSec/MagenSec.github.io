@@ -370,23 +370,163 @@
             }
             
             showDevicesView() {
-                // Redirect to devices page
-                window.location.href = 'devices.html';
+                // Show devices content inline instead of redirecting
+                this.hideAllViews();
+                let devicesContent = document.getElementById('devicesContent');
+                if (!devicesContent) {
+                    devicesContent = this.createDevicesView();
+                }
+                devicesContent.style.display = 'block';
+                this.loadDevicesData();
             }
             
             showSecurityView() {
-                // Redirect to security page  
-                window.location.href = 'security.html';
+                // Show security content inline instead of redirecting
+                this.hideAllViews();
+                let securityContent = document.getElementById('securityContent');
+                if (!securityContent) {
+                    securityContent = this.createSecurityView();
+                }
+                securityContent.style.display = 'block';
+                this.loadSecurityData();
             }
             
             showAdminView() {
-                // For admin users, show admin dashboard or redirect to admin page
-                if (this.organization?.type === 'global-admin') {
-                    window.location.href = 'admin-dashboard.html';
+                // For admin users, show admin content inline
+                if (this.organization?.type === 'site-admin' || this.organization?.type === 'global-admin') {
+                    this.hideAllViews();
+                    let adminContent = document.getElementById('adminContent');
+                    if (!adminContent) {
+                        adminContent = this.createAdminView();
+                    }
+                    adminContent.style.display = 'block';
+                    this.loadAdminData();
                 } else {
-                    // Non-admin users shouldn't see this, but redirect to dashboard
+                    // Non-admin users shouldn't see this, redirect to dashboard
                     window.location.hash = 'dashboard';
                 }
+            }
+            
+            hideAllViews() {
+                const views = ['dashboardContent', 'devicesContent', 'securityContent', 'adminContent'];
+                views.forEach(viewId => {
+                    const view = document.getElementById(viewId);
+                    if (view) view.style.display = 'none';
+                });
+            }
+            
+            createDevicesView() {
+                const container = document.createElement('div');
+                container.id = 'devicesContent';
+                container.innerHTML = `
+                    <div class="page-header d-print-none">
+                        <div class="container-xl">
+                            <div class="row g-2 align-items-center">
+                                <div class="col">
+                                    <h2 class="page-title">Device Management</h2>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="page-body">
+                        <div class="container-xl">
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h3>Devices</h3>
+                                            <p>Device management functionality will be loaded here.</p>
+                                            <div id="devicesTable">Loading devices...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.querySelector('.page-wrapper').appendChild(container);
+                return container;
+            }
+            
+            createSecurityView() {
+                const container = document.createElement('div');
+                container.id = 'securityContent';
+                container.innerHTML = `
+                    <div class="page-header d-print-none">
+                        <div class="container-xl">
+                            <div class="row g-2 align-items-center">
+                                <div class="col">
+                                    <h2 class="page-title">Security Overview</h2>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="page-body">
+                        <div class="container-xl">
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h3>Security Monitoring</h3>
+                                            <p>Security monitoring and threat detection will be loaded here.</p>
+                                            <div id="securityAlerts">Loading security data...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.querySelector('.page-wrapper').appendChild(container);
+                return container;
+            }
+            
+            createAdminView() {
+                const container = document.createElement('div');
+                container.id = 'adminContent';
+                container.innerHTML = `
+                    <div class="page-header d-print-none">
+                        <div class="container-xl">
+                            <div class="row g-2 align-items-center">
+                                <div class="col">
+                                    <h2 class="page-title">Administrator Dashboard</h2>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="page-body">
+                        <div class="container-xl">
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h3>Global Administration</h3>
+                                            <p>Global administration features will be loaded here.</p>
+                                            <div id="adminPanel">Loading admin data...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.querySelector('.page-wrapper').appendChild(container);
+                return container;
+            }
+            
+            loadDevicesData() {
+                // TODO: Load real device data from Azure Tables
+                document.getElementById('devicesTable').innerHTML = 'Devices data would be loaded from Azure Tables here.';
+            }
+            
+            loadSecurityData() {
+                // TODO: Load real security data from Azure Tables  
+                document.getElementById('securityAlerts').innerHTML = 'Security data would be loaded from Azure Tables here.';
+            }
+            
+            loadAdminData() {
+                // TODO: Load real admin data from Azure Tables
+                document.getElementById('adminPanel').innerHTML = 'Admin data would be loaded from Azure Tables here.';
             }
             
             async checkAuth() {

@@ -9,7 +9,21 @@ window.msccConfig = {
   oauth: {
     // Google OAuth Web Client ID (for web applications)
     clientId: '530204671754-ev6q9q91d61cpiepvrfetk72m3og7s0k.apps.googleusercontent.com',
-    redirectUri: 'https://magensec.gigabits.co.in/mscc/login.html'
+    // Dynamic redirect URI based on current location
+    get redirectUri() {
+      const hostname = window.location.hostname;
+      const port = window.location.port;
+      const protocol = window.location.protocol;
+      
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        const portSuffix = port ? `:${port}` : '';
+        return `${protocol}//${hostname}${portSuffix}/mscc/login.html`;
+      } else if (hostname.includes('github.io')) {
+        return `${protocol}//${hostname}/mscc/login.html`;
+      } else {
+        return 'https://magensec.gigabits.co.in/mscc/login.html';
+      }
+    }
   },
   
   // Feature flags

@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
     <title>MSCC Admin - Security Management Dashboard</title>
-    <link href="assets/css/tabler.min.css" rel="stylesheet"/>
-    <link href="assets/css/tabler-flags.min.css" rel="stylesheet"/>
-    <link href="assets/css/tabler-payments.min.css" rel="stylesheet"/>
-    <link href="assets/css/tabler-vendors.min.css" rel="stylesheet"/>
-    <link href="assets/css/demo.min.css" rel="stylesheet"/>
+    <!-- Tabler CSS from CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons-sprite.svg">
+    
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="assets/css/auth.css">
+    <link rel="stylesheet" href="assets/css/dashboard.css">
+    <link rel="stylesheet" href="assets/css/main.css">
     <style>
         .navbar-brand {
             color: #206bc4 !important;
@@ -548,13 +551,150 @@
     </div>
 
     <!-- Scripts -->
-    <script src="assets/js/tabler.min.js"></script>
-    <script src="assets/js/demo.min.js"></script>
+    <!-- Include config.js first -->
+    <script src="assets/js/config.js"></script>
+    
+    <!-- Tabler and Chart.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="assets/js/reports.js"></script>
-    <script src="assets/js/compliance.js"></script>
-    <script src="assets/js/mitre-attack.js"></script>
-    <script src="assets/js/executive-reports.js"></script>
-    <script src="assets/js/admin-dashboard.js"></script>
+    
+    <script>
+        class AdminDashboard {
+            constructor() {
+                this.user = null;
+                this.organization = null;
+                this.apiBase = null;
+            }
+            
+            async init() {
+                console.log('Initializing Admin Dashboard...');
+                
+                // Get API base URL
+                this.apiBase = await this.getApiBase();
+                
+                // Check authentication
+                if (!await this.checkAuth()) {
+                    console.log('Authentication failed, redirecting to login');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
+                // Load dashboard data
+                await this.loadUserData();
+                this.initializeDashboard();
+            }
+            
+            async getApiBase() {
+                if (this.apiBase) {
+                    return this.apiBase;
+                }
+                
+                // Use the dynamic API resolver from config.js
+                this.apiBase = await window.apiResolver.resolveApiBase();
+                return this.apiBase;
+            }
+            
+            async checkAuth() {
+                const token = localStorage.getItem('mscc_session_token');
+                if (!token) return false;
+                
+                // Check for development session
+                if (token.startsWith('dev_')) {
+                    const devSession = localStorage.getItem('mscc_dev_session');
+                    if (devSession) {
+                        this.user = JSON.parse(devSession);
+                        this.organization = this.user.organization;
+                        
+                        // Only allow admin users to access admin dashboard
+                        if (this.organization.type !== 'site-admin' && this.organization.type !== 'global-admin') {
+                            console.log('User does not have admin permissions');
+                            return false;
+                        }
+                        return true;
+                    }
+                    return false;
+                }
+                
+                // Verify with API
+                try {
+                    const response = await fetch(`${this.apiBase}/api/oauth/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ sessionToken: token })
+                    });
+                    
+                    if (response.ok) {
+                        const session = await response.json();
+                        if (session.isValid) {
+                            this.user = session.user;
+                            this.organization = session.organization;
+                            
+                            // Only allow admin users to access admin dashboard
+                            if (this.organization.type !== 'site-admin' && this.organization.type !== 'global-admin') {
+                                console.log('User does not have admin permissions');
+                                return false;
+                            }
+                            return true;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Auth check failed:', error);
+                }
+                
+                return false;
+            }
+            
+            async loadUserData() {
+                // Update UI with user info
+                const userInfo = document.querySelector('.nav-link.d-flex.lh-1');
+                if (userInfo) {
+                    const avatar = userInfo.querySelector('.avatar');
+                    const nameDiv = userInfo.querySelector('div > div:first-child');
+                    const roleDiv = userInfo.querySelector('div > div:last-child');
+                    
+                    if (avatar && this.user.picture) {
+                        avatar.style.backgroundImage = `url(${this.user.picture})`;
+                    }
+                    if (nameDiv) nameDiv.textContent = this.user.name;
+                    if (roleDiv) roleDiv.textContent = this.organization.name;
+                }
+            }
+            
+            initializeDashboard() {
+                console.log('Admin dashboard initialized for:', this.user.name);
+                
+                // Initialize charts and other components here
+                this.initializeCharts();
+                
+                // Setup logout functionality
+                const logoutLink = document.querySelector('a[href="#"]:last-child');
+                if (logoutLink && logoutLink.textContent.trim() === 'Logout') {
+                    logoutLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.logout();
+                    });
+                }
+            }
+            
+            initializeCharts() {
+                // Basic chart initialization - expand as needed
+                console.log('Initializing admin charts...');
+            }
+            
+            logout() {
+                localStorage.removeItem('mscc_session_token');
+                localStorage.removeItem('mscc_dev_session');
+                window.location.href = 'login.html';
+            }
+        }
+        
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const dashboard = new AdminDashboard();
+            dashboard.init();
+        });
+    </script>
 </body>
 </html>
