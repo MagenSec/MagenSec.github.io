@@ -279,21 +279,24 @@
     <!-- Tabler JS -->
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
     
+    <!-- Configuration -->
+    <script src="assets/js/config.js"></script>
+    
     <script>
         class DashboardManager {
             constructor() {
-                this.apiBase = this.getApiBase();
+                this.apiBase = null;
                 this.user = null;
                 this.organization = null;
                 this.charts = {};
                 this.init();
             }
             
-            getApiBase() {
-                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                    return 'http://localhost:5000';
+            async getApiBase() {
+                if (!this.apiBase) {
+                    this.apiBase = await window.apiResolver.resolveApiBase();
                 }
-                return 'https://ms-central-api.braveisland-ad151ae6.eastus.azurecontainerapps.io';
+                return this.apiBase;
             }
             
             async init() {
@@ -306,6 +309,84 @@
                 // Load user data and dashboard
                 await this.loadUserData();
                 await this.loadDashboard();
+                
+                // Set up navigation handling
+                this.setupNavigation();
+            }
+            
+            setupNavigation() {
+                // Handle hash changes for navigation
+                window.addEventListener('hashchange', () => this.handleNavigation());
+                
+                // Handle initial navigation
+                this.handleNavigation();
+                
+                // Add click handlers to nav links
+                document.querySelectorAll('.nav-link[href^="#"]').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const hash = link.getAttribute('href');
+                        window.location.hash = hash;
+                    });
+                });
+            }
+            
+            handleNavigation() {
+                const hash = window.location.hash.substring(1) || 'dashboard';
+                
+                // Update active nav item
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                
+                const activeNavItem = document.querySelector(`a[href="#${hash}"]`)?.closest('.nav-item');
+                if (activeNavItem) {
+                    activeNavItem.classList.add('active');
+                }
+                
+                // Handle different views
+                switch(hash) {
+                    case 'dashboard':
+                        this.showDashboardView();
+                        break;
+                    case 'devices':
+                        this.showDevicesView();
+                        break;
+                    case 'security':
+                        this.showSecurityView();
+                        break;
+                    case 'admin':
+                        this.showAdminView();
+                        break;
+                    default:
+                        this.showDashboardView();
+                        break;
+                }
+            }
+            
+            showDashboardView() {
+                // Dashboard view is the default content - no need to change anything
+                console.log('Showing dashboard view');
+            }
+            
+            showDevicesView() {
+                // Redirect to devices page
+                window.location.href = 'devices.html';
+            }
+            
+            showSecurityView() {
+                // Redirect to security page  
+                window.location.href = 'security.html';
+            }
+            
+            showAdminView() {
+                // For admin users, show admin dashboard or redirect to admin page
+                if (this.organization?.type === 'global-admin') {
+                    window.location.href = 'admin-dashboard.html';
+                } else {
+                    // Non-admin users shouldn't see this, but redirect to dashboard
+                    window.location.hash = 'dashboard';
+                }
             }
             
             async checkAuth() {
@@ -325,7 +406,8 @@
                 
                 // Verify with API
                 try {
-                    const response = await fetch(`${this.apiBase}/api/oauth/verify`, {
+                    const apiBase = await this.getApiBase();
+                    const response = await fetch(`${apiBase}/api/oauth/verify`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -367,6 +449,7 @@
                         welcomeMsg.textContent = `Good day, ${this.user.name.split(' ')[0]}!`;
                         welcomeDesc.textContent = `Managing security for ${this.organization.name}`;
                         break;
+                    case 'global-admin':
                     case 'site-admin':
                         welcomeMsg.textContent = `Hello, ${this.user.name.split(' ')[0]}!`;
                         welcomeDesc.textContent = 'Global security command center';
@@ -449,12 +532,20 @@
                             { label: 'Active Threats', value: '3', trend: -5, trendLabel: 'this week', progress: 40, color: 'danger' },
                             { label: 'Monthly Cost', value: '$234', trend: 2, trendLabel: 'vs last month', progress: 60, color: 'info' }
                         ];
+                    case 'global-admin':
                     case 'site-admin':
                         return [
                             { label: 'Organizations', value: '1,247', trend: 12, trendLabel: 'this month', progress: 90, color: 'primary' },
                             { label: 'Global Threats', value: '156', trend: -8, trendLabel: 'this week', progress: 65, color: 'danger' },
                             { label: 'Platform Health', value: '99.2%', trend: 0.1, trendLabel: 'uptime', progress: 99, color: 'success' },
                             { label: 'Revenue', value: '$124K', trend: 15, trendLabel: 'this month', progress: 85, color: 'info' }
+                        ];
+                    default:
+                        return [
+                            { label: 'Devices Protected', value: '4', trend: 0, trendLabel: 'stable', progress: 80, color: 'primary' },
+                            { label: 'Security Score', value: '85', trend: 5, trendLabel: 'this week', progress: 85, color: 'success' },
+                            { label: 'Threats Blocked', value: '12', trend: -2, trendLabel: 'this month', progress: 60, color: 'warning' },
+                            { label: 'Updates Pending', value: '2', trend: -1, trendLabel: 'this week', progress: 30, color: 'info' }
                         ];
                 }
             }
@@ -575,6 +666,7 @@
                             ...commonActivities,
                             { icon: '👤', title: 'New device enrolled', description: 'LAPTOP-NEW-001 joined network', time: '6 hours ago', type: 'good' }
                         ];
+                    case 'global-admin':
                     case 'site-admin':
                         return [
                             { icon: '🌐', title: 'Global threat update', description: 'New ransomware variant detected', time: '5 minutes ago', type: 'warning' },
