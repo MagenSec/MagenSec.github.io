@@ -434,8 +434,16 @@
                 const formData = new FormData();
                 formData.append('code', code);
                 formData.append('state', state);
-                formData.append('redirectUri', window.msccConfig?.oauth?.redirectUri || window.location.origin + '/mscc/login.html');
+                const redirectUri = window.msccConfig?.oauth?.redirectUri || window.location.origin + '/mscc/login.html';
+                formData.append('redirectUri', redirectUri);
                 formData.append('source', 'mscc');
+                
+                console.log('OAuth callback details:', {
+                    redirectUri,
+                    currentLocation: window.location.href,
+                    configRedirectUri: window.msccConfig?.oauth?.redirectUri,
+                    fallbackRedirectUri: window.location.origin + '/mscc/login.html'
+                });
                 
                 console.log('Sending OAuth callback request...');
                 
