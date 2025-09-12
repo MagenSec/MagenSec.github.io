@@ -155,6 +155,18 @@
                                     <span class="nav-link-title">Security</span>
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#compliance">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M9 11l3 3l8 -8"/>
+                                            <path d="M20 12v6a2 2 0 0 1 -2 2H6a2 2 0 0 1 -2 -2V6a2 2 0 0 1 2 -2h9"/>
+                                        </svg>
+                                    </span>
+                                    <span class="nav-link-title">Compliance</span>
+                                </a>
+                            </li>
                             <li id="adminNav" class="nav-item" style="display: none;">
                                 <a class="nav-link" href="#admin">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
@@ -356,6 +368,9 @@
                     case 'security':
                         this.showSecurityView();
                         break;
+                    case 'compliance':
+                        this.showComplianceView();
+                        break;
                     case 'admin':
                         this.showAdminView();
                         break;
@@ -465,9 +480,81 @@
                     devicesContent = await this.loadViewFromFile('devices.html', 'devicesContent');
                 }
                 devicesContent.style.display = 'block';
-                // Initialize devices functionality after content is loaded
-                if (window.DeviceManager) {
-                    window.DeviceManager.init();
+                
+                // Initialize devices functionality with Azure Tables integration
+                if (window.DeviceManager && window.msccDataService) {
+                    // Create a DeviceManager instance with Azure Tables integration
+                    const deviceManager = new window.DeviceManager();
+                    
+                    // Override the loadDevices method to use our dataService
+                    deviceManager.loadDevices = async function() {
+                        try {
+                            console.log('Loading devices from Azure Tables...');
+                            const devices = await window.msccDataService.fetchOData('DeviceInventory', null, { 
+                                $top: 100,
+                                $orderby: 'LastSeen desc'
+                            });
+                            
+                            // Transform Azure Tables data to match DeviceManager format
+                            this.devices = devices.map(device => ({
+                                id: device.DeviceId || device.RowKey,
+                                name: device.DeviceName || device.DeviceId,
+                                type: this.getDeviceType(device.OperatingSystem),
+                                os: device.OperatingSystem || 'Unknown',
+                                status: device.Status?.toLowerCase() || 'offline',
+                                lastSeen: device.LastSeen || device.Timestamp,
+                                version: device.AgentVersion || '1.0.0',
+                                organization: device.Organization || device.PartitionKey,
+                                ipAddress: device.IpAddress || 'N/A',
+                                location: device.Location || 'Unknown'
+                            }));
+                            
+                            this.filteredDevices = [...this.devices];
+                            this.renderDevices();
+                            console.log(`Loaded ${this.devices.length} devices from Azure Tables`);
+                            
+                        } catch (error) {
+                            console.error('Failed to load devices from Azure Tables:', error);
+                            // Fallback to demo data
+                            this.loadDemoDevices();
+                        }
+                    };
+                    
+                    // Helper method to determine device type from OS
+                    deviceManager.getDeviceType = function(os) {
+                        if (!os) return 'workstation';
+                        const osLower = os.toLowerCase();
+                        if (osLower.includes('server')) return 'server';
+                        if (osLower.includes('mobile') || osLower.includes('android') || osLower.includes('ios')) return 'mobile';
+                        if (osLower.includes('laptop') || osLower.includes('macbook')) return 'laptop';
+                        return 'workstation';
+                    };
+                    
+                    // Demo data fallback
+                    deviceManager.loadDemoDevices = function() {
+                        this.devices = window.msccDataService.getDemoData('DeviceInventory').map(device => ({
+                            id: device.DeviceId,
+                            name: device.DeviceName,
+                            type: this.getDeviceType(device.OperatingSystem),
+                            os: device.OperatingSystem,
+                            status: device.Status?.toLowerCase() || 'offline',
+                            lastSeen: device.LastSeen,
+                            version: device.AgentVersion,
+                            organization: device.Organization,
+                            ipAddress: 'N/A',
+                            location: 'Unknown'
+                        }));
+                        this.filteredDevices = [...this.devices];
+                        this.renderDevices();
+                    };
+                    
+                    // Set user context from dashboard
+                    deviceManager.user = this.user;
+                    deviceManager.organization = this.organization;
+                    
+                    // Initialize the device manager
+                    window.deviceManager = deviceManager;
+                    await deviceManager.loadDevices();
                 }
             }
             
@@ -479,9 +566,184 @@
                     securityContent = await this.loadViewFromFile('security.html', 'securityContent');
                 }
                 securityContent.style.display = 'block';
-                // Initialize security functionality after content is loaded
-                if (window.SecurityMonitor) {
-                    window.SecurityMonitor.init();
+                
+                // Initialize security functionality with Azure Tables integration
+                if (window.SecurityMonitor && window.msccDataService) {
+                    const securityMonitor = new window.SecurityMonitor();
+                    
+                    // Override loadSecurityEvents to use Azure Tables
+                    securityMonitor.loadSecurityEvents = async function() {
+                        try {
+                            console.log('Loading security events from Azure Tables...');
+                            const events = await window.msccDataService.fetchOData('SecurityEvents', null, { 
+                                $top: 100,
+                                $orderby: 'Timestamp desc',
+                                $filter: "Timestamp gt datetime'" + new Date(Date.now() - 30*24*60*60*1000).toISOString() + "'"
+                            });
+                            
+                            // Transform and display security events
+                            this.securityEvents = events.map(event => ({
+                                id: event.RowKey,
+                                type: event.ThreatType || 'Security Event',
+                                severity: event.Severity || 'Medium',
+                                status: event.Status || 'Detected',
+                                device: event.DeviceId,
+                                timestamp: event.Timestamp,
+                                description: event.Description || event.Message
+                            }));
+                            
+                            this.renderSecurityEvents();
+                            console.log(`Loaded ${this.securityEvents.length} security events`);
+                            
+                        } catch (error) {
+                            console.error('Failed to load security events:', error);
+                            this.loadDemoSecurityEvents();
+                        }
+                    };
+                    
+                    // Demo data fallback
+                    securityMonitor.loadDemoSecurityEvents = function() {
+                        this.securityEvents = window.msccDataService.getDemoData('SecurityEvents').map(event => ({
+                            id: event.RowKey,
+                            type: event.ThreatType,
+                            severity: event.Severity,
+                            status: event.Status,
+                            device: event.DeviceId,
+                            timestamp: event.Timestamp,
+                            description: event.Description
+                        }));
+                        this.renderSecurityEvents();
+                    };
+                    
+                    // Set user context
+                    securityMonitor.user = this.user;
+                    securityMonitor.organization = this.organization;
+                    
+                    window.securityMonitor = securityMonitor;
+                    await securityMonitor.loadSecurityEvents();
+                }
+            }
+            
+            async showComplianceView() {
+                try {
+                    console.log('Loading compliance view...');
+                    
+                    // Load compliance.html content
+                    this.hideAllViews();
+                    this.hideDashboardContent();
+                    let complianceContent = document.getElementById('complianceContent');
+                    if (!complianceContent) {
+                        complianceContent = await this.loadViewFromFile('compliance.html', 'complianceContent');
+                    }
+                    complianceContent.style.display = 'block';
+                    
+                    // Override compliance monitor methods to use Azure Tables data
+                    if (window.ComplianceMonitor) {
+                        console.log('Integrating Compliance Monitor with Azure Tables...');
+                        
+                        // Override the compliance data loading to use our data service
+                        const originalInit = window.ComplianceMonitor.init;
+                        window.ComplianceMonitor.init = async function() {
+                            console.log('Initializing compliance monitor with real data...');
+                            
+                            try {
+                                // Load compliance data from Azure Tables
+                                await this.loadComplianceData();
+                                await this.loadConfigurationData();
+                                await this.loadDriftData();
+                                this.setupPeriodicUpdates();
+                                
+                                console.log('Compliance Monitor initialized with Azure Tables integration');
+                            } catch (error) {
+                                console.error('Failed to initialize compliance monitor:', error);
+                                // Fall back to original initialization with demo data
+                                return await originalInit.call(this);
+                            }
+                        };
+                        
+                        // Enhance compliance data loading
+                        const originalLoadComplianceData = window.ComplianceMonitor.loadComplianceData;
+                        window.ComplianceMonitor.loadComplianceData = async function() {
+                            console.log('Loading compliance data from Azure Tables...');
+                            
+                            try {
+                                // Load compliance telemetry data
+                                const complianceData = await window.msccDataService.fetchOData('ComplianceTelemetry', null, {
+                                    $orderby: 'Timestamp desc',
+                                    $top: 50
+                                });
+                                
+                                console.log('Compliance telemetry loaded:', complianceData.length, 'records');
+                                
+                                // If no real data, fall back to demo data
+                                if (complianceData.length === 0) {
+                                    console.log('No compliance data available, using demo data');
+                                    return await originalLoadComplianceData.call(this);
+                                }
+                                
+                                // Process real compliance data by framework
+                                const frameworkData = this.groupComplianceByFramework(complianceData);
+                                
+                                // Update each framework display
+                                for (const [framework, data] of frameworkData.entries()) {
+                                    this.updateFrameworkDisplay(framework, data);
+                                }
+                                
+                            } catch (error) {
+                                console.error('Failed to load compliance data:', error);
+                                // Fall back to demo data on error
+                                return await originalLoadComplianceData.call(this);
+                            }
+                        };
+                        
+                        // Add method to group compliance data by framework
+                        window.ComplianceMonitor.groupComplianceByFramework = function(complianceData) {
+                            const grouped = new Map();
+                            
+                            complianceData.forEach(item => {
+                                const framework = item.Framework?.toLowerCase() || 'unknown';
+                                if (!grouped.has(framework)) {
+                                    grouped.set(framework, {
+                                        score: 0,
+                                        status: 'unknown',
+                                        issues: 0,
+                                        lastAssessment: item.Timestamp
+                                    });
+                                }
+                                
+                                // Take the most recent data for each framework
+                                const existing = grouped.get(framework);
+                                if (new Date(item.Timestamp) > new Date(existing.lastAssessment)) {
+                                    grouped.set(framework, {
+                                        score: parseInt(item.Score) || 0,
+                                        status: this.mapComplianceStatus(parseInt(item.Score) || 0),
+                                        issues: parseInt(item.Issues) || 0,
+                                        lastAssessment: item.Timestamp
+                                    });
+                                }
+                            });
+                            
+                            return grouped;
+                        };
+                        
+                        // Add method to map score to status
+                        window.ComplianceMonitor.mapComplianceStatus = function(score) {
+                            if (score >= 90) return 'excellent';
+                            if (score >= 70) return 'good';
+                            if (score >= 50) return 'partial';
+                            return 'poor';
+                        };
+                        
+                        // Initialize the compliance monitor
+                        await window.ComplianceMonitor.init();
+                    }
+                    
+                    // Set active navigation
+                    this.setActiveNavigation('compliance');
+                    
+                } catch (error) {
+                    console.error('Failed to load compliance view:', error);
+                    this.showError('Failed to load compliance monitoring');
                 }
             }
             
