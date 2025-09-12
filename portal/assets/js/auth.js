@@ -1,23 +1,18 @@
-// MagenSec Hub Authentication Service
+// MagenSec Portal Authentication Service
+// Based on MSCC OAuth implementation pattern
+
 class MagenSecAuth {
     constructor() {
-        this.config = window.MagenSecConfig.auth;
+        this.config = window.MagenSecConfig;
+        this.oauthConfig = null;
+        this.apiBase = null;
         this.user = null;
         this.token = null;
-        this.refreshToken = null;
         this.organization = null;
-        this.tokenExpiryTime = null;
-        this.refreshTimer = null;
-        this.logoutTimer = null;
+        this.isInitialized = false;
         
-        // Initialize from stored data
-        this.initializeFromStorage();
-        
-        // Setup auto-refresh
-        this.setupTokenRefresh();
-        
-        // Setup Google OAuth if configured
-        this.initializeGoogleAuth();
+        // Check for OAuth callback first
+        this.handleOAuthCallbackIfPresent();
     }
     
     // ======================
@@ -25,61 +20,251 @@ class MagenSecAuth {
     // ======================
     
     async initialize() {
-        // This method is called by the app.js to initialize the auth service
-        // Most initialization is already done in constructor, but this provides
-        // a promise-based interface for the app initialization flow
-        return Promise.resolve();
+        if (this.isInitialized) return;
+        
+        try {
+            // Resolve API base
+            await this.getApiBase();
+            console.log('Portal API base resolved to:', this.apiBase);
+            
+            // Set up Google OAuth
+            await this.setupGoogleAuth();
+            
+            // Check for existing session
+            await this.checkExistingSession();
+            
+            this.isInitialized = true;
+        } catch (error) {
+            console.error('Portal auth initialization failed:', error);
+            throw error;
+        }
     }
     
-    initializeFromStorage() {
+    async getApiBase() {
+        if (this.apiBase) return this.apiBase;
+        
+        // Use the API resolver from config
+        if (window.apiResolver) {
+            this.apiBase = await window.apiResolver.resolveApiBase();
+        } else {
+            this.apiBase = this.config.api.base;
+        }
+        
+        return this.apiBase;
+    }
+    
+    async setupGoogleAuth() {
         try {
-            // Load stored authentication data
-            const storedToken = localStorage.getItem(this.config.tokenKey);
-            const storedRefresh = localStorage.getItem(this.config.refreshKey);
-            const storedUser = localStorage.getItem(this.config.userKey);
+            // Use OAuth config from portal config
+            if (this.config.oauth && this.config.oauth.clientId) {
+                this.oauthConfig = {
+                    googleClientId: this.config.oauth.clientId,
+                    redirectUri: this.config.oauth.redirectUri,
+                    responseType: this.config.oauth.responseType,
+                    scopes: this.config.oauth.scopes,
+                    accessType: this.config.oauth.accessType
+                };
+                console.log('Using OAuth config from portal config');
+            } else {
+                // Fallback to API endpoint
+                const response = await fetch(`${this.apiBase}/api/oauth/config`);
+                if (!response.ok) {
+                    throw new Error('Failed to get OAuth config');
+                }
+                this.oauthConfig = await response.json();
+                console.log('Using OAuth config from API');
+            }
             
-            if (storedToken && storedUser) {
-                this.token = storedToken;
-                this.refreshToken = storedRefresh;
-                this.user = JSON.parse(storedUser);
-                
-                // Validate token expiry
-                const payload = this.parseJWTPayload(this.token);
-                if (payload && payload.exp) {
-                    this.tokenExpiryTime = payload.exp * 1000; // Convert to milliseconds
+            console.log('Portal OAuth setup complete');
+            
+        } catch (error) {
+            console.error('Portal OAuth setup failed:', error);
+            // For development or GitHub Pages
+            if (this.isDevelopmentMode() || window.location.hostname.includes('github.io')) {
+                console.log('OAuth setup failed, but allowing for static hosting');
+                return;
+            }
+            throw new Error('Authentication service unavailable. Please try again later.');
+        }
+    }
+    
+    isDevelopmentMode() {
+        return window.location.hostname === 'localhost' || 
+               window.location.hostname === '127.0.0.1' ||
+               window.location.protocol === 'file:' ||
+               localStorage.getItem('portal_dev_mode') === 'true';
+    }
+    
+    // ======================
+    // OAuth Flow
+    // ======================
+    
+    startGoogleAuth() {
+        if (!this.oauthConfig) {
+            console.error('OAuth not configured');
+            this.showError('Authentication not configured');
+            return;
+        }
+        
+        console.log('Starting Google OAuth flow...');
+        
+        // Build OAuth URL
+        const params = new URLSearchParams({
+            client_id: this.oauthConfig.googleClientId,
+            redirect_uri: this.oauthConfig.redirectUri,
+            response_type: this.oauthConfig.responseType,
+            scope: this.oauthConfig.scopes.join(' '),
+            access_type: this.oauthConfig.accessType,
+            state: this.generateState()
+        });
+        
+        // Store state for verification
+        sessionStorage.setItem('oauth_state', params.get('state'));
+        
+        // Redirect to Google OAuth
+        window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    }
+    
+    generateState() {
+        return btoa(Math.random().toString()).substr(10, 20);
+    }
+    
+    handleOAuthCallbackIfPresent() {
+        // Check if this is an OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+        const error = urlParams.get('error');
+        
+        if (error) {
+            console.error('OAuth error:', error);
+            this.showError('Authentication failed: ' + error);
+            return;
+        }
+        
+        if (code && state) {
+            // This is an OAuth callback
+            this.handleOAuthCallback(code, state);
+            return;
+        }
+    }
+    
+    async handleOAuthCallback(code, state) {
+        try {
+            console.log('Handling OAuth callback...');
+            
+            // Verify state
+            const storedState = sessionStorage.getItem('oauth_state');
+            if (state !== storedState) {
+                throw new Error('Invalid OAuth state');
+            }
+            
+            // Ensure API base is resolved
+            await this.getApiBase();
+            
+            console.log('OAuth callback started:', { code: code.substring(0, 10) + '...', state });
+            console.log('Resolved API Base:', this.apiBase);
+            
+            // Use the OAuth endpoint we configured in Cloud API
+            const callbackUrl = `${this.apiBase}/api/oauth/callback`;
+            console.log('Calling OAuth callback URL:', callbackUrl);
+            
+            // Use fetch with form data
+            const formData = new FormData();
+            formData.append('code', code);
+            formData.append('state', state);
+            const redirectUri = this.config.oauth.redirectUri;
+            formData.append('redirectUri', redirectUri);
+            formData.append('source', 'portal');
+            
+            console.log('OAuth callback details:', {
+                redirectUri,
+                currentLocation: window.location.href,
+                configRedirectUri: this.config.oauth.redirectUri
+            });
+            
+            console.log('Sending OAuth callback request...');
+            
+            const response = await fetch(callbackUrl, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            console.log('OAuth callback successful:', result);
+            
+            // Store session data
+            this.setAuthData(result);
+            
+            // Clean up URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            
+            // Redirect to dashboard
+            window.location.href = this.config.portal.dashboardUrl || '/portal/#/dashboard';
+            
+        } catch (error) {
+            console.error('OAuth callback failed:', error);
+            this.showError('Authentication failed. Please try again.');
+            
+            // Clean up URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }
+    
+    // ======================
+    // Session Management
+    // ======================
+    
+    setAuthData(authResult) {
+        // Store session token and user info
+        this.token = authResult.sessionToken;
+        this.user = authResult.user;
+        this.organization = authResult.organization;
+        
+        localStorage.setItem('magensec_session_token', authResult.sessionToken);
+        localStorage.setItem('magensec_user', JSON.stringify(authResult.user));
+        localStorage.setItem('magensec_organization', JSON.stringify(authResult.organization));
+        localStorage.setItem('magensec_session_expires', authResult.expiresAt);
+        
+        console.log('Portal session data stored');
+    }
+    
+    async checkExistingSession() {
+        const token = localStorage.getItem('magensec_session_token');
+        if (!token) return false;
+        
+        try {
+            const response = await fetch(`${this.apiBase}/api/oauth/verify`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sessionToken: token })
+            });
+            
+            if (response.ok) {
+                const session = await response.json();
+                if (session.isValid) {
+                    // Restore session data
+                    this.token = token;
+                    this.user = JSON.parse(localStorage.getItem('magensec_user') || '{}');
+                    this.organization = JSON.parse(localStorage.getItem('magensec_organization') || '{}');
                     
-                    // Check if token is still valid
-                    if (Date.now() >= this.tokenExpiryTime) {
-                        this.logout(false); // Silent logout
-                        return;
-                    }
-                    
-                    // Extract organization info
-                    this.organization = payload.org || payload.organizationId;
+                    console.log('Portal session restored');
+                    return true;
                 }
             }
         } catch (error) {
-            console.error('Error initializing auth from storage:', error);
-            this.logout(false);
+            console.error('Session check failed:', error);
         }
-    }
-    
-    async initializeGoogleAuth() {
-        if (!window.google || !this.config.googleClientId) return;
         
-        try {
-            await new Promise((resolve) => {
-                google.accounts.id.initialize({
-                    client_id: this.config.googleClientId,
-                    callback: this.handleGoogleSignIn.bind(this),
-                    auto_select: false,
-                    cancel_on_tap_outside: false
-                });
-                resolve();
-            });
-        } catch (error) {
-            console.error('Failed to initialize Google Auth:', error);
-        }
+        // Clear invalid session
+        this.logout(false);
+        return false;
     }
     
     // ======================
@@ -87,7 +272,7 @@ class MagenSecAuth {
     // ======================
     
     isAuthenticated() {
-        return !!(this.token && this.user && this.tokenExpiryTime && Date.now() < this.tokenExpiryTime);
+        return !!(this.token && this.user);
     }
     
     getCurrentUser() {
@@ -114,390 +299,114 @@ class MagenSecAuth {
         return permissions[role]?.includes(permission) || false;
     }
     
-    // ======================
-    // Token Management
-    // ======================
-    
     async getValidToken() {
-        if (!this.token || !this.tokenExpiryTime) {
-            return null;
-        }
-        
-        // Check if token needs refresh (5 minutes before expiry)
-        const now = Date.now();
-        const refreshThreshold = this.tokenExpiryTime - this.config.refreshThreshold;
-        
-        if (now >= refreshThreshold) {
-            await this.refreshTokenIfNeeded();
-        }
-        
+        // For now, just return the token
+        // Future: implement token refresh logic if needed
         return this.token;
     }
     
-    async refreshTokenIfNeeded() {
-        if (!this.refreshToken) {
-            this.logout();
+    // ======================
+    // Logout
+    // ======================
+    
+    async logout(redirect = true) {
+        try {
+            // Call logout API if we have a token
+            if (this.token && this.apiBase) {
+                await fetch(`${this.apiBase}/api/oauth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ sessionToken: this.token })
+                });
+            }
+        } catch (error) {
+            console.error('Logout API call failed:', error);
+        }
+        
+        // Clear local data
+        this.token = null;
+        this.user = null;
+        this.organization = null;
+        
+        localStorage.removeItem('magensec_session_token');
+        localStorage.removeItem('magensec_user');
+        localStorage.removeItem('magensec_organization');
+        localStorage.removeItem('magensec_session_expires');
+        sessionStorage.removeItem('oauth_state');
+        
+        console.log('Portal session cleared');
+        
+        if (redirect) {
+            // Redirect to login
+            window.location.href = '/portal/';
+        }
+    }
+    
+    // ======================
+    // UI Helpers
+    // ======================
+    
+    showError(message) {
+        console.error('Auth error:', message);
+        
+        // Try to show in UI if available
+        if (window.MagenSecUI && window.MagenSecUI.showNotification) {
+            window.MagenSecUI.showNotification(message, 'error');
+        } else {
+            // Fallback to alert
+            alert('Authentication Error: ' + message);
+        }
+    }
+    
+    // ======================
+    // Public API
+    // ======================
+    
+    // Show login UI (to be called by the app when user needs to authenticate)
+    showLogin() {
+        if (!this.oauthConfig) {
+            this.showError('Authentication not configured');
             return;
         }
         
-        try {
-            const response = await fetch(`${window.MagenSecConfig.api.base}/oauth/refresh`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    refreshToken: this.refreshToken
-                })
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                this.setAuthData(data);
-            } else {
-                throw new Error('Token refresh failed');
-            }
-        } catch (error) {
-            console.error('Token refresh error:', error);
-            this.logout();
-        }
-    }
-    
-    setupTokenRefresh() {
-        // Clear existing timer
-        if (this.refreshTimer) {
-            clearTimeout(this.refreshTimer);
-        }
-        
-        if (!this.tokenExpiryTime) return;
-        
-        // Set timer to refresh token before expiry
-        const now = Date.now();
-        const refreshTime = this.tokenExpiryTime - this.config.refreshThreshold;
-        const timeUntilRefresh = Math.max(0, refreshTime - now);
-        
-        this.refreshTimer = setTimeout(() => {
-            this.refreshTokenIfNeeded();
-        }, timeUntilRefresh);
-        
-        // Setup logout warning
-        const logoutWarningTime = this.tokenExpiryTime - this.config.autoLogoutWarning;
-        const timeUntilWarning = Math.max(0, logoutWarningTime - now);
-        
-        if (timeUntilWarning > 0) {
-            setTimeout(() => {
-                this.showLogoutWarning();
-            }, timeUntilWarning);
-        }
-    }
-    
-    // ======================
-    // Authentication Actions
-    // ======================
-    
-    async signInWithGoogle() {
-        return new Promise((resolve, reject) => {
-            if (!window.google) {
-                reject(new Error('Google Auth not loaded'));
-                return;
-            }
-            
-            google.accounts.id.prompt((notification) => {
-                if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                    // Fallback to manual sign-in
-                    this.showGoogleSignInButton();
-                }
-            });
-        });
-    }
-    
-    showGoogleSignInButton() {
-        const authContent = document.getElementById('auth-content');
-        if (!authContent) return;
-        
-        // Check if Google Sign-In is available
-        if (window.google && this.config.googleClientId && this.config.googleClientId !== 'your-google-client-id') {
-            // Show Google Sign-In button
-            authContent.innerHTML = `
-                <div class="space-y-4">
-                    <div class="text-center">
-                        <h3 class="text-lg font-medium text-gray-900 mb-4">Sign in to continue</h3>
-                        <div id="google-signin-button"></div>
+        // Create login UI
+        const loginHtml = `
+            <div class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
+                <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+                    <div class="text-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900 mb-2">MagenSec Portal</h1>
+                        <p class="text-gray-600">Sign in to access your security dashboard</p>
                     </div>
                     
-                    <div class="mt-6 text-center text-sm text-gray-500">
-                        <p>Secure enterprise security management</p>
-                        <p class="mt-1">✓ SOC2 Compliant ✓ GDPR Ready ✓ Zero Trust</p>
-                    </div>
+                    <button id="portalGoogleLogin" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        <span>Sign in with Google</span>
+                    </button>
+                    
+                    <p class="text-xs text-gray-500 text-center mt-6">
+                        Secure authentication powered by Google OAuth 2.0
+                    </p>
                 </div>
-            `;
-            
-            // Render Google Sign-In button
-            google.accounts.id.renderButton(
-                document.getElementById('google-signin-button'),
-                {
-                    theme: 'outline',
-                    size: 'large',
-                    type: 'standard',
-                    text: 'signin_with',
-                    shape: 'rectangular',
-                    logo_alignment: 'left'
-                }
-            );
-        } else {
-            // Show development/demo login form
-            authContent.innerHTML = `
-                <div class="space-y-4">
-                    <div class="text-center">
-                        <h3 class="text-lg font-medium text-gray-900 mb-4">Development Login</h3>
-                        <p class="text-sm text-gray-600 mb-6">Demo mode - Google Sign-In not configured</p>
-                    </div>
-                    
-                    <form id="demo-login-form" class="space-y-4">
-                        <div>
-                            <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="email" name="email" value="admin@company.com" required
-                                   class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        
-                        <div>
-                            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                            <input type="password" id="password" name="password" value="demo123" required
-                                   class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        
-                        <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            Sign In (Demo)
-                        </button>
-                    </form>
-                    
-                    <div class="mt-6 text-center text-sm text-gray-500">
-                        <p>Development mode credentials:</p>
-                        <p class="mt-1">✓ Email: admin@company.com ✓ Password: demo123</p>
-                    </div>
-                </div>
-            `;
-            
-            // Add demo login form handler
-            const form = document.getElementById('demo-login-form');
-            if (form) {
-                form.addEventListener('submit', (e) => this.handleDemoLogin(e));
-            }
-        }
-    }
-    
-    handleDemoLogin(event) {
-        event.preventDefault();
+            </div>
+        `;
         
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+        // Add to page
+        document.body.insertAdjacentHTML('beforeend', loginHtml);
         
-        // Demo login validation
-        if (email === 'admin@company.com' && password === 'demo123') {
-            // Set demo user data
-            const demoUser = {
-                id: 'demo_user_123',
-                email: 'admin@company.com',
-                name: 'Demo Administrator',
-                role: 'admin',
-                avatar: 'https://ui-avatars.com/api/?name=Demo+Admin',
-                permissions: ['view_all', 'manage_users', 'generate_reports']
-            };
-            
-            // Store demo session
-            this.user = demoUser;
-            this.token = 'demo_token_' + Date.now();
-            
-            // Save to localStorage
-            localStorage.setItem('magensec_auth_token', this.token);
-            localStorage.setItem('magensec_user', JSON.stringify(demoUser));
-            
-            // Navigate to dashboard
-            window.MagenSecRouter.navigate('/dashboard');
-            
-            // Show success message
-            if (window.MagenSecUtils) {
-                window.MagenSecUtils.showNotification('Demo login successful!', 'success');
-            }
-        } else {
-            // Show error message
-            if (window.MagenSecUtils) {
-                window.MagenSecUtils.showNotification('Invalid credentials. Use: admin@company.com / demo123', 'error');
-            }
-        }
-    }
-    
-    async handleGoogleSignIn(response) {
-        try {
-            // Show loading
-            window.MagenSecUI.showLoading('Signing you in...');
-            
-            // Send the credential to our backend
-            const authResponse = await fetch(`${window.MagenSecConfig.api.base}/oauth/google`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    credential: response.credential,
-                    clientId: this.config.googleClientId
-                })
-            });
-            
-            if (authResponse.ok) {
-                const authData = await authResponse.json();
-                this.setAuthData(authData);
-                
-                // Redirect to dashboard
-                window.MagenSecRouter.navigate('/dashboard');
-                window.MagenSecUI.showToast('Welcome back!', 'success');
-            } else {
-                const error = await authResponse.json();
-                throw new Error(error.message || 'Authentication failed');
-            }
-        } catch (error) {
-            console.error('Google sign-in error:', error);
-            window.MagenSecUI.showToast('Sign-in failed. Please try again.', 'error');
-        } finally {
-            window.MagenSecUI.hideLoading();
-        }
-    }
-    
-    setAuthData(authData) {
-        // Store authentication data
-        this.token = authData.accessToken || authData.token;
-        this.refreshToken = authData.refreshToken;
-        this.user = authData.user;
-        
-        // Parse token for expiry and organization
-        const payload = this.parseJWTPayload(this.token);
-        if (payload) {
-            this.tokenExpiryTime = payload.exp * 1000;
-            this.organization = payload.org || payload.organizationId;
-        }
-        
-        // Store in localStorage
-        localStorage.setItem(this.config.tokenKey, this.token);
-        if (this.refreshToken) {
-            localStorage.setItem(this.config.refreshKey, this.refreshToken);
-        }
-        localStorage.setItem(this.config.userKey, JSON.stringify(this.user));
-        
-        // Setup auto-refresh
-        this.setupTokenRefresh();
-        
-        // Update UI
-        this.updateUserDisplay();
-    }
-    
-    logout(showMessage = true) {
-        // Clear stored data
-        localStorage.removeItem(this.config.tokenKey);
-        localStorage.removeItem(this.config.refreshKey);
-        localStorage.removeItem(this.config.userKey);
-        
-        // Clear instance data
-        this.token = null;
-        this.refreshToken = null;
-        this.user = null;
-        this.organization = null;
-        this.tokenExpiryTime = null;
-        
-        // Clear timers
-        if (this.refreshTimer) {
-            clearTimeout(this.refreshTimer);
-            this.refreshTimer = null;
-        }
-        if (this.logoutTimer) {
-            clearTimeout(this.logoutTimer);
-            this.logoutTimer = null;
-        }
-        
-        // Show message
-        if (showMessage) {
-            window.MagenSecUI.showToast('You have been signed out', 'info');
-        }
-        
-        // Redirect to auth
-        window.MagenSecRouter.navigate('/auth');
-    }
-    
-    // ======================
-    // Utility Methods
-    // ======================
-    
-    parseJWTPayload(token) {
-        try {
-            const payload = token.split('.')[1];
-            return JSON.parse(atob(payload));
-        } catch (error) {
-            console.error('Error parsing JWT:', error);
-            return null;
-        }
-    }
-    
-    updateUserDisplay() {
-        const userNameElement = document.getElementById('user-name');
-        const userAvatarElement = document.getElementById('user-avatar');
-        
-        if (this.user && userNameElement) {
-            userNameElement.textContent = this.user.name || this.user.email || 'User';
-            
-            if (userAvatarElement) {
-                const name = this.user.name || this.user.email || 'User';
-                userAvatarElement.src = this.user.avatar || 
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=3B82F6&color=fff`;
-            }
-        }
-    }
-    
-    showLogoutWarning() {
-        const warningMinutes = Math.floor(this.config.autoLogoutWarning / 60000);
-        
-        window.MagenSecUI.showConfirmation(
-            'Session Expiring',
-            `Your session will expire in ${warningMinutes} minutes. Do you want to extend it?`,
-            'Extend Session',
-            'Sign Out'
-        ).then((extend) => {
-            if (extend) {
-                this.refreshTokenIfNeeded();
-            } else {
-                this.logout();
-            }
+        // Add click handler
+        document.getElementById('portalGoogleLogin').addEventListener('click', () => {
+            this.startGoogleAuth();
         });
-    }
-    
-    // ======================
-    // Route Guards
-    // ======================
-    
-    requireAuth(callback) {
-        if (this.isAuthenticated()) {
-            callback();
-        } else {
-            window.MagenSecRouter.navigate('/auth');
-        }
-    }
-    
-    requirePermission(permission, callback, fallback = null) {
-        if (this.hasPermission(permission)) {
-            callback();
-        } else if (fallback) {
-            fallback();
-        } else {
-            window.MagenSecUI.showToast('You do not have permission to perform this action', 'error');
-        }
     }
 }
 
-// Initialize global authentication service
+// Create global auth instance
 window.MagenSecAuth = new MagenSecAuth();
-
-// Auto-check authentication status on page load
-document.addEventListener('DOMContentLoaded', () => {
-    if (window.MagenSecAuth.isAuthenticated()) {
-        // User is authenticated, initialize app
-        window.MagenSecAuth.updateUserDisplay();
-    }
-});

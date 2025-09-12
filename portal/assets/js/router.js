@@ -390,9 +390,9 @@ class MagenSecRouter {
         document.getElementById('app-container').classList.add('hidden');
         document.getElementById('auth-container').classList.remove('hidden');
         
-        // Initialize Google Sign-In
+        // Initialize OAuth login UI
         if (window.MagenSecAuth) {
-            window.MagenSecAuth.showGoogleSignInButton();
+            window.MagenSecAuth.showLogin();
         }
     }
     

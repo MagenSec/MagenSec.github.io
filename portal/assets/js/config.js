@@ -49,7 +49,34 @@ window.MagenSecConfig = {
         sessionTimeout: 24 * 60 * 60 * 1000, // 24 hours
         refreshThreshold: 5 * 60 * 1000, // Refresh when 5 minutes left
         autoLogoutWarning: 2 * 60 * 1000, // Warn 2 minutes before logout
-        googleClientId: 'your-google-client-id' // Will be set from backend
+        googleClientId: '530204671754-ev6q9q91d61cpiepvrfetk72m3og7s0k.apps.googleusercontent.com' // Shared with MSCC
+    },
+
+    // OAuth Configuration (following MSCC pattern)
+    oauth: {
+        // Google OAuth Web Client ID (shared with MSCC)
+        clientId: '530204671754-ev6q9q91d61cpiepvrfetk72m3og7s0k.apps.googleusercontent.com',
+        
+        // Dynamic redirect URI based on current location
+        get redirectUri() {
+            const hostname = window.location.hostname;
+            const port = window.location.port;
+            const protocol = window.location.protocol;
+            
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                const portSuffix = port ? `:${port}` : '';
+                return `${protocol}//${hostname}${portSuffix}/portal/`;
+            } else if (hostname.includes('github.io')) {
+                return `${protocol}//${hostname}/portal/`;
+            } else {
+                return 'https://magensec.gigabits.co.in/portal/';
+            }
+        },
+        
+        // OAuth flow configuration
+        responseType: 'code',
+        scopes: ['openid', 'email', 'profile'],
+        accessType: 'online'
     },
     
     // UI Configuration
