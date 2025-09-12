@@ -15,7 +15,7 @@ class MagenSecApp {
             await this.initializeModules();
             
             // Initialize router
-            window.MagenSecRouter.initialize();
+            await window.MagenSecRouter.initialize();
             
             // Set up global error handling
             this.setupErrorHandling();

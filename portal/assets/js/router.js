@@ -16,6 +16,16 @@ class MagenSecRouter {
     }
     
     // ======================
+    // Initialization
+    // ======================
+    
+    initialize() {
+        // Router is already initialized in constructor
+        // This method provides a promise-based interface for app initialization
+        return Promise.resolve();
+    }
+    
+    // ======================
     // Route Definition
     // ======================
     
