@@ -215,22 +215,24 @@ class MagenSecAuth {
         const authContent = document.getElementById('auth-content');
         if (!authContent) return;
         
-        authContent.innerHTML = `
-            <div class="space-y-4">
-                <div class="text-center">
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">Sign in to continue</h3>
-                    <div id="google-signin-button"></div>
+        // Check if Google Sign-In is available
+        if (window.google && this.config.googleClientId && this.config.googleClientId !== 'your-google-client-id') {
+            // Show Google Sign-In button
+            authContent.innerHTML = `
+                <div class="space-y-4">
+                    <div class="text-center">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Sign in to continue</h3>
+                        <div id="google-signin-button"></div>
+                    </div>
+                    
+                    <div class="mt-6 text-center text-sm text-gray-500">
+                        <p>Secure enterprise security management</p>
+                        <p class="mt-1">✓ SOC2 Compliant ✓ GDPR Ready ✓ Zero Trust</p>
+                    </div>
                 </div>
-                
-                <div class="mt-6 text-center text-sm text-gray-500">
-                    <p>Secure enterprise security management</p>
-                    <p class="mt-1">✓ SOC2 Compliant ✓ GDPR Ready ✓ Zero Trust</p>
-                </div>
-            </div>
-        `;
-        
-        // Render Google Sign-In button
-        if (window.google && this.config.googleClientId) {
+            `;
+            
+            // Render Google Sign-In button
             google.accounts.id.renderButton(
                 document.getElementById('google-signin-button'),
                 {
@@ -242,6 +244,86 @@ class MagenSecAuth {
                     logo_alignment: 'left'
                 }
             );
+        } else {
+            // Show development/demo login form
+            authContent.innerHTML = `
+                <div class="space-y-4">
+                    <div class="text-center">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Development Login</h3>
+                        <p class="text-sm text-gray-600 mb-6">Demo mode - Google Sign-In not configured</p>
+                    </div>
+                    
+                    <form id="demo-login-form" class="space-y-4">
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" id="email" name="email" value="admin@company.com" required
+                                   class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                            <input type="password" id="password" name="password" value="demo123" required
+                                   class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        
+                        <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Sign In (Demo)
+                        </button>
+                    </form>
+                    
+                    <div class="mt-6 text-center text-sm text-gray-500">
+                        <p>Development mode credentials:</p>
+                        <p class="mt-1">✓ Email: admin@company.com ✓ Password: demo123</p>
+                    </div>
+                </div>
+            `;
+            
+            // Add demo login form handler
+            const form = document.getElementById('demo-login-form');
+            if (form) {
+                form.addEventListener('submit', (e) => this.handleDemoLogin(e));
+            }
+        }
+    }
+    
+    handleDemoLogin(event) {
+        event.preventDefault();
+        
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        // Demo login validation
+        if (email === 'admin@company.com' && password === 'demo123') {
+            // Set demo user data
+            const demoUser = {
+                id: 'demo_user_123',
+                email: 'admin@company.com',
+                name: 'Demo Administrator',
+                role: 'admin',
+                avatar: 'https://ui-avatars.com/api/?name=Demo+Admin',
+                permissions: ['view_all', 'manage_users', 'generate_reports']
+            };
+            
+            // Store demo session
+            this.user = demoUser;
+            this.token = 'demo_token_' + Date.now();
+            
+            // Save to localStorage
+            localStorage.setItem('magensec_auth_token', this.token);
+            localStorage.setItem('magensec_user', JSON.stringify(demoUser));
+            
+            // Navigate to dashboard
+            window.MagenSecRouter.navigate('/dashboard');
+            
+            // Show success message
+            if (window.MagenSecUtils) {
+                window.MagenSecUtils.showNotification('Demo login successful!', 'success');
+            }
+        } else {
+            // Show error message
+            if (window.MagenSecUtils) {
+                window.MagenSecUtils.showNotification('Invalid credentials. Use: admin@company.com / demo123', 'error');
+            }
         }
     }
     
