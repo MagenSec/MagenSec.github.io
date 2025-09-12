@@ -26,6 +26,11 @@ class MagenSecApp {
             this.initialized = true;
             console.log('MagenSec Hub initialized successfully');
             
+            // Hide loading overlay and let router take control
+            if (window.MagenSecUI) {
+                window.MagenSecUI.hideLoading();
+            }
+            
         } catch (error) {
             console.error('Application initialization failed:', error);
             this.showInitializationError(error);
