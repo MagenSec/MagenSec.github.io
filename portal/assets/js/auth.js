@@ -24,6 +24,13 @@ class MagenSecAuth {
     // Initialization
     // ======================
     
+    async initialize() {
+        // This method is called by the app.js to initialize the auth service
+        // Most initialization is already done in constructor, but this provides
+        // a promise-based interface for the app initialization flow
+        return Promise.resolve();
+    }
+    
     initializeFromStorage() {
         try {
             // Load stored authentication data
