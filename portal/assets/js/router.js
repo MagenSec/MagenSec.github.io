@@ -334,7 +334,7 @@ class MagenSecRouter {
             // Load component based on type
             switch (componentName) {
                 case 'auth':
-                    this.showAuthView();
+                    await this.showAuthView();
                     break;
                 case 'dashboard':
                     await this.loadPageComponent('dashboard');
@@ -386,12 +386,14 @@ class MagenSecRouter {
         }
     }
     
-    showAuthView() {
+    async showAuthView() {
         document.getElementById('app-container').classList.add('hidden');
         document.getElementById('auth-container').classList.remove('hidden');
         
         // Initialize OAuth login UI
         if (window.MagenSecAuth) {
+            // Ensure auth is fully initialized before showing login
+            await window.MagenSecAuth.initialize();
             window.MagenSecAuth.showLogin();
         }
     }

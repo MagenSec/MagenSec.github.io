@@ -79,6 +79,13 @@ window.MagenSecConfig = {
         accessType: 'online'
     },
     
+    // Portal-specific settings
+    portal: {
+        name: 'MagenSec Security Portal',
+        version: '1.0.0',
+        dashboardUrl: '/portal/#/dashboard'
+    },
+    
     // UI Configuration
     ui: {
         theme: 'modern',

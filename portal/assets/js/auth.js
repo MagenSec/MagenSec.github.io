@@ -365,7 +365,12 @@ class MagenSecAuth {
     // ======================
     
     // Show login UI (to be called by the app when user needs to authenticate)
-    showLogin() {
+    async showLogin() {
+        // Ensure we're initialized first
+        if (!this.isInitialized) {
+            await this.initialize();
+        }
+        
         if (!this.oauthConfig) {
             this.showError('Authentication not configured');
             return;
