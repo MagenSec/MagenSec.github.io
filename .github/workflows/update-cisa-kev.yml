@@ -42,12 +42,12 @@ jobs:
         # -L: Follow redirects.
         # -o: Output to the specified file. This will overwrite the file if it exists.
         run: |
-          curl -sSL "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json" -o diag/admin/data/known_exploited_vulnerabilities.json
+          curl -sSL "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json" -o diag/known_exploited_vulnerabilities.json
 
       - name: Check for changes and prepare commit
         id: git_status # Assign an ID to this step to access its outputs
         run: |
-          git add diag/admin/data/known_exploited_vulnerabilities.json
+          git add diag/known_exploited_vulnerabilities.json
           # Check if there are any changes staged for commit compared to HEAD.
           # --quiet suppresses output, making it suitable for scripting.
           # If there are differences, git diff exits with status 1.
