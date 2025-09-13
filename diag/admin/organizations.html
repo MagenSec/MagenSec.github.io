@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Management - MagenSec</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .auth-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .auth-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+        }
+
+        .status-indicator.authenticated {
+            background: #28a745;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .org-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .org-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .org-info h3 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .org-info p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .org-meta {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Organization Management</h1>
+            <p>Create and manage your MagenSec organizations</p>
+        </div>
+
+        <div class="content">
+            <!-- Authentication Section -->
+            <div class="auth-section">
+                <div class="auth-status">
+                    <div class="status-indicator" id="authIndicator"></div>
+                    <span id="authStatus">Not authenticated</span>
+                </div>
+                <button class="btn" id="authBtn" onclick="authenticate()">Authenticate with Google</button>
+            </div>
+
+            <!-- Alerts -->
+            <div class="alert success" id="successAlert"></div>
+            <div class="alert error" id="errorAlert"></div>
+
+            <!-- Loading -->
+            <div class="loading" id="loadingIndicator">
+                <div class="spinner"></div>
+                <p>Loading...</p>
+            </div>
+
+            <!-- My Organizations Section -->
+            <div class="section" id="organizationsSection" style="display: none;">
+                <h2>My Organizations</h2>
+                <div class="org-list" id="organizationsList">
+                    <p>No organizations found.</p>
+                </div>
+            </div>
+
+            <!-- Create Organization Section -->
+            <div class="section" id="createSection" style="display: none;">
+                <h2>Create New Organization</h2>
+                <form id="createOrgForm">
+                    <div class="form-group">
+                        <label for="orgName">Organization Name *</label>
+                        <input type="text" id="orgName" name="name" required placeholder="Enter organization name">
+                    </div>
+                    <div class="form-group">
+                        <label for="orgDescription">Description</label>
+                        <textarea id="orgDescription" name="description" rows="3" placeholder="Optional description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="licenseType">License Type</label>
+                        <select id="licenseType" name="licenseType">
+                            <option value="Business">Business (25 users, 100 devices)</option>
+                            <option value="Enterprise">Enterprise (100 users, 500 devices)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">Create Organization</button>
+                </form>
+            </div>
+
+            <!-- License Validation Section -->
+            <div class="section" id="licenseSection" style="display: none;">
+                <h2>Validate License</h2>
+                <form id="validateLicenseForm">
+                    <div class="form-group">
+                        <label for="licenseKey">License Key</label>
+                        <input type="text" id="licenseKey" name="licenseKey" placeholder="Enter license key">
+                    </div>
+                    <button type="submit" class="btn">Validate License</button>
+                </form>
+                <div id="licenseResult" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let sessionToken = null;
+        
+        const API_BASE = window.location.hostname === 'localhost' ? 
+            'https://localhost:7061' : 
+            'https://kshetrapal.azurewebsites.net';
+
+        // Check authentication status on load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatus();
+        });
+
+        async function checkAuthStatus() {
+            // Check if we have a session token stored
+            sessionToken = localStorage.getItem('sessionToken');
+            if (sessionToken) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/auth/verify-session`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Session-Token': sessionToken
+                        },
+                        body: JSON.stringify({ sessionToken })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success && data.user) {
+                            setAuthenticatedState(data.user);
+                            await loadUserOrganizations();
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Session validation error:', error);
+                }
+                
+                // Clear invalid session
+                localStorage.removeItem('sessionToken');
+                sessionToken = null;
+            }
+            
+            setUnauthenticatedState();
+        }
+
+        function setAuthenticatedState(user) {
+            currentUser = user;
+            document.getElementById('authIndicator').classList.add('authenticated');
+            document.getElementById('authStatus').textContent = `Authenticated as ${user.email}`;
+            document.getElementById('authBtn').textContent = 'Sign Out';
+            document.getElementById('authBtn').onclick = signOut;
+            
+            // Show authenticated sections
+            document.getElementById('organizationsSection').style.display = 'block';
+            document.getElementById('createSection').style.display = 'block';
+            document.getElementById('licenseSection').style.display = 'block';
+        }
+
+        function setUnauthenticatedState() {
+            currentUser = null;
+            document.getElementById('authIndicator').classList.remove('authenticated');
+            document.getElementById('authStatus').textContent = 'Not authenticated';
+            document.getElementById('authBtn').textContent = 'Authenticate with Google';
+            document.getElementById('authBtn').onclick = authenticate;
+            
+            // Hide authenticated sections
+            document.getElementById('organizationsSection').style.display = 'none';
+            document.getElementById('createSection').style.display = 'none';
+            document.getElementById('licenseSection').style.display = 'none';
+        }
+
+        function authenticate() {
+            // For now, redirect to the OAuth endpoint
+            window.location.href = `${API_BASE}/api/auth/oauth`;
+        }
+
+        function signOut() {
+            localStorage.removeItem('sessionToken');
+            sessionToken = null;
+            setUnauthenticatedState();
+            showSuccess('Signed out successfully');
+        }
+
+        async function loadUserOrganizations() {
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE}/api/organization/my-organizations`, {
+                    headers: {
+                        'X-Session-Token': sessionToken
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayOrganizations(data.organizations || []);
+                } else {
+                    showError('Failed to load organizations');
+                }
+            } catch (error) {
+                console.error('Error loading organizations:', error);
+                showError('Failed to load organizations');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayOrganizations(organizations) {
+            const container = document.getElementById('organizationsList');
+            
+            if (!organizations.length) {
+                container.innerHTML = '<p>No organizations found. Create your first organization below.</p>';
+                return;
+            }
+
+            container.innerHTML = organizations.map(org => `
+                <div class="org-item">
+                    <div class="org-info">
+                        <h3>${escapeHtml(org.organizationName)}</h3>
+                        <p>Role: ${org.role} | Status: ${org.status}</p>
+                        ${org.isPrimary ? '<p><strong>Primary Organization</strong></p>' : ''}
+                    </div>
+                    <div class="org-meta">
+                        <p>Joined: ${new Date(org.joinedAt).toLocaleDateString()}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Form handlers
+        document.getElementById('createOrgForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!sessionToken) {
+                showError('Please authenticate first');
+                return;
+            }
+
+            const formData = new FormData(this);
+            const orgData = {
+                name: formData.get('name'),
+                description: formData.get('description'),
+                licenseType: formData.get('licenseType')
+            };
+
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE}/api/organization/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Session-Token': sessionToken
+                    },
+                    body: JSON.stringify(orgData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showSuccess(`Organization "${orgData.name}" created successfully! License Key: ${data.organization.licenseKey}`);
+                    this.reset();
+                    await loadUserOrganizations();
+                } else {
+                    showError(data.error || 'Failed to create organization');
+                }
+            } catch (error) {
+                console.error('Error creating organization:', error);
+                showError('Failed to create organization');
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        document.getElementById('validateLicenseForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const licenseKey = formData.get('licenseKey');
+
+            if (!licenseKey) {
+                showError('Please enter a license key');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`${API_BASE}/api/organization/validate-license`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ licenseKey })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    document.getElementById('licenseResult').innerHTML = `
+                        <div class="alert success" style="display: block;">
+                            <h4>Valid License</h4>
+                            <p><strong>Organization:</strong> ${escapeHtml(data.license.organizationName)}</p>
+                            <p><strong>Type:</strong> ${data.license.licenseType}</p>
+                            <p><strong>Expires:</strong> ${new Date(data.license.expiryDate).toLocaleDateString()}</p>
+                            <p><strong>Users:</strong> ${data.license.currentUsers} / ${data.license.maxUsers}</p>
+                            <p><strong>Devices:</strong> ${data.license.currentDevices} / ${data.license.maxDevices}</p>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('licenseResult').innerHTML = `
+                        <div class="alert error" style="display: block;">
+                            Invalid or expired license key
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error validating license:', error);
+                showError('Failed to validate license');
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        // Utility functions
+        function showSuccess(message) {
+            const alert = document.getElementById('successAlert');
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        function showError(message) {
+            const alert = document.getElementById('errorAlert');
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingIndicator').style.display = show ? 'block' : 'none';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Handle OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        if (token) {
+            localStorage.setItem('sessionToken', token);
+            // Remove token from URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            // Check auth status
+            checkAuthStatus();
+        }
+    </script>
+</body>
+</html>
