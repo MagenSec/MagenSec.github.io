@@ -1,8 +1,13 @@
-// MagenSec Hub Configuration
+// Configuration for the MagenSec Portal
+// API base will be updated by buildDeployContainer.ps1 for production deployments
+
 window.MagenSecConfig = {
     // API Configuration
     api: {
-        base: 'https://ms-central-api.braveisland-ad151ae6.eastus.azurecontainerapps.io',
+        // Development: localhost:8080, Production: set by build script
+        base: window.location.hostname === 'localhost' ? 
+            'https://localhost:8080' : 
+            'PLACEHOLDER_API_BASE_URL', // Replaced by buildDeployContainer.ps1
         endpoints: {
             // Authentication
             auth: '/api/v1/auth',
@@ -49,12 +54,11 @@ window.MagenSecConfig = {
         sessionTimeout: 24 * 60 * 60 * 1000, // 24 hours
         refreshThreshold: 5 * 60 * 1000, // Refresh when 5 minutes left
         autoLogoutWarning: 2 * 60 * 1000, // Warn 2 minutes before logout
-        googleClientId: '530204671754-ev6q9q91d61cpiepvrfetk72m3og7s0k.apps.googleusercontent.com' // Shared with MSCC
     },
 
-    // OAuth Configuration (following MSCC pattern)
+    // OAuth Configuration
     oauth: {
-        // Google OAuth Web Client ID (shared with MSCC)
+        // Google OAuth Web Client ID
         clientId: '530204671754-ev6q9q91d61cpiepvrfetk72m3og7s0k.apps.googleusercontent.com',
         
         // Dynamic redirect URI based on current location
@@ -146,18 +150,14 @@ window.MagenSecConfig = {
 };
 
 // Environment-specific overrides
-if (window.location.hostname.includes('dev') || window.location.hostname === 'localhost') {
-    // Development environment
-    window.MagenSecConfig.api.base = 'https://ms-central-api.braveisland-ad151ae6.eastus.azurecontainerapps.io';
-    window.MagenSecConfig.development.debug = true;
-} else if (window.location.hostname.includes('staging')) {
-    // Staging environment
-    window.MagenSecConfig.api.base = 'https://ms-central-api-staging.braveisland-ad151ae6.eastus.azurecontainerapps.io';
-} else {
-    // Production environment
-    window.MagenSecConfig.development.debug = false;
-    window.MagenSecConfig.development.consoleLogging = false;
-}
+// API base is determined by the config above and will be updated by buildDeployContainer.ps1
+
+// Simple API resolver that returns the configured API base
+window.apiResolver = {
+    async resolveApiBase() {
+        return window.MagenSecConfig.api.base;
+    }
+};
 
 // Freeze configuration to prevent tampering
 Object.freeze(window.MagenSecConfig);

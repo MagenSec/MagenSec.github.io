@@ -390,6 +390,53 @@ class MagenSecRouter {
         document.getElementById('app-container').classList.add('hidden');
         document.getElementById('auth-container').classList.remove('hidden');
         
+        // Check if this is a token callback - if so, don't show login dialog
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        if (token) {
+            console.log('Token callback detected, waiting for authentication...');
+            
+            // Show loading state while processing token
+            const authContent = document.getElementById('auth-content');
+            if (authContent) {
+                authContent.innerHTML = `
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p class="mt-4 text-gray-600">Completing sign in...</p>
+                    </div>
+                `;
+            }
+            
+            // Wait for auth initialization and token processing
+            if (window.MagenSecAuth) {
+                await window.MagenSecAuth.initialize();
+                
+                // Wait a bit for token callback to be processed
+                let attempts = 0;
+                while (attempts < 50 && !window.MagenSecAuth.isAuthenticated()) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                // If still not authenticated, something went wrong
+                if (!window.MagenSecAuth.isAuthenticated()) {
+                    console.error('Token callback failed or timed out');
+                    this.showLoginDialog();
+                } else {
+                    // Success - redirect to dashboard
+                    console.log('Token authentication successful, redirecting to dashboard');
+                    this.navigate('/dashboard');
+                }
+            }
+            return;
+        }
+        
+        // No token callback - show normal login dialog
+        this.showLoginDialog();
+    }
+    
+    async showLoginDialog() {
         // Initialize OAuth login UI
         if (window.MagenSecAuth) {
             // Ensure auth is fully initialized before showing login

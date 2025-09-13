@@ -11,6 +11,61 @@ class CompliancePage {
         };
     }
 
+    async render(route) {
+        try {
+            // Show main app view
+            document.getElementById('auth-container').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            
+            // Get main content container
+            const mainContent = document.getElementById('main-content');
+            if (!mainContent) throw new Error('Main content container not found');
+            
+            // Show loading state
+            mainContent.innerHTML = this.renderLoadingState();
+            
+            // Initialize the page
+            await this.initialize();
+            
+        } catch (error) {
+            console.error('Compliance page render error:', error);
+            window.MagenSecUI?.showToast('Failed to load compliance page', 'error');
+            
+            const mainContent = document.getElementById('main-content');
+            if (mainContent) {
+                mainContent.innerHTML = this.renderErrorState(error);
+            }
+        }
+    }
+
+    renderLoadingState() {
+        return `
+            <div class="flex items-center justify-center min-h-screen">
+                <div class="flex flex-col items-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <p class="mt-4 text-gray-600">Loading compliance data...</p>
+                </div>
+            </div>
+        `;
+    }
+
+    renderErrorState(error) {
+        return `
+            <div class="flex items-center justify-center min-h-screen">
+                <div class="text-center">
+                    <div class="text-red-500 text-6xl mb-4">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Error Loading Compliance Page</h2>
+                    <p class="text-gray-600 mb-4">${error.message}</p>
+                    <button onclick="window.location.reload()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        Retry
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
     async initialize() {
         console.log('Compliance page initializing...');
         this.setupEventHandlers();

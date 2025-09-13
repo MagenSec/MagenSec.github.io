@@ -100,29 +100,11 @@ class MagenSecAuth {
     // ======================
     
     startGoogleAuth() {
-        if (!this.oauthConfig) {
-            console.error('OAuth not configured');
-            this.showError('Authentication not configured');
-            return;
-        }
-        
         console.log('Starting Google OAuth flow...');
         
-        // Build OAuth URL
-        const params = new URLSearchParams({
-            client_id: this.oauthConfig.googleClientId,
-            redirect_uri: this.oauthConfig.redirectUri,
-            response_type: this.oauthConfig.responseType,
-            scope: this.oauthConfig.scopes.join(' '),
-            access_type: this.oauthConfig.accessType,
-            state: this.generateState()
-        });
-        
-        // Store state for verification
-        sessionStorage.setItem('oauth_state', params.get('state'));
-        
-        // Redirect to Google OAuth
-        window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+        // Use the simplified OAuth flow with return URL (like admin pages)
+        const returnUrl = encodeURIComponent(window.location.href);
+        window.location.href = `${this.apiBase}/api/auth/oauth?returnUrl=${returnUrl}`;
     }
     
     generateState() {
@@ -134,6 +116,7 @@ class MagenSecAuth {
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
         const state = urlParams.get('state');
+        const token = urlParams.get('token');
         const error = urlParams.get('error');
         
         if (error) {
@@ -142,6 +125,14 @@ class MagenSecAuth {
             return;
         }
         
+        // Check for new token-based callback (from our fixed backend)
+        if (token) {
+            console.log('✅ Received session token from OAuth redirect');
+            this.handleTokenCallback(token);
+            return;
+        }
+        
+        // Check for traditional code-based callback (fallback)
         if (code && state) {
             // This is an OAuth callback
             this.handleOAuthCallback(code, state);
@@ -226,6 +217,74 @@ class MagenSecAuth {
         }
     }
     
+    async handleTokenCallback(token) {
+        try {
+            console.log('Handling token callback with session token');
+            
+            // Ensure API base is resolved
+            await this.getApiBase();
+            
+            // Verify the session token with the backend
+            const verifyUrl = `${this.apiBase}/api/oauth/verify`;
+            console.log('Verifying session token at:', verifyUrl);
+            
+            const response = await fetch(verifyUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ sessionToken: token })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Token verification failed: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            if (!result.isValid) {
+                throw new Error('Invalid session token');
+            }
+            
+            console.log('✅ Session token verified successfully');
+            
+            // Create auth result object in expected format
+            const authResult = {
+                sessionToken: token,
+                user: result.user,
+                organization: result.organization,
+                expiresAt: result.expiresAt
+            };
+            
+            // Store session data
+            this.setAuthData(authResult);
+            
+            // Clean up URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            
+            // Show success message and redirect
+            console.log('✅ Token authentication successful! Redirecting to dashboard...');
+            
+            // Small delay to ensure authentication state is fully set
+            setTimeout(() => {
+                if (window.MagenSecRouter) {
+                    console.log('🔄 Using router navigation to dashboard');
+                    window.MagenSecRouter.navigate('/dashboard');
+                } else {
+                    console.log('🔄 Router not available, using hash navigation');
+                    window.location.hash = '#/dashboard';
+                }
+            }, 100);
+            
+        } catch (error) {
+            console.error('Token callback failed:', error);
+            this.showError('Authentication failed. Please try again.');
+            
+            // Clean up URL parameters and redirect to auth
+            window.history.replaceState({}, document.title, window.location.pathname);
+            window.location.hash = '#/auth';
+        }
+    }
+
     // ======================
     // Session Management
     // ======================

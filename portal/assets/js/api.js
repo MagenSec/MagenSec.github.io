@@ -2,17 +2,40 @@
 class MagenSecAPI {
     constructor() {
         this.config = window.MagenSecConfig.api;
-        this.baseURL = this.config.base;
+        this.baseURL = this.config.base; // Initial fallback
         this.requestInterceptors = [];
         this.responseInterceptors = [];
         this.retryQueue = new Map();
+        this.isInitialized = false;
         
         // Track API health
         this.isOnline = true;
         this.lastHealthCheck = null;
         
-        // Initialize request monitoring
+        // Initialize request monitoring and resolve API base
         this.initializeMonitoring();
+        this.resolveApiBase();
+    }
+    
+    async resolveApiBase() {
+        if (window.apiResolver) {
+            try {
+                this.baseURL = await window.apiResolver.resolveApiBase();
+                console.log('API service using resolved base URL:', this.baseURL);
+            } catch (error) {
+                console.warn('Failed to resolve API base, using fallback:', error);
+            }
+        }
+        this.isInitialized = true;
+    }
+    
+    async waitForInitialization() {
+        if (this.isInitialized) return;
+        
+        // Wait for initialization to complete
+        while (!this.isInitialized) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
     }
     
     // ======================
@@ -20,6 +43,9 @@ class MagenSecAPI {
     // ======================
     
     async request(endpoint, options = {}) {
+        // Wait for API base resolution
+        await this.waitForInitialization();
+        
         const config = {
             method: 'GET',
             headers: {
