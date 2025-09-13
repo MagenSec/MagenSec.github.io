@@ -212,83 +212,15 @@ class CompliancePage {
     renderComplianceOverview() {
         const container = document.getElementById('compliance-overview');
         const frameworks = this.complianceData.frameworks || [];
-
-        container.innerHTML = `
-            <h2 class="text-lg font-semibold mb-4">Compliance Frameworks</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                ${frameworks.map(framework => `
-                    <div class="border border-gray-200 rounded-lg p-4">
-                        <div class="flex justify-between items-start mb-3">
-                            <h3 class="font-medium text-gray-900">${framework.name}</h3>
-                            <span class="status-dot status-${framework.status === 'compliant' ? 'online' : framework.status === 'partial' ? 'medium' : 'critical'}"></span>
-                        </div>
-                        <div class="space-y-2">
-                            <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">Score:</span>
-                                <span class="font-medium">${framework.score}%</span>
-                            </div>
-                            <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">Controls:</span>
-                                <span class="font-medium">${framework.implemented}/${framework.controls}</span>
-                            </div>
-                            <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">Last Assessment:</span>
-                                <span class="font-medium">${framework.lastAssessment}</span>
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <div class="bg-gray-200 rounded-full h-2">
-                                <div class="bg-${framework.score >= 80 ? 'green' : framework.score >= 60 ? 'yellow' : 'red'}-500 h-2 rounded-full" style="width: ${framework.score}%"></div>
-                            </div>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
+        
+        container.innerHTML = window.MagenSecTemplates.compliance.frameworksOverview(frameworks);
     }
 
     renderComplianceDetails() {
         const container = document.getElementById('compliance-details');
         const requirements = this.complianceData.requirements || [];
-
-        container.innerHTML = `
-            <div class="p-6">
-                <h2 class="text-lg font-semibold mb-4">Compliance Requirements</h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requirement</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Framework</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Review</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            ${requirements.map(req => `
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">${req.id}</div>
-                                        <div class="text-sm text-gray-500">${req.title}</div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${req.framework.toUpperCase()}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                            req.status === 'compliant' ? 'bg-green-100 text-green-800' :
-                                            req.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                                            'bg-red-100 text-red-800'
-                                        }">${req.status}</span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${req.priority}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${req.lastReview}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
+        
+        container.innerHTML = window.MagenSecTemplates.compliance.requirementsTable(requirements);
     }
 
     filterAndRenderData() {

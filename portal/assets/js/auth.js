@@ -29,7 +29,6 @@ class MagenSecAuth {
         try {
             // Resolve API base
             await this.getApiBase();
-            console.log('Portal API base resolved to:', this.apiBase);
             
             // Set up Google OAuth
             await this.setupGoogleAuth();
@@ -70,15 +69,11 @@ class MagenSecAuth {
                 throw new Error('Failed to get OAuth config');
             }
             this.oauthConfig = await response.json();
-            console.log('Using OAuth config from API');
-            
-            console.log('Portal OAuth setup complete');
             
         } catch (error) {
             console.error('Portal OAuth setup failed:', error);
             // For development or GitHub Pages
             if (this.isDevelopmentMode() || window.location.hostname.includes('github.io')) {
-                console.log('OAuth setup failed, but allowing for static hosting');
                 return;
             }
             throw new Error('Authentication service unavailable. Please try again later.');
@@ -97,8 +92,6 @@ class MagenSecAuth {
     // ======================
     
     startGoogleAuth() {
-        console.log('Starting Google OAuth flow...');
-        
         if (!this.oauthConfig) {
             console.error('OAuth config not loaded');
             this.showError('Authentication not configured');
