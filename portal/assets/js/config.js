@@ -9,7 +9,7 @@ window.MagenSecConfig = {
         endpoints: {
             // Authentication
             auth: '/api/v1/auth',
-            oauth: '/oauth',
+            oauth: '/api/oauth',
             
             // Dashboard & Analytics
             dashboard: '/portal/api/dashboard',
