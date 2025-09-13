@@ -181,14 +181,16 @@ class MagenSecAuth {
             const formData = new FormData();
             formData.append('code', code);
             formData.append('state', state);
-            // Use the redirectUri from our OAuth config (from API)
-            formData.append('redirectUri', this.oauthConfig.redirectUri);
+            
+            // Reconstruct the redirect URI that was used (same logic as setupGoogleAuth)
+            const redirectUri = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
+            formData.append('redirectUri', redirectUri);
             formData.append('source', 'portal');
             
             console.log('OAuth callback details:', {
-                redirectUri: this.oauthConfig.redirectUri,
+                redirectUri: redirectUri,
                 currentLocation: window.location.href,
-                configRedirectUri: this.config.oauth.redirectUri
+                callbackUrl: callbackUrl
             });
             
             console.log('Sending OAuth callback request...');
