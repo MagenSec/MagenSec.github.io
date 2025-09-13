@@ -9,7 +9,7 @@
 window.MagenSecTemplates = window.MagenSecTemplates || {};
 
 window.MagenSecTemplates.loginDialog = `
-    <div class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
+    <div id="login-overlay" class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-900 mb-2">MagenSec Portal</h1>

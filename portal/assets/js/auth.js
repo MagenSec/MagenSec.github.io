@@ -494,7 +494,11 @@ class MagenSecAuth {
             return;
         }
 
-        // Use the login dialog template
+        // If overlay already present, don't add another
+        if (document.getElementById('login-overlay')) {
+            return;
+        }
+
         const template = window.MagenSecTemplates?.loginDialog;
         if (!template) {
             console.error('Login dialog template not loaded');
@@ -502,43 +506,35 @@ class MagenSecAuth {
             return;
         }
 
-        // Add template to page
         document.body.insertAdjacentHTML('beforeend', template);
 
-        // Add click handler
-        document.getElementById('portalGoogleLogin').addEventListener('click', () => {
-            this.startGoogleAuth();
-        });
+        const loginBtn = document.getElementById('portalGoogleLogin');
+        if (loginBtn) {
+            loginBtn.addEventListener('click', () => this.startGoogleAuth());
+        } else {
+            console.warn('Login button not found in overlay');
+        }
     }
     
     // Hide login UI after successful authentication
     hideLogin() {
-        // Try multiple selectors to ensure we find the login dialog
-        const selectors = [
-            '.fixed.inset-0.bg-gray-900',           // Main login overlay
-            '[class*="fixed"][class*="inset-0"]',   // Broader selector
-            '#portalGoogleLogin'                     // Button selector to find parent
+        // Remove explicit overlay by id first
+        const overlays = [
+            ...document.querySelectorAll('#login-overlay'),
+            ...document.querySelectorAll('.fixed.inset-0.bg-gray-900')
         ];
-        
-        let loginDialog = null;
-        
-        for (const selector of selectors) {
-            if (selector === '#portalGoogleLogin') {
-                const button = document.querySelector(selector);
-                if (button) {
-                    // Find the closest parent with fixed positioning
-                    loginDialog = button.closest('.fixed');
-                    break;
-                }
-            } else {
-                loginDialog = document.querySelector(selector);
-                if (loginDialog) break;
-            }
+
+        overlays.forEach(el => el.remove());
+
+        // Also ensure auth-container is hidden and app-container visible post-auth
+        const authContainer = document.getElementById('auth-container');
+        const appContainer = document.getElementById('app-container');
+        if (authContainer && appContainer && this.isAuthenticated()) {
+            authContainer.classList.add('hidden');
+            appContainer.classList.remove('hidden');
         }
-        
-        if (loginDialog) {
-            loginDialog.remove();
-        } else {
+
+        if (overlays.length === 0) {
             console.warn('Login dialog not found for removal');
         }
     }
