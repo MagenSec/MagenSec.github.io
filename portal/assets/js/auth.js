@@ -55,25 +55,14 @@ class MagenSecAuth {
     
     async setupGoogleAuth() {
         try {
-            // Use OAuth config from portal config
-            if (this.config.oauth && this.config.oauth.clientId) {
-                this.oauthConfig = {
-                    googleClientId: this.config.oauth.clientId,
-                    redirectUri: this.config.oauth.redirectUri,
-                    responseType: this.config.oauth.responseType,
-                    scopes: this.config.oauth.scopes,
-                    accessType: this.config.oauth.accessType
-                };
-                console.log('Using OAuth config from portal config');
-            } else {
-                // Fallback to API endpoint
-                const response = await fetch(`${this.apiBase}/api/oauth/config`);
-                if (!response.ok) {
-                    throw new Error('Failed to get OAuth config');
-                }
-                this.oauthConfig = await response.json();
-                console.log('Using OAuth config from API');
+            // Always get OAuth config from API to ensure correct redirect URI
+            await this.getApiBase();
+            const response = await fetch(`${this.apiBase}/api/oauth/config?returnUrl=${encodeURIComponent(window.location.href)}`);
+            if (!response.ok) {
+                throw new Error('Failed to get OAuth config');
             }
+            this.oauthConfig = await response.json();
+            console.log('Using OAuth config from API');
             
             console.log('Portal OAuth setup complete');
             
@@ -183,12 +172,12 @@ class MagenSecAuth {
             const formData = new FormData();
             formData.append('code', code);
             formData.append('state', state);
-            const redirectUri = this.config.oauth.redirectUri;
-            formData.append('redirectUri', redirectUri);
+            // Use the redirectUri from our OAuth config (from API)
+            formData.append('redirectUri', this.oauthConfig.redirectUri);
             formData.append('source', 'portal');
             
             console.log('OAuth callback details:', {
-                redirectUri,
+                redirectUri: this.oauthConfig.redirectUri,
                 currentLocation: window.location.href,
                 configRedirectUri: this.config.oauth.redirectUri
             });

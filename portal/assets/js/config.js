@@ -54,32 +54,8 @@ window.MagenSecConfig = {
         autoLogoutWarning: 2 * 60 * 1000, // Warn 2 minutes before logout
     },
 
-    // OAuth Configuration
-    oauth: {
-        // Google OAuth Web Client ID
-        clientId: '530204671754-ev6q9q91d61cpiepvrfetk72m3og7s0k.apps.googleusercontent.com',
-        
-        // Dynamic redirect URI based on current location
-        get redirectUri() {
-            const hostname = window.location.hostname;
-            const port = window.location.port;
-            const protocol = window.location.protocol;
-            
-            if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                const portSuffix = port ? `:${port}` : '';
-                return `${protocol}//${hostname}${portSuffix}/portal/`;
-            } else if (hostname.includes('github.io')) {
-                return `${protocol}//${hostname}/portal/`;
-            } else {
-                return 'https://magensec.gigabits.co.in/portal/';
-            }
-        },
-        
-        // OAuth flow configuration
-        responseType: 'code',
-        scopes: ['openid', 'email', 'profile'],
-        accessType: 'online'
-    },
+    // OAuth Configuration - Always retrieved from API endpoint
+    // This ensures consistency between portal and API configurations
     
     // Portal-specific settings
     portal: {
