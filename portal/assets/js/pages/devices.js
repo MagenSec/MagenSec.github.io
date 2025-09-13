@@ -296,6 +296,7 @@ class DevicesPage {
                                 <option value="online" ${this.currentFilters.status === 'online' ? 'selected' : ''}>Online</option>
                                 <option value="offline" ${this.currentFilters.status === 'offline' ? 'selected' : ''}>Offline</option>
                                 <option value="warning" ${this.currentFilters.status === 'warning' ? 'selected' : ''}>Warning</option>
+                                <option value="license_error" ${this.currentFilters.status === 'license_error' ? 'selected' : ''}>License Error</option>
                                 <option value="error" ${this.currentFilters.status === 'error' ? 'selected' : ''}>Error</option>
                             </select>
                             
@@ -1299,7 +1300,8 @@ class DevicesPage {
             'online': 'bg-green-500',
             'offline': 'bg-gray-400',
             'warning': 'bg-yellow-500',
-            'error': 'bg-red-500'
+            'error': 'bg-red-500',
+            'license_error': 'bg-orange-500'
         };
         return colors[status] || 'bg-gray-400';
     }
@@ -1309,7 +1311,8 @@ class DevicesPage {
             'online': 'bg-green-100 text-green-800',
             'offline': 'bg-gray-100 text-gray-800',
             'warning': 'bg-yellow-100 text-yellow-800',
-            'error': 'bg-red-100 text-red-800'
+            'error': 'bg-red-100 text-red-800',
+            'license_error': 'bg-orange-100 text-orange-800'
         };
         return classes[status] || 'bg-gray-100 text-gray-800';
     }
