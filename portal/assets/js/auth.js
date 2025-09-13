@@ -203,8 +203,19 @@ class MagenSecAuth {
             // Clean up URL parameters
             window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             
-            // Redirect to dashboard
-            window.location.href = this.config.portal.dashboardUrl || '/portal/#/dashboard';
+            // Show success message and give time for UI to update
+            console.log('✅ Authentication successful! Redirecting to dashboard...');
+            
+            // Small delay to ensure authentication state is fully set
+            setTimeout(() => {
+                if (window.MagenSecRouter) {
+                    console.log('🔄 Using router navigation to dashboard');
+                    window.MagenSecRouter.navigate('/dashboard');
+                } else {
+                    console.log('🔄 Router not available, using hash navigation');
+                    window.location.hash = '#/dashboard';
+                }
+            }, 100);
             
         } catch (error) {
             console.error('OAuth callback failed:', error);
