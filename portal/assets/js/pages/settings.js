@@ -197,50 +197,29 @@ class SettingsPage {
         const container = document.getElementById('general-settings');
         const general = this.settings.general;
         
-        container.innerHTML = `
-            <h3 class="text-lg font-medium mb-4">General Settings</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Organization Name</label>
-                    <input type="text" class="setting-input mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
-                           data-setting="general.organizationName" value="${general.organizationName}">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Admin Email</label>
-                    <input type="email" class="setting-input mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
-                           data-setting="general.adminEmail" value="${general.adminEmail}">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Timezone</label>
-                    <select class="setting-input mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
-                            data-setting="general.timezone">
-                        <option value="America/New_York" ${general.timezone === 'America/New_York' ? 'selected' : ''}>Eastern Time</option>
-                        <option value="America/Chicago" ${general.timezone === 'America/Chicago' ? 'selected' : ''}>Central Time</option>
-                        <option value="America/Denver" ${general.timezone === 'America/Denver' ? 'selected' : ''}>Mountain Time</option>
-                        <option value="America/Los_Angeles" ${general.timezone === 'America/Los_Angeles' ? 'selected' : ''}>Pacific Time</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Date Format</label>
-                    <select class="setting-input mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
-                            data-setting="general.dateFormat">
-                        <option value="MM/DD/YYYY" ${general.dateFormat === 'MM/DD/YYYY' ? 'selected' : ''}>MM/DD/YYYY</option>
-                        <option value="DD/MM/YYYY" ${general.dateFormat === 'DD/MM/YYYY' ? 'selected' : ''}>DD/MM/YYYY</option>
-                        <option value="YYYY-MM-DD" ${general.dateFormat === 'YYYY-MM-DD' ? 'selected' : ''}>YYYY-MM-DD</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Session Timeout (minutes)</label>
-                    <input type="number" class="setting-input mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
-                           data-setting="general.sessionTimeout" value="${general.sessionTimeout}" min="5" max="1440">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Max Login Attempts</label>
-                    <input type="number" class="setting-input mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
-                           data-setting="general.maxLoginAttempts" value="${general.maxLoginAttempts}" min="3" max="10">
-                </div>
-            </div>
-        `;
+        // Prepare template data
+        const templateData = {
+            organizationName: general.organizationName,
+            adminEmail: general.adminEmail,
+            sessionTimeout: general.sessionTimeout,
+            maxLoginAttempts: general.maxLoginAttempts,
+            timezoneEasternSelected: general.timezone === 'America/New_York' ? 'selected' : '',
+            timezoneCentralSelected: general.timezone === 'America/Chicago' ? 'selected' : '',
+            timezoneMountainSelected: general.timezone === 'America/Denver' ? 'selected' : '',
+            timezonePacificSelected: general.timezone === 'America/Los_Angeles' ? 'selected' : '',
+            dateFormatUSSelected: general.dateFormat === 'MM/DD/YYYY' ? 'selected' : '',
+            dateFormatEUSelected: general.dateFormat === 'DD/MM/YYYY' ? 'selected' : '',
+            dateFormatISOSelected: general.dateFormat === 'YYYY-MM-DD' ? 'selected' : ''
+        };
+        
+        // Use template utility to render
+        const template = window.MagenSecTemplates?.settings?.general;
+        if (template && window.MagenSecTemplateUtils) {
+            window.MagenSecTemplateUtils.replaceWith(container, template, templateData);
+        } else {
+            console.error('Settings template or utilities not loaded');
+            container.innerHTML = '<p class="text-red-500">Error loading settings template</p>';
+        }
     }
 
     renderSecuritySettings() {
