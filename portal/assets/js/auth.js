@@ -57,7 +57,11 @@ class MagenSecAuth {
         try {
             // Always get OAuth config from API to ensure correct redirect URI
             await this.getApiBase();
-            const response = await fetch(`${this.apiBase}/api/oauth/config?returnUrl=${encodeURIComponent(window.location.href)}`);
+            
+            // Construct base portal URL without hash fragments (OAuth doesn't support hash in redirect_uri)
+            const baseUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
+            
+            const response = await fetch(`${this.apiBase}/api/oauth/config?returnUrl=${encodeURIComponent(baseUrl)}`);
             if (!response.ok) {
                 throw new Error('Failed to get OAuth config');
             }
@@ -95,6 +99,11 @@ class MagenSecAuth {
             console.error('OAuth config not loaded');
             this.showError('Authentication not configured');
             return;
+        }
+        
+        // Store the current route to restore after OAuth
+        if (window.location.hash) {
+            sessionStorage.setItem('oauth_return_route', window.location.hash);
         }
         
         // Build Google OAuth URL
@@ -199,20 +208,27 @@ class MagenSecAuth {
             // Store session data
             this.setAuthData(result);
             
+            // Get the route user was trying to access before OAuth
+            const returnRoute = sessionStorage.getItem('oauth_return_route');
+            sessionStorage.removeItem('oauth_return_route');
+            
             // Clean up URL parameters
-            window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            window.history.replaceState({}, document.title, window.location.pathname);
             
             // Show success message and give time for UI to update
-            console.log('✅ Authentication successful! Redirecting to dashboard...');
+            console.log('✅ Authentication successful! Redirecting...');
             
             // Small delay to ensure authentication state is fully set
             setTimeout(() => {
+                // Restore the original route or default to dashboard
+                const targetRoute = returnRoute || '#/dashboard';
+                
                 if (window.MagenSecRouter) {
-                    console.log('🔄 Using router navigation to dashboard');
-                    window.MagenSecRouter.navigate('/dashboard');
+                    console.log('🔄 Using router navigation to:', targetRoute);
+                    window.MagenSecRouter.navigate(targetRoute.replace('#', ''));
                 } else {
-                    console.log('🔄 Router not available, using hash navigation');
-                    window.location.hash = '#/dashboard';
+                    console.log('🔄 Router not available, using hash navigation to:', targetRoute);
+                    window.location.hash = targetRoute;
                 }
             }, 100);
             
@@ -266,20 +282,27 @@ class MagenSecAuth {
             // Store session data
             this.setAuthData(authResult);
             
+            // Get the route user was trying to access before OAuth
+            const returnRoute = sessionStorage.getItem('oauth_return_route');
+            sessionStorage.removeItem('oauth_return_route');
+            
             // Clean up URL parameters
-            window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            window.history.replaceState({}, document.title, window.location.pathname);
             
             // Show success message and redirect
-            console.log('✅ Token authentication successful! Redirecting to dashboard...');
+            console.log('✅ Token authentication successful! Redirecting...');
             
             // Small delay to ensure authentication state is fully set
             setTimeout(() => {
+                // Restore the original route or default to dashboard
+                const targetRoute = returnRoute || '#/dashboard';
+                
                 if (window.MagenSecRouter) {
-                    console.log('🔄 Using router navigation to dashboard');
-                    window.MagenSecRouter.navigate('/dashboard');
+                    console.log('🔄 Using router navigation to:', targetRoute);
+                    window.MagenSecRouter.navigate(targetRoute.replace('#', ''));
                 } else {
-                    console.log('🔄 Router not available, using hash navigation');
-                    window.location.hash = '#/dashboard';
+                    console.log('🔄 Router not available, using hash navigation to:', targetRoute);
+                    window.location.hash = targetRoute;
                 }
             }, 100);
             
