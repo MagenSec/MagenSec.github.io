@@ -396,7 +396,9 @@
         }
 
         function authenticate() {
-            window.location.href = `${API_BASE}/api/auth/oauth`;
+            // Include current page URL as return URL for OAuth flow
+            const returnUrl = encodeURIComponent(window.location.href);
+            window.location.href = `${API_BASE}/api/auth/oauth?returnUrl=${returnUrl}`;
         }
 
         function signOut() {
