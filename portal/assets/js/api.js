@@ -3,6 +3,15 @@ class MagenSecAPI {
     constructor() {
         this.config = window.MagenSecConfig.api;
         this.baseURL = this.config.base; // Initial fallback
+        // Normalize endpoint paths (ensure leading slash)
+        if (this.config && this.config.endpoints) {
+            for (const key of Object.keys(this.config.endpoints)) {
+                const val = this.config.endpoints[key];
+                if (typeof val === 'string' && val && !val.startsWith('http')) {
+                    this.config.endpoints[key] = val.startsWith('/') ? val : '/' + val;
+                }
+            }
+        }
         this.requestInterceptors = [];
         this.responseInterceptors = [];
         this.retryQueue = new Map();
@@ -76,6 +85,13 @@ class MagenSecAPI {
             }
             
             if (!response.ok) {
+                // Allow graceful mock fallback for not-yet-implemented resources
+                if (response.status === 404 && typeof endpoint === 'string') {
+                    const ep = endpoint.toLowerCase();
+                    if (ep.includes('/devices') || ep.includes('/reports') || ep.includes('/compliance')) {
+                        throw new APIError(`HTTP 404 (mock fallback): ${response.statusText}`, response.status, response);
+                    }
+                }
                 throw new APIError(`HTTP ${response.status}: ${response.statusText}`, response.status, response);
             }
             
@@ -230,6 +246,13 @@ class MagenSecAPI {
     async getComplianceStatus(framework = null) {
         const params = framework ? { framework } : {};
         return this.get(this.config.endpoints.compliance, params);
+    }
+
+    // Backwards-compatible method name expected by compliance.js
+    async getCompliance(params = {}) {
+        // If a specific framework passed, map to framework param
+        const framework = params.framework || params.name || null;
+        return this.getComplianceStatus(framework);
     }
     
     async getComplianceReport(framework, format = 'json') {

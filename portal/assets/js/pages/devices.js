@@ -90,13 +90,37 @@ class DevicesPage {
             this.applyFilters();
             
         } catch (error) {
+            const isMock404 = error && error.message && error.message.includes('HTTP 404 (mock fallback)');
+            if (isMock404) {
+                let fallbackDevices = [];
+                // Try to use dashboard cached data if present
+                try {
+                    const dashboardCache = window.MagenSecApp?.dashboardCache || window.DashboardPage?.dashboardData;
+                    const recent = dashboardCache?.recentDevices || dashboardCache?.RecentDevices;
+                    if (Array.isArray(recent) && recent.length) {
+                        fallbackDevices = recent.map(d => ({
+                            id: d.deviceId || d.DeviceId || d.deviceID || 'unknown',
+                            name: d.machineName || d.MachineName || 'Unknown Device',
+                            status: (d.status || d.Status || 'unknown').toLowerCase(),
+                            type: 'endpoint',
+                            os: d.location || d.Location || 'Unknown',
+                            lastSeen: d.lastSeen || d.LastSeen || new Date().toISOString(),
+                            risk: 'medium'
+                        }));
+                    }
+                } catch { /* ignore */ }
+
+                this.devices = fallbackDevices;
+                this.totalCount = fallbackDevices.length;
+                this.filteredDevices = [...fallbackDevices];
+                this.applyFilters();
+                console.warn('Devices endpoint not available; using dashboard recent devices fallback');
+                return;
+            }
             console.error('Failed to load devices:', error);
-            
-            // Use fallback data
             this.devices = [];
             this.totalCount = 0;
             this.filteredDevices = [];
-            
             throw error;
         }
     }

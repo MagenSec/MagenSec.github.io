@@ -120,7 +120,12 @@ class ReportsPage {
             const response = await window.MagenSecAPI.getReports();
             this.reports = response.data || this.getMockData();
         } catch (error) {
-            console.warn('Using mock reports data:', error);
+            const isMock404 = error && error.message && error.message.includes('HTTP 404 (mock fallback)');
+            if (isMock404) {
+                console.warn('Reports endpoint not available yet; using mock reports dataset');
+            } else {
+                console.warn('Using mock reports data due to error:', error);
+            }
             this.reports = this.getMockData();
         }
     }

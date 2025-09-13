@@ -518,25 +518,39 @@ class MagenSecAuth {
     
     // Hide login UI after successful authentication
     hideLogin() {
-        // Remove explicit overlay by id first
-        const overlays = [
-            ...document.querySelectorAll('#login-overlay'),
-            ...document.querySelectorAll('.fixed.inset-0.bg-gray-900')
-        ];
+        const tryRemove = (attempt = 1, maxAttempts = 10) => {
+            const overlays = [
+                ...document.querySelectorAll('#login-overlay'),
+                ...document.querySelectorAll('[data-login-overlay]'),
+                ...document.querySelectorAll('.fixed.inset-0.bg-gray-900')
+            ];
 
-        overlays.forEach(el => el.remove());
+            if (overlays.length > 0) {
+                overlays.forEach(el => el.remove());
+                this.ensureAppVisible();
+                return true;
+            }
 
-        // Also ensure auth-container is hidden and app-container visible post-auth
+            if (attempt < maxAttempts) {
+                // Exponential-ish backoff (cap at 250ms)
+                const delay = Math.min(25 * attempt, 250);
+                setTimeout(() => tryRemove(attempt + 1, maxAttempts), delay);
+            } else {
+                console.warn('Login dialog not found for removal after retries');
+                this.ensureAppVisible();
+            }
+            return false;
+        };
+
+        tryRemove();
+    }
+
+    ensureAppVisible() {
+        if (!this.isAuthenticated()) return;
         const authContainer = document.getElementById('auth-container');
         const appContainer = document.getElementById('app-container');
-        if (authContainer && appContainer && this.isAuthenticated()) {
-            authContainer.classList.add('hidden');
-            appContainer.classList.remove('hidden');
-        }
-
-        if (overlays.length === 0) {
-            console.warn('Login dialog not found for removal');
-        }
+        if (authContainer) authContainer.classList.add('hidden');
+        if (appContainer) appContainer.classList.remove('hidden');
     }
 }
 

@@ -16,7 +16,7 @@ window.MagenSecConfig = {
             stats: '/portal/api/stats',
             
             // Device Management
-            devices: '/api/v1/devices',
+            devices: '/api/devices',
             deviceBatch: '/api/v1/batch/devices',
             
             // Organization Management
@@ -32,7 +32,7 @@ window.MagenSecConfig = {
             activities: '/portal/api/activities',
             
             // Reports
-            reports: '/portal/api/reports',
+            reports: '/api/reports',
             
             // Admin
             admin: '/api/v1/admin',

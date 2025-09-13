@@ -1416,16 +1416,16 @@
             
             switch(platform) {
                 case 'windows-x64':
-                    downloadUrl = 'https://magensec.short.gy/x64msi';
-                    fileName = 'MagenSec-Setup-x64.msi';
+                    downloadUrl = 'https://magensec.short.gy/x64';
+                    fileName = 'MagenSec-Latest-x64.exe';
                     break;
                 case 'windows-arm64':
-                    downloadUrl = 'https://magensec.short.gy/arm64msi';
-                    fileName = 'MagenSec-Setup-arm64.msi';
+                    downloadUrl = 'https://magensec.short.gy/arm64';
+                    fileName = 'MagenSec-Latest-arm64.exe';
                     break;
                 default:
-                    downloadUrl = 'https://magensec.short.gy/x64msi';
-                    fileName = 'MagenSec-Setup-x64.msi';
+                    downloadUrl = 'https://magensec.short.gy/x64';
+                    fileName = 'MagenSec-Latest-x64.exe';
             }
             
             // Track download attempt
@@ -1435,8 +1435,8 @@
             const platformName = platform === 'windows-arm64' ? 'Windows ARM64' : 'Windows x64';
             const message = `🚀 Starting download of MagenSec for ${platformName}!\n\n` +
                           `📁 File: ${fileName}\n` +
-                          `💾 Size: ~100 MB\n` +
-                          `⏱️ Time: 2-5 minutes\n\n` +
+                          `💾 Size: ~1 MB\n` +
+                          `⏱️ Time: ~1 minute\n\n` +
                           `❓ Need help? Contact: magensec@gigabits.co.in`;
             
             alert(message);
