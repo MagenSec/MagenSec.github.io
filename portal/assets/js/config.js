@@ -5,9 +5,7 @@ window.MagenSecConfig = {
     // API Configuration
     api: {
         // Development: localhost:8080, Production: set by build script
-        base: window.location.hostname === 'localhost' ? 
-            'https://localhost:8080' : 
-            'PLACEHOLDER_API_BASE_URL', // Replaced by buildDeployContainer.ps1
+        base: 'https://ms-central-api.braveisland-ad151ae6.eastus.azurecontainerapps.io', // Replaced by buildDeployContainer.ps1
         endpoints: {
             // Authentication
             auth: '/api/v1/auth',
