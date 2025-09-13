@@ -102,9 +102,28 @@ class MagenSecAuth {
     startGoogleAuth() {
         console.log('Starting Google OAuth flow...');
         
-        // Use the simplified OAuth flow with return URL (like admin pages)
-        const returnUrl = encodeURIComponent(window.location.href);
-        window.location.href = `${this.apiBase}/api/auth/oauth?returnUrl=${returnUrl}`;
+        if (!this.oauthConfig) {
+            console.error('OAuth config not loaded');
+            this.showError('Authentication not configured');
+            return;
+        }
+        
+        // Build Google OAuth URL
+        const state = this.generateState();
+        sessionStorage.setItem('oauth_state', state);
+        
+        const params = new URLSearchParams({
+            client_id: this.oauthConfig.googleClientId,
+            redirect_uri: this.oauthConfig.redirectUri,
+            response_type: this.oauthConfig.responseType || 'code',
+            scope: this.oauthConfig.scopes ? this.oauthConfig.scopes.join(' ') : 'openid email profile',
+            access_type: this.oauthConfig.accessType || 'online',
+            state: state
+        });
+        
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+        console.log('Redirecting to Google OAuth:', authUrl);
+        window.location.href = authUrl;
     }
     
     generateState() {
