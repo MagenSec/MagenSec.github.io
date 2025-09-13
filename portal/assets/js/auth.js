@@ -207,8 +207,10 @@ class MagenSecAuth {
             // Store session data
             this.setAuthData(result);
             
-            // Hide login dialog
-            this.hideLogin();
+            // Hide login dialog - add small delay to ensure DOM is ready
+            setTimeout(() => {
+                this.hideLogin();
+            }, 100);
             
             // Get the route user was trying to access before OAuth
             const returnRoute = sessionStorage.getItem('oauth_return_route');
@@ -288,8 +290,10 @@ class MagenSecAuth {
             // Store session data
             this.setAuthData(authResult);
             
-            // Hide login dialog
-            this.hideLogin();
+            // Hide login dialog - add small delay to ensure DOM is ready
+            setTimeout(() => {
+                this.hideLogin();
+            }, 100);
             
             // Get the route user was trying to access before OAuth
             const returnRoute = sessionStorage.getItem('oauth_return_route');
@@ -505,12 +509,37 @@ class MagenSecAuth {
         document.getElementById('portalGoogleLogin').addEventListener('click', () => {
             this.startGoogleAuth();
         });
-    }    // Hide login UI after successful authentication
+    }
+    
+    // Hide login UI after successful authentication
     hideLogin() {
-        const loginDialog = document.querySelector('.fixed.inset-0.bg-gray-900');
+        // Try multiple selectors to ensure we find the login dialog
+        const selectors = [
+            '.fixed.inset-0.bg-gray-900',           // Main login overlay
+            '[class*="fixed"][class*="inset-0"]',   // Broader selector
+            '#portalGoogleLogin'                     // Button selector to find parent
+        ];
+        
+        let loginDialog = null;
+        
+        for (const selector of selectors) {
+            if (selector === '#portalGoogleLogin') {
+                const button = document.querySelector(selector);
+                if (button) {
+                    // Find the closest parent with fixed positioning
+                    loginDialog = button.closest('.fixed');
+                    break;
+                }
+            } else {
+                loginDialog = document.querySelector(selector);
+                if (loginDialog) break;
+            }
+        }
+        
         if (loginDialog) {
             loginDialog.remove();
-            console.log('Login dialog removed');
+        } else {
+            console.warn('Login dialog not found for removal');
         }
     }
 }

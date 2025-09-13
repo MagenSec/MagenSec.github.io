@@ -85,7 +85,7 @@ const templateCache = new Map();
  * @param {string} templatePath - Path to template file
  * @returns {Promise<string>} - Template content
  */
-export async function loadTemplate(templatePath) {
+window.MagenSecTemplateUtils.loadTemplate = async function(templatePath) {
     if (templateCache.has(templatePath)) {
         return templateCache.get(templatePath);
     }
@@ -103,12 +103,12 @@ export async function loadTemplate(templatePath) {
         console.error('Template loading error:', error);
         throw error;
     }
-}
+};
 
 /**
  * Clear template cache
  * Useful for development or when templates are updated
  */
-export function clearTemplateCache() {
+window.MagenSecTemplateUtils.clearTemplateCache = function() {
     templateCache.clear();
-}
+};
