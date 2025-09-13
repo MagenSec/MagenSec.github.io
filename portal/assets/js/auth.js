@@ -1,5 +1,5 @@
 // MagenSec Portal Authentication Service
-// Based on MSCC OAuth implementation pattern
+// Portal OAuth implementation for secure authentication
 
 class MagenSecAuth {
     constructor() {
