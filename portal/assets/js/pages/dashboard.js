@@ -32,7 +32,15 @@ class DashboardPage {
             this.initializeComponents();
             
             // Setup auto-refresh
-            this.setupAutoRefresh();
+            // Auto-refresh is disabled to prevent excessive API calls and flooding the backend.
+            // If requirements change, re-enable by wiring this method to setInterval as before.
+            // Manual refresh is available via the Refresh button.
+            //this.setupAutoRefresh();
+
+            // Listen for org change event to reload dashboard
+            window.addEventListener('magensec-org-changed', () => {
+                this.refresh();
+            });
             
         } catch (error) {
             console.error('Dashboard render error:', error);
@@ -47,6 +55,22 @@ class DashboardPage {
     
     async loadDashboardData() {
         try {
+            // Check if user has an organization set
+            const currentOrg = window.MagenSecAuth.getCurrentOrganization();
+            const currentUser = window.MagenSecAuth.getCurrentUser();
+            
+            console.log('[Dashboard] Loading data for:', {
+                organization: currentOrg,
+                user: currentUser?.email,
+                hasOrg: !!currentOrg,
+                orgId: currentOrg?.id || currentOrg
+            });
+            
+            if (!currentOrg) {
+                console.warn('[Dashboard] No organization context available');
+                throw new Error('No organization selected. Please contact your administrator to assign you to an organization.');
+            }
+            
             // Load dashboard data from API
             const response = await window.MagenSecAPI.getDashboardData('24h');
             this.dashboardData = response.data;
@@ -688,6 +712,95 @@ class DashboardPage {
             'POLICY_UPDATE': 'fas fa-shield-alt'
         };
         return icons[type] || 'fas fa-info-circle';
+    }
+    
+    // Mock data methods for testing
+    getMockDashboardData() {
+        return {
+            activeThreats: 7,
+            resolvedThreats: 23,
+            totalDevices: 156,
+            onlineDevices: 134,
+            complianceScore: 87,
+            securityAlerts: 3,
+            recentThreats: [
+                {
+                    id: 'T001',
+                    type: 'malware',
+                    severity: 'high',
+                    description: 'Trojan.Win32.Generic detected on WORKSTATION-01',
+                    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+                    status: 'active',
+                    deviceName: 'WORKSTATION-01'
+                },
+                {
+                    id: 'T002',
+                    type: 'policy-violation',
+                    severity: 'medium',
+                    description: 'Unauthorized software installation attempt',
+                    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
+                    status: 'investigating',
+                    deviceName: 'LAPTOP-05'
+                },
+                {
+                    id: 'T003',
+                    type: 'network',
+                    severity: 'low',
+                    description: 'Suspicious network activity detected',
+                    timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
+                    status: 'resolved',
+                    deviceName: 'SERVER-02'
+                }
+            ],
+            recentActivities: [
+                {
+                    id: 'A001',
+                    type: 'LOGIN',
+                    description: 'User john.doe logged in from WORKSTATION-01',
+                    timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
+                    userName: 'john.doe',
+                    deviceName: 'WORKSTATION-01'
+                },
+                {
+                    id: 'A002',
+                    type: 'SECURITY_ALERT',
+                    description: 'Security policy updated: Password complexity requirements',
+                    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+                    userName: 'admin',
+                    deviceName: 'MANAGEMENT-CONSOLE'
+                },
+                {
+                    id: 'A003',
+                    type: 'FILE_ACCESS',
+                    description: 'Confidential file accessed by user jane.smith',
+                    timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), // 3 hours ago
+                    userName: 'jane.smith',
+                    deviceName: 'LAPTOP-03'
+                }
+            ],
+            deviceStatus: {
+                online: 134,
+                offline: 22,
+                warning: 8,
+                critical: 2
+            },
+            threatTrends: {
+                labels: ['6h ago', '5h ago', '4h ago', '3h ago', '2h ago', '1h ago', 'Now'],
+                data: [2, 3, 1, 4, 2, 3, 7]
+            },
+            complianceBreakdown: {
+                compliant: 87,
+                warnings: 8,
+                violations: 5
+            },
+            topThreats: [
+                { type: 'malware', count: 12, percentage: 35 },
+                { type: 'policy-violation', count: 8, percentage: 24 },
+                { type: 'network', count: 6, percentage: 18 },
+                { type: 'phishing', count: 4, percentage: 12 },
+                { type: 'other', count: 4, percentage: 11 }
+            ]
+        };
     }
     
     // ======================

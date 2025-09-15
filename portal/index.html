@@ -1,23 +1,15 @@
 <!DOCTYPE html>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/custom.css" rel="stylesheet">
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/custom.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>    <!-- Core JavaScript Files -->
-    <script src="assets/js/config.js"></script>
-    <script src="assets/js/utils.js"></script>
-    <script src="assets/js/api.js"></script>
-    
-    <!-- Template System -->
-    <script src="assets/js/templates/template-utils.js"></script>
-    <script src="assets/js/templates/login-dialog.js"></script>
-    <script src="assets/js/templates/settings-templates.js"></script>
-    
-    <!-- Application Core -->
-    <script src="assets/js/auth.js"></script>
-    <script src="assets/js/router.js"></script>
-    <script src="assets/js/ui.js"></script>
-    <script src="assets/js/app.js"></script> Hub - Enterprise Security Platform</title>
+    <title>MagenSec Hub - Enterprise Security Platform</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     
     <!-- Modern CSS Framework -->
@@ -67,17 +59,26 @@
                         <a href="#/dashboard" class="nav-link text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
                             <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                         </a>
+                        <a href="#/user-dashboard" class="nav-link user-only text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
+                            <i class="fas fa-user mr-2"></i>My Devices
+                        </a>
                         <a href="#/threats" class="nav-link text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
                             <i class="fas fa-shield-virus mr-2"></i>Threats
                         </a>
-                        <a href="#/devices" class="nav-link text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
+                        <a href="#/devices" class="nav-link admin-only text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
                             <i class="fas fa-laptop mr-2"></i>Devices
+                        </a>
+                        <a href="#/organizations" class="nav-link admin-only text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
+                            <i class="fas fa-building mr-2"></i>Organizations
                         </a>
                         <a href="#/compliance" class="nav-link text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
                             <i class="fas fa-clipboard-check mr-2"></i>Compliance
                         </a>
                         <a href="#/reports" class="nav-link text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
                             <i class="fas fa-chart-line mr-2"></i>Reports
+                        </a>
+                        <a href="#/admin" class="nav-link admin-only text-gray-700 hover:text-blue-600 px-3 py-2 font-medium">
+                            <i class="fas fa-user-shield mr-2"></i>Admin
                         </a>
                     </div>
                     
@@ -123,17 +124,26 @@
                 <a href="#/dashboard" class="mobile-nav-link block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
                     <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                 </a>
+                <a href="#/user-dashboard" class="mobile-nav-link user-only block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
+                    <i class="fas fa-user mr-2"></i>My Devices
+                </a>
                 <a href="#/threats" class="mobile-nav-link block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
                     <i class="fas fa-shield-virus mr-2"></i>Threats
                 </a>
-                <a href="#/devices" class="mobile-nav-link block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
+                <a href="#/devices" class="mobile-nav-link admin-only block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
                     <i class="fas fa-laptop mr-2"></i>Devices
+                </a>
+                <a href="#/organizations" class="mobile-nav-link admin-only block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
+                    <i class="fas fa-building mr-2"></i>Organizations
                 </a>
                 <a href="#/compliance" class="mobile-nav-link block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
                     <i class="fas fa-clipboard-check mr-2"></i>Compliance
                 </a>
                 <a href="#/reports" class="mobile-nav-link block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
                     <i class="fas fa-chart-line mr-2"></i>Reports
+                </a>
+                <a href="#/admin" class="mobile-nav-link admin-only block px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-md">
+                    <i class="fas fa-user-shield mr-2"></i>Admin
                 </a>
             </div>
         </div>
@@ -195,5 +205,8 @@
     <script src="assets/js/pages/reports.js"></script>
     <script src="assets/js/pages/profile.js"></script>
     <script src="assets/js/pages/settings.js"></script>
+    <script src="assets/js/pages/admin.js"></script>
+    <script src="assets/js/pages/user-dashboard.js"></script>
+    <script src="assets/js/pages/organizations.js"></script>
 </body>
 </html>

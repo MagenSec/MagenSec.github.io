@@ -71,6 +71,11 @@ class ReportsPage {
         this.setupEventHandlers();
         await this.loadReports();
         this.renderPage();
+
+        // Listen for org change event to reload reports
+        window.addEventListener('magensec-org-changed', () => {
+            this.loadReports().then(() => this.renderPage());
+        });
     }
 
     setupEventHandlers() {
@@ -118,15 +123,14 @@ class ReportsPage {
     async loadReports() {
         try {
             const response = await window.MagenSecAPI.getReports();
-            this.reports = response.data || this.getMockData();
-        } catch (error) {
-            const isMock404 = error && error.message && error.message.includes('HTTP 404 (mock fallback)');
-            if (isMock404) {
-                console.warn('Reports endpoint not available yet; using mock reports dataset');
+            if (response && response.data && Array.isArray(response.data) && response.data.length > 0) {
+                this.reports = response.data;
             } else {
-                console.warn('Using mock reports data due to error:', error);
+                throw new Error('No reports data returned from API');
             }
-            this.reports = this.getMockData();
+        } catch (error) {
+            window.MagenSecUI.showToast('Failed to load reports: ' + error.message, 'error');
+            this.reports = null;
         }
     }
 

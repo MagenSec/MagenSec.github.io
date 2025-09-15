@@ -105,15 +105,24 @@ class CompliancePage {
                 this.exportComplianceReport();
             }
         });
+        // Org change event: reload compliance data and re-render
+        window.addEventListener('magensec-org-changed', async () => {
+            await this.loadComplianceData();
+            this.renderPage();
+        });
     }
 
     async loadComplianceData() {
         try {
             const response = await window.MagenSecAPI.getCompliance();
-            this.complianceData = response.data || this.getMockData();
+            if (response && response.data && Object.keys(response.data).length > 0) {
+                this.complianceData = response.data;
+            } else {
+                throw new Error('No compliance data returned from API');
+            }
         } catch (error) {
-            console.warn('Using mock compliance data:', error);
-            this.complianceData = this.getMockData();
+            window.MagenSecUI.showToast('Failed to load compliance data: ' + error.message, 'error');
+            this.complianceData = null;
         }
     }
 

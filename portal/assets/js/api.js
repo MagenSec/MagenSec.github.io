@@ -153,11 +153,23 @@ class MagenSecAPI {
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
+
+        // Always get latest org context from auth
+        let orgObj = window.MagenSecAuth.getCurrentOrganization();
+        let orgId = orgObj?.id || orgObj;
         
-        // Add organization context if available
-        const orgId = window.MagenSecAuth.getCurrentOrganization();
+        // Debug logging for organization context
+        console.log('[API] Organization context:', {
+            orgObj: orgObj,
+            orgId: orgId,
+            user: window.MagenSecAuth.getCurrentUser(),
+            hasToken: !!token
+        });
+        
         if (orgId) {
             config.headers['X-Organization-ID'] = orgId;
+        } else {
+            console.warn('[API] No organization ID available for request');
         }
     }
     
@@ -166,7 +178,14 @@ class MagenSecAPI {
     // ======================
     
     async getDashboardData(timeRange = '24h') {
-        return this.get(this.config.endpoints.dashboard, { timeRange });
+        console.log('[API] Requesting dashboard data with timeRange:', timeRange);
+        const result = await this.get(this.config.endpoints.dashboard, { timeRange });
+        console.log('[API] Dashboard response:', {
+            status: result?.response?.status,
+            summary: result?.data ? Object.keys(result.data) : 'No data',
+            data: result?.data
+        });
+        return result;
     }
     
     async getDashboardStats(timeRange = '24h') {
@@ -216,7 +235,13 @@ class MagenSecAPI {
             limit: window.MagenSecConfig.ui.pageSize,
             status: 'all'
         };
-        return this.get(this.config.endpoints.devices, { ...defaultParams, ...params });
+        const result = await this.get(this.config.endpoints.devices, { ...defaultParams, ...params });
+        console.log('[API] Devices response:', {
+            status: result?.response?.status,
+            summary: result?.data ? Object.keys(result.data) : 'No data',
+            data: result?.data
+        });
+        return result;
     }
     
     async getDeviceDetails(deviceId) {
@@ -333,6 +358,30 @@ class MagenSecAPI {
     }
     
     // ======================
+    // User Profile Management
+    // ======================
+    
+    async getUserProfile() {
+        return this.get('/portal/api/profile');
+    }
+    
+    async updateUserProfile(profileData) {
+        return this.put('/portal/api/profile', profileData);
+    }
+    
+    // ======================
+    // User Settings Management
+    // ======================
+    
+    async getSettings() {
+        return this.get('/portal/api/settings');
+    }
+    
+    async updateSettings(settings) {
+        return this.put('/portal/api/settings', settings);
+    }
+    
+    // ======================
     // Health & Monitoring
     // ======================
     
@@ -445,6 +494,54 @@ class APIError extends Error {
         this.response = response;
         this.originalError = originalError;
         this.timestamp = new Date().toISOString();
+    }
+    
+    // Mock data methods for debug mode
+    getMockDashboardData() {
+        return {
+            activeThreats: 7,
+            resolvedThreats: 23,
+            totalDevices: 156,
+            onlineDevices: 134,
+            complianceScore: 87,
+            securityAlerts: 3,
+            recentThreats: [
+                {
+                    id: 'T001',
+                    type: 'malware',
+                    severity: 'high',
+                    description: 'Trojan.Win32.Generic detected on WORKSTATION-01',
+                    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+                    status: 'active',
+                    deviceName: 'WORKSTATION-01'
+                },
+                {
+                    id: 'T002',
+                    type: 'policy-violation',
+                    severity: 'medium',
+                    description: 'Unauthorized software installation attempt',
+                    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+                    status: 'investigating',
+                    deviceName: 'LAPTOP-05'
+                }
+            ],
+            recentActivities: [
+                {
+                    id: 'A001',
+                    type: 'LOGIN',
+                    description: 'User john.doe logged in from WORKSTATION-01',
+                    timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+                    userName: 'john.doe',
+                    deviceName: 'WORKSTATION-01'
+                }
+            ],
+            deviceStatus: {
+                online: 134,
+                offline: 22,
+                warning: 8,
+                critical: 2
+            }
+        };
     }
 }
 

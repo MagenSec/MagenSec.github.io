@@ -96,6 +96,29 @@ class MagenSecRouter {
             title: 'Settings - MagenSec Hub',
             requirePermission: 'manage'
         });
+
+        this.addRoute('/admin', {
+            component: 'admin',
+            requireAuth: true,
+            title: 'Site Administration - MagenSec Hub',
+            requirePermission: 'admin',
+            icon: 'fas fa-user-shield'
+        });
+
+        this.addRoute('/organizations', {
+            component: 'organizations',
+            requireAuth: true,
+            title: 'Organization Management - MagenSec Hub',
+            requirePermission: 'manage',
+            icon: 'fas fa-building'
+        });
+
+        this.addRoute('/user-dashboard', {
+            component: 'user-dashboard',
+            requireAuth: true,
+            title: 'My Dashboard - MagenSec Hub',
+            icon: 'fas fa-user'
+        });
         
         // Default route
         this.addRoute('/', {
@@ -371,6 +394,18 @@ class MagenSecRouter {
                 case 'settings':
                     await this.loadPageComponent('settings');
                     await window.SettingsPage.render(route);
+                    break;
+                case 'admin':
+                    await this.loadPageComponent('admin');
+                    await window.AdminPage.render(route);
+                    break;
+                case 'organizations':
+                    await this.loadPageComponent('organizations');
+                    await window.OrganizationPage.render(route);
+                    break;
+                case 'user-dashboard':
+                    await this.loadPageComponent('user-dashboard');
+                    await window.UserDashboardPage.render(route);
                     break;
                 case '404':
                     this.show404View();

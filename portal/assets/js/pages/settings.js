@@ -61,10 +61,14 @@ class SettingsPage {
     async loadSettings() {
         try {
             const response = await window.MagenSecAPI.getSettings();
-            this.settings = response.data || this.getDefaultSettings();
+            if (response && response.data && Object.keys(response.data).length > 0) {
+                this.settings = response.data;
+            } else {
+                throw new Error('No settings data returned from API');
+            }
         } catch (error) {
-            console.warn('Using default settings:', error);
-            this.settings = this.getDefaultSettings();
+            window.MagenSecUI.showToast('Failed to load settings: ' + error.message, 'error');
+            this.settings = null;
         }
     }
 

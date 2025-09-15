@@ -18,16 +18,19 @@ class MagenSecUI {
         this.toastContainer = document.getElementById('toast-container');
         this.confirmationModal = document.getElementById('confirmation-modal');
         this.loadingOverlay = document.getElementById('loading-overlay');
-        
+
         // Setup modal event listeners
         this.setupModalEvents();
-        
+
+        // Setup org selector in topbar
+        this.setupOrgSelector();
+
         // Setup user menu
         this.setupUserMenu();
-        
+
         // Setup mobile navigation
         this.setupMobileNavigation();
-        
+
         // Setup notifications
         this.setupNotifications();
     }
@@ -46,6 +49,49 @@ class MagenSecUI {
         const cancelBtn = document.getElementById('modal-cancel');
         if (cancelBtn) {
             cancelBtn.addEventListener('click', () => this.hideConfirmation());
+        }
+    }
+    setupOrgSelector() {
+        // Find or create org selector container in topbar
+        let orgSelectorContainer = document.getElementById('org-selector-container');
+        if (!orgSelectorContainer) {
+            // Insert next to user menu in topbar
+            const topbar = document.querySelector('.topbar, .flex.items-center.space-x-4');
+            if (topbar) {
+                orgSelectorContainer = document.createElement('div');
+                orgSelectorContainer.id = 'org-selector-container';
+                orgSelectorContainer.className = 'relative mr-4';
+                topbar.insertBefore(orgSelectorContainer, topbar.firstChild);
+            }
+        }
+        if (!orgSelectorContainer) return;
+
+        // Get orgs from auth
+        const user = window.MagenSecAuth.getCurrentUser();
+        const orgs = Array.isArray(user?.organizations) ? user.organizations.filter(Boolean) : [];
+        const currentOrg = window.MagenSecAuth.getCurrentOrganization();
+
+        if (!orgs || orgs.length === 0) {
+            // No orgs: show 'Personal License' and hide selector
+            orgSelectorContainer.innerHTML = `<span class="text-xs text-gray-500 px-2 py-1">Personal License</span>`;
+            return;
+        }
+
+        // Render dropdown for multi-org users
+        let html = `<select id="org-selector" class="border border-gray-300 rounded px-2 py-1 text-sm bg-white shadow">
+            ${orgs.map(org => `<option value="${org.id || org}" ${org.id === currentOrg || org === currentOrg ? 'selected' : ''}>${org.name || org}</option>`).join('')}
+        </select>`;
+        orgSelectorContainer.innerHTML = html;
+
+        // Listen for org change
+        const selector = document.getElementById('org-selector');
+        if (selector) {
+            selector.addEventListener('change', (e) => {
+                const selectedOrgId = e.target.value;
+                window.MagenSecAuth.setCurrentOrganization(selectedOrgId);
+                // Dispatch org change event for all listeners
+                window.dispatchEvent(new CustomEvent('magensec-org-changed', { detail: { orgId: selectedOrgId } }));
+            });
         }
     }
     

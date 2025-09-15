@@ -747,7 +747,7 @@ class DevicesPage {
                 }, 300);
             });
         }
-        
+
         // Setup filter dropdowns
         ['status-filter', 'type-filter', 'group-filter'].forEach(filterId => {
             const filterElement = document.getElementById(filterId);
@@ -758,9 +758,18 @@ class DevicesPage {
                 });
             }
         });
-        
+
         // Update bulk actions button state
         this.updateBulkActionsButton();
+
+        // Listen for org change event to reload devices
+        window.addEventListener('magensec-org-changed', () => {
+            this.loadDevices().then(() => {
+                const mainContent = document.getElementById('main-content');
+                if (mainContent) mainContent.innerHTML = this.renderDevices();
+                this.initializeComponents();
+            });
+        });
     }
     
     // ======================

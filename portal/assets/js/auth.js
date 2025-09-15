@@ -6,6 +6,19 @@
  */
 
 class MagenSecAuth {
+    setCurrentOrganization(orgId) {
+        // Find org object if user has multiple orgs
+        let orgObj = orgId;
+        const user = this.getCurrentUser();
+        if (user && Array.isArray(user.organizations)) {
+            const found = user.organizations.find(o => o.id === orgId || o === orgId);
+            if (found) orgObj = found;
+        }
+        this.organization = orgObj;
+        localStorage.setItem('magensec_organization', JSON.stringify(orgObj));
+        // Dispatch org change event for listeners
+        window.dispatchEvent(new CustomEvent('magensec-org-changed', { detail: { orgId: orgId } }));
+    }
     constructor() {
         this.config = window.MagenSecConfig;
         this.oauthConfig = null;
@@ -548,11 +561,18 @@ class MagenSecAuth {
     ensureAppVisible() {
         if (!this.isAuthenticated()) return;
         const authContainer = document.getElementById('auth-container');
+        if (authContainer) authContainer.style.display = 'none';
         const appContainer = document.getElementById('app-container');
-        if (authContainer) authContainer.classList.add('hidden');
-        if (appContainer) appContainer.classList.remove('hidden');
+        if (appContainer) appContainer.style.display = 'block';
+    }
+    
+    // Super admin validation
+    isSuperAdmin() {
+        const superAdminEmail = window.MagenSecConfig?.superAdminEmail || 'talktomagensec@gmail.com';
+        return this.user?.email === superAdminEmail;
     }
 }
 
 // Create global auth instance
+window.MagenSecAuth = new MagenSecAuth();
 window.MagenSecAuth = new MagenSecAuth();

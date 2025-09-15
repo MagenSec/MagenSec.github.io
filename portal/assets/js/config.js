@@ -16,7 +16,7 @@ window.MagenSecConfig = {
             stats: '/portal/api/stats',
             
             // Device Management
-            devices: '/api/devices',
+            devices: '/api/v1/devices',
             deviceBatch: '/api/v1/batch/devices',
             
             // Organization Management
@@ -117,7 +117,8 @@ window.MagenSecConfig = {
     // Development & Debug
     development: {
         debug: window.location.hostname === 'localhost' || window.location.hostname.includes('dev'),
-        mockData: false, // Always use real data
+        mockData: false, // Use real API data
+        superAdminEmail: 'talktomagensec@gmail.com', // Cannot be deleted, recreated if missing
         consoleLogging: true,
         performanceMonitoring: true
     }

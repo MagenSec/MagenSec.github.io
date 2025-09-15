@@ -60,12 +60,16 @@ class ProfilePage {
     async loadUserProfile() {
         try {
             const response = await window.MagenSecAPI.getUserProfile();
-            this.user = response.data || this.getMockUserData();
-            this.preferences = this.user.preferences || {};
+            if (response && response.data && Object.keys(response.data).length > 0) {
+                this.user = response.data;
+                this.preferences = this.user.preferences || {};
+            } else {
+                throw new Error('No user profile data returned from API');
+            }
         } catch (error) {
-            console.warn('Using mock user data:', error);
-            this.user = this.getMockUserData();
-            this.preferences = this.user.preferences || {};
+            window.MagenSecUI.showToast('Failed to load user profile: ' + error.message, 'error');
+            this.user = null;
+            this.preferences = {};
         }
     }
 
