@@ -3,7 +3,7 @@
 
 window.msccConfig = {
   // API base (automatically updated during deployment)
-  apiBase: 'https://ms-central-api.braveisland-ad151ae6.eastus.azurecontainerapps.io',
+  apiBase: 'https://ms-central-api.proudsand-cb69619a.eastus.azurecontainerapps.io',
   
   // OAuth configuration
   oauth: {
