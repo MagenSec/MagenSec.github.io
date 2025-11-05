@@ -230,8 +230,12 @@ class MagenSecAuth {
             const result = await response.json();
             console.log('OAuth callback successful:', result);
             
-            // Store session data
-            this.setAuthData(result);
+            // Store session data - extract from API response envelope
+            if (result.success && result.data) {
+                this.setAuthData(result.data);
+            } else {
+                throw new Error(result.message || 'Authentication failed');
+            }
             
             // Hide login dialog - add small delay to ensure DOM is ready
             setTimeout(() => {
@@ -363,18 +367,39 @@ class MagenSecAuth {
     // Session Management
     // ======================
     
-    setAuthData(authResult) {
-        // Store session token and user info
-        this.token = authResult.sessionToken;
-        this.user = authResult.user;
-        this.organization = authResult.organization;
+    setAuthData(data) {
+        // Handle API response structure: { sessionToken, email, name, orgId, userType, maxDevices }
+        this.token = data.sessionToken || data.SessionToken;
         
-        localStorage.setItem('magensec_session_token', authResult.sessionToken);
-        localStorage.setItem('magensec_user', JSON.stringify(authResult.user));
-        localStorage.setItem('magensec_organization', JSON.stringify(authResult.organization));
-        localStorage.setItem('magensec_session_expires', authResult.expiresAt);
+        // Build user object from API data
+        this.user = {
+            email: data.email || data.Email,
+            name: data.name || data.Name,
+            userType: data.userType || data.UserType || 'Individual',
+            maxDevices: data.maxDevices || data.MaxDevices || 5,
+            isNewUser: data.isNewUser || data.IsNewUser || false
+        };
         
-        console.log('Portal session data stored');
+        // Build organization object from API data
+        this.organization = {
+            orgId: data.orgId || data.OrgId,
+            name: data.orgName || data.OrgName || this.user.email // Default org name for personal orgs
+        };
+        
+        // Calculate expiry (24 hours from now)
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        
+        // Store in localStorage
+        localStorage.setItem('magensec_session_token', this.token);
+        localStorage.setItem('magensec_user', JSON.stringify(this.user));
+        localStorage.setItem('magensec_organization', JSON.stringify(this.organization));
+        localStorage.setItem('magensec_session_expires', expiresAt);
+        
+        console.log('Portal session data stored', {
+            user: this.user,
+            organization: this.organization,
+            tokenLength: this.token?.length
+        });
     }
     
     async checkExistingSession() {
