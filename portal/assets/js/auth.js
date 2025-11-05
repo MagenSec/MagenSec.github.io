@@ -124,6 +124,10 @@ class MagenSecAuth {
             return;
         }
         
+        // Clear any previous OAuth session flags to allow new login
+        sessionStorage.removeItem('oauth_callback_processed');
+        sessionStorage.removeItem('oauth_state');
+        
         // Store the current route to restore after OAuth (avoid auth page)
         if (window.location.hash && window.location.hash !== '#/auth') {
             sessionStorage.setItem('oauth_return_route', window.location.hash);
@@ -517,6 +521,8 @@ class MagenSecAuth {
         localStorage.removeItem('magensec_organization');
         localStorage.removeItem('magensec_session_expires');
         sessionStorage.removeItem('oauth_state');
+        sessionStorage.removeItem('oauth_return_route');
+        sessionStorage.removeItem('oauth_callback_processed'); // Clear flag to allow new login
         
         console.log('Portal session cleared');
         
