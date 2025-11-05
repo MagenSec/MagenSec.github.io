@@ -81,7 +81,20 @@ class MagenSecAuth {
             if (!response.ok) {
                 throw new Error('Failed to get OAuth config');
             }
-            this.oauthConfig = await response.json();
+                const configResponse = await response.json();
+            
+                // Extract data from API response envelope and map to expected format
+                if (configResponse.success && configResponse.data) {
+                    this.oauthConfig = {
+                        googleClientId: configResponse.data.clientId,
+                        redirectUri: configResponse.data.redirectUri,
+                        scopes: configResponse.data.scopes,
+                        responseType: 'code',
+                        accessType: 'online'
+                    };
+                } else {
+                    throw new Error('Invalid OAuth config response');
+                }
             
         } catch (error) {
             console.error('Portal OAuth setup failed:', error);
