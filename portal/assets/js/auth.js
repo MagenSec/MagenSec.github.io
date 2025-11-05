@@ -152,6 +152,12 @@ class MagenSecAuth {
     }
     
     handleOAuthCallbackIfPresent() {
+        // Prevent duplicate processing - check if we already handled this callback
+        if (sessionStorage.getItem('oauth_callback_processed')) {
+            console.log('OAuth callback already processed, skipping');
+            return;
+        }
+        
         // Check if this is an OAuth callback
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
@@ -162,18 +168,23 @@ class MagenSecAuth {
         if (error) {
             console.error('OAuth error:', error);
             this.showError('Authentication failed: ' + error);
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             return;
         }
         
         // Check for new token-based callback (from our fixed backend)
         if (token) {
             console.log('✅ Received session token from OAuth redirect');
+            sessionStorage.setItem('oauth_callback_processed', 'true');
             this.handleTokenCallback(token);
             return;
         }
         
         // Check for traditional code-based callback (fallback)
         if (code && state) {
+            // Mark as processed immediately to prevent duplicate calls
+            sessionStorage.setItem('oauth_callback_processed', 'true');
             // This is an OAuth callback
             this.handleOAuthCallback(code, state);
             return;
@@ -245,6 +256,8 @@ class MagenSecAuth {
             // Get the route user was trying to access before OAuth
             const returnRoute = sessionStorage.getItem('oauth_return_route');
             sessionStorage.removeItem('oauth_return_route');
+            sessionStorage.removeItem('oauth_state');
+            sessionStorage.removeItem('oauth_callback_processed'); // Clean up processed flag
             
             // Clean up URL parameters
             window.history.replaceState({}, document.title, window.location.pathname);
