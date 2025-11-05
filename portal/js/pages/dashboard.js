@@ -22,23 +22,77 @@ export class DashboardPage extends window.Component {
     async loadData() {
         try {
             // TODO: Replace with real API call when /api/dashboard is implemented
-            // For now, show mock data to verify OAuth flow works
+            // Enhanced mock data showing security value
             const mockData = {
+                // Security Overview
+                securityScore: 78,
+                grade: 'B',
+                lastScan: '2 hours ago',
+                nextScan: 'in 3 hours',
+                
+                // Quick Stats
                 devices: {
-                    total: 0,
-                    active: 0,
-                    disabled: 0
+                    total: 5,
+                    active: 3,
+                    disabled: 1,
+                    blocked: 1
                 },
-                license: {
-                    type: 'Personal',
-                    maxDevices: 5,
-                    daysRemaining: 7
+                
+                threats: {
+                    critical: 2,
+                    high: 3,
+                    medium: 7,
+                    low: 12,
+                    total: 24
                 },
-                alerts: []
+                
+                compliance: {
+                    score: 85,
+                    compliant: 17,
+                    nonCompliant: 3,
+                    total: 20
+                },
+                
+                // Security Alerts (top 3)
+                alerts: [
+                    {
+                        id: 1,
+                        severity: 'critical',
+                        title: 'CVE-2024-1234 - Windows SMB Vulnerability',
+                        device: 'LAPTOP-ABC',
+                        detected: '2 hours ago',
+                        description: 'Remote code execution vulnerability'
+                    },
+                    {
+                        id: 2,
+                        severity: 'critical',
+                        title: 'Outdated Antivirus - Windows Defender',
+                        device: 'DESKTOP-XYZ',
+                        detected: '5 hours ago',
+                        description: 'Definitions are 7 days old'
+                    },
+                    {
+                        id: 3,
+                        severity: 'warning',
+                        title: 'Missing Windows Update - KB5034765',
+                        device: 'LAPTOP-ABC',
+                        detected: '1 day ago',
+                        description: 'Security update not installed'
+                    }
+                ],
+                
+                // Recent Devices
+                recentDevices: [
+                    { name: 'LAPTOP-ABC', status: 'active', lastSeen: '5m ago', threats: 2 },
+                    { name: 'DESKTOP-XYZ', status: 'active', lastSeen: '15m ago', threats: 1 },
+                    { name: 'SERVER-001', status: 'blocked', lastSeen: '2d ago', threats: 0 },
+                    { name: 'WORK-PC', status: 'disabled', lastSeen: '1h ago', threats: 0 },
+                    { name: 'HOME-PC', status: 'active', lastSeen: '30m ago', threats: 0 }
+                ]
             };
             
             // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 800));
             
             this.setState({ data: mockData, loading: false });
         } catch (error) {
