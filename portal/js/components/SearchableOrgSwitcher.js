@@ -172,9 +172,9 @@ export class SearchableOrgSwitcher extends Component {
         // Single org - show name only (no dropdown)
         if (availableOrgs.length <= 1) {
             return html`
-                <div class="flex items-center space-x-2 text-white">
+                <div class="d-flex align-items-center text-white">
                     ${this.getOrgTypeIcon(currentOrg?.type, 20, 'white')}
-                    <span class="font-medium">${currentOrg?.name || 'Loading...'}</span>
+                    <span class="ms-2 fw-medium">${currentOrg?.name || 'Loading...'}</span>
                 </div>
             `;
         }
@@ -182,32 +182,35 @@ export class SearchableOrgSwitcher extends Component {
         // Multiple orgs - show searchable dropdown
         return html`
             <div 
-                class="relative"
+                class="dropdown"
                 ref=${(el) => this.dropdownRef = el}
             >
                 <!-- Current Org Button -->
                 <button
                     onClick=${this.handleToggleDropdown}
                     onKeyDown=${this.handleKeyDown}
-                    class="flex items-center space-x-2 px-4 py-2 bg-blue-800 hover:bg-blue-700 text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    class="btn btn-primary d-flex align-items-center"
                     aria-expanded=${isOpen}
                     aria-haspopup="listbox"
                 >
                     ${this.getOrgTypeIcon(currentOrg?.type, 20, 'white')}
-                    <span class="font-medium">${currentOrg?.name || 'Select Organization'}</span>
+                    <span class="ms-2">${currentOrg?.name || 'Select Organization'}</span>
                     <${Icons.ChevronDown} 
                         size=${16} 
                         color="white" 
-                        className=${"transition-transform " + (isOpen ? 'rotate-180' : '')}
+                        className=${"ms-2 " + (isOpen ? 'rotate-180' : '')}
                     />
                 </button>
 
                 <!-- Dropdown Menu -->
                 ${isOpen && html`
-                    <div class="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl z-50 border border-gray-200">
+                    <div class="dropdown-menu dropdown-menu-end show" style="width: 24rem; max-height: 500px; overflow-y: auto;">
                         <!-- Search Input -->
-                        <div class="p-3 border-b border-gray-200">
-                            <div class="relative">
+                        <div class="p-3 border-bottom">
+                            <div class="input-icon">
+                                <span class="input-icon-addon">
+                                    <${Icons.Search} size=${20} color="currentColor" />
+                                </span>
                                 <input
                                     ref=${(el) => this.searchInputRef = el}
                                     type="text"
@@ -215,62 +218,59 @@ export class SearchableOrgSwitcher extends Component {
                                     onInput=${this.handleSearchChange}
                                     onKeyDown=${this.handleKeyDown}
                                     placeholder="Search organizations..."
-                                    class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    class="form-control"
                                     aria-label="Search organizations"
                                 />
-                                <div class="absolute left-3 top-2.5 text-gray-400">
-                                    <${Icons.Search} size=${20} color="currentColor" />
-                                </div>
                             </div>
-                            <div class="mt-2 text-xs text-gray-500">
+                            <div class="text-muted small mt-2">
                                 ${filteredOrgs.length} of ${availableOrgs.length} organizations
                             </div>
                         </div>
 
                         <!-- Org List -->
                         <div 
-                            class="max-h-96 overflow-y-auto"
+                            class="dropdown-menu-scrollable"
+                            style="max-height: 400px; overflow-y: auto;"
                             role="listbox"
                         >
                             ${filteredOrgs.length === 0 ? html`
-                                <div class="p-4 text-center text-gray-500">
-                                    <p class="text-sm">No organizations found</p>
-                                    <p class="text-xs mt-1">Try a different search term</p>
+                                <div class="dropdown-item disabled text-center">
+                                    <div class="text-muted">No organizations found</div>
+                                    <div class="small text-muted mt-1">Try a different search term</div>
                                 </div>
                             ` : filteredOrgs.map((org, index) => html`
-                                <button
+                                <a
                                     key=${org.orgId}
+                                    href="javascript:void(0)"
                                     onClick=${() => this.handleOrgSelect(org)}
                                     class="${
-                                        'w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center space-x-3 ' +
-                                        (org.orgId === currentOrg?.orgId ? 'bg-blue-100 font-medium' : '') +
-                                        (index === selectedIndex ? ' bg-gray-100' : '')
+                                        'dropdown-item d-flex align-items-center ' +
+                                        (org.orgId === currentOrg?.orgId ? 'active' : '') +
+                                        (index === selectedIndex ? ' bg-light' : '')
                                     }"
                                     role="option"
                                     aria-selected=${org.orgId === currentOrg?.orgId}
                                 >
-                                    ${this.getOrgTypeIcon(org.type, 24, 'currentColor')}
-                                    <div class="flex-1 min-w-0">
-                                        <div class="font-medium text-gray-900 truncate">${org.name}</div>
-                                        <div class="text-xs text-gray-500 flex items-center space-x-2">
+                                    ${this.getOrgTypeIcon(org.type, 20, 'currentColor')}
+                                    <div class="flex-fill ms-2">
+                                        <div class="text-truncate">${org.name}</div>
+                                        <div class="text-muted small d-flex align-items-center">
                                             <span>${org.orgId}</span>
                                             ${org.role && html`
-                                                <span class="px-2 py-0.5 bg-gray-200 rounded text-xs">${org.role}</span>
+                                                <span class="badge badge-sm bg-secondary ms-2">${org.role}</span>
                                             `}
                                         </div>
                                     </div>
                                     ${org.orgId === currentOrg?.orgId && html`
-                                        <${Icons.Check} size=${20} color="#2563eb" />
+                                        <${Icons.Check} size=${18} color="#206bc4" />
                                     `}
-                                </button>
+                                </a>
                             `)}
                         </div>
 
                         <!-- Footer -->
-                        <div class="p-3 border-t border-gray-200 bg-gray-50 rounded-b-lg">
-                            <div class="text-xs text-gray-600 text-center">
-                                Use ↑↓ arrows to navigate, Enter to select
-                            </div>
+                        <div class="dropdown-item disabled small text-muted text-center border-top">
+                            Use ↑↓ arrows to navigate, Enter to select
                         </div>
                     </div>
                 `}

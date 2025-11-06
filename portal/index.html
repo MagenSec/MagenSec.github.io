@@ -5,94 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MagenSec Portal</title>
     
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tabler CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
     
     <!-- Custom styles -->
     <style>
-        /* ===== CSS Custom Properties for Theming ===== */
-        
-        /* Light Theme (Default) */
-        :root {
-            /* Primary Colors (Blue) */
-            --color-primary-50: #eff6ff;
-            --color-primary-100: #dbeafe;
-            --color-primary-500: #3b82f6;
-            --color-primary-600: #2563eb;
-            --color-primary-700: #1d4ed8;
-            --color-primary-900: #1e3a8a;
-            
-            /* Success (Green) */
-            --color-success-50: #f0fdf4;
-            --color-success-500: #22c55e;
-            --color-success-700: #15803d;
-            
-            /* Warning (Amber) */
-            --color-warning-50: #fffbeb;
-            --color-warning-500: #f59e0b;
-            --color-warning-700: #b45309;
-            
-            /* Danger (Red) */
-            --color-danger-50: #fef2f2;
-            --color-danger-500: #ef4444;
-            --color-danger-700: #b91c1c;
-            
-            /* Neutral (Gray) */
-            --color-gray-50: #f9fafb;
-            --color-gray-100: #f3f4f6;
-            --color-gray-200: #e5e7eb;
-            --color-gray-500: #6b7280;
-            --color-gray-600: #4b5563;
-            --color-gray-700: #374151;
-            --color-gray-800: #1f2937;
-            --color-gray-900: #111827;
-            
-            /* Semantic Colors */
-            --bg-primary: white;
-            --bg-secondary: var(--color-gray-50);
-            --text-primary: var(--color-gray-900);
-            --text-secondary: var(--color-gray-700);
-            --text-muted: var(--color-gray-500);
-            --border-color: var(--color-gray-200);
-        }
-        
-        /* Dark Theme */
-        [data-theme="dark"] {
-            --color-primary-50: #1e3a8a;
-            --color-primary-100: #1e40af;
-            --color-primary-500: #60a5fa;
-            --color-primary-600: #3b82f6;
-            --color-primary-700: #2563eb;
-            
-            --color-gray-50: #1f2937;
-            --color-gray-100: #374151;
-            --color-gray-200: #4b5563;
-            
-            --bg-primary: #1f2937;
-            --bg-secondary: #111827;
-            --text-primary: #f9fafb;
-            --text-secondary: #e5e7eb;
-            --text-muted: #9ca3af;
-            --border-color: #374151;
-        }
-        
-        /* Brand Theme (Purple) */
-        [data-theme="brand"] {
-            --color-primary-500: #8b5cf6;
-            --color-primary-600: #7c3aed;
-            --color-primary-700: #6d28d9;
-            --color-primary-900: #4c1d95;
-        }
-        
         /* Smooth transitions */
         * {
             transition: background-color 0.2s, border-color 0.2s, color 0.2s;
         }
         
-        /* Loading spinner */
+        /* Loading spinner (Tabler provides spinners, but keeping custom for initial load) */
         .spinner {
-            border: 3px solid var(--color-gray-100);
-            border-top-color: var(--color-primary-500);
+            border: 3px solid #f3f4f6;
+            border-top-color: #206bc4;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -102,22 +30,31 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        /* Custom overrides for Tabler */
+        :root {
+            --tblr-primary: #206bc4;
+        }
     </style>
 </head>
-<body class="bg-gray-50">
+<body>
     <!-- Main App Container -->
     <div id="app">
-        <!-- Initial loading state (will be replaced by React) -->
-        <div class="min-h-screen flex items-center justify-center">
-            <div class="text-center">
-                <div class="spinner mx-auto mb-4"></div>
-                <p class="text-gray-600">Loading portal...</p>
+        <!-- Initial loading state (will be replaced by Preact) -->
+        <div class="page page-center">
+            <div class="container-tight py-4">
+                <div class="text-center">
+                    <div class="spinner mx-auto mb-3"></div>
+                    <div class="text-muted">Loading portal...</div>
+                </div>
             </div>
         </div>
     </div>
     
     <!-- Load dependencies first -->
     <script src="https://unpkg.com/page@1.11.6/page.js"></script>
+    <!-- Tabler JS (for dropdowns, modals, etc.) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
     
     <!-- Load Preact + HTM and expose globally, then load app modules -->
     <script type="module">
@@ -158,10 +95,15 @@
             } catch (error) {
                 console.error('[CDN] Module loading failed:', error);
                 document.getElementById('app').innerHTML = `
-                    <div class="min-h-screen flex items-center justify-center">
-                        <div class="text-center">
-                            <p class="text-red-600 font-bold mb-2">Failed to load portal</p>
-                            <p class="text-gray-600">${error.message}</p>
+                    <div class="page page-center">
+                        <div class="container-tight py-4">
+                            <div class="text-center">
+                                <div class="text-danger mb-3">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                                </div>
+                                <h2 class="mb-2">Failed to load portal</h2>
+                                <div class="text-muted">${error.message}</div>
+                            </div>
                         </div>
                     </div>
                 `;

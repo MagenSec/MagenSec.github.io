@@ -1,5 +1,5 @@
 /**
- * Devices Page - Preact + HTM
+ * Devices Page - Preact + HTM with Tabler
  */
 
 import { auth } from '../auth.js';
@@ -39,75 +39,182 @@ export class DevicesPage extends window.Component {
     render() {
         const { html } = window;
         const { loading, devices, error } = this.state;
+        const user = auth.getUser();
 
         return html`
-            <div class="min-h-screen bg-gray-50">
+            <div class="page">
                 <!-- Header -->
-                <header class="bg-white shadow">
-                    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-                        <div>
-                            <h1 class="text-2xl font-bold text-gray-900">Devices</h1>
+                <header class="navbar navbar-expand-md navbar-dark bg-primary">
+                    <div class="container-xl">
+                        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                        <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                            <a href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
+                                    <circle cx="12" cy="11" r="1" />
+                                    <line x1="12" y1="12" x2="12" y2="14.5" />
+                                </svg>
+                            </a>
+                            <span class="text-white ms-2">MagenSec</span>
+                        </h1>
+                        <div class="navbar-nav flex-row order-md-last">
+                            <div class="nav-item dropdown">
+                                <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+                                    <span class="avatar avatar-sm" style="background-image: url(https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || user?.email || 'User')}&background=random)"></span>
+                                    <div class="d-none d-xl-block ps-2">
+                                        <div class="text-white small">${user?.name || user?.email}</div>
+                                    </div>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                                    <a href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }} class="dropdown-item">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
+                                        Dashboard
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    <a href="#" onclick=${(e) => { e.preventDefault(); auth.logout(); }} class="dropdown-item text-danger">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /><path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" /></svg>
+                                        Logout
+                                    </a>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-4">
-                            <a href="#!/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</a>
-                            <button 
-                                onclick=${() => auth.logout()}
-                                class="text-red-600 hover:text-red-800"
-                            >
-                                Logout
-                            </button>
+                        <div class="collapse navbar-collapse" id="navbar-menu">
+                            <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                                <ul class="navbar-nav">
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }}>
+                                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
+                                            </span>
+                                            <span class="nav-link-title">Dashboard</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item active">
+                                        <a class="nav-link" href="#!/devices" onclick=${(e) => { e.preventDefault(); window.page('/devices'); }}>
+                                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                                            </span>
+                                            <span class="nav-link-title">Devices</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </header>
 
                 <!-- Content -->
-                <main class="max-w-7xl mx-auto px-4 py-8">
-                    ${loading ? html`
-                        <div class="flex justify-center items-center h-64">
-                            <div class="spinner"></div>
+                <div class="page-wrapper">
+                    <div class="page-header d-print-none">
+                        <div class="container-xl">
+                            <div class="row g-2 align-items-center">
+                                <div class="col">
+                                    <h2 class="page-title">Devices</h2>
+                                    <div class="text-muted mt-1">Manage and monitor your devices</div>
+                                </div>
+                                <div class="col-auto ms-auto d-print-none">
+                                    <button class="btn btn-primary">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                        Add Device
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    ` : error ? html`
-                        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
-                            <p class="text-red-600">${error}</p>
+                    </div>
+                    <div class="page-body">
+                        <div class="container-xl">
+                            ${loading ? html`
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="text-center py-5">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <div class="mt-3 text-muted">Loading devices...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : error ? html`
+                                <div class="card">
+                                    <div class="empty">
+                                        <div class="empty-icon">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-danger" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                                        </div>
+                                        <p class="empty-title">Error loading devices</p>
+                                        <p class="empty-subtitle text-muted">${error}</p>
+                                        <div class="empty-action">
+                                            <button onclick=${() => this.loadDevices()} class="btn btn-primary">
+                                                Try Again
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : devices.length === 0 ? html`
+                                <div class="card">
+                                    <div class="empty">
+                                        <div class="empty-icon">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                                        </div>
+                                        <p class="empty-title">No devices found</p>
+                                        <p class="empty-subtitle text-muted">
+                                            Get started by adding your first device to begin monitoring
+                                        </p>
+                                        <div class="empty-action">
+                                            <button class="btn btn-primary">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                                Add Device
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : html`
+                                <div class="card">
+                                    <div class="table-responsive">
+                                        <table class="table table-vcenter card-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Device</th>
+                                                    <th>Status</th>
+                                                    <th>Last Seen</th>
+                                                    <th class="w-1"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${devices.map(device => html`
+                                                    <tr>
+                                                        <td>
+                                                            <div class="d-flex py-1 align-items-center">
+                                                                <span class="avatar me-2">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                                                                </span>
+                                                                <div class="flex-fill">
+                                                                    <div class="font-weight-medium">${device.name}</div>
+                                                                    <div class="text-muted">${device.id}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-${device.status === 'online' ? 'success' : 'secondary'} text-white">
+                                                                ${device.status}
+                                                            </span>
+                                                        </td>
+                                                        <td class="text-muted">${device.lastSeen}</td>
+                                                        <td>
+                                                            <div class="btn-list flex-nowrap">
+                                                                <button class="btn btn-sm">View</button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                `)}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            `}
                         </div>
-                    ` : html`
-                        <div class="bg-white rounded-lg shadow overflow-hidden">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Seen</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    ${devices.length === 0 ? html`
-                                        <tr>
-                                            <td colspan="3" class="px-6 py-8 text-center text-gray-500">
-                                                No devices found
-                                            </td>
-                                        </tr>
-                                    ` : devices.map(device => html`
-                                        <tr>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="font-medium text-gray-900">${device.name}</div>
-                                                <div class="text-sm text-gray-500">${device.id}</div>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <span class="px-2 py-1 text-xs rounded-full ${device.status === 'online' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                                                    ${device.status}
-                                                </span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                ${device.lastSeen}
-                                            </td>
-                                        </tr>
-                                    `)}
-                                </tbody>
-                            </table>
-                        </div>
-                    `}
-                </main>
+                    </div>
+                </div>
             </div>
         `;
     }

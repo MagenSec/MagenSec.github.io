@@ -46,6 +46,11 @@ export class DashboardPage extends Component {
         this.loadData();
     }
 
+    handleScanNow() {
+        // TODO: Trigger scan for current org's devices
+        alert('Scan triggered! This will be implemented when the API is ready.');
+    }
+
     async loadData() {
         try {
             // TODO: Replace with real API call when /api/dashboard is implemented
@@ -133,44 +138,90 @@ export class DashboardPage extends Component {
         const user = auth.getUser();
 
         return html`
-            <div class="min-h-screen bg-gray-50">
+            <div class="page">
                 <!-- Header -->
-                <header class="bg-gradient-to-r from-blue-900 to-blue-700 shadow-lg">
-                    <div class="max-w-7xl mx-auto px-4 py-6">
-                        <div class="flex justify-between items-center">
-                            <div class="flex items-center gap-4">
-                                <div class="bg-white/10 p-3 rounded-lg">
-                                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                    </svg>
-                                </div>
-                                <div class="flex-1">
-                                    <h1 class="text-2xl font-bold text-white">Security Dashboard</h1>
-                                    <p class="text-blue-100">Welcome back, ${user?.name || user?.email}</p>
-                                </div>
-                                <!-- Organization Switcher -->
+                <header class="navbar navbar-expand-md navbar-dark bg-primary">
+                    <div class="container-xl">
+                        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                        <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                            <a href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
+                                    <circle cx="12" cy="11" r="1" />
+                                    <line x1="12" y1="12" x2="12" y2="14.5" />
+                                </svg>
+                            </a>
+                            <span class="text-white ms-2">MagenSec</span>
+                        </h1>
+                        <div class="navbar-nav flex-row order-md-last">
+                            <div class="d-none d-md-flex me-3">
                                 <${SearchableOrgSwitcher} onOrgChange=${() => this.handleOrgChange()} />
                             </div>
-                            <div class="flex items-center gap-3">
-                                <button class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition">
-                                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                    Scan Now
-                                </button>
-                                <a href="#!/devices" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition">Devices</a>
-                                <button onclick=${() => auth.logout()} class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
-                                    Logout
-                                </button>
+                            <div class="nav-item dropdown">
+                                <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+                                    <span class="avatar avatar-sm" style="background-image: url(https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || user?.email || 'User')}&background=random)"></span>
+                                    <div class="d-none d-xl-block ps-2">
+                                        <div class="text-white small">${user?.name || user?.email}</div>
+                                        <div class="mt-1 small text-white-50">Welcome back</div>
+                                    </div>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                                    <a href="#!/devices" onclick=${(e) => { e.preventDefault(); window.page('/devices'); }} class="dropdown-item">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                                        Devices
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    <a href="#" onclick=${(e) => { e.preventDefault(); auth.logout(); }} class="dropdown-item text-danger">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /><path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" /></svg>
+                                        Logout
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="collapse navbar-collapse" id="navbar-menu">
+                            <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                                <ul class="navbar-nav">
+                                    <li class="nav-item active">
+                                        <a class="nav-link" href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }}>
+                                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
+                                            </span>
+                                            <span class="nav-link-title">Dashboard</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="#!/devices" onclick=${(e) => { e.preventDefault(); window.page('/devices'); }}>
+                                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                                            </span>
+                                            <span class="nav-link-title">Devices</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <button class="nav-link" onclick=${() => this.handleScanNow()}>
+                                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                                            </span>
+                                            <span class="nav-link-title">Scan Now</span>
+                                        </button>
+                                    </li>
+                                </ul>
                             </div>
                         </div>
                     </div>
                 </header>
 
                 <!-- Content -->
-                <main class="max-w-7xl mx-auto px-4 py-8">
-                    ${loading ? this.renderLoading() : error ? this.renderError(error) : this.renderDashboard(data)}
-                </main>
+                <div class="page-wrapper">
+                    <div class="page-body">
+                        <div class="container-xl">
+                            ${loading ? this.renderLoading() : error ? this.renderError(error) : this.renderDashboard(data)}
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -178,30 +229,40 @@ export class DashboardPage extends Component {
     renderLoading() {
         const { html } = window;
         return html`
-            <div class="space-y-6">
+            <div class="row row-cards">
                 <!-- Skeleton for Security Score -->
-                <div class="bg-white rounded-xl shadow-sm p-6 animate-pulse">
-                    <div class="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
-                    <div class="h-20 bg-gray-200 rounded"></div>
+                <div class="col-12">
+                    <div class="card placeholder-glow">
+                        <div class="card-body">
+                            <div class="placeholder col-3 mb-3"></div>
+                            <div class="placeholder col-12" style="height: 80px;"></div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Skeleton for Stats Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    ${[1,2,3,4].map(() => html`
-                        <div class="bg-white rounded-xl shadow-sm p-6 animate-pulse">
-                            <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-                            <div class="h-8 bg-gray-200 rounded w-3/4"></div>
+                ${[1,2,3,4].map(() => html`
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card placeholder-glow">
+                            <div class="card-body">
+                                <div class="placeholder col-6 mb-3"></div>
+                                <div class="placeholder col-8" style="height: 32px;"></div>
+                            </div>
                         </div>
-                    `)}
-                </div>
+                    </div>
+                `)}
                 
                 <!-- Skeleton for Alerts -->
-                <div class="bg-white rounded-xl shadow-sm p-6 animate-pulse">
-                    <div class="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-                    <div class="space-y-3">
-                        ${[1,2,3].map(() => html`
-                            <div class="h-16 bg-gray-200 rounded"></div>
-                        `)}
+                <div class="col-12">
+                    <div class="card placeholder-glow">
+                        <div class="card-header">
+                            <div class="placeholder col-4"></div>
+                        </div>
+                        <div class="card-body">
+                            ${[1,2,3].map(() => html`
+                                <div class="placeholder col-12 mb-2" style="height: 60px;"></div>
+                            `)}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -211,18 +272,20 @@ export class DashboardPage extends Component {
     renderError(error) {
         const { html } = window;
         return html`
-            <div class="bg-red-50 border-2 border-red-200 rounded-xl p-8 text-center">
-                <svg class="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 class="text-xl font-semibold text-red-900 mb-2">Error Loading Dashboard</h3>
-                <p class="text-red-700 mb-6">${error}</p>
-                <button 
-                    onclick=${() => this.loadData()}
-                    class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
-                >
-                    Try Again
-                </button>
+            <div class="empty">
+                <div class="empty-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-danger" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                </div>
+                <p class="empty-title">Error Loading Dashboard</p>
+                <p class="empty-subtitle text-muted">${error}</p>
+                <div class="empty-action">
+                    <button 
+                        onclick=${() => this.loadData()}
+                        class="btn btn-danger"
+                    >
+                        Try Again
+                    </button>
+                </div>
             </div>
         `;
     }
@@ -236,18 +299,20 @@ export class DashboardPage extends Component {
         }
         
         return html`
-            <div class="space-y-6">
+            <div class="row row-cards">
                 <!-- Security Score Card -->
                 ${this.renderSecurityScore(data)}
                 
                 <!-- Quick Stats Grid -->
                 ${this.renderStatsGrid(data)}
                 
-                <!-- Security Alerts -->
-                ${this.renderAlerts(data.alerts)}
-                
-                <!-- Recent Devices -->
-                ${this.renderRecentDevices(data.recentDevices)}
+                <!-- Security Alerts and Device Status (Side by Side) -->
+                <div class="col-md-6">
+                    ${this.renderAlerts(data.alerts)}
+                </div>
+                <div class="col-md-6">
+                    ${this.renderRecentDevices(data.recentDevices)}
+                </div>
             </div>
         `;
     }
@@ -255,21 +320,19 @@ export class DashboardPage extends Component {
     renderEmptyState() {
         const { html } = window;
         return html`
-            <div class="bg-white rounded-xl shadow-sm p-12 text-center">
-                <div class="bg-blue-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <svg class="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
+            <div class="empty">
+                <div class="empty-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-primary" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
                 </div>
-                <h2 class="text-2xl font-bold text-gray-900 mb-3">Get Started with MagenSec</h2>
-                <p class="text-gray-600 mb-8 max-w-md mx-auto">
+                <p class="empty-title">Get Started with MagenSec</p>
+                <p class="empty-subtitle text-muted">
                     Install the agent on your first device to start monitoring security posture and vulnerabilities.
                 </p>
-                <div class="flex gap-4 justify-center">
-                    <button class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
+                <div class="empty-action">
+                    <button class="btn btn-primary">
                         Download Windows Agent
                     </button>
-                    <button class="px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 rounded-lg font-medium transition">
+                    <button class="btn btn-outline-secondary ms-2">
                         View Documentation
                     </button>
                 </div>
@@ -282,30 +345,28 @@ export class DashboardPage extends Component {
         const { securityScore, grade, lastScan, nextScan } = data;
         
         return html`
-            <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl shadow-lg p-6 text-white">
-                <div class="flex items-center justify-between">
-                    <div class="flex-1">
-                        <h2 class="text-lg font-medium text-blue-100 mb-2">Overall Security Score</h2>
-                        <div class="flex items-baseline gap-4">
-                            <div class="text-6xl font-bold">${grade}</div>
-                            <div class="text-3xl font-semibold">${securityScore}/100</div>
-                        </div>
-                        <div class="mt-4 flex gap-6 text-sm">
-                            <div>
-                                <span class="text-blue-200">Last Scan:</span>
-                                <span class="font-medium ml-2">${lastScan}</span>
+            <div class="col-12 mb-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-auto d-none d-md-block">
+                                <div class="avatar avatar-xl bg-white text-primary">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
+                                        <circle cx="12" cy="11" r="1" />
+                                        <line x1="12" y1="12" x2="12" y2="14.5" />
+                                    </svg>
+                                </div>
                             </div>
-                            <div>
-                                <span class="text-blue-200">Next Scan:</span>
-                                <span class="font-medium ml-2">${nextScan}</span>
+                            <div class="col">
+                                <div class="text-white-50 mb-2">Overall Security Score</div>
+                                <div class="h1 mb-0">${securityScore}/100 <span class="h2">(Grade: ${grade})</span></div>
+                                <div class="mt-2 text-white-50">
+                                    <small>Last Scan: ${lastScan}</small>
+                                    <small class="ms-4">Next Scan: ${nextScan}</small>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="hidden md:block">
-                        <div class="w-32 h-32 rounded-full bg-white/10 flex items-center justify-center">
-                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
                         </div>
                     </div>
                 </div>
@@ -318,61 +379,79 @@ export class DashboardPage extends Component {
         const { devices, threats, compliance } = data;
         
         return html`
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <!-- Active Devices -->
-                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-medium text-gray-600">Devices</h3>
-                        <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
+            <!-- Active Devices -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card card-sm">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <span class="avatar bg-primary-lt">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="font-weight-medium">${devices.active}/${devices.total}</div>
+                                <div class="text-muted">Active Devices</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="text-3xl font-bold text-gray-900 mb-1">${devices.active}/${devices.total}</div>
-                    <div class="text-sm text-gray-500">Active Devices</div>
                 </div>
-                
-                <!-- Critical Threats -->
-                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-medium text-gray-600">Critical Threats</h3>
-                        <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
-                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
+            </div>
+            
+            <!-- Critical Threats -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card card-sm">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <span class="avatar bg-danger-lt">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="font-weight-medium">${threats.critical}</div>
+                                <div class="text-muted">Critical Threats</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="text-3xl font-bold text-red-600 mb-1">${threats.critical}</div>
-                    <div class="text-sm text-gray-500">Require Immediate Action</div>
                 </div>
-                
-                <!-- Warnings -->
-                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-medium text-gray-600">Warnings</h3>
-                        <div class="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center">
-                            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+            </div>
+            
+            <!-- Warnings -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card card-sm">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <span class="avatar bg-warning-lt">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="font-weight-medium">${threats.medium + threats.low}</div>
+                                <div class="text-muted">Warnings</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="text-3xl font-bold text-yellow-600 mb-1">${threats.medium + threats.low}</div>
-                    <div class="text-sm text-gray-500">Issues Found</div>
                 </div>
-                
-                <!-- Compliance -->
-                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-medium text-gray-600">Compliance</h3>
-                        <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
-                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+            </div>
+            
+            <!-- Compliance -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card card-sm">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <span class="avatar bg-success-lt">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="font-weight-medium">${compliance.score}%</div>
+                                <div class="text-muted">${compliance.compliant}/${compliance.total} Resources</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="text-3xl font-bold text-green-600 mb-1">${compliance.score}%</div>
-                    <div class="text-sm text-gray-500">${compliance.compliant}/${compliance.total} Resources</div>
                 </div>
             </div>
         `;
@@ -383,31 +462,31 @@ export class DashboardPage extends Component {
         
         if (!alerts || alerts.length === 0) {
             return html`
-                <div class="bg-white rounded-xl shadow-sm p-8 text-center">
-                    <div class="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                <div class="card">
+                    <div class="empty">
+                        <div class="empty-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-success" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
+                        </div>
+                        <p class="empty-title">All Clear - No Security Alerts</p>
+                        <p class="empty-subtitle text-muted">Your devices are secure and up-to-date.</p>
                     </div>
-                    <h3 class="text-lg font-semibold text-gray-900 mb-2">All Clear - No Security Alerts</h3>
-                    <p class="text-gray-600">Your devices are secure and up-to-date.</p>
                 </div>
             `;
         }
         
         return html`
-            <div class="bg-white rounded-xl shadow-sm p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2 text-danger" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>
                         Security Alerts
-                        <span class="ml-2 px-2 py-1 bg-red-100 text-red-700 text-sm font-medium rounded-full">${alerts.length}</span>
-                    </h2>
-                    <button class="text-blue-600 hover:text-blue-700 font-medium text-sm">View All →</button>
+                        <span class="badge bg-danger text-white ms-2">${alerts.length}</span>
+                    </h3>
+                    <div class="card-actions">
+                        <a href="#" class="btn btn-primary btn-sm">View All</a>
+                    </div>
                 </div>
-                <div class="space-y-4">
+                <div class="list-group list-group-flush">
                     ${alerts.map(alert => this.renderAlert(alert))}
                 </div>
             </div>
@@ -416,33 +495,37 @@ export class DashboardPage extends Component {
 
     renderAlert(alert) {
         const { html } = window;
-        const severityStyles = {
-            critical: { bg: 'bg-red-50 border-red-200', text: 'text-red-700', badge: 'bg-red-600' },
-            high: { bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', badge: 'bg-orange-600' },
-            warning: { bg: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-700', badge: 'bg-yellow-600' },
-            low: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', badge: 'bg-blue-600' }
+        const severityConfig = {
+            critical: { color: 'danger', icon: '🔴' },
+            high: { color: 'warning', icon: '🟠' },
+            warning: { color: 'yellow', icon: '🟡' },
+            low: { color: 'info', icon: '🔵' }
         };
-        const style = severityStyles[alert.severity] || severityStyles.low;
+        const config = severityConfig[alert.severity] || severityConfig.low;
         
         return html`
-            <div class="border-2 ${style.bg} rounded-lg p-4 hover:shadow-md transition">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-3 mb-2">
-                            <span class="${style.badge} text-white text-xs font-bold px-2 py-1 rounded uppercase">
-                                ${alert.severity}
-                            </span>
-                            <h3 class="font-semibold ${style.text}">${alert.title}</h3>
+            <div class="list-group-item">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="badge bg-${config.color} text-white">${alert.severity.toUpperCase()}</span>
+                    </div>
+                    <div class="col">
+                        <div class="text-truncate">
+                            <strong>${alert.title}</strong>
                         </div>
-                        <p class="text-sm text-gray-600 mb-2">${alert.description}</p>
-                        <div class="flex gap-4 text-xs text-gray-500">
-                            <span>🖥️ ${alert.device}</span>
-                            <span>🕒 ${alert.detected}</span>
+                        <div class="text-muted text-truncate mt-1">${alert.description}</div>
+                        <div class="text-muted small mt-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                            ${alert.device}
+                            <span class="ms-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 15" /></svg>
+                                ${alert.detected}
+                            </span>
                         </div>
                     </div>
-                    <button class="ml-4 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium transition">
-                        Remediate
-                    </button>
+                    <div class="col-auto">
+                        <button class="btn btn-sm btn-outline-primary">Remediate</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -452,17 +535,17 @@ export class DashboardPage extends Component {
         const { html } = window;
         
         return html`
-            <div class="bg-white rounded-xl shadow-sm p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2 text-primary" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
                         Device Status
-                    </h2>
-                    <a href="#!/devices" class="text-blue-600 hover:text-blue-700 font-medium text-sm">View All →</a>
+                    </h3>
+                    <div class="card-actions">
+                        <a href="#!/devices" class="btn btn-primary btn-sm">View All</a>
+                    </div>
                 </div>
-                <div class="space-y-3">
+                <div class="list-group list-group-flush">
                     ${devices.map(device => this.renderDeviceRow(device))}
                 </div>
             </div>
@@ -471,39 +554,35 @@ export class DashboardPage extends Component {
 
     renderDeviceRow(device) {
         const { html } = window;
-        const statusStyles = {
-            active: { badge: 'bg-green-100 text-green-700', icon: '✅' },
-            disabled: { badge: 'bg-yellow-100 text-yellow-700', icon: '⚠️' },
-            blocked: { badge: 'bg-red-100 text-red-700', icon: '🔴' }
+        const statusConfig = {
+            active: { color: 'success', text: 'Active' },
+            disabled: { color: 'warning', text: 'Disabled' },
+            blocked: { color: 'danger', text: 'Blocked' }
         };
-        const style = statusStyles[device.status] || statusStyles.active;
+        const config = statusConfig[device.status] || statusConfig.active;
         
         return html`
-            <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
-                <div class="flex items-center gap-4 flex-1">
-                    <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
+            <div class="list-group-item">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="avatar bg-primary-lt">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                        </span>
                     </div>
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-1">
-                            <h3 class="font-semibold text-gray-900">${device.name}</h3>
-                            <span class="${style.badge} text-xs font-medium px-2 py-1 rounded-full">
-                                ${style.icon} ${device.status}
-                            </span>
-                            ${device.threats > 0 ? html`
-                                <span class="bg-red-100 text-red-700 text-xs font-medium px-2 py-1 rounded-full">
-                                    ${device.threats} threat${device.threats > 1 ? 's' : ''}
-                                </span>
-                            ` : ''}
+                    <div class="col">
+                        <div class="text-truncate">
+                            <strong>${device.name}</strong>
                         </div>
-                        <p class="text-sm text-gray-500">Last seen: ${device.lastSeen}</p>
+                        <div class="text-muted small mt-1">
+                            <span class="badge bg-${config.color} text-white me-2">${config.text}</span>
+                            ${device.threats > 0 ? html`<span class="badge bg-danger text-white">${device.threats} threat${device.threats > 1 ? 's' : ''}</span>` : ''}
+                        </div>
+                        <div class="text-muted small">Last seen: ${device.lastSeen}</div>
+                    </div>
+                    <div class="col-auto">
+                        <a href="#" class="btn btn-sm btn-outline-primary">Details</a>
                     </div>
                 </div>
-                <button class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                    Details →
-                </button>
             </div>
         `;
     }
