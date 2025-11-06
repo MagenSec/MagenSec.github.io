@@ -4,6 +4,7 @@
  */
 
 import { auth } from './auth.js';
+import { orgContext } from './orgContext.js';
 import { initRouter } from './router.js';
 import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard-v2.js';

@@ -5,6 +5,8 @@
 
 import { auth } from '../auth.js';
 import { api } from '../api.js';
+import { orgContext } from '../orgContext.js';
+import { OrgSwitcher } from '../components/OrgSwitcher.js';
 
 const { html, Component } = window;
 
@@ -16,9 +18,31 @@ export class DashboardPage extends Component {
             data: null,
             error: null
         };
+        
+        // Subscribe to org changes
+        this.unsubscribeOrg = null;
     }
 
     componentDidMount() {
+        // Subscribe to org context changes
+        this.unsubscribeOrg = orgContext.onChange((org) => {
+            console.log('[Dashboard] Org changed:', org);
+            this.loadData(); // Reload data when org changes
+        });
+        
+        this.loadData();
+    }
+    
+    componentWillUnmount() {
+        // Cleanup subscription
+        if (this.unsubscribeOrg) {
+            this.unsubscribeOrg();
+        }
+    }
+    
+    handleOrgChange() {
+        // Reload dashboard data when org changes
+        this.setState({ loading: true, error: null });
         this.loadData();
     }
 
@@ -120,10 +144,12 @@ export class DashboardPage extends Component {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                     </svg>
                                 </div>
-                                <div>
+                                <div class="flex-1">
                                     <h1 class="text-2xl font-bold text-white">Security Dashboard</h1>
                                     <p class="text-blue-100">Welcome back, ${user?.name || user?.email}</p>
                                 </div>
+                                <!-- Organization Switcher -->
+                                <${OrgSwitcher} onOrgChange=${() => this.handleOrgChange()} />
                             </div>
                             <div class="flex items-center gap-3">
                                 <button class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition">
