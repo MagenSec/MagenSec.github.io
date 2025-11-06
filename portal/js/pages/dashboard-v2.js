@@ -6,7 +6,7 @@
 import { auth } from '../auth.js';
 import { api } from '../api.js';
 import { orgContext } from '../orgContext.js';
-import { OrgSwitcher } from '../components/OrgSwitcher.js';
+import { SearchableOrgSwitcher } from '../components/SearchableOrgSwitcher.js';
 
 const { html, Component } = window;
 
@@ -149,7 +149,7 @@ export class DashboardPage extends Component {
                                     <p class="text-blue-100">Welcome back, ${user?.name || user?.email}</p>
                                 </div>
                                 <!-- Organization Switcher -->
-                                <${OrgSwitcher} onOrgChange=${() => this.handleOrgChange()} />
+                                <${SearchableOrgSwitcher} onOrgChange=${() => this.handleOrgChange()} />
                             </div>
                             <div class="flex items-center gap-3">
                                 <button class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition">

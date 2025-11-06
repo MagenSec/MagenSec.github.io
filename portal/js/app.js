@@ -6,6 +6,7 @@
 import { auth } from './auth.js';
 import { orgContext } from './orgContext.js';
 import { initRouter } from './router.js';
+import { logger } from './config.js';
 import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard-v2.js';
 import { DevicesPage } from './pages/devices.js';
@@ -55,14 +56,14 @@ function renderApp(state) {
 
 // Initialize
 async function init() {
-    console.log('[App] Initializing MagenSec Portal...');
+    logger.info('[App] Initializing MagenSec Portal...');
     
     // Handle OAuth callback
     if (window.location.search.includes('code=')) {
         renderApp(); // Show loading
         try {
             await auth.handleCallback();
-            console.log('[App] OAuth callback successful');
+            logger.info('[App] OAuth callback successful');
             // Use hash navigation instead of full page redirect
             window.location.hash = '#!/dashboard';
             // Clear query params
@@ -70,7 +71,7 @@ async function init() {
             // Initialize router after callback
             initRouter(renderApp);
         } catch (error) {
-            console.error('[App] OAuth callback failed:', error);
+            logger.error('[App] OAuth callback failed:', error);
             alert('Login failed: ' + error.message);
             const basePath = window.location.pathname.includes('/portal/') ? '/portal/' : '/';
             window.location.href = basePath;
@@ -83,11 +84,11 @@ async function init() {
     
     // Listen for auth changes
     auth.onChange((session) => {
-        console.log('[App] Auth changed:', session ? 'logged in' : 'logged out');
+        logger.debug('[App] Auth changed:', session ? 'logged in' : 'logged out');
         renderApp();
     });
     
-    console.log('[App] Ready');
+    logger.info('[App] Ready');
 }
 
 // Start when DOM is ready

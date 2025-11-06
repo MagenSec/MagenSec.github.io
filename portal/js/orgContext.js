@@ -5,6 +5,7 @@
 
 import { auth } from './auth.js';
 import { api } from './api.js';
+import { logger } from './config.js';
 
 class OrgContext {
     constructor() {
@@ -31,9 +32,11 @@ class OrgContext {
             const user = auth.getUser();
             
             if (!user) {
-                console.log('[OrgContext] No user, skipping initialization');
+                logger.debug('[OrgContext] No user, skipping initialization. Auth session:', auth.session);
                 return;
             }
+
+            logger.debug('[OrgContext] Initializing for user:', user.email);
 
             // TODO: Replace with real API call when /api/users/me/orgs is implemented
             // For now, use mock data based on user email
@@ -44,13 +47,17 @@ class OrgContext {
                 this.selectOrg(this.availableOrgs[0].orgId);
             }
             
-            console.log('[OrgContext] Initialized:', {
+            logger.debug('[OrgContext] Initialized:', {
                 currentOrg: this.currentOrg,
                 availableOrgs: this.availableOrgs.length
             });
             
+            // Notify listeners that orgs are loaded (even if already notified by selectOrg)
+            // This ensures components that subscribe after initialization still get the data
+            this.notifyListeners();
+            
         } catch (error) {
-            console.error('[OrgContext] Initialization failed:', error);
+            logger.error('[OrgContext] Initialization failed:', error);
         } finally {
             this.loading = false;
         }
@@ -92,14 +99,14 @@ class OrgContext {
     selectOrg(orgId) {
         const org = this.availableOrgs.find(o => o.orgId === orgId);
         if (!org) {
-            console.error('[OrgContext] Org not found:', orgId);
+            logger.error('[OrgContext] Org not found:', orgId);
             return;
         }
 
         this.currentOrg = org;
         localStorage.setItem('selectedOrgId', orgId);
         
-        console.log('[OrgContext] Org selected:', org);
+        logger.info('[OrgContext] Org selected:', org);
         
         // Notify listeners
         this.notifyListeners();
@@ -184,7 +191,7 @@ class OrgContext {
             try {
                 callback(this.currentOrg);
             } catch (error) {
-                console.error('[OrgContext] Listener error:', error);
+                logger.error('[OrgContext] Listener error:', error);
             }
         });
     }
@@ -197,7 +204,7 @@ class OrgContext {
         this.availableOrgs = [];
         localStorage.removeItem('selectedOrgId');
         this.notifyListeners();
-        console.log('[OrgContext] Cleared');
+        logger.info('[OrgContext] Cleared');
     }
 }
 

@@ -3,6 +3,34 @@
  * This file is updated by buildDeployContainer.ps1 during deployment
  */
 
+// Debug mode detection (URL param or localStorage)
+const urlParams = new URLSearchParams(window.location.search);
+const debugParam = urlParams.get('debug');
+if (debugParam === 'true') {
+    localStorage.setItem('debug', 'true');
+} else if (debugParam === 'false') {
+    localStorage.removeItem('debug');
+}
+const DEBUG_ENABLED = localStorage.getItem('debug') === 'true';
+
+// Debug logger utility
+export const logger = {
+    debug: (...args) => {
+        if (DEBUG_ENABLED) {
+            console.log(...args);
+        }
+    },
+    info: (...args) => {
+        console.log(...args); // Always log important info
+    },
+    warn: (...args) => {
+        console.warn(...args); // Always log warnings
+    },
+    error: (...args) => {
+        console.error(...args); // Always log errors
+    }
+};
+
 export const config = {
     // API Configuration - Updated by deployment script
     API_BASE: 'https://ms-central-api.proudsand-cb69619a.eastus.azurecontainerapps.io',
@@ -17,9 +45,15 @@ export const config = {
     // Environment detection
     IS_LOCAL: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
     IS_GITHUB_PAGES: window.location.hostname === 'magensec.github.io',
-    IS_PRODUCTION: window.location.hostname === 'magensec.gigabits.co.in'
+    IS_PRODUCTION: window.location.hostname === 'magensec.gigabits.co.in',
+    
+    // Debug mode
+    DEBUG: DEBUG_ENABLED
 };
 
 // Log environment
-console.log('[Config] Environment:', config.IS_LOCAL ? 'LOCAL' : config.IS_GITHUB_PAGES ? 'GITHUB_PAGES' : config.IS_PRODUCTION ? 'PRODUCTION' : 'UNKNOWN');
-console.log('[Config] API Base:', config.API_BASE);
+logger.info('[Config] Environment:', config.IS_LOCAL ? 'LOCAL' : config.IS_GITHUB_PAGES ? 'GITHUB_PAGES' : config.IS_PRODUCTION ? 'PRODUCTION' : 'UNKNOWN');
+logger.info('[Config] API Base:', config.API_BASE);
+if (DEBUG_ENABLED) {
+    logger.info('[Config] 🐛 Debug mode ENABLED - Add ?debug=false to URL to disable');
+}

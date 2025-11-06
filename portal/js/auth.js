@@ -3,7 +3,7 @@
  * No build step - pure vanilla JS with localStorage
  */
 
-import { config } from './config.js';
+import { config, logger } from './config.js';
 
 export class Auth {
     constructor() {
@@ -19,19 +19,21 @@ export class Auth {
             const stored = localStorage.getItem(config.STORAGE_KEY);
             if (stored) {
                 this.session = JSON.parse(stored);
-                console.log('[Auth] Session loaded:', this.session.user?.email);
+                logger.debug('[Auth] Session loaded:', this.session.user?.email);
             }
         } catch (e) {
-            console.error('[Auth] Failed to load session:', e);
+            logger.error('[Auth] Failed to load session:', e);
         }
     }
 
     // Save session to localStorage
     saveSession(session) {
+        logger.debug('[Auth] Saving session for user:', session.user?.email);
         this.session = session;
         localStorage.setItem(config.STORAGE_KEY, JSON.stringify(session));
+        logger.debug('[Auth] Session saved, notifying listeners...');
         this.notifyListeners();
-        console.log('[Auth] Session saved');
+        logger.debug('[Auth] Listeners notified');
     }
 
     // Clear session
@@ -39,7 +41,7 @@ export class Auth {
         this.session = null;
         localStorage.removeItem(config.STORAGE_KEY);
         this.notifyListeners();
-        console.log('[Auth] Session cleared');
+        logger.info('[Auth] Session cleared');
     }
 
     // Get OAuth configuration
@@ -126,7 +128,24 @@ export class Auth {
         const data = await response.json();
         
         if (data.success) {
-            this.saveSession(data.data);
+            // Transform backend response to expected session format
+            const session = {
+                user: {
+                    email: data.data.email,
+                    name: data.data.name || data.data.email,
+                    displayName: data.data.name || data.data.email.split('@')[0],
+                    picture: null // Google doesn't send picture in our flow
+                },
+                sessionToken: data.data.sessionToken,
+                orgId: data.data.orgId,
+                userType: data.data.userType,
+                maxDevices: data.data.maxDevices,
+                isNewUser: data.data.isNewUser,
+                expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+            };
+            
+            console.log('[Auth] Transformed session:', session.user.email);
+            this.saveSession(session);
             
             // Clean up
             sessionStorage.removeItem('oauth_code_verifier');
