@@ -4,6 +4,7 @@
 
 import { auth } from '../auth.js';
 import { api } from '../api.js';
+import { orgContext } from '../orgContext.js';
 
 export class DevicesPage extends window.Component {
     constructor(props) {
@@ -13,26 +14,91 @@ export class DevicesPage extends window.Component {
             devices: [],
             error: null
         };
+        this.orgUnsubscribe = null;
     }
 
     componentDidMount() {
+        // Subscribe to org changes to reload devices when user switches orgs
+        this.orgUnsubscribe = orgContext.onChange(() => {
+            this.loadDevices();
+        });
+        
         this.loadDevices();
+    }
+
+    componentWillUnmount() {
+        // Unsubscribe from org changes
+        if (this.orgUnsubscribe) {
+            this.orgUnsubscribe();
+        }
     }
 
     async loadDevices() {
         try {
-            // TODO: Replace with real API call when /api/devices is implemented
-            // For now, show empty list to verify page works
-            const mockData = {
-                data: []
-            };
+            this.setState({ loading: true, error: null });
+
+            // Get current org from context
+            const currentOrg = orgContext.getCurrentOrg();
+            if (!currentOrg || !currentOrg.orgId) {
+                this.setState({ 
+                    devices: [], 
+                    loading: false,
+                    error: 'No organization selected'
+                });
+                return;
+            }
+
+            // Call real API
+            const response = await api.getDevices(currentOrg.orgId);
             
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Transform API response to expected format
+            const devices = (response.data?.devices || []).map(device => ({
+                id: device.deviceId,
+                name: device.deviceName || device.deviceId,
+                state: device.state || 'Unknown',
+                lastHeartbeat: device.lastHeartbeat,
+                firstHeartbeat: device.firstHeartbeat,
+                clientVersion: device.clientVersion,
+                licenseKey: device.licenseKey
+            }));
             
-            this.setState({ devices: mockData.data || [], loading: false });
+            this.setState({ devices, loading: false });
         } catch (error) {
+            console.error('[DevicesPage] Error loading devices:', error);
             this.setState({ error: error.message, loading: false });
+        }
+    }
+
+    formatLastSeen(lastHeartbeat) {
+        if (!lastHeartbeat) {
+            return 'Never';
+        }
+
+        const now = new Date();
+        const then = new Date(lastHeartbeat);
+        const diffMs = now - then;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        return `${diffDays}d ago`;
+    }
+
+    getStateBadgeClass(state) {
+        switch (state?.toLowerCase()) {
+            case 'active':
+                return 'bg-success';
+            case 'disabled':
+                return 'bg-warning';
+            case 'blocked':
+                return 'bg-danger';
+            case 'deleted':
+                return 'bg-secondary';
+            default:
+                return 'bg-secondary';
         }
     }
 
@@ -190,19 +256,40 @@ export class DevicesPage extends window.Component {
                                                                 </span>
                                                                 <div class="flex-fill">
                                                                     <div class="font-weight-medium">${device.name}</div>
-                                                                    <div class="text-muted">${device.id}</div>
+                                                                    <div class="text-muted small">${device.id}</div>
+                                                                    ${device.clientVersion ? html`
+                                                                        <div class="text-muted small">Version: ${device.clientVersion}</div>
+                                                                    ` : ''}
                                                                 </div>
                                                             </div>
                                                         </td>
                                                         <td>
-                                                            <span class="badge bg-${device.status === 'online' ? 'success' : 'secondary'} text-white">
-                                                                ${device.status}
+                                                            <span class="badge ${this.getStateBadgeClass(device.state)} text-white">
+                                                                ${device.state}
                                                             </span>
                                                         </td>
-                                                        <td class="text-muted">${device.lastSeen}</td>
                                                         <td>
-                                                            <div class="btn-list flex-nowrap">
-                                                                <button class="btn btn-sm">View</button>
+                                                            <div class="text-muted">${this.formatLastSeen(device.lastHeartbeat)}</div>
+                                                            ${device.firstHeartbeat ? html`
+                                                                <div class="text-muted small">First seen: ${this.formatLastSeen(device.firstHeartbeat)}</div>
+                                                            ` : ''}
+                                                        </td>
+                                                        <td>
+                                                            <div class="dropdown">
+                                                                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                                    Actions
+                                                                </button>
+                                                                <div class="dropdown-menu dropdown-menu-end">
+                                                                    <a class="dropdown-item" href="#">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><line x1="16" y1="5" x2="19" y2="8" /></svg>
+                                                                        View Details
+                                                                    </a>
+                                                                    <div class="dropdown-divider"></div>
+                                                                    <a class="dropdown-item text-danger" href="#">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
+                                                                        Delete Device
+                                                                    </a>
+                                                                </div>
                                                             </div>
                                                         </td>
                                                     </tr>

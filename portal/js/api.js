@@ -62,9 +62,9 @@ export class ApiClient {
         return this.get('/api/dashboard', { orgId });
     }
 
-    // Devices
-    async getDevices() {
-        return this.request('/portal/api/devices');
+    // Devices for organization
+    async getDevices(orgId) {
+        return this.get(`/api/orgs/${orgId}/devices`);
     }
 
     // Stats
