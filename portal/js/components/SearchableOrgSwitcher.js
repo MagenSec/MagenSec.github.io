@@ -194,7 +194,10 @@ export class SearchableOrgSwitcher extends Component {
                     aria-haspopup="listbox"
                 >
                     ${this.getOrgTypeIcon(currentOrg?.type, 20, 'white')}
-                    <span class="ms-2">${currentOrg?.name || 'Select Organization'}</span>
+                    <span class="ms-2 d-flex align-items-center">
+                        ${currentOrg?.name || 'Select Organization'}
+                        ${currentOrg?.type && html`<span class="badge bg-light text-dark ms-2">${currentOrg.type}</span>`}
+                    </span>
                     <${Icons.ChevronDown} 
                         size=${16} 
                         color="white" 
@@ -256,9 +259,8 @@ export class SearchableOrgSwitcher extends Component {
                                         <div class="text-truncate">${org.name}</div>
                                         <div class="text-muted small d-flex align-items-center">
                                             <span>${org.orgId}</span>
-                                            ${org.role && html`
-                                                <span class="badge badge-sm bg-secondary ms-2">${org.role}</span>
-                                            `}
+                                            ${org.type && html`<span class="badge badge-sm bg-light text-dark ms-2">${org.type}</span>`}
+                                            ${org.role && html`<span class="badge badge-sm bg-primary-lt text-dark ms-2">${org.role}</span>`}
                                         </div>
                                     </div>
                                     ${org.orgId === currentOrg?.orgId && html`

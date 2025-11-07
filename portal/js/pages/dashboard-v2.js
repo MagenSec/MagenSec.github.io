@@ -53,81 +53,61 @@ export class DashboardPage extends Component {
 
     async loadData() {
         try {
-            // TODO: Replace with real API call when /api/dashboard is implemented
-            // Enhanced mock data showing security value
-            const mockData = {
+            const user = auth.getUser();
+            console.log('[Dashboard-v2] User:', user);
+            
+            if (!user || !user.sessionToken) {
+                console.error('[Dashboard-v2] Not authenticated or no session token');
+                throw new Error('Not authenticated');
+            }
+
+            // Get orgId from user session or org context
+            const currentOrg = orgContext.getCurrentOrg();
+            const session = auth.getSession();
+            const orgId = currentOrg?.orgId || session?.orgId || user.email;
+            
+            console.log('[Dashboard-v2] Loading data for orgId:', orgId);
+            console.log('[Dashboard-v2] Session token present:', !!user.sessionToken);
+
+            this.setState({ loading: true, error: null });
+
+            // Call real dashboard API
+            console.log('[Dashboard-v2] Calling API...');
+            const response = await api.getDashboardData(orgId);
+            console.log('[Dashboard-v2] API response:', response);
+            
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to load dashboard data');
+            }
+
+            // Transform API response to expected format
+            const gradeValue = response.data.grade || response.data.securityGrade || '?';
+            const alertsValue = response.data.alerts || response.data.recentAlerts || [];
+            const devicesValue = response.data.recentDevices || [];
+
+            const data = {
                 // Security Overview
-                securityScore: 78,
-                grade: 'B',
-                lastScan: '2 hours ago',
-                nextScan: 'in 3 hours',
+                securityScore: response.data.securityScore,
+                grade: gradeValue,
+                lastScan: response.data.lastScan,
+                nextScan: response.data.nextScan,
                 
                 // Quick Stats
-                devices: {
-                    total: 5,
-                    active: 3,
-                    disabled: 1,
-                    blocked: 1
-                },
+                devices: response.data.devices,
+                threats: response.data.threats,
+                compliance: response.data.compliance,
                 
-                threats: {
-                    critical: 2,
-                    high: 3,
-                    medium: 7,
-                    low: 12,
-                    total: 24
-                },
-                
-                compliance: {
-                    score: 85,
-                    compliant: 17,
-                    nonCompliant: 3,
-                    total: 20
-                },
-                
-                // Security Alerts (top 3)
-                alerts: [
-                    {
-                        id: 1,
-                        severity: 'critical',
-                        title: 'CVE-2024-1234 - Windows SMB Vulnerability',
-                        device: 'LAPTOP-ABC',
-                        detected: '2 hours ago',
-                        description: 'Remote code execution vulnerability'
-                    },
-                    {
-                        id: 2,
-                        severity: 'critical',
-                        title: 'Outdated Antivirus - Windows Defender',
-                        device: 'DESKTOP-XYZ',
-                        detected: '5 hours ago',
-                        description: 'Definitions are 7 days old'
-                    },
-                    {
-                        id: 3,
-                        severity: 'warning',
-                        title: 'Missing Windows Update - KB5034765',
-                        device: 'LAPTOP-ABC',
-                        detected: '1 day ago',
-                        description: 'Security update not installed'
-                    }
-                ],
+                // Security Alerts
+                alerts: alertsValue,
                 
                 // Recent Devices
-                recentDevices: [
-                    { name: 'LAPTOP-ABC', status: 'active', lastSeen: '5m ago', threats: 2 },
-                    { name: 'DESKTOP-XYZ', status: 'active', lastSeen: '15m ago', threats: 1 },
-                    { name: 'SERVER-001', status: 'blocked', lastSeen: '2d ago', threats: 0 },
-                    { name: 'WORK-PC', status: 'disabled', lastSeen: '1h ago', threats: 0 },
-                    { name: 'HOME-PC', status: 'active', lastSeen: '30m ago', threats: 0 }
-                ]
+                recentDevices: devicesValue
             };
             
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 800));
-            
-            this.setState({ data: mockData, loading: false });
+            console.log('[Dashboard-v2] Transformed data:', data);
+            this.setState({ data, loading: false });
         } catch (error) {
+            console.error('[Dashboard-v2] Load failed:', error);
             this.setState({ error: error.message, loading: false });
         }
     }
@@ -329,10 +309,13 @@ export class DashboardPage extends Component {
                     Install the agent on your first device to start monitoring security posture and vulnerabilities.
                 </p>
                 <div class="empty-action">
-                    <button class="btn btn-primary">
-                        Download Windows Agent
+                    <button class="btn btn-primary" onclick=${() => window.open('https://magensec.short.gy/x64', '_blank')}>
+                        Download Windows Agent (x64)
                     </button>
-                    <button class="btn btn-outline-secondary ms-2">
+                    <button class="btn btn-secondary ms-2" onclick=${() => window.open('https://magensec.short.gy/arm64', '_blank')}>
+                        Download Windows Agent (ARM64)
+                    </button>
+                    <button class="btn btn-outline-secondary ms-2" onclick=${() => window.open('https://magensec.gigabits.co.in/', '_blank')}>
                         View Documentation
                     </button>
                 </div>
@@ -376,7 +359,9 @@ export class DashboardPage extends Component {
 
     renderStatsGrid(data) {
         const { html } = window;
-        const { devices, threats, compliance } = data;
+    const { devices, threats, compliance } = data;
+    // Derive warnings as medium+low, critical already separate
+    const warningCount = (threats.medium || 0) + (threats.low || 0);
         
         return html`
             <!-- Active Devices -->
@@ -428,7 +413,7 @@ export class DashboardPage extends Component {
                                 </span>
                             </div>
                             <div class="col">
-                                <div class="font-weight-medium">${threats.medium + threats.low}</div>
+                                <div class="font-weight-medium">${warningCount}</div>
                                 <div class="text-muted">Warnings</div>
                             </div>
                         </div>
@@ -496,18 +481,19 @@ export class DashboardPage extends Component {
     renderAlert(alert) {
         const { html } = window;
         const severityConfig = {
-            critical: { color: 'danger', icon: '🔴' },
-            high: { color: 'warning', icon: '🟠' },
-            warning: { color: 'yellow', icon: '🟡' },
-            low: { color: 'info', icon: '🔵' }
+            critical: { color: 'danger', label: 'CRITICAL' },
+            high: { color: 'warning', label: 'HIGH' },
+            medium: { color: 'info', label: 'MEDIUM' },
+            low: { color: 'secondary', label: 'LOW' }
         };
-        const config = severityConfig[alert.severity] || severityConfig.low;
+        const sevKey = (alert.severity || '').toLowerCase();
+        const config = severityConfig[sevKey] || severityConfig.low;
         
         return html`
             <div class="list-group-item">
                 <div class="row align-items-center">
                     <div class="col-auto">
-                        <span class="badge bg-${config.color} text-white">${alert.severity.toUpperCase()}</span>
+                        <span class="badge bg-${config.color} text-white">${config.label}</span>
                     </div>
                     <div class="col">
                         <div class="text-truncate">

@@ -64,6 +64,11 @@ async function init() {
         try {
             await auth.handleCallback();
             logger.info('[App] OAuth callback successful');
+            
+            // Initialize org context after successful login
+            await orgContext.initialize();
+            logger.info('[App] Org context initialized');
+            
             // Use hash navigation instead of full page redirect
             window.location.hash = '#!/dashboard';
             // Clear query params
@@ -79,12 +84,24 @@ async function init() {
         return;
     }
     
+    // If already logged in (page refresh), initialize org context
+    if (auth.isAuthenticated()) {
+        logger.debug('[App] User already authenticated, initializing org context');
+        await orgContext.initialize();
+    }
+    
     // Initialize router
     initRouter(renderApp);
     
     // Listen for auth changes
     auth.onChange((session) => {
         logger.debug('[App] Auth changed:', session ? 'logged in' : 'logged out');
+        if (session) {
+            // Re-initialize org context when user logs in
+            orgContext.initialize().catch(err => {
+                logger.error('[App] Org context init failed:', err);
+            });
+        }
         renderApp();
     });
     

@@ -39,9 +39,27 @@ export class ApiClient {
         }
     }
 
+    // Generic GET request
+    async get(endpoint, params = null) {
+        let url = endpoint;
+        if (params) {
+            const queryString = new URLSearchParams(params).toString();
+            url = `${endpoint}?${queryString}`;
+        }
+        return this.request(url, { method: 'GET' });
+    }
+
+    // Generic POST request
+    async post(endpoint, data = null) {
+        return this.request(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
     // Dashboard data
-    async getDashboardData() {
-        return this.request('/portal/api/dashboard');
+    async getDashboardData(orgId) {
+        return this.get('/api/dashboard', { orgId });
     }
 
     // Devices

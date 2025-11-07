@@ -4,6 +4,7 @@
 
 import { auth } from '../auth.js';
 import { api } from '../api.js';
+import { orgContext } from '../orgContext.js';
 
 export class DashboardPage extends window.Component {
     constructor(props) {
@@ -13,89 +14,78 @@ export class DashboardPage extends window.Component {
             data: null,
             error: null
         };
+        this.orgUnsubscribe = null;
     }
 
     componentDidMount() {
+        // Subscribe to org changes
+        this.orgUnsubscribe = orgContext.onChange(() => {
+            console.log('[Dashboard] Org changed, reloading data');
+            this.loadData();
+        });
+        
         this.loadData();
+    }
+
+    componentWillUnmount() {
+        // Unsubscribe from org changes
+        if (this.orgUnsubscribe) {
+            this.orgUnsubscribe();
+        }
     }
 
     async loadData() {
         try {
-            // TODO: Replace with real API call when /api/dashboard is implemented
-            // Enhanced mock data showing security value
-            const mockData = {
+            const user = auth.getUser();
+            console.log('[Dashboard] User:', user);
+            
+            if (!user || !user.sessionToken) {
+                console.error('[Dashboard] Not authenticated or no session token');
+                throw new Error('Not authenticated');
+            }
+
+            // Get orgId from orgContext (supports org switching)
+            const currentOrg = orgContext.getCurrentOrg();
+            const orgId = currentOrg?.orgId || user.email; // Fallback to email for personal users
+            
+            console.log('[Dashboard] Loading data for orgId:', orgId);
+            console.log('[Dashboard] Session token present:', !!user.sessionToken);
+
+            this.setState({ loading: true, error: null });
+
+            // Call real dashboard API
+            console.log('[Dashboard] Calling API...');
+            const response = await api.getDashboardData(orgId);
+            console.log('[Dashboard] API response:', response);
+            
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to load dashboard data');
+            }
+
+            // Transform API response to expected format
+            const data = {
                 // Security Overview
-                securityScore: 78,
-                grade: 'B',
-                lastScan: '2 hours ago',
-                nextScan: 'in 3 hours',
+                securityScore: response.data.securityScore,
+                grade: response.data.securityGrade,
+                lastScan: response.data.lastScan,
+                nextScan: response.data.nextScan,
                 
                 // Quick Stats
-                devices: {
-                    total: 5,
-                    active: 3,
-                    disabled: 1,
-                    blocked: 1
-                },
+                devices: response.data.devices,
+                threats: response.data.threats,
+                compliance: response.data.compliance,
                 
-                threats: {
-                    critical: 2,
-                    high: 3,
-                    medium: 7,
-                    low: 12,
-                    total: 24
-                },
-                
-                compliance: {
-                    score: 85,
-                    compliant: 17,
-                    nonCompliant: 3,
-                    total: 20
-                },
-                
-                // Security Alerts (top 3)
-                alerts: [
-                    {
-                        id: 1,
-                        severity: 'critical',
-                        title: 'CVE-2024-1234 - Windows SMB Vulnerability',
-                        device: 'LAPTOP-ABC',
-                        detected: '2 hours ago',
-                        description: 'Remote code execution vulnerability'
-                    },
-                    {
-                        id: 2,
-                        severity: 'critical',
-                        title: 'Outdated Antivirus - Windows Defender',
-                        device: 'DESKTOP-XYZ',
-                        detected: '5 hours ago',
-                        description: 'Definitions are 7 days old'
-                    },
-                    {
-                        id: 3,
-                        severity: 'warning',
-                        title: 'Missing Windows Update - KB5034765',
-                        device: 'LAPTOP-ABC',
-                        detected: '1 day ago',
-                        description: 'Security update not installed'
-                    }
-                ],
+                // Security Alerts
+                alerts: response.data.recentAlerts || [],
                 
                 // Recent Devices
-                recentDevices: [
-                    { name: 'LAPTOP-ABC', status: 'active', lastSeen: '5m ago', threats: 2 },
-                    { name: 'DESKTOP-XYZ', status: 'active', lastSeen: '15m ago', threats: 1 },
-                    { name: 'SERVER-001', status: 'blocked', lastSeen: '2d ago', threats: 0 },
-                    { name: 'WORK-PC', status: 'disabled', lastSeen: '1h ago', threats: 0 },
-                    { name: 'HOME-PC', status: 'active', lastSeen: '30m ago', threats: 0 }
-                ]
+                recentDevices: response.data.recentDevices || []
             };
             
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 800));
-            
-            this.setState({ data: mockData, loading: false });
+            console.log('[Dashboard] Transformed data:', data);
+            this.setState({ data, loading: false });
         } catch (error) {
+            console.error('[Dashboard] Load failed:', error);
             this.setState({ error: error.message, loading: false });
         }
     }

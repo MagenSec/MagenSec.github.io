@@ -30,30 +30,49 @@ class OrgContext {
         try {
             this.loading = true;
             const user = auth.getUser();
+            const session = auth.getSession();
             
-            if (!user) {
-                logger.debug('[OrgContext] No user, skipping initialization. Auth session:', auth.session);
+            if (!user || !session) {
+                logger.debug('[OrgContext] No user/session, skipping initialization');
                 return;
             }
 
             logger.debug('[OrgContext] Initializing for user:', user.email);
 
-            // TODO: Replace with real API call when /api/users/me/orgs is implemented
-            // For now, use mock data based on user email
-            await this.loadMockOrgs(user);
-            
-            // If no org selected, select the first one
-            if (!this.currentOrg && this.availableOrgs.length > 0) {
-                this.selectOrg(this.availableOrgs[0].orgId);
+            // Prefer API source of truth to get org names and roles
+            try {
+                await this.loadOrgsFromAPI();
+            } catch (apiErr) {
+                logger.warn('[OrgContext] Falling back to session-only org due to API error');
+                this.availableOrgs = [{
+                    orgId: session.orgId,
+                    name: session.orgId === user.email ? `${user.name || user.email}'s Organization` : session.orgId,
+                    type: user.userType === 'Individual' ? 'Personal' : 'Business',
+                    role: user.userType === 'SiteAdmin' ? 'SiteAdmin' : (user.userType === 'BusinessAdmin' ? 'Owner' : 'ReadOnly'),
+                    deviceCount: 0,
+                    totalSeats: user.maxDevices || 5
+                }];
             }
-            
+
+            // Determine which org to select: saved -> default from API -> first
+            const savedOrgId = localStorage.getItem('selectedOrgId');
+            const defaultOrgId = (this.availableOrgs.length > 0)
+                ? (this.availableOrgs.find(o => o.role === 'Owner')?.orgId || this.availableOrgs[0].orgId)
+                : null;
+            const targetOrgId = savedOrgId || defaultOrgId || session.orgId || user.email;
+
+            const found = this.availableOrgs.find(o => o.orgId === targetOrgId) || this.availableOrgs[0];
+            if (found) {
+                this.currentOrg = found;
+                localStorage.setItem('selectedOrgId', found.orgId);
+            }
+
             logger.debug('[OrgContext] Initialized:', {
                 currentOrg: this.currentOrg,
                 availableOrgs: this.availableOrgs.length
             });
-            
-            // Notify listeners that orgs are loaded (even if already notified by selectOrg)
-            // This ensures components that subscribe after initialization still get the data
+
+            // Notify listeners that orgs are loaded
             this.notifyListeners();
             
         } catch (error) {
@@ -64,32 +83,51 @@ class OrgContext {
     }
 
     /**
-     * Mock org loading (replace with real API)
+     * Load organizations from API
      */
-    async loadMockOrgs(user) {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Mock data based on user type
-        if (user.email === 'talktomagensec@gmail.com') {
-            // Super User: Access to all orgs (including test orgs)
-            this.availableOrgs = [
-                { orgId: 'TEST-GIGA-BITS', name: 'Test Organization - Gigabits', type: 'Business', role: 'SuperUser' },
-                { orgId: 'DEMO-MAGE-NSEC', name: 'Demo Organization - MagenSec', type: 'Business', role: 'SuperUser' },
-                { orgId: user.email, name: 'Personal Org', type: 'Individual', role: 'Owner' }
-            ];
-        } else if (user.email.includes('admin') || user.email.includes('business')) {
-            // Business Admin: Multiple orgs
-            this.availableOrgs = [
-                { orgId: 'ORG-001', name: 'Acme Corporation', type: 'Business', role: 'Owner' },
-                { orgId: 'ORG-002', name: 'Tech Startup Inc', type: 'Business', role: 'ReadWrite' },
-                { orgId: user.email, name: 'Personal Org', type: 'Individual', role: 'Owner' }
-            ];
-        } else {
-            // Individual User: Only personal org
-            this.availableOrgs = [
-                { orgId: user.email, name: 'Personal Org', type: 'Individual', role: 'Owner' }
-            ];
+    async loadOrgsFromAPI() {
+        try {
+            logger.debug('[OrgContext] Loading orgs from API...');
+            
+            // Call GET /api/users/me
+            const response = await api.get('/api/users/me');
+            
+            if (!response.success || !response.data) {
+                throw new Error('Invalid API response');
+            }
+            
+            const { user, orgs } = response.data;
+            
+            // Map API response to availableOrgs format
+            this.availableOrgs = orgs.map(org => ({
+                orgId: org.orgId,
+                name: org.name,
+                type: org.type,
+                role: org.role,
+                deviceCount: org.deviceCount,
+                totalSeats: org.totalSeats
+            }));
+
+            // If API returns no orgs for some reason, create a personal fallback from user
+            if (this.availableOrgs.length === 0 && user?.defaultOrgId) {
+                this.availableOrgs = [{
+                    orgId: user.defaultOrgId,
+                    name: user.displayName ? `${user.displayName}'s Organization` : user.defaultOrgId,
+                    type: user.userType === 'Individual' ? 'Personal' : 'Business',
+                    role: user.userType === 'SiteAdmin' ? 'SiteAdmin' : (user.userType === 'BusinessAdmin' ? 'Owner' : 'ReadOnly'),
+                    deviceCount: 0,
+                    totalSeats: 0
+                }];
+            }
+            
+            logger.info('[OrgContext] Loaded', this.availableOrgs.length, 'organizations from API');
+            
+        } catch (error) {
+            logger.error('[OrgContext] Failed to load orgs from API:', error);
+            
+            // Fallback to empty array (user can retry)
+            this.availableOrgs = [];
+            throw error;
         }
     }
 
@@ -144,7 +182,7 @@ class OrgContext {
      * Check if user is Individual User
      */
     isIndividualUser() {
-        return this.currentOrg?.type === 'Individual';
+        return this.currentOrg?.type === 'Personal' || this.currentOrg?.type === 'Individual';
     }
 
     /**
@@ -160,15 +198,17 @@ class OrgContext {
      */
     isSiteAdmin() {
         const user = auth.getUser();
-        return user?.roles?.includes('SiteAdmin') || this.currentOrg?.role === 'SiteAdmin';
+        // Check userType from API response (stored in user object after login)
+        return user?.userType === 'SiteAdmin' || this.currentOrg?.role === 'SiteAdmin';
     }
 
     /**
-     * Check if user is Super User
+     * Check if user is Super User (Site Admin)
      */
     isSuperUser() {
         const user = auth.getUser();
-        return user?.email === 'talktomagensec@gmail.com' || this.currentOrg?.role === 'SuperUser';
+        // Super User is same as Site Admin in our system
+        return user?.userType === 'SiteAdmin' || this.currentOrg?.role === 'SiteAdmin';
     }
 
     /**

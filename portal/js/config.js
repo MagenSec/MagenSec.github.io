@@ -4,12 +4,28 @@
  */
 
 // Debug mode detection (URL param or localStorage)
+// Support both regular query params and hash-bang params (#!/dashboard?debug=true)
+let debugParam = null;
+
+// Check regular query params first
 const urlParams = new URLSearchParams(window.location.search);
-const debugParam = urlParams.get('debug');
+debugParam = urlParams.get('debug');
+
+// Check hash-bang query params if not found
+if (!debugParam && window.location.hash) {
+    const hashParts = window.location.hash.split('?');
+    if (hashParts.length > 1) {
+        const hashParams = new URLSearchParams(hashParts[1]);
+        debugParam = hashParams.get('debug');
+    }
+}
+
 if (debugParam === 'true') {
     localStorage.setItem('debug', 'true');
+    console.log('[Config] Debug mode ENABLED');
 } else if (debugParam === 'false') {
     localStorage.removeItem('debug');
+    console.log('[Config] Debug mode DISABLED');
 }
 const DEBUG_ENABLED = localStorage.getItem('debug') === 'true';
 

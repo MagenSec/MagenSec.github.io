@@ -193,12 +193,26 @@ export class Auth {
 
     // Get current user
     getUser() {
-        return this.session?.user || null;
+        if (!this.session?.user) return null;
+        
+        // Include all session data in user object for convenience
+        return {
+            ...this.session.user,
+            userType: this.session.userType,
+            orgId: this.session.orgId,
+            maxDevices: this.session.maxDevices,
+            sessionToken: this.session.sessionToken // Include for API calls
+        };
     }
 
     // Get session token
     getToken() {
         return this.session?.sessionToken || null;
+    }
+
+    // Get full session
+    getSession() {
+        return this.session;
     }
 
     // Subscribe to auth changes
