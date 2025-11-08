@@ -5,6 +5,8 @@
 import { auth } from '../auth.js';
 import { api } from '../api.js';
 import { orgContext } from '../orgContext.js';
+import { config } from '../config.js';
+import { getInstallerConfig, clearManifestCache, getCacheStatus } from '../utils/manifestCache.js';
 
 export class DevicesPage extends window.Component {
     constructor(props) {
@@ -12,7 +14,11 @@ export class DevicesPage extends window.Component {
         this.state = {
             loading: true,
             devices: [],
-            error: null
+            error: null,
+            installers: config.INSTALLERS, // Fallback to hardcoded config
+            refreshingManifest: false,
+            showDownloadModal: false,
+            downloadTarget: null // { name, url, size, arch }
         };
         this.orgUnsubscribe = null;
     }
@@ -23,7 +29,86 @@ export class DevicesPage extends window.Component {
             this.loadDevices();
         });
         
+        // Load installer config from manifest cache
+        this.loadInstallerConfig();
+        
         this.loadDevices();
+    }
+
+    async loadInstallerConfig() {
+        try {
+            const manifestConfig = await getInstallerConfig();
+            if (manifestConfig) {
+                this.setState({ installers: manifestConfig });
+                console.log('[Devices] Loaded installer config from manifest cache:', manifestConfig);
+            }
+        } catch (error) {
+            console.error('[Devices] Failed to load manifest config, using fallback:', error);
+        }
+    }
+
+    async reloadPageData() {
+        try {
+            this.setState({ refreshingManifest: true });
+            
+            // Clear manifest cache and reload from remote
+            const manifestConfig = await getInstallerConfig(true);
+            if (manifestConfig) {
+                this.setState({ installers: manifestConfig });
+            }
+            
+            // Reload device list
+            await this.loadDevices();
+            
+            // Show success toast
+            this.showToast('Page reloaded successfully', 'success');
+        } catch (error) {
+            console.error('[Devices] Failed to reload page data:', error);
+            this.showToast('Failed to reload page data', 'danger');
+        } finally {
+            this.setState({ refreshingManifest: false });
+        }
+    }
+
+    showToast(message, type = 'info') {
+        // Use Tabler toast (simple alert for now)
+        // TODO: Implement proper Tabler toast notification
+        alert(message);
+    }
+
+    openDownloadModal(arch) {
+        const installer = arch === 'x64' ? this.state.installers.X64 : this.state.installers.ARM64;
+        this.setState({
+            showDownloadModal: true,
+            downloadTarget: {
+                name: installer.DISPLAY_NAME,
+                url: installer.DOWNLOAD_URL,
+                size: installer.FILE_SIZE_MB,
+                arch: installer.ARCHITECTURE,
+                warning: installer.WARNING
+            }
+        });
+    }
+
+    closeDownloadModal() {
+        this.setState({
+            showDownloadModal: false,
+            downloadTarget: null
+        });
+    }
+
+    confirmDownload() {
+        if (this.state.downloadTarget) {
+            // Create a hidden anchor element to trigger download
+            const a = document.createElement('a');
+            a.href = this.state.downloadTarget.url;
+            a.download = '';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            this.closeDownloadModal();
+        }
     }
 
     componentWillUnmount() {
@@ -59,7 +144,9 @@ export class DevicesPage extends window.Component {
                 lastHeartbeat: device.lastHeartbeat,
                 firstHeartbeat: device.firstHeartbeat,
                 clientVersion: device.clientVersion,
-                licenseKey: device.licenseKey
+                licenseKey: device.licenseKey,
+                // Calculate inactiveMinutes client-side
+                inactiveMinutes: device.lastHeartbeat ? Math.floor((Date.now() - new Date(device.lastHeartbeat).getTime()) / 60000) : null
             }));
             
             this.setState({ devices, loading: false });
@@ -85,6 +172,53 @@ export class DevicesPage extends window.Component {
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         return `${diffDays}d ago`;
+    }
+
+    isVersionOutdated(deviceVersion) {
+        if (!deviceVersion) return false;
+        
+        // Use cached installer version (or fallback to config)
+        const latestVersion = this.state.installers.ENGINE.VERSION || config.INSTALLERS.ENGINE.VERSION;
+        
+        // Parse versions (format: major.minor.build)
+        const parseVersion = (v) => {
+            const parts = v.split('.').map(Number);
+            return {
+                major: parts[0] || 0,
+                minor: parts[1] || 0,
+                build: parts[2] || 0
+            };
+        };
+        
+        const device = parseVersion(deviceVersion);
+        const latest = parseVersion(latestVersion);
+        
+        // Compare major.minor.build
+        if (device.major < latest.major) return true;
+        if (device.major === latest.major && device.minor < latest.minor) return true;
+        if (device.major === latest.major && device.minor === latest.minor && device.build < latest.build) return true;
+        
+        return false;
+    }
+
+    isDeviceInactive(device) {
+        // No heartbeat = inactive
+        if (!device.lastHeartbeat && device.state?.toLowerCase() !== 'deleted') {
+            return true;
+        }
+        // Use calculated inactiveMinutes
+        if (device.inactiveMinutes !== null && device.inactiveMinutes !== undefined) {
+            const state = device.state?.toLowerCase();
+            // Active devices: Expected heartbeat every 5 minutes, flag if >30 minutes inactive
+            if (state === 'active' && device.inactiveMinutes > 30) {
+                return true;
+            }
+            // Disabled devices: Expected heartbeat every 60 minutes, flag if >120 minutes inactive
+            if (state === 'disabled' && device.inactiveMinutes > 120) {
+                return true;
+            }
+        }
+        return false;
     }
 
     getStateBadgeClass(state) {
@@ -192,6 +326,104 @@ export class DevicesPage extends window.Component {
                     </div>
                     <div class="page-body">
                         <div class="container-xl">
+                            <!-- Installer Download Tiles -->
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3 class="mb-0">Client Installers</h3>
+                                <button 
+                                    class="btn btn-sm btn-outline-primary ${this.state.refreshingManifest ? 'disabled' : ''}" 
+                                    onclick=${() => this.reloadPageData()}
+                                    disabled=${this.state.refreshingManifest}>
+                                    ${this.state.refreshingManifest ? 
+                                        window.html`<span class="spinner-border spinner-border-sm me-2"></span>Reloading...` : 
+                                        window.html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+                                        </svg>
+                                        Reload`
+                                    }
+                                </button>
+                            </div>
+                            <div class="row row-cards mb-3">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div class="row align-items-center">
+                                                <div class="col-auto">
+                                                    <span class="avatar avatar-lg bg-primary-lt">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                            <rect x="4" y="4" width="6" height="6" rx="1" />
+                                                            <rect x="14" y="4" width="6" height="6" rx="1" />
+                                                            <rect x="4" y="14" width="6" height="6" rx="1" />
+                                                            <rect x="14" y="14" width="6" height="6" rx="1" />
+                                                        </svg>
+                                                    </span>
+                                                </div>
+                                                <div class="col">
+                                                    <h3 class="card-title mb-1">${this.state.installers.X64.DISPLAY_NAME}</h3>
+                                                    <div class="text-muted small">${this.state.installers.X64.DESCRIPTION}</div>
+                                                    <div class="mt-2">
+                                                        <span class="badge bg-blue-lt me-2">v${this.state.installers.X64.VERSION}</span>
+                                                        <span class="badge bg-secondary-lt">${this.state.installers.X64.FILE_SIZE_MB} MB</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <button class="btn btn-primary" onclick=${() => this.openDownloadModal('x64')}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+                                                            <polyline points="7 11 12 16 17 11" />
+                                                            <line x1="12" y1="4" x2="12" y2="16" />
+                                                        </svg>
+                                                        Download
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div class="row align-items-center">
+                                                <div class="col-auto">
+                                                    <span class="avatar avatar-lg bg-cyan-lt">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                            <rect x="4" y="4" width="6" height="6" rx="1" />
+                                                            <rect x="14" y="4" width="6" height="6" rx="1" />
+                                                            <rect x="4" y="14" width="6" height="6" rx="1" />
+                                                            <rect x="14" y="14" width="6" height="6" rx="1" />
+                                                        </svg>
+                                                    </span>
+                                                </div>
+                                                <div class="col">
+                                                    <h3 class="card-title mb-1">${this.state.installers.ARM64.DISPLAY_NAME}</h3>
+                                                    <div class="text-muted small">${this.state.installers.ARM64.DESCRIPTION}</div>
+                                                    <div class="mt-2">
+                                                        <span class="badge bg-blue-lt me-2">v${this.state.installers.ARM64.VERSION}</span>
+                                                        <span class="badge bg-secondary-lt">${this.state.installers.ARM64.FILE_SIZE_MB} MB</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <button class="btn btn-primary" onclick=${() => this.openDownloadModal('arm64')}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+                                                            <polyline points="7 11 12 16 17 11" />
+                                                            <line x1="12" y1="4" x2="12" y2="16" />
+                                                        </svg>
+                                                        Download
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Devices List -->
                             ${loading ? html`
                                 <div class="card">
                                     <div class="card-body">
@@ -267,11 +499,32 @@ export class DevicesPage extends window.Component {
                                                             <span class="badge ${this.getStateBadgeClass(device.state)} text-white">
                                                                 ${device.state}
                                                             </span>
+                                                            ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? html`
+                                                                <span class="badge bg-warning-lt ms-1" title="Update available: v${config.INSTALLERS.ENGINE.VERSION}">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                        <circle cx="12" cy="12" r="9" />
+                                                                        <line x1="12" y1="8" x2="12" y2="12" />
+                                                                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                                    </svg>
+                                                                    Update Available
+                                                                </span>
+                                                            ` : ''}
                                                         </td>
                                                         <td>
                                                             <div class="text-muted">${this.formatLastSeen(device.lastHeartbeat)}</div>
                                                             ${device.firstHeartbeat ? html`
                                                                 <div class="text-muted small">First seen: ${this.formatLastSeen(device.firstHeartbeat)}</div>
+                                                            ` : ''}
+                                                            ${this.isDeviceInactive(device) ? html`
+                                                                <span class="badge bg-danger-lt mt-1">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                        <path d="M12 9v2m0 4v.01" />
+                                                                        <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
+                                                                    </svg>
+                                                                    Inactive
+                                                                </span>
                                                             ` : ''}
                                                         </td>
                                                         <td>
@@ -302,6 +555,57 @@ export class DevicesPage extends window.Component {
                         </div>
                     </div>
                 </div>
+
+                <!-- Download Warning Modal -->
+                ${this.state.showDownloadModal && this.state.downloadTarget ? window.html`
+                    <div class="modal modal-blur fade show" style="display: block; z-index: 1055;" tabindex="-1">
+                        <div class="modal-dialog modal-dialog-centered" role="document">
+                            <div class="modal-content" style="z-index: 1056;">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Download ${this.state.downloadTarget.name}</h5>
+                                    <button type="button" class="btn-close" onclick=${(e) => { e.preventDefault(); this.closeDownloadModal(); }}></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="alert alert-warning mb-3">
+                                        <div class="d-flex">
+                                            <div>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                    <path d="M12 9v2m0 4v.01" />
+                                                    <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 class="alert-title">Security Notice</h4>
+                                                <div class="text-muted">${this.state.downloadTarget.warning}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>File:</strong> ${this.state.downloadTarget.name}<br/>
+                                        <strong>Size:</strong> ${this.state.downloadTarget.size} MB<br/>
+                                        <strong>Architecture:</strong> ${this.state.downloadTarget.arch}
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-link link-secondary" onclick=${(e) => { e.preventDefault(); this.closeDownloadModal(); }}>
+                                        Cancel
+                                    </button>
+                                    <button type="button" class="btn btn-primary" onclick=${(e) => { e.preventDefault(); this.confirmDownload(); }}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+                                            <polyline points="7 11 12 16 17 11" />
+                                            <line x1="12" y1="4" x2="12" y2="16" />
+                                        </svg>
+                                        Continue Download
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-backdrop fade show" style="z-index: 1054;"></div>
+                ` : ''}
             </div>
         `;
     }

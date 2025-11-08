@@ -35,6 +35,47 @@
         :root {
             --tblr-primary: #206bc4;
         }
+
+        /* Mobile navbar fixes - prevent overlap */
+        .navbar {
+            z-index: 1030; /* Higher than page content */
+        }
+
+        /* Ensure page content has proper padding for fixed navbar */
+        .page-wrapper {
+            padding-top: 0; /* Reset if fixed navbar is used */
+        }
+
+        /* Mobile viewport adjustments */
+        @media (max-width: 768px) {
+            /* Collapsed navbar menu */
+            .navbar-collapse {
+                background: var(--tblr-primary);
+                margin: 0 -1rem;
+                padding: 1rem;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+            /* Fix navbar toggler visibility */
+            .navbar-toggler {
+                border-color: rgba(255,255,255,0.3);
+                color: white;
+            }
+
+            /* Ensure dropdown menus don't overflow */
+            .navbar .dropdown-menu {
+                position: absolute !important;
+            }
+        }
+
+        /* Fix z-index stacking for modals and dropdowns */
+        .dropdown-menu {
+            z-index: 1040;
+        }
+
+        .modal {
+            z-index: 1050;
+        }
     </style>
 </head>
 <body>
