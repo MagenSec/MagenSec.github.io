@@ -48,7 +48,8 @@ export const logger = {
 };
 
 export const config = {
-    // API Configuration - Updated by deployment script
+    // API Configuration - Always use short.gy URL (never hardcode direct Azure Container Apps URL)
+    // This allows zero-downtime deployments by updating short.gy redirect target
     API_BASE: 'https://ms-central-api.proudsand-cb69619a.eastus.azurecontainerapps.io',
     
     // Portal settings
