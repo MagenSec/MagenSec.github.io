@@ -127,10 +127,16 @@
                 await loadModule('./js/config.js');
                 await loadModule('./js/auth.js');
                 await loadModule('./js/api.js');
+                await loadModule('./js/orgContext.js');
                 await loadModule('./js/router.js');
+                await loadModule('./js/components/ChartRenderer.js');
+                await loadModule('./js/components/PromptSuggestions.js');
+                await loadModule('./js/components/SearchableOrgSwitcher.js');
                 await loadModule('./js/pages/login.js');
-                await loadModule('./js/pages/dashboard.js');
+                await loadModule('./js/pages/dashboard-v2.js');
                 await loadModule('./js/pages/devices.js');
+                await loadModule('./js/pages/analyst.js');
+                await loadModule('./js/pages/securityDashboard.js');
                 await loadModule('./js/app.js');
                 console.log('[CDN] All modules loaded');
             } catch (error) {

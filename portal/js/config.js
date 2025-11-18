@@ -47,10 +47,16 @@ export const logger = {
     }
 };
 
+// Resolved API base URL (updated by buildDeployContainer.ps1)
+const RESOLVED_API_BASE = 'https://magensec.short.gy/webapi';
+
 export const config = {
-    // API Configuration - Always use short.gy URL (never hardcode direct Azure Container Apps URL)
-    // This allows zero-downtime deployments by updating short.gy redirect target
-    API_BASE: 'https://ms-central-api.proudsand-cb69619a.eastus.azurecontainerapps.io',
+    // API Configuration
+    // - Production (GitHub Pages / Custom Domain): Use short.gy for zero-downtime deployments
+    // - Localhost: Use resolved direct URL (CORS works, updated by deploy script)
+    API_BASE: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? RESOLVED_API_BASE
+        : 'https://magensec.short.gy/webapi',
     
     // Portal settings
     PORTAL_NAME: 'MagenSec Portal',

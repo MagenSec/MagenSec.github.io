@@ -43,6 +43,24 @@ export function initRouter(renderApp) {
         renderApp({ page: 'devices', ctx });
     });
 
+    // AI Analyst (protected)
+    page('/analyst', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'analyst', ctx });
+    });
+
+    // Security Dashboard (protected)
+    page('/security-dashboard', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'security-dashboard', ctx });
+    });
+
     // Start router with hash-bang mode
     page({ hashbang: true });
     

@@ -10,6 +10,8 @@ import { logger } from './config.js';
 import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard-v2.js';
 import { DevicesPage } from './pages/devices.js';
+import { AnalystPage } from './pages/analyst.js';
+import { SecurityDashboardPage } from './pages/securityDashboard.js';
 
 const { html, render } = window;
 
@@ -39,6 +41,10 @@ function App() {
             return html`<${DashboardPage} />`;
         case 'devices':
             return html`<${DevicesPage} />`;
+        case 'analyst':
+            return html`<${AnalystPage} />`;
+        case 'security-dashboard':
+            return html`<${SecurityDashboardPage} />`;
         default:
             return html`<${LoginPage} />`;
     }
