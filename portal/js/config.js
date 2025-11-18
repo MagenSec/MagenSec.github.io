@@ -48,7 +48,7 @@ export const logger = {
 };
 
 // Resolved API base URL (updated by buildDeployContainer.ps1)
-const RESOLVED_API_BASE = 'https://magensec.short.gy/webapi';
+const RESOLVED_API_BASE = 'https://ms-central-api.proudsand-cb69619a.eastus.azurecontainerapps.io';
 
 export const config = {
     // API Configuration

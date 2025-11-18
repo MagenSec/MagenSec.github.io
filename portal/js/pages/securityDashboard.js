@@ -7,7 +7,7 @@ import { ChartRenderer } from '../components/ChartRenderer.js';
 const { html, Component } = window;
 
 /**
- * Security Dashboard - Cached daily/hourly dashboard with smart refresh
+ * Security Posture Report - Cached daily/hourly security assessment with smart refresh
  */
 export class SecurityDashboardPage extends Component {
     constructor(props) {
@@ -21,7 +21,8 @@ export class SecurityDashboardPage extends Component {
             nextRefreshAt: null,
             canRefreshNow: false,
             refreshing: false,
-            selectedDate: this.formatDate(new Date())
+            selectedDate: this.formatDate(new Date()),
+            showGenerateButton: false
         };
     }
 
@@ -59,20 +60,27 @@ export class SecurityDashboardPage extends Component {
                 }
             );
 
-            const data = await response.json();
-
             if (!response.ok) {
-                if (data.Error === 'NOT_FOUND') {
-                    // No dashboard for this date - trigger generation
-                    this.setState({ 
-                        loading: false, 
-                        error: `No dashboard report found for ${this.formatDateDisplay(targetDate)}. Click "Generate Dashboard" to create one.`,
-                        report: null
+                // Handle 404 - no report exists for this date
+                if (response.status === 404) {
+                    // Immediately trigger dashboard generation
+                    this.setState({
+                        loading: true,
+                        error: null,
+                        report: null,
+                        showGenerateButton: false,
+                        selectedDate: targetDate,
+                        refreshing: true
                     });
+                    await this.refreshDashboard();
                     return;
                 }
-                throw new Error(data.Message || 'Failed to load dashboard');
+                // Handle other errors
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.Message || `HTTP ${response.status}: Failed to load dashboard`);
             }
+
+            const data = await response.json();
 
             this.setState({
                 loading: false,
@@ -81,7 +89,8 @@ export class SecurityDashboardPage extends Component {
                 generatedAt: data.GeneratedAt ? new Date(data.GeneratedAt) : null,
                 nextRefreshAt: data.NextRefreshAt ? new Date(data.NextRefreshAt) : null,
                 canRefreshNow: data.CanRefreshNow || false,
-                selectedDate: targetDate
+                selectedDate: targetDate,
+                showGenerateButton: false
             });
         } catch (err) {
             this.setState({ 
@@ -101,7 +110,7 @@ export class SecurityDashboardPage extends Component {
             const token = auth.getToken();
             
             // Trigger new dashboard generation with !dashboard prompt
-            const response = await fetch(`${api.baseUrl}/api/analyst/run`, {
+            const response = await fetch(`${config.API_BASE}/api/analyst/run`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -160,7 +169,7 @@ export class SecurityDashboardPage extends Component {
 
             try {
                 const response = await fetch(
-                    `${api.baseUrl}/api/analyst/reports/${reportId}`,
+                    `${config.API_BASE}/api/analyst/reports/${reportId}`,
                     {
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -176,12 +185,10 @@ export class SecurityDashboardPage extends Component {
 
                 if (data.Status?.State === 'Completed') {
                     this.setState({
-                        refreshing: false,
-                        report: data.Report,
-                        reportId: reportId,
-                        generatedAt: new Date(),
-                        canRefreshNow: false
+                        refreshing: false
                     });
+                    // Reload the dashboard to get the newly generated report
+                    await this.loadDashboard();
                     return;
                 }
 
@@ -220,14 +227,15 @@ export class SecurityDashboardPage extends Component {
         window.page('/');
     }
 
-    render({ }, { loading, error, report, generatedAt, nextRefreshAt, canRefreshNow, refreshing, selectedDate }) {
+    render({ }, { loading, error, report, generatedAt, nextRefreshAt, canRefreshNow, refreshing, selectedDate, showGenerateButton }) {
         const currentOrg = orgContext.getCurrentOrg();
+        const user = auth.getUser();
         const displayDate = selectedDate ? `${selectedDate.substring(0, 4)}-${selectedDate.substring(4, 6)}-${selectedDate.substring(6, 8)}` : '';
 
         return html`
             <div class="page">
                 <!-- Navigation Header -->
-                <header class="navbar navbar-expand-md navbar-light sticky-top d-print-none">
+                <header class="navbar navbar-expand-md navbar-dark bg-primary">
                     <div class="container-xl">
                         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
                             <span class="navbar-toggler-icon"></span>
@@ -238,10 +246,10 @@ export class SecurityDashboardPage extends Component {
                         <div class="navbar-nav flex-row order-md-last">
                             <div class="nav-item dropdown">
                                 <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
-                                    <span class="avatar avatar-sm" style="background-image: url(https://ui-avatars.com/api/?name=${encodeURIComponent(auth.getSession()?.user || 'U')}&background=206bc4&color=fff)"></span>
+                                    <span class="avatar avatar-sm" style="background-image: url(https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || user?.email || 'U')}&background=random)"></span>
                                     <div class="d-none d-xl-block ps-2">
-                                        <div>${auth.getSession()?.user || 'User'}</div>
-                                        <div class="mt-1 small text-muted">${currentOrg?.name || currentOrg?.orgId || 'No org selected'}</div>
+                                        <div class="text-white small">${user?.name || user?.email || 'User'}</div>
+                                        <div class="mt-1 small text-white-50">Security Dashboard</div>
                                     </div>
                                 </a>
                                 <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
@@ -295,7 +303,7 @@ export class SecurityDashboardPage extends Component {
                     <div class="page-header d-print-none">
                     <div class="row align-items-center">
                         <div class="col">
-                            <h2 class="page-title">Security Dashboard</h2>
+                            <h2 class="page-title">Security Posture Report</h2>
                             <div class="text-secondary mt-1">
                                 ${currentOrg ? currentOrg.name || currentOrg.orgId : 'No organization selected'}
                             </div>
@@ -313,13 +321,14 @@ export class SecurityDashboardPage extends Component {
                                     class="btn btn-primary" 
                                     onClick=${() => this.refreshDashboard()}
                                     disabled=${!canRefreshNow || refreshing || loading}
+                                    title="${canRefreshNow ? 'Refresh security report with latest data' : 'Refresh temporarily disabled to conserve AI resources'}"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-refresh" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                         <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
                                         <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path>
                                         <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path>
                                     </svg>
-                                    ${refreshing ? 'Refreshing...' : canRefreshNow ? 'Refresh Dashboard' : 'Refresh Disabled'}
+                                    ${refreshing ? 'Refreshing...' : canRefreshNow ? 'Refresh Report' : 'Refresh Disabled'}
                                 </button>
                             </div>
                             ${!canRefreshNow && nextRefreshAt && html`
@@ -330,6 +339,39 @@ export class SecurityDashboardPage extends Component {
                         </div>
                     </div>
                 </div>
+
+                ${!loading && !report && !error && showGenerateButton && html`
+                    <div class="alert alert-info" role="alert">
+                        <div class="d-flex">
+                            <div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                    <circle cx="12" cy="12" r="9"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                            </div>
+                            <div class="flex-fill">
+                                <h4 class="alert-title">No Security Report Available</h4>
+                                <div class="text-secondary mb-3">
+                                    No security posture report has been generated for ${this.formatDateDisplay(selectedDate)} yet.
+                                </div>
+                                <button 
+                                    class="btn btn-primary"
+                                    onClick=${() => this.refreshDashboard()}
+                                    disabled=${refreshing}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-plus" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    </svg>
+                                    ${refreshing ? 'Generating Report...' : 'Generate Security Report'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `}
 
                 ${error && html`
                     <div class="alert alert-warning" role="alert">
@@ -374,33 +416,65 @@ export class SecurityDashboardPage extends Component {
                             </div>
                         `}
 
-                        ${report.executiveSummary && html`
+                        ${report.ExecutiveSummary && html`
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-header">
                                         <h3 class="card-title">Executive Summary</h3>
                                     </div>
                                     <div class="card-body">
-                                        <div class="markdown" dangerouslySetInnerHTML=${{ __html: this.renderMarkdown(report.executiveSummary) }}></div>
+                                        <div class="markdown" dangerouslySetInnerHTML=${{ __html: this.renderMarkdown(report.ExecutiveSummary) }}></div>
                                     </div>
                                 </div>
                             </div>
                         `}
 
-                        ${report.riskSummary && html`
+                        ${report.RiskSummary && html`
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-header">
                                         <h3 class="card-title">Risk Summary</h3>
                                     </div>
                                     <div class="card-body">
-                                        <div class="markdown" dangerouslySetInnerHTML=${{ __html: this.renderMarkdown(report.riskSummary) }}></div>
+                                        <div class="row">
+                                            ${report.RiskSummary.OverallRiskScore && html`
+                                                <div class="col-md-4">
+                                                    <div class="text-center">
+                                                        <h4 class="mb-0">${report.RiskSummary.OverallRiskScore.toFixed(1)}/100</h4>
+                                                        <small class="text-muted">Overall Risk Score</small>
+                                                    </div>
+                                                </div>
+                                            `}
+                                            ${report.RiskSummary.RiskLevel && html`
+                                                <div class="col-md-4">
+                                                    <div class="text-center">
+                                                        <span class="badge bg-${report.RiskSummary.RiskLevel === 'Critical' ? 'danger' : report.RiskSummary.RiskLevel === 'High' ? 'warning' : report.RiskSummary.RiskLevel === 'Medium' ? 'info' : 'success'}">
+                                                            ${report.RiskSummary.RiskLevel}
+                                                        </span>
+                                                        <div><small class="text-muted">Risk Level</small></div>
+                                                    </div>
+                                                </div>
+                                            `}
+                                        </div>
+                                        ${report.RiskSummary.TopRiskFactors?.length > 0 && html`
+                                            <hr class="my-3" />
+                                            <h5>Top Risk Factors</h5>
+                                            <ul class="list-unstyled">
+                                                ${report.RiskSummary.TopRiskFactors.slice(0, 5).map((factor, idx) => html`
+                                                    <li key=${idx} class="mb-2">
+                                                        <span class="badge bg-danger me-2">${idx + 1}</span>
+                                                        <strong>${factor.Category || factor.Description}</strong>
+                                                        ${factor.ImpactScore && html`<span class="text-muted ms-2">(Impact: ${factor.ImpactScore})</span>`}
+                                                    </li>
+                                                `)}
+                                            </ul>
+                                        `}
                                     </div>
                                 </div>
                             </div>
                         `}
 
-                        ${report.recommendations?.length > 0 && html`
+                        ${report.Recommendations?.length > 0 && html`
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-header">
@@ -432,8 +506,8 @@ export class SecurityDashboardPage extends Component {
                             </div>
                         `}
 
-                        ${report.charts?.length > 0 && html`
-                            <${ChartRenderer} charts=${report.charts} />
+                        ${report.Charts?.length > 0 && html`
+                            <${ChartRenderer} charts=${report.Charts} />
                         `}
                     </div>
                 `}

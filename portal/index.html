@@ -7,7 +7,7 @@
     
     <!-- Tabler CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
-    <!-- Tabler Icons -->
+    <!-- Tabler Icons (webfont only, no SVG sprite to avoid CORS) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
     
     <!-- Custom styles -->
@@ -75,6 +75,30 @@
 
         .modal {
             z-index: 1050;
+        }
+        
+        .modal-backdrop {
+            z-index: 1049;
+        }
+        
+        /* Ensure feedback modal buttons are clickable */
+        .modal-footer .btn {
+            z-index: 1051;
+            position: relative;
+            pointer-events: auto;
+        }
+        
+        /* Ensure modal dialog is clickable */
+        .modal-dialog {
+            pointer-events: auto;
+        }
+        
+        .modal {
+            pointer-events: none; /* Background not clickable */
+        }
+        
+        .modal.show {
+            pointer-events: auto; /* Modal content clickable */
         }
     </style>
 </head>

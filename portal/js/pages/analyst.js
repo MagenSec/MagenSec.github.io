@@ -1,5 +1,6 @@
 import { auth } from '../auth.js';
 import { api } from '../api.js';
+import { config } from '../config.js';
 import { orgContext } from '../orgContext.js';
 import { SearchableOrgSwitcher } from '../components/SearchableOrgSwitcher.js';
 import { ChartRenderer } from '../components/ChartRenderer.js';
@@ -268,11 +269,24 @@ export class AnalystPage extends Component {
         }
 
         try {
-            await api.post('/api/analyst/feedback', {
-                reportId: reportId,
-                rating: rating,
-                comment: this.state.feedback.comment || ''
+            // Backend returns 204 No Content on success
+            const response = await fetch(`${config.API_BASE}/api/analyst/feedback`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${auth.getToken()}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    reportId: reportId,
+                    rating: rating,
+                    comment: this.state.feedback.comment || ''
+                })
             });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
             this.setState({ feedback: { rating, comment: this.state.feedback.comment }, showFeedbackModal: false });
         } catch (err) {
             console.error('[AnalystPage] Feedback failed:', err);
@@ -356,10 +370,10 @@ export class AnalystPage extends Component {
         if (!report) return null;
 
         const { feedback } = this.state;
-        const summary = report.riskSummary || {};
-        const topFactors = Array.isArray(summary.topRiskFactors) ? summary.topRiskFactors.slice(0, 3) : [];
-        const recommendations = Array.isArray(report.recommendations) ? report.recommendations.slice(0, 4) : [];
-        const devices = Array.isArray(report.devicesAtRisk) ? report.devicesAtRisk.slice(0, 5) : [];
+        const summary = report.RiskSummary || {};
+        const topFactors = Array.isArray(summary.TopRiskFactors) ? summary.TopRiskFactors.slice(0, 3) : [];
+        const recommendations = Array.isArray(report.Recommendations) ? report.Recommendations.slice(0, 4) : [];
+        const devices = Array.isArray(report.DevicesAtRisk) ? report.DevicesAtRisk.slice(0, 5) : [];
 
         return html`<div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -374,14 +388,14 @@ export class AnalystPage extends Component {
                 </div>
             </div>
             <div class="card-body">
-                ${report.executiveSummary && html`<div class="alert alert-info mb-4">
+                ${report.ExecutiveSummary && html`<div class="alert alert-info mb-4">
                     <h4 class="alert-heading">Executive Summary</h4>
-                    <div dangerouslySetInnerHTML=${this.renderMarkdown(report.executiveSummary)}></div>
+                    <div dangerouslySetInnerHTML=${this.renderMarkdown(report.ExecutiveSummary)}></div>
                 </div>`}
 
-                ${report.charts && report.charts.length > 0 && html`<div>
+                ${report.Charts && report.Charts.length > 0 && html`<div>
                     <h4 class="mb-3">Security Overview</h4>
-                    <${ChartRenderer} charts=${report.charts} />
+                    <${ChartRenderer} charts=${report.Charts} />
                 </div>`}
 
                 ${topFactors.length > 0 && html`<div>
@@ -389,8 +403,8 @@ export class AnalystPage extends Component {
                     <ul class="list-unstyled">
                         ${topFactors.map((factor, idx) => html`<li key=${idx} class="mb-2">
                             <span class="badge bg-danger me-2">${idx + 1}</span>
-                            <strong>${factor.factor || factor}</strong>
-                            ${factor.score && html`<span class="text-muted ms-2">(Risk Score: ${factor.score})</span>`}
+                            <strong>${factor.Category || factor.Description || factor}</strong>
+                            ${factor.ImpactScore && html`<span class="text-muted ms-2">(Impact: ${factor.ImpactScore})</span>`}
                         </li>`)}
                     </ul>
                 </div>`}
@@ -402,8 +416,7 @@ export class AnalystPage extends Component {
                             <div class="d-flex align-items-center">
                                 <span class="badge bg-primary me-3">${idx + 1}</span>
                                 <div class="flex-fill">
-                                    <div>${rec.action || rec}</div>
-                                    ${rec.priority && html`<small class="text-muted">Priority: ${rec.priority}</small>`}
+                                    <div>${typeof rec === 'string' ? rec : rec.action || rec}</div>
                                 </div>
                             </div>
                         </div>`)}
@@ -417,13 +430,13 @@ export class AnalystPage extends Component {
                             <thead><tr><th>Device</th><th>Risk Level</th><th>Issues</th></tr></thead>
                             <tbody>
                                 ${devices.map((dev, idx) => html`<tr key=${idx}>
-                                    <td><code>${dev.deviceId || dev}</code></td>
+                                    <td><code>${dev.DeviceId || dev}</code></td>
                                     <td>
-                                        <span class="badge ${dev.riskLevel === 'Critical' ? 'bg-danger' : dev.riskLevel === 'High' ? 'bg-warning' : 'bg-info'}">
-                                            ${dev.riskLevel || 'Unknown'}
+                                        <span class="badge ${dev.RiskScore >= 80 ? 'bg-danger' : dev.RiskScore >= 50 ? 'bg-warning' : 'bg-info'}">
+                                            ${dev.RiskScore ? dev.RiskScore.toFixed(1) : 'Unknown'}
                                         </span>
                                     </td>
-                                    <td>${dev.issueCount || '-'}</td>
+                                    <td>${dev.CriticalCount + dev.HighCount || '-'}</td>
                                 </tr>`)}
                             </tbody>
                         </table>
@@ -513,7 +526,98 @@ export class AnalystPage extends Component {
     }
 
     render() {
+        const user = auth.getUser();
+        
         return html`<div class="page">
+            <!-- Navigation Header -->
+            <header class="navbar navbar-expand-md navbar-dark bg-primary">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                        <a href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
+                                <circle cx="12" cy="11" r="1" />
+                                <line x1="12" y1="12" x2="12" y2="14.5" />
+                            </svg>
+                        </a>
+                        <span class="text-white ms-2">MagenSec</span>
+                    </h1>
+                    <div class="navbar-nav flex-row order-md-last">
+                        <div class="nav-item dropdown">
+                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+                                <span class="avatar avatar-sm" style="background-image: url(https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || user?.email || 'User')}&background=random)"></span>
+                                <div class="d-none d-xl-block ps-2">
+                                    <div class="text-white small">${user?.name || user?.email}</div>
+                                    <div class="mt-1 small text-white-50">AI Analyst</div>
+                                </div>
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                                <a href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }} class="dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
+                                    Dashboard
+                                </a>
+                                <a href="#!/devices" onclick=${(e) => { e.preventDefault(); window.page('/devices'); }} class="dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                                    Devices
+                                </a>
+                                <a href="#!/security-dashboard" onclick=${(e) => { e.preventDefault(); window.page('/security-dashboard'); }} class="dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><circle cx="12" cy="11" r="1" /><line x1="12" y1="12" x2="12" y2="14.5" /></svg>
+                                    Security Posture
+                                </a>
+                                <div class="dropdown-divider"></div>
+                                <a href="#" onclick=${(e) => { e.preventDefault(); auth.logout(); }} class="dropdown-item text-danger">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /><path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" /></svg>
+                                    Logout
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="collapse navbar-collapse" id="navbar-menu">
+                        <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+                            <ul class="navbar-nav">
+                                <li class="nav-item">
+                                    <a class="nav-link" href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }}>
+                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
+                                        </span>
+                                        <span class="nav-link-title">Dashboard</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="#!/devices" onclick=${(e) => { e.preventDefault(); window.page('/devices'); }}>
+                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                                        </span>
+                                        <span class="nav-link-title">Devices</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item active">
+                                    <a class="nav-link" href="#!/analyst" onclick=${(e) => { e.preventDefault(); window.page('/analyst'); }}>
+                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="16" height="12" rx="2" /><path d="M8 20h8" /><path d="M10 16v4" /><path d="M14 16v4" /></svg>
+                                        </span>
+                                        <span class="nav-link-title">AI Analyst</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="#!/security-dashboard" onclick=${(e) => { e.preventDefault(); window.page('/security-dashboard'); }}>
+                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><circle cx="12" cy="11" r="1" /><line x1="12" y1="12" x2="12" y2="14.5" /></svg>
+                                        </span>
+                                        <span class="nav-link-title">Security Posture</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content -->
             <div class="page-wrapper">
                 <div class="page-header d-print-none">
                     <div class="container-xl">
