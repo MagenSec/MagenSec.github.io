@@ -189,7 +189,7 @@ export class SearchableOrgSwitcher extends Component {
                 <button
                     onClick=${this.handleToggleDropdown}
                     onKeyDown=${this.handleKeyDown}
-                    class="btn btn-primary d-flex align-items-center"
+                    class="btn btn-primary btn-sm d-flex align-items-center"
                     aria-expanded=${isOpen}
                     aria-haspopup="listbox"
                 >

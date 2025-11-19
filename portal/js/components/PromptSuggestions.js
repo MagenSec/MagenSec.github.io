@@ -56,7 +56,9 @@ export function PromptSuggestions({ onSelectPrompt }) {
             <div class="card-body">
                 <details>
                     <summary class="d-flex align-items-center">
-                        <svg class="icon icon-tabler me-2" width="24" height="24"><use href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-sprite.svg#tabler-bulb" /></svg>
+                                            <div class="card-stamp card-stamp-lg">
+                        <i class="ti ti-bulb icon icon-tabler"></i>
+                    </div>
                         <strong>Suggested Prompts</strong>
                     </summary>
                     <div class="mt-3">
@@ -78,9 +80,7 @@ function PromptCategory({ category, onSelectPrompt }) {
     return html`
         <div class="mb-3">
             <h4 class="mb-2">
-                <svg class="icon icon-tabler me-1" width="20" height="20">
-                    <use href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-sprite.svg#tabler-${category.icon}" />
-                </svg>
+                <i class="ti ti-${category.icon} icon icon-tabler me-2"></i>
                 ${category.label}
             </h4>
             <div class="d-flex flex-wrap gap-2">
@@ -90,9 +90,7 @@ function PromptCategory({ category, onSelectPrompt }) {
                         onClick=${() => onSelectPrompt(prompt)}
                         title="Click to use this prompt"
                     >
-                        <svg class="icon icon-tabler me-1" width="16" height="16">
-                            <use href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-sprite.svg#tabler-message-circle" />
-                        </svg>
+                        <i class="ti ti-message-circle icon icon-tabler me-2"></i>
                         ${truncatePrompt(prompt)}
                     </button>
                 `)}

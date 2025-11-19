@@ -2,114 +2,14 @@ import { auth } from '../auth.js';
 import { api } from '../api.js';
 import { config } from '../config.js';
 import { orgContext } from '../orgContext.js';
-import { SearchableOrgSwitcher } from '../components/SearchableOrgSwitcher.js';
 import { ChartRenderer } from '../components/ChartRenderer.js';
 import { PromptSuggestions } from '../components/PromptSuggestions.js';
 
 const { html, Component } = window;
 
 /**
- * Inline Org Selector - Searchable dropdown for selecting organization in forms
- * Cost-effective: All orgs cached client-side, no pagination API needed
- */
-class OrgSelectorInline extends Component {
-    constructor(props) {
-        super(props);
-        this.state = {
-            searchQuery: '',
-            isOpen: false,
-            selectedIndex: -1
-        };
-        this.dropdownRef = null;
-        this.searchInputRef = null;
-    }
-
-    componentDidMount() {
-        document.addEventListener('click', this.handleClickOutside);
-    }
-
-    componentWillUnmount() {
-        document.removeEventListener('click', this.handleClickOutside);
-    }
-
-    handleClickOutside = (e) => {
-        if (this.dropdownRef && !this.dropdownRef.contains(e.target)) {
-            this.setState({ isOpen: false, searchQuery: '', selectedIndex: -1 });
-        }
-    }
-
-    filterOrgs(query, orgs) {
-        if (!query || query.trim() === '') return orgs;
-        const lowerQuery = query.toLowerCase();
-        return orgs.filter(org => 
-            (org.name && org.name.toLowerCase().includes(lowerQuery)) ||
-            (org.orgId && org.orgId.toLowerCase().includes(lowerQuery)) ||
-            (org.orgName && org.orgName.toLowerCase().includes(lowerQuery)) ||
-            (org.role && org.role.toLowerCase().includes(lowerQuery))
-        );
-    }
-
-    handleOrgSelect = (org) => {
-        if (this.props.onOrgChange) {
-            this.props.onOrgChange(org.orgId);
-        }
-        this.setState({ isOpen: false, searchQuery: '', selectedIndex: -1 });
-    }
-
-    render() {
-        const { availableOrgs, selectedOrgId } = this.props;
-        const { searchQuery, isOpen, selectedIndex } = this.state;
-        
-        const filteredOrgs = this.filterOrgs(searchQuery, availableOrgs);
-        const selectedOrg = availableOrgs.find(o => o.orgId === selectedOrgId);
-        
-        return html`<div class="dropdown" ref=${(el) => this.dropdownRef = el}>
-            <button
-                type="button"
-                class="form-select text-start d-flex justify-content-between align-items-center"
-                onClick=${() => this.setState({ isOpen: !isOpen })}
-            >
-                <span>
-                    ${selectedOrg ? `${selectedOrg.orgId} - ${selectedOrg.orgName || selectedOrg.name || 'Unnamed'}` : 'Select Organization'}
-                </span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/>
-                </svg>
-            </button>
-            
-            ${isOpen && html`<div class="dropdown-menu show" style="width: 100%; max-height: 400px; overflow-y: auto;">
-                <div class="p-2 border-bottom">
-                    <input
-                        ref=${(el) => this.searchInputRef = el}
-                        type="text"
-                        value=${searchQuery}
-                        onInput=${(e) => this.setState({ searchQuery: e.target.value, selectedIndex: 0 })}
-                        placeholder="Search organizations..."
-                        class="form-control form-control-sm"
-                        autoFocus
-                    />
-                    <div class="text-muted small mt-1">${filteredOrgs.length} of ${availableOrgs.length} orgs</div>
-                </div>
-                <div>
-                    ${filteredOrgs.length === 0 ? html`<div class="dropdown-item disabled text-center">No results</div>` : 
-                      filteredOrgs.map((org, idx) => html`<a
-                        key=${org.orgId}
-                        href="javascript:void(0)"
-                        onClick=${() => this.handleOrgSelect(org)}
-                        class="dropdown-item ${org.orgId === selectedOrgId ? 'active' : ''} ${idx === selectedIndex ? 'bg-light' : ''}"
-                    >
-                        <div>${org.orgId} - ${org.orgName || org.name || 'Unnamed'}</div>
-                        ${org.role && html`<small class="text-muted">${org.role}</small>`}
-                    </a>`
-                    )}
-                </div>
-            </div>`}
-        </div>`;
-    }
-}
-
-/**
  * AI Analyst Page - Unified prompt-driven reporting with automatic polling
+ * Uses navbar org switcher - no inline org selector needed
  */
 export class AnalystPage extends Component {
     constructor(props) {
@@ -202,11 +102,17 @@ export class AnalystPage extends Component {
         try {
             const response = await api.post('/api/analyst/run', payload);
             
+            // Normalized response: report, reportId, success, message (all lowercase)
             if (response.report) {
+                // Inline completion (HTTP 200)
                 this.setState({ result: response, loading: false, reportId: response.reportId });
             } else if (response.reportId) {
+                // Job queued, poll for completion (HTTP 202)
                 this.setState({ reportId: response.reportId, loading: false, polling: true });
                 this.startPolling(response.reportId);
+            } else if (response.success === false) {
+                // Explicit error from backend
+                throw new Error(response.message || response.error || 'Request failed');
             } else {
                 throw new Error('Unexpected response format');
             }
@@ -240,6 +146,7 @@ export class AnalystPage extends Component {
         try {
             const status = await api.get(`/api/analyst/reports/${reportId}`);
 
+            // Normalized response: report, status (with state, errorMessage)
             if (status.report) {
                 this.stopPolling();
                 this.setState({ result: status, polling: false, reportId });
@@ -463,9 +370,10 @@ export class AnalystPage extends Component {
 
         if (!result) return null;
 
-        if (result.reportsByOrg) {
+        // Backend returns PascalCase: ReportsByOrg, Report
+        if (result.ReportsByOrg) {
             return html`<div>
-                ${Object.entries(result.reportsByOrg).map(([orgId, report]) => 
+                ${Object.entries(result.ReportsByOrg).map(([orgId, report]) => 
                     this.renderReportCard(report, `Report for ${orgId}`)
                 )}
             </div>`;
@@ -473,7 +381,7 @@ export class AnalystPage extends Component {
 
         return html`<div>
             ${this.state.reportId && html`<div class="mb-2"><small class="text-muted">Report ID: <code>${this.state.reportId}</code></small></div>`}
-            ${this.renderReportCard(result.report, 'Security Report')}
+            ${this.renderReportCard(result.Report, 'Security Report')}
         </div>`;
     }
 
@@ -486,26 +394,7 @@ export class AnalystPage extends Component {
             <form id="analyst-form" onSubmit=${(e) => this.handleSubmit(e)} class="card mb-4">
                 <div class="card-header"><h3 class="card-title">Run Analysis</h3></div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label">Organization</label>
-                        ${availableOrgs.length > 10 ? html`<${OrgSelectorInline}
-                            availableOrgs=${availableOrgs}
-                            selectedOrgId=${selectedOrgId}
-                            onOrgChange=${(orgId) => {
-                                this.setState({ selectedOrgId: orgId });
-                                orgContext.setCurrentOrg(orgId);
-                            }}
-                        />` : html`<select class="form-select" value=${selectedOrgId}
-                            onChange=${(e) => {
-                                const newOrgId = e.target.value;
-                                this.setState({ selectedOrgId: newOrgId });
-                                orgContext.setCurrentOrg(newOrgId);
-                            }}>
-                            ${availableOrgs.map(org => html`<option key=${org.orgId} value=${org.orgId}>
-                                ${org.orgId} - ${org.orgName || org.name || 'Unnamed'} ${org.role ? `(${org.role})` : ''}
-                            </option>`)}
-                        </select>`}
-                    </div>
+                    <!-- Organization is selected via navbar switcher -->
                     <div class="mb-3">
                         <label class="form-label">Your Question</label>
                         <textarea class="form-control" rows="5" value=${prompt} 
@@ -526,127 +415,22 @@ export class AnalystPage extends Component {
     }
 
     render() {
-        const user = auth.getUser();
+        const { html } = window;
         
-        return html`<div class="page">
-            <!-- Navigation Header -->
-            <header class="navbar navbar-expand-md navbar-dark bg-primary">
-                <div class="container-xl">
-                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
-                    <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-                        <a href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
-                                <circle cx="12" cy="11" r="1" />
-                                <line x1="12" y1="12" x2="12" y2="14.5" />
-                            </svg>
-                        </a>
-                        <span class="text-white ms-2">MagenSec</span>
-                    </h1>
-                    <div class="navbar-nav flex-row order-md-last">
-                        <div class="nav-item dropdown">
-                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
-                                <span class="avatar avatar-sm" style="background-image: url(https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || user?.email || 'User')}&background=random)"></span>
-                                <div class="d-none d-xl-block ps-2">
-                                    <div class="text-white small">${user?.name || user?.email}</div>
-                                    <div class="mt-1 small text-white-50">AI Analyst</div>
-                                </div>
-                            </a>
-                            <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-                                <a href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }} class="dropdown-item">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
-                                    Dashboard
-                                </a>
-                                <a href="#!/devices" onclick=${(e) => { e.preventDefault(); window.page('/devices'); }} class="dropdown-item">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
-                                    Devices
-                                </a>
-                                <a href="#!/security-dashboard" onclick=${(e) => { e.preventDefault(); window.page('/security-dashboard'); }} class="dropdown-item">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><circle cx="12" cy="11" r="1" /><line x1="12" y1="12" x2="12" y2="14.5" /></svg>
-                                    Security Posture
-                                </a>
-                                <div class="dropdown-divider"></div>
-                                <a href="#" onclick=${(e) => { e.preventDefault(); auth.logout(); }} class="dropdown-item text-danger">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /><path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" /></svg>
-                                    Logout
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="collapse navbar-collapse" id="navbar-menu">
-                        <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
-                            <ul class="navbar-nav">
-                                <li class="nav-item">
-                                    <a class="nav-link" href="#!/dashboard" onclick=${(e) => { e.preventDefault(); window.page('/dashboard'); }}>
-                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
-                                        </span>
-                                        <span class="nav-link-title">Dashboard</span>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="#!/devices" onclick=${(e) => { e.preventDefault(); window.page('/devices'); }}>
-                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
-                                        </span>
-                                        <span class="nav-link-title">Devices</span>
-                                    </a>
-                                </li>
-                                <li class="nav-item active">
-                                    <a class="nav-link" href="#!/analyst" onclick=${(e) => { e.preventDefault(); window.page('/analyst'); }}>
-                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="16" height="12" rx="2" /><path d="M8 20h8" /><path d="M10 16v4" /><path d="M14 16v4" /></svg>
-                                        </span>
-                                        <span class="nav-link-title">AI Analyst</span>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="#!/security-dashboard" onclick=${(e) => { e.preventDefault(); window.page('/security-dashboard'); }}>
-                                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><circle cx="12" cy="11" r="1" /><line x1="12" y1="12" x2="12" y2="14.5" /></svg>
-                                        </span>
-                                        <span class="nav-link-title">Security Posture</span>
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
+        return html`
+            ${this.state.error && html`<div class="alert alert-danger alert-dismissible">
+                <div class="d-flex">
+                    <div>
+                        <h4 class="alert-title">Error</h4>
+                        <div class="text-muted">${this.state.error}</div>
+                        ${this.state.reportId && html`<div class="mt-2"><small class="text-muted">Report ID: <code>${this.state.reportId}</code></small></div>`}
                     </div>
                 </div>
-            </header>
-
-            <!-- Content -->
-            <div class="page-wrapper">
-                <div class="page-header d-print-none">
-                    <div class="container-xl">
-                        <div class="row g-2 align-items-center">
-                            <div class="col">
-                                <h2 class="page-title">AI Security Analyst</h2>
-                                <div class="text-muted mt-1">Ask questions about your security posture and get AI-powered insights</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="page-body">
-                    <div class="container-xl">
-                        ${this.state.error && html`<div class="alert alert-danger alert-dismissible">
-                            <div class="d-flex">
-                                <div>
-                                    <h4 class="alert-title">Error</h4>
-                                    <div class="text-muted">${this.state.error}</div>
-                                    ${this.state.reportId && html`<div class="mt-2"><small class="text-muted">Report ID: <code>${this.state.reportId}</code></small></div>`}
-                                </div>
-                            </div>
-                            <button type="button" class="btn-close" onClick=${() => this.setState({ error: null })}></button>
-                        </div>`}
-                        ${this.renderForm()}
-                        ${this.renderResult()}
-                    </div>
-                </div>
-            </div>
+                <button type="button" class="btn-close" onClick=${() => this.setState({ error: null })}></button>
+            </div>`}
+            ${this.renderForm()}
+            ${this.renderResult()}
             ${this.renderFeedbackModal()}
-        </div>`;
+        `;
     }
 }

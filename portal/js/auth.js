@@ -134,7 +134,7 @@ export class Auth {
                     email: data.data.email,
                     name: data.data.name || data.data.email,
                     displayName: data.data.name || data.data.email.split('@')[0],
-                    picture: null // Google doesn't send picture in our flow
+                    picture: data.data.picture || null // use picture when backend provides it
                 },
                 sessionToken: data.data.sessionToken,
                 orgId: data.data.orgId,

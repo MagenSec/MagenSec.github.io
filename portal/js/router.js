@@ -20,9 +20,22 @@ export function initRouter(renderApp) {
         next();
     });
 
-    // Login page (public)
+    // Login page (public). If already authenticated, redirect to dashboard
     page('/', (ctx) => {
+        if (ctx.isAuthenticated) {
+            page.redirect('/dashboard');
+            return;
+        }
         renderApp({ page: 'login', ctx });
+    });
+
+    // Explicit /login route support (normalize to "/")
+    page('/login', (ctx) => {
+        if (ctx.isAuthenticated) {
+            page.redirect('/dashboard');
+            return;
+        }
+        page.redirect('/');
     });
 
     // Dashboard (protected)
@@ -52,13 +65,37 @@ export function initRouter(renderApp) {
         renderApp({ page: 'analyst', ctx });
     });
 
-    // Security Dashboard (protected)
-    page('/security-dashboard', (ctx) => {
+    // Security Posture (protected)
+    page('/posture', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'security-dashboard', ctx });
+        renderApp({ page: 'posture', ctx });
+    });
+
+    // Legacy alias: security-dashboard -> posture
+    page('/security-dashboard', (ctx) => {
+        page.redirect('/posture');
+    });
+
+    // Other placeholder routes (protected)
+    const protectedRoutes = [
+        ['inventory', 'inventory'],
+        ['trends', 'trends'],
+        ['orgs', 'orgs'],
+        ['members', 'members'],
+        ['licenses', 'licenses'],
+        ['account', 'account']
+    ];
+    protectedRoutes.forEach(([path, pageName]) => {
+        page(`/${path}`, (ctx) => {
+            if (!ctx.isAuthenticated) {
+                page.redirect('/');
+                return;
+            }
+            renderApp({ page: pageName, ctx });
+        });
     });
 
     // Start router with hash-bang mode

@@ -3,152 +3,222 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MagenSec Portal</title>
+    <title>MagenSec Security Center</title>
     
     <!-- Tabler CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
-    <!-- Tabler Icons (webfont only, no SVG sprite to avoid CORS) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet">
+    <!-- Tabler Icons Webfont (no SVG sprite to avoid CORS) -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet">
     
-    <!-- Custom styles -->
+    <!-- External libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/dist/preact.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/page@1.11.6/page.min.js"></script>
+    
     <style>
-        /* Smooth transitions */
-        * {
-            transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+        /* Markdown content styling */
+        .markdown {
+            line-height: 1.6;
+        }
+        .markdown h1, .markdown h2, .markdown h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .markdown ul, .markdown ol {
+            padding-left: 2rem;
+        }
+        .markdown code {
+            background: #f8f9fa;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.875em;
+        }
+        .markdown pre {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .markdown pre code {
+            background: none;
+            padding: 0;
         }
         
-        /* Loading spinner (Tabler provides spinners, but keeping custom for initial load) */
-        .spinner {
-            border: 3px solid #f3f4f6;
-            border-top-color: #206bc4;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
+        /* Login overlay - full-page pattern like Tabler sign-in */
+        #login-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--tblr-bg-surface);
+            z-index: 9999;
+        }
+        #login-overlay.active {
+            display: block;
         }
         
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* Custom overrides for Tabler */
-        :root {
-            --tblr-primary: #206bc4;
-        }
-
-        /* Mobile navbar fixes - prevent overlap */
-        .navbar {
-            z-index: 1030; /* Higher than page content */
-        }
-
-        /* Ensure page content has proper padding for fixed navbar */
-        .page-wrapper {
-            padding-top: 0; /* Reset if fixed navbar is used */
-        }
-
-        /* Mobile viewport adjustments */
-        @media (max-width: 768px) {
-            /* Collapsed navbar menu */
-            .navbar-collapse {
-                background: var(--tblr-primary);
-                margin: 0 -1rem;
-                padding: 1rem;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-
-            /* Fix navbar toggler visibility */
-            .navbar-toggler {
-                border-color: rgba(255,255,255,0.3);
-                color: white;
-            }
-
-            /* Ensure dropdown menus don't overflow */
-            .navbar .dropdown-menu {
-                position: absolute !important;
-            }
-        }
-
-        /* Fix z-index stacking for modals and dropdowns */
-        .dropdown-menu {
-            z-index: 1040;
-        }
-
-        .modal {
-            z-index: 1050;
-        }
-        
-        .modal-backdrop {
-            z-index: 1049;
-        }
-        
-        /* Ensure feedback modal buttons are clickable */
-        .modal-footer .btn {
-            z-index: 1051;
-            position: relative;
-            pointer-events: auto;
-        }
-        
-        /* Ensure modal dialog is clickable */
-        .modal-dialog {
-            pointer-events: auto;
-        }
-        
-        .modal {
-            pointer-events: none; /* Background not clickable */
-        }
-        
-        .modal.show {
-            pointer-events: auto; /* Modal content clickable */
+        /* Hide ONLY the main page container when unauthenticated (not overlay content) */
+        body.unauthenticated > .page {
+            display: none;
         }
     </style>
 </head>
-<body>
-    <!-- Main App Container -->
-    <div id="app">
-        <!-- Initial loading state (will be replaced by Preact) -->
-        <div class="page page-center">
-            <div class="container-tight py-4">
-                <div class="text-center">
-                    <div class="spinner mx-auto mb-3"></div>
-                    <div class="text-muted">Loading portal...</div>
+<body class="unauthenticated">
+    <!-- Login Overlay (full-page) -->
+    <div id="login-overlay" class="active"></div>
+    
+    <div class="page">
+        <!-- Navbar -->
+        <header class="navbar navbar-expand-md navbar-light d-print-none">
+            <div class="container-xl">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                    <a href="#!/dashboard">
+                        <img src="../assets/green_shield_64.ico" alt="MagenSec" height="24" class="me-2">
+                        MagenSec
+                    </a>
+                </h1>
+                <!-- Center: Org Switcher -->
+                <div class="navbar-nav flex-fill justify-content-center">
+                    <div id="org-switcher-root"></div>
+                </div>
+                <!-- Right: User Menu -->
+                <div class="navbar-nav flex-row order-md-last">
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
+                            <span class="avatar avatar-sm" id="user-avatar">
+                                <img id="user-avatar-img" alt="User" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:50%;" />
+                                <span id="user-avatar-fallback" class="avatar-initials" style="display:none;"></span>
+                            </span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="#!/account" class="dropdown-item">Account</a>
+                            <div class="dropdown-divider"></div>
+                            
+                            <!-- Theme Switcher -->
+                            <div class="dropdown-item">
+                                <label class="form-check form-switch m-0">
+                                    <input class="form-check-input" type="checkbox" id="theme-toggle">
+                                    <span class="form-check-label">Dark mode</span>
+                                </label>
+                            </div>
+                            
+                            <div class="dropdown-divider"></div>
+                            <a href="#" class="dropdown-item" id="logout-link">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Horizontal Navigation -->
+        <div class="navbar-expand-md">
+            <div class="collapse navbar-collapse" id="navbar-menu">
+                <div class="navbar navbar-light">
+                    <div class="container-xl">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="nav-link" href="#!/dashboard">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Dashboard</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#!/posture">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="3 12 12 3 21 12 12 21 3 12" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Security Posture</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#!/analyst">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">AI Analyst</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#!/devices">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="7" y="4" width="10" height="16" rx="1" /><line x1="11" y1="5" x2="13" y2="5" /><line x1="12" y1="17" x2="12" y2="17.01" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Devices</span>
+                                </a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#navbar-extra" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12.01" y2="8" /><polyline points="11 12 12 12 12 16 13 16" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">More</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/inventory">Inventory</a>
+                                    <a class="dropdown-item" href="#!/trends">Trends</a>
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item" href="#!/orgs">Organizations</a>
+                                    <a class="dropdown-item" href="#!/members">Members</a>
+                                    <a class="dropdown-item" href="#!/licenses">Licenses</a>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Page wrapper with boxed layout -->
+        <div class="page-wrapper">
+            <div class="container-xl">
+                <!-- Page body -->
+                <div class="page-body">
+                    <div id="app"></div>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Load dependencies first -->
-    <script src="https://unpkg.com/page@1.11.6/page.js"></script>
-    <!-- Tabler JS (for dropdowns, modals, etc.) -->
+    <!-- Tabler Core -->
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
     
-    <!-- Load Preact + HTM and expose globally, then load app modules -->
+    <!-- Initialize HTM -->
+    <script>
+        // Initialize Preact and HTM globals
+        window.html = window.htm.bind(window.preact.h);
+        window.render = window.preact.render;
+        window.Component = window.preact.Component;
+        window.h = window.preact.h;
+        window.createRef = window.preact.createRef;
+    </script>
+    
+    <!-- Load modules in sequence -->
     <script type="module">
-        // Import and expose Preact + HTM
-        import { html, render, Component } from 'https://unpkg.com/htm/preact/standalone.module.js';
-        window.html = html;
-        window.render = render;
-        window.Component = Component;
-        
-        // Log successful load
-        console.log('[CDN] Preact + HTM loaded');
-        console.log('[CDN] page.js loaded:', typeof window.page !== 'undefined');
-        
-        // Now dynamically load the app modules in order
-        const loadModule = (src) => {
+        async function loadModule(src) {
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = src;
+            document.body.appendChild(script);
             return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.type = 'module';
-                script.src = src;
                 script.onload = resolve;
                 script.onerror = reject;
-                document.body.appendChild(script);
             });
-        };
+        }
         
-        // Load modules in sequence
-        (async () => {
+        async function init() {
             try {
                 await loadModule('./js/config.js');
+                await loadModule('./js/theme.js');
                 await loadModule('./js/auth.js');
                 await loadModule('./js/api.js');
                 await loadModule('./js/orgContext.js');
@@ -156,30 +226,30 @@
                 await loadModule('./js/components/ChartRenderer.js');
                 await loadModule('./js/components/PromptSuggestions.js');
                 await loadModule('./js/components/SearchableOrgSwitcher.js');
+                await loadModule('./js/utils/manifestCache.js');
                 await loadModule('./js/pages/login.js');
                 await loadModule('./js/pages/dashboard-v2.js');
                 await loadModule('./js/pages/devices.js');
                 await loadModule('./js/pages/analyst.js');
-                await loadModule('./js/pages/securityDashboard.js');
+                await loadModule('./js/pages/posture.js');
+                await loadModule('./js/pages/placeholders.js');
                 await loadModule('./js/app.js');
-                console.log('[CDN] All modules loaded');
+                console.log('[App] All modules loaded successfully');
             } catch (error) {
-                console.error('[CDN] Module loading failed:', error);
+                console.error('[App] Module loading failed:', error);
                 document.getElementById('app').innerHTML = `
-                    <div class="page page-center">
-                        <div class="container-tight py-4">
-                            <div class="text-center">
-                                <div class="text-danger mb-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                                </div>
-                                <h2 class="mb-2">Failed to load portal</h2>
-                                <div class="text-muted">${error.message}</div>
-                            </div>
+                    <div class="empty">
+                        <div class="empty-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-danger" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                         </div>
+                        <p class="empty-title">Failed to load portal</p>
+                        <p class="empty-subtitle text-muted">${error.message}</p>
                     </div>
                 `;
             }
-        })();
+        }
+        
+        init();
     </script>
 </body>
 </html>

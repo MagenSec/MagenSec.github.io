@@ -1,6 +1,6 @@
 import { auth } from '../auth.js';
 import { api } from '../api.js';
-import { config } from '../config.js';
+import { config, logger } from '../config.js';
 import { orgContext } from '../orgContext.js';
 import { ChartRenderer } from '../components/ChartRenderer.js';
 
@@ -9,7 +9,7 @@ const { html, Component } = window;
 /**
  * Security Posture Report - Cached daily/hourly security assessment with smart refresh
  */
-export class SecurityDashboardPage extends Component {
+export class PosturePage extends Component {
     constructor(props) {
         super(props);
         this.state = {
@@ -37,103 +37,108 @@ export class SecurityDashboardPage extends Component {
         return `${year}${month}${day}`;
     }
 
-    async loadDashboard(date = null) {
-        const targetDate = date || this.state.selectedDate;
+    async loadDashboard(targetDate = null) {
+        const date = targetDate || this.state.selectedDate;
         const currentOrg = orgContext.getCurrentOrg();
         
-        if (!currentOrg) {
+        if (!currentOrg || !currentOrg.orgId) {
             this.setState({ error: 'No organization selected', loading: false });
             return;
         }
 
+        // Ensure we use the orgId property, not email or name
+        const orgId = currentOrg.orgId;
+        logger.debug('[Posture] Loading dashboard for org:', orgId, 'date:', date);
+
         this.setState({ loading: true, error: null });
 
         try {
-            const token = auth.getToken();
-            const response = await fetch(
-                `${config.API_BASE}/api/analyst/reports/${currentOrg.orgId}/historical/${targetDate}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const data = await api.get(`/api/analyst/reports/${orgId}/historical/${date}`);
 
-            if (!response.ok) {
-                // Handle 404 - no report exists for this date
-                if (response.status === 404) {
-                    // Immediately trigger dashboard generation
-                    this.setState({
-                        loading: true,
-                        error: null,
-                        report: null,
-                        showGenerateButton: false,
-                        selectedDate: targetDate,
-                        refreshing: true
-                    });
-                    await this.refreshDashboard();
-                    return;
-                }
-                // Handle other errors
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.Message || `HTTP ${response.status}: Failed to load dashboard`);
+            // Handle 404 - no report exists for this date
+            if (data.error === 'NOT_FOUND' || data.error?.includes('No dashboard report found')) {
+                // Show generate button instead of auto-generating
+                this.setState({
+                    loading: false,
+                    error: null,
+                    report: null,
+                    reportId: null,
+                    selectedDate: date,
+                    showGenerateButton: true,
+                    canRefreshNow: true,
+                    refreshing: false
+                });
+                return;
             }
 
-            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.message || data.error || 'Failed to load dashboard');
+            }
 
             this.setState({
                 loading: false,
-                report: data.Report || null,
-                reportId: data.ReportId || null,
-                generatedAt: data.GeneratedAt ? new Date(data.GeneratedAt) : null,
-                nextRefreshAt: data.NextRefreshAt ? new Date(data.NextRefreshAt) : null,
-                canRefreshNow: data.CanRefreshNow || false,
-                selectedDate: targetDate,
+                report: data.report || data.data || null,
+                reportId: data.reportId || data.data?.reportId || null,
+                generatedAt: data.generatedAt ? new Date(data.generatedAt) : null,
+                nextRefreshAt: data.nextRefreshAt ? new Date(data.nextRefreshAt) : null,
+                canRefreshNow: data.canRefreshNow !== false,
+                selectedDate: date,
                 showGenerateButton: false
             });
         } catch (err) {
+            // Check for 404 status code directly
+            if (err.status === 404) {
+                // Show generate button for missing reports
+                this.setState({
+                    loading: false,
+                    error: null,
+                    report: null,
+                    reportId: null,
+                    selectedDate: date,
+                    showGenerateButton: true,
+                    canRefreshNow: true,
+                    refreshing: false
+                });
+                logger.info(`[Posture] No report found for ${date}, showing generate button`);
+                return;
+            }
+            
+            let errorMsg = err.message || 'Failed to load dashboard';
+            if (err.status === 403 || err.message?.includes('403') || err.message?.includes('FORBIDDEN')) {
+                errorMsg += ' - Please switch to the correct organization using the navbar dropdown.';
+            }
+            logger.error('[Posture] Load failed:', err);
             this.setState({ 
-                error: err.message || 'Failed to load dashboard', 
-                loading: false 
+                error: errorMsg, 
+                loading: false,
+                showGenerateButton: false
             });
         }
     }
 
-    async refreshDashboard() {
+    async generateDashboard() {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg) return;
 
-        this.setState({ refreshing: true, error: null });
+        this.setState({ refreshing: true, error: null, showGenerateButton: false });
 
         try {
-            const token = auth.getToken();
-            
-            // Trigger new dashboard generation with !dashboard prompt
-            const response = await fetch(`${config.API_BASE}/api/analyst/run`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    prompt: '!dashboard',
-                    waitSeconds: 5 // Short timeout, expect 202
-                })
+            // Trigger new dashboard generation with !dashboard prompt including orgId
+            const data = await api.post('/api/analyst/run', {
+                prompt: `!dashboard\nOrgId: ${currentOrg.orgId}`,
+                waitSeconds: 5 // Short timeout, expect 202
             });
 
-            const data = await response.json();
-
-            if (!data.Success) {
-                throw new Error(data.Message || 'Failed to refresh dashboard');
+            if (!data.success) {
+                throw new Error(data.message || data.error || 'Failed to refresh dashboard');
             }
 
             // If completed inline (unlikely for dashboard), reload
-            if (response.status === 200 && data.Report) {
+            if (data.report) {
                 this.setState({
                     refreshing: false,
-                    report: data.Report,
-                    reportId: data.ReportId,
+                    report: data.report,
+                    reportId: data.reportId,
                     generatedAt: new Date(),
                     canRefreshNow: false
                 });
@@ -141,7 +146,7 @@ export class SecurityDashboardPage extends Component {
             }
 
             // Otherwise poll for completion
-            const reportId = data.ReportId;
+            const reportId = data.reportId;
             await this.pollForCompletion(reportId);
         } catch (err) {
             this.setState({ 
@@ -227,7 +232,7 @@ export class SecurityDashboardPage extends Component {
         window.page('/');
     }
 
-    render({ }, { loading, error, report, generatedAt, nextRefreshAt, canRefreshNow, refreshing, selectedDate, showGenerateButton }) {
+    render({ }, { loading, error, report, reportId, generatedAt, nextRefreshAt, canRefreshNow, refreshing, showGenerateButton, selectedDate }) {
         const currentOrg = orgContext.getCurrentOrg();
         const user = auth.getUser();
         const displayDate = selectedDate ? `${selectedDate.substring(0, 4)}-${selectedDate.substring(4, 6)}-${selectedDate.substring(6, 8)}` : '';
@@ -251,17 +256,30 @@ export class SecurityDashboardPage extends Component {
                                     onChange=${this.handleDateChange}
                                 />
                                 <button 
-                                    class="btn btn-primary" 
-                                    onClick=${() => this.refreshDashboard()}
-                                    disabled=${!canRefreshNow || refreshing || loading}
-                                    title="${canRefreshNow ? 'Refresh security report with latest data' : 'Refresh temporarily disabled to conserve AI resources'}"
+                                    class="btn btn-outline-primary me-2" 
+                                    onClick=${() => this.loadDashboard(selectedDate)}
+                                    disabled=${loading}
+                                    title="Reload the report from the server"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-refresh" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                         <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
                                         <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path>
                                         <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path>
                                     </svg>
-                                    ${refreshing ? 'Refreshing...' : canRefreshNow ? 'Refresh Report' : 'Refresh Disabled'}
+                                    ${loading ? 'Loading...' : 'Reload Report'}
+                                </button>
+                                <button 
+                                    class="btn btn-primary" 
+                                    onClick=${() => this.generateDashboard()}
+                                    disabled=${refreshing}
+                                    title="Generate a fresh security dashboard with latest data (may take 30-60 seconds)"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-refresh" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                        <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path>
+                                        <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path>
+                                    </svg>
+                                    ${refreshing ? 'Generating...' : 'Generate New Report'}
                                 </button>
                             </div>
                             ${!canRefreshNow && nextRefreshAt && html`
@@ -291,7 +309,7 @@ export class SecurityDashboardPage extends Component {
                                 </div>
                                 <button 
                                     class="btn btn-primary"
-                                    onClick=${() => this.refreshDashboard()}
+                                    onClick=${() => this.generateDashboard()}
                                     disabled=${refreshing}
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-plus" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -320,6 +338,20 @@ export class SecurityDashboardPage extends Component {
                             <div>
                                 <h4 class="alert-title">Notice</h4>
                                 <div class="text-secondary">${error}</div>
+                            </div>
+                        </div>
+                    </div>
+                `}
+
+                ${refreshing && !loading && html`
+                    <div class="alert alert-info" role="alert">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm text-primary me-3" role="status">
+                                <span class="visually-hidden">Generating...</span>
+                            </div>
+                            <div>
+                                <h4 class="alert-title mb-0">Generating Security Dashboard</h4>
+                                <div class="text-secondary">This may take 30-60 seconds. The page will automatically refresh when complete.</div>
                             </div>
                         </div>
                     </div>

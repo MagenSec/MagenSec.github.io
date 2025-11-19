@@ -11,7 +11,9 @@ import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard-v2.js';
 import { DevicesPage } from './pages/devices.js';
 import { AnalystPage } from './pages/analyst.js';
-import { SecurityDashboardPage } from './pages/securityDashboard.js';
+import { PosturePage } from './pages/posture.js';
+import { InventoryPage, TrendsPage, OrgsPage, MembersPage, LicensesPage, AccountPage } from './pages/placeholders.js';
+import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
 
@@ -24,10 +26,10 @@ function App() {
     // Check for OAuth callback
     if (window.location.search.includes('code=')) {
         return html`
-            <div class="min-h-screen flex items-center justify-center">
+            <div class="d-flex align-items-center justify-content-center" style="min-height: 100vh;">
                 <div class="text-center">
-                    <div class="spinner mx-auto mb-4"></div>
-                    <p class="text-gray-600">Completing sign in...</p>
+                    <div class="spinner-border text-primary mb-3" role="status"></div>
+                    <p class="text-muted">Completing sign in...</p>
                 </div>
             </div>
         `;
@@ -43,21 +45,92 @@ function App() {
             return html`<${DevicesPage} />`;
         case 'analyst':
             return html`<${AnalystPage} />`;
-        case 'security-dashboard':
-            return html`<${SecurityDashboardPage} />`;
+        case 'posture':
+            return html`<${PosturePage} />`;
+        case 'inventory':
+            return html`<${InventoryPage} />`;
+        case 'trends':
+            return html`<${TrendsPage} />`;
+        case 'orgs':
+            return html`<${OrgsPage} />`;
+        case 'members':
+            return html`<${MembersPage} />`;
+        case 'licenses':
+            return html`<${LicensesPage} />`;
+        case 'account':
+            return html`<${AccountPage} />`;
         default:
             return html`<${LoginPage} />`;
     }
 }
 
+// Login overlay management
+function renderLoginOverlay() {
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) {
+        render(html`<${LoginPage} />`, overlay);
+    }
+}
+
+function setAuthenticationState(isAuthenticated) {
+    const overlay = document.getElementById('login-overlay');
+    const body = document.body;
+    
+    if (isAuthenticated) {
+        // Hide overlay, show main app
+        if (overlay) overlay.classList.remove('active');
+        body.classList.remove('unauthenticated');
+        // Update avatar if we have a user picture, otherwise show fallback
+        try {
+            const user = auth.getUser();
+            const img = document.getElementById('user-avatar-img');
+            const fallback = document.getElementById('user-avatar-fallback');
+            if (user?.picture && img) {
+                img.src = user.picture;
+                img.style.display = 'block';
+                if (fallback) fallback.style.display = 'none';
+            } else {
+                // No picture - show fallback with user initials
+                if (img) img.style.display = 'none';
+                if (fallback) {
+                    // Calculate initials from name or email
+                    let initials = '?';
+                    if (user?.name) {
+                        initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                    } else if (user?.email) {
+                        initials = user.email.substring(0, 2).toUpperCase();
+                    }
+                    fallback.textContent = initials;
+                    fallback.style.display = 'flex';
+                }
+            }
+        } catch {}
+    } else {
+        // Show overlay, hide main page
+        if (overlay) overlay.classList.add('active');
+        body.classList.add('unauthenticated');
+        renderLoginOverlay();
+    }
+}
+
+// Render counter to force unique keys
+let renderCounter = 0;
+
 // Render function
-function renderApp(state) {
+function renderApp(state = {}) {
     if (state) {
         currentPage = state.page;
         currentCtx = state.ctx;
+        logger.debug(`[App] Rendering page: ${currentPage} (render #${renderCounter})`);
     }
+    // Always update authentication UI state
+    const isAuthenticated = auth.isAuthenticated();
+    setAuthenticationState(isAuthenticated);
     
-    render(html`<${App} />`, document.getElementById('app'));
+    // Force new component instance with unique key combining page + counter
+    renderCounter++;
+    const uniqueKey = `${currentPage}-${renderCounter}`;
+    render(html`<${App} key=${uniqueKey} />`, document.getElementById('app'));
 }
 
 // Initialize
@@ -66,7 +139,8 @@ async function init() {
     
     // Handle OAuth callback
     if (window.location.search.includes('code=')) {
-        renderApp(); // Show loading
+        setAuthenticationState(false); // Show loading in overlay
+        renderLoginOverlay();
         try {
             await auth.handleCallback();
             logger.info('[App] OAuth callback successful');
@@ -74,6 +148,9 @@ async function init() {
             // Initialize org context after successful login
             await orgContext.initialize();
             logger.info('[App] Org context initialized');
+            
+            // Show authenticated state
+            setAuthenticationState(true);
             
             // Use hash navigation instead of full page redirect
             window.location.hash = '#!/dashboard';
@@ -84,6 +161,7 @@ async function init() {
         } catch (error) {
             logger.error('[App] OAuth callback failed:', error);
             alert('Login failed: ' + error.message);
+            setAuthenticationState(false);
             const basePath = window.location.pathname.includes('/portal/') ? '/portal/' : '/';
             window.location.href = basePath;
         }
@@ -94,6 +172,10 @@ async function init() {
     if (auth.isAuthenticated()) {
         logger.debug('[App] User already authenticated, initializing org context');
         await orgContext.initialize();
+        setAuthenticationState(true);
+    } else {
+        // Show login overlay
+        setAuthenticationState(false);
     }
     
     // Initialize router
@@ -110,6 +192,21 @@ async function init() {
         }
         renderApp();
     });
+
+    // Wire logout link
+    const logoutLink = document.getElementById('logout-link');
+    if (logoutLink) {
+        logoutLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            auth.logout();
+        });
+    }
+    
+    // Render org switcher in navbar
+    const orgSwitcherRoot = document.getElementById('org-switcher-root');
+    if (orgSwitcherRoot && auth.isAuthenticated()) {
+        render(html`<${SearchableOrgSwitcher} />`, orgSwitcherRoot);
+    }
     
     logger.info('[App] Ready');
 }

@@ -1,18 +1,19 @@
 /**
  * Login Page - Preact + HTM with Tabler
+ * Uses Tabler's page-center pattern for full-page login
  */
 
 import { auth } from '../auth.js';
 
 export function LoginPage() {
-    const { html, Component } = window;
+    const { html } = window;
     
     return html`
         <div class="page page-center">
             <div class="container container-tight py-4">
                 <div class="text-center mb-4">
                     <a href="." class="navbar-brand navbar-brand-autodark">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-primary" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+                        <img src="../assets/green_shield_64.ico" alt="MagenSec" height="48" />
                     </a>
                 </div>
                 <div class="card card-md">
@@ -33,16 +34,16 @@ export function LoginPage() {
                             Sign in with Google
                         </button>
                         
-                        <div class="hr-text my-4">or</div>
-                        
-                        <div class="text-center text-muted">
-                            <small>Authorized access for MagenSec users only</small>
+                        <div class="text-center text-muted mt-3">
+                            <small>
+                                By signing in, you agree to our
+                                <a href="../terms.html" class="text-reset text-decoration-underline">Terms of Service</a>
+                                and <a href="../terms.html" class="text-reset text-decoration-underline">Privacy Policy</a>
+                            </small>
                         </div>
                     </div>
                 </div>
-                <div class="text-center text-muted mt-3">
-                    <small>By signing in, you agree to our Terms of Service and Privacy Policy</small>
-                </div>
+                
             </div>
         </div>
     `;
