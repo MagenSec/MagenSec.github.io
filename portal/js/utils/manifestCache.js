@@ -3,7 +3,7 @@
  * Fetches and caches version/installer information from remote manifest
  */
 
-import { logger } from '../config.js';
+import { logger, config } from '../config.js';
 
 const MANIFEST_URL = 'https://magensec.short.gy/Update';
 const CACHE_KEY = 'magensec_manifest_cache';
@@ -141,6 +141,12 @@ export function clearManifestCache() {
  * @returns {Promise<Object>} Installer configuration
  */
 export async function getInstallerConfig(forceRefresh = false) {
+    // Skip network fetch in local development (CORS issues with short.gy redirects)
+    if (config.IS_LOCAL) {
+        logger.debug('[ManifestCache] Running locally, skipping manifest fetch');
+        return null; // Caller will use config.INSTALLERS as fallback
+    }
+    
     // Check cache first (unless force refresh)
     if (!forceRefresh) {
         const cached = getCachedManifest();
@@ -154,12 +160,12 @@ export async function getInstallerConfig(forceRefresh = false) {
     // Fetch fresh manifest
     try {
         const manifestData = await fetchManifest();
-        const config = parseManifestToInstallerConfig(manifestData);
+        const installerConfig = parseManifestToInstallerConfig(manifestData);
         
         // Cache the result
-        setCachedManifest(config);
+        setCachedManifest(installerConfig);
         
-        return config;
+        return installerConfig;
     } catch (error) {
         logger.error('[ManifestCache] Failed to fetch manifest, using fallback config');
         
