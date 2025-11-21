@@ -29,26 +29,49 @@ if (debugParam === 'true') {
 }
 const DEBUG_ENABLED = localStorage.getItem('debug') === 'true';
 
+// Check if we're in production
+const IS_PRODUCTION_ENV = window.location.hostname === 'magensec.gigabits.co.in';
+
 // Debug logger utility
+// Note: In production, logging is disabled UNLESS debug flag is explicitly set
+// Set debug mode: Add ?debug=true to URL or set localStorage.debug='true'
 export const logger = {
     debug: (...args) => {
+        // Only show debug logs when explicitly enabled
         if (DEBUG_ENABLED) {
             console.log(...args);
         }
     },
     info: (...args) => {
-        console.log(...args); // Always log important info
+        // Show info logs in dev OR when debug enabled in production
+        if (!IS_PRODUCTION_ENV || DEBUG_ENABLED) {
+            console.log(...args);
+        }
     },
     warn: (...args) => {
-        console.warn(...args); // Always log warnings
+        // Show warnings in dev OR when debug enabled in production
+        if (!IS_PRODUCTION_ENV || DEBUG_ENABLED) {
+            console.warn(...args);
+        }
     },
     error: (...args) => {
-        console.error(...args); // Always log errors
+        // Always show errors, but with different detail levels
+        if (!IS_PRODUCTION_ENV || DEBUG_ENABLED) {
+            // Full error details in dev or when debug enabled
+            console.error(...args);
+        } else {
+            // Sanitized error in production without debug
+            console.error('[Error] An error occurred. Enable debug mode for details.');
+            // TODO: Send detailed error to monitoring service (Sentry, Application Insights, etc.)
+        }
     }
 };
 
 // Resolved API base URL (updated by buildDeployContainer.ps1)
 const RESOLVED_API_BASE = 'https://ms-central-api.proudsand-cb69619a.eastus.azurecontainerapps.io';
+
+// Import constants (will be available after module loading)
+// Note: Can't use import here due to load order, constants defined inline below
 
 export const config = {
     // API Configuration
@@ -60,7 +83,7 @@ export const config = {
     PORTAL_NAME: 'MagenSec Portal',
     PORTAL_VERSION: '2.0.0',
     
-    // Storage keys
+    // Storage keys (also defined in constants.js for reference)
     STORAGE_KEY: 'magensec_session',
     
     // Environment detection

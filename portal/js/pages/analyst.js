@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { orgContext } from '../orgContext.js';
 import { ChartRenderer } from '../components/ChartRenderer.js';
 import { PromptSuggestions } from '../components/PromptSuggestions.js';
+import { CONSTANTS } from '../utils/constants.js';
 
 const { html, Component } = window;
 
@@ -30,7 +31,7 @@ export class AnalystPage extends Component {
         this.orgUnsubscribe = null;
         this.pollInterval = null;
         this.pollAttempts = 0;
-        this.maxPollAttempts = 24; // 2 minutes (5s × 24)
+        this.maxPollAttempts = CONSTANTS.MAX_POLL_ATTEMPTS;
     }
 
     componentDidMount() {
@@ -86,8 +87,21 @@ export class AnalystPage extends Component {
         event.preventDefault();
         const { prompt, forceRecompute, selectedOrgId } = this.state;
 
-        if (!prompt.trim()) {
+        // Validate prompt
+        const sanitizedPrompt = prompt.trim();
+        if (!sanitizedPrompt) {
             this.setState({ error: 'Prompt is required.' });
+            return;
+        }
+
+        if (sanitizedPrompt.length > CONSTANTS.MAX_PROMPT_LENGTH) {
+            this.setState({ error: `Prompt is too long (maximum ${CONSTANTS.MAX_PROMPT_LENGTH} characters).` });
+            return;
+        }
+
+        // Validate orgId
+        if (!selectedOrgId) {
+            this.setState({ error: 'Please select an organization.' });
             return;
         }
 
@@ -103,27 +117,41 @@ export class AnalystPage extends Component {
             const response = await api.post('/api/analyst/run', payload);
             
             // Normalized response: report, reportId, success, message (all lowercase)
-            if (response.report) {
+            if (response.report || response.Report) {
                 // Inline completion (HTTP 200)
-                this.setState({ result: response, loading: false, reportId: response.reportId });
-            } else if (response.reportId) {
+                const report = response.report || response.Report;
+                const reportId = response.reportId || response.ReportId;
+                
+                // Check for graph execution errors in the report
+                if (report.ExecutiveSummary?.includes('Graph executed with no Generator node')) {
+                    throw new Error('The AI analysis could not be completed. This may happen if the query is too complex or requires data that is not available. Please try rephrasing your question or use one of the suggested prompts.');
+                }
+                
+                this.setState({ result: response, loading: false, reportId });
+            } else if (response.reportId || response.ReportId) {
                 // Job queued, poll for completion (HTTP 202)
-                this.setState({ reportId: response.reportId, loading: false, polling: true });
-                this.startPolling(response.reportId);
-            } else if (response.success === false) {
+                const reportId = response.reportId || response.ReportId;
+                this.setState({ reportId, loading: false, polling: true });
+                this.startPolling(reportId);
+            } else if (response.success === false || response.Success === false) {
                 // Explicit error from backend
-                throw new Error(response.message || response.error || 'Request failed');
+                throw new Error(response.message || response.Message || response.error || response.Error || 'Request failed');
             } else {
                 throw new Error('Unexpected response format');
             }
         } catch (err) {
-            this.setState({ loading: false, polling: false, error: err?.message || 'Failed to call analyst.' });
+            let errorMsg = err?.message || 'Failed to call analyst.';
+            // Make graph execution errors more user-friendly
+            if (errorMsg.includes('Graph executed with no Generator node')) {
+                errorMsg = 'The AI analysis could not generate a report for this query. Please try: \n• Using one of the suggested prompts\n• Rephrasing your question\n• Ensuring you have devices registered in your organization';
+            }
+            this.setState({ loading: false, polling: false, error: errorMsg });
         }
     }
 
     startPolling(reportId) {
         this.pollAttempts = 0;
-        this.pollInterval = setInterval(() => this.pollReport(reportId), 5000);
+        this.pollInterval = setInterval(() => this.pollReport(reportId), CONSTANTS.POLL_INTERVAL_MS);
         this.pollReport(reportId);
     }
 
@@ -131,6 +159,18 @@ export class AnalystPage extends Component {
         if (this.pollInterval) {
             clearInterval(this.pollInterval);
             this.pollInterval = null;
+        }
+        if (this.pollTimeout) {
+            clearTimeout(this.pollTimeout);
+            this.pollTimeout = null;
+        }
+    }
+
+    componentWillUnmount() {
+        // Clean up polling resources
+        this.stopPolling();
+        if (this.orgUnsubscribe) {
+            this.orgUnsubscribe();
         }
     }
 
@@ -168,7 +208,10 @@ export class AnalystPage extends Component {
     async submitFeedback(rating) {
         const { prompt, selectedOrgId, reportId } = this.state;
         
-        if (!reportId) return;
+        if (!reportId) {
+            console.warn('[AnalystPage] No report ID for feedback');
+            return;
+        }
 
         if (rating === 'comment') {
             this.setState({ showFeedbackModal: true, feedback: { ...this.state.feedback, rating: null } });
@@ -176,70 +219,76 @@ export class AnalystPage extends Component {
         }
 
         try {
-            // Backend returns 204 No Content on success
-            const response = await fetch(`${config.API_BASE}/api/analyst/feedback`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${auth.getToken()}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    reportId: reportId,
-                    rating: rating,
-                    comment: this.state.feedback.comment || ''
-                })
+            await api.post('/api/analyst/feedback', {
+                ReportId: reportId,
+                Rating: rating,
+                Comment: this.state.feedback.comment || ''
             });
             
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            
             this.setState({ feedback: { rating, comment: this.state.feedback.comment }, showFeedbackModal: false });
+            console.log('[AnalystPage] Feedback submitted:', rating);
         } catch (err) {
             console.error('[AnalystPage] Feedback failed:', err);
+            // Don't show error to user for feedback failures
         }
     }
 
     async submitFeedbackComment() {
         const { feedback, reportId } = this.state;
         
+        if (!reportId || !feedback.comment?.trim()) {
+            this.setState({ showFeedbackModal: false });
+            return;
+        }
+        
         try {
             await api.post('/api/analyst/feedback', {
-                reportId: reportId,
-                rating: 'Unknown',
-                comment: feedback.comment
+                ReportId: reportId,
+                Rating: 'Neutral',
+                Comment: feedback.comment.trim()
             });
-            this.setState({ showFeedbackModal: false });
+            this.setState({ showFeedbackModal: false, feedback: { rating: null, comment: '' } });
+            console.log('[AnalystPage] Feedback comment submitted');
         } catch (err) {
             console.error('[AnalystPage] Comment failed:', err);
         }
     }
 
     renderMarkdown(text) {
+        // Handle non-string inputs (objects, arrays, etc.)
         if (!text) return '';
-        
-        try {
-            // Use marked.js + DOMPurify if available (preferred)
-            if (window.marked && window.DOMPurify) {
-                const rawHtml = window.marked.parse(text);
-                const cleanHtml = window.DOMPurify.sanitize(rawHtml);
-                return { __html: cleanHtml };
+        if (typeof text === 'object') {
+            // If it's an object, try to stringify it or extract meaningful content
+            if (text.text || text.content) {
+                text = text.text || text.content;
+            } else {
+                console.warn('[AnalystPage] ExecutiveSummary is object:', text);
+                return JSON.stringify(text, null, 2);
             }
-        } catch (err) {
-            console.warn('[AnalystPage] Markdown parsing failed:', err);
         }
         
-        // Fallback: simple rendering
-        let html = text
-            .replace(/### (.*?)$/gm, '<h5>$1</h5>')
-            .replace(/## (.*?)$/gm, '<h4>$1</h4>')
-            .replace(/# (.*?)$/gm, '<h3>$1</h3>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/`(.*?)`/g, '<code>$1</code>')
-            .replace(/\n/g, '<br/>');
+        if (typeof text !== 'string') {
+            return String(text);
+        }
         
-        return { __html: html };
+        // ALWAYS require DOMPurify - don't use fallback
+        if (!window.marked || !window.DOMPurify) {
+            logger.error('[AnalystPage] DOMPurify or marked.js not loaded - cannot render markdown safely');
+            return '';
+        }
+        
+        try {
+            const rawHtml = window.marked.parse(text);
+            const cleanHtml = window.DOMPurify.sanitize(rawHtml, {
+                ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'a', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                ALLOWED_ATTR: ['href', 'title', 'class'],
+                ALLOW_DATA_ATTR: false
+            });
+            return cleanHtml;
+        } catch (err) {
+            logger.error('[AnalystPage] Markdown parsing failed:', err);
+            return '';
+        }
     }
 
     renderFeedbackModal() {
@@ -277,14 +326,15 @@ export class AnalystPage extends Component {
         if (!report) return null;
 
         const { feedback } = this.state;
-        const summary = report.RiskSummary || {};
-        const topFactors = Array.isArray(summary.TopRiskFactors) ? summary.TopRiskFactors.slice(0, 3) : [];
-        const recommendations = Array.isArray(report.Recommendations) ? report.Recommendations.slice(0, 4) : [];
-        const devices = Array.isArray(report.DevicesAtRisk) ? report.DevicesAtRisk.slice(0, 5) : [];
+        const summary = report.RiskSummary || report.Summary || {};
+        const topFactors = Array.isArray(summary.TopRiskFactors) ? summary.TopRiskFactors.slice(0, CONSTANTS.MAX_TOP_RISK_FACTORS) : [];
+        const recommendations = Array.isArray(report.Recommendations) ? report.Recommendations.slice(0, CONSTANTS.MAX_RECOMMENDATIONS) : [];
+        const devices = Array.isArray(report.DevicesAtRisk) ? report.DevicesAtRisk.slice(0, CONSTANTS.MAX_DEVICES_AT_RISK) : [];
+        const analysisText = report.Analysis || report.AnalysisText || report.DetailedAnalysis || '';
 
         return html`<div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h3 class="card-title">${label || 'Security Report'}</h3>
+                <h3 class="card-title">${label || 'Analysis Results'}</h3>
                 <div class="btn-group" role="group">
                     <button type="button" class="btn btn-sm ${feedback.rating === 'ThumbsUp' ? 'btn-success' : 'btn-outline-success'}" 
                         onClick=${() => this.submitFeedback('ThumbsUp')} title="Helpful">👍</button>
@@ -295,9 +345,19 @@ export class AnalystPage extends Component {
                 </div>
             </div>
             <div class="card-body">
-                ${report.ExecutiveSummary && html`<div class="alert alert-info mb-4">
-                    <h4 class="alert-heading">Executive Summary</h4>
-                    <div dangerouslySetInnerHTML=${this.renderMarkdown(report.ExecutiveSummary)}></div>
+                ${report.ExecutiveSummary && html`<div class="mb-4">
+                    <h4>Executive Summary</h4>
+                    <div class="markdown" dangerouslySetInnerHTML=${{ __html: this.renderMarkdown(report.ExecutiveSummary) }}></div>
+                </div>`}
+                
+                ${analysisText && html`<div class="mb-4">
+                    <h4>Detailed Analysis</h4>
+                    <div class="markdown" dangerouslySetInnerHTML=${{ __html: this.renderMarkdown(analysisText) }}></div>
+                </div>`}
+                
+                ${report.KeyFindings && html`<div class="mb-4">
+                    <h4>Key Findings</h4>
+                    <div class="markdown" dangerouslySetInnerHTML=${{ __html: this.renderMarkdown(report.KeyFindings) }}></div>
                 </div>`}
 
                 ${report.Charts && report.Charts.length > 0 && html`<div>
@@ -317,34 +377,78 @@ export class AnalystPage extends Component {
                 </div>`}
 
                 ${recommendations.length > 0 && html`<div>
-                    <h4 class="mb-3 mt-4">Recommendations</h4>
+                    <h4 class="mb-3 mt-4">Action Items</h4>
                     <div class="list-group list-group-flush">
-                        ${recommendations.map((rec, idx) => html`<div key=${idx} class="list-group-item">
-                            <div class="d-flex align-items-center">
-                                <span class="badge bg-primary me-3">${idx + 1}</span>
-                                <div class="flex-fill">
-                                    <div>${typeof rec === 'string' ? rec : rec.action || rec}</div>
+                        ${recommendations.map((rec, idx) => {
+                            const isString = typeof rec === 'string';
+                            const action = isString ? rec : (rec.Action || rec.action || rec.Title || rec.title || rec.Recommendation);
+                            const details = isString ? '' : (rec.Details || rec.details || rec.Description || rec.description || '');
+                            const priority = isString ? '' : (rec.Priority || rec.priority || '');
+                            const affectedItems = isString ? [] : (rec.AffectedDevices || rec.affectedDevices || rec.Vulnerabilities || rec.vulnerabilities || []);
+                            
+                            return html`<div key=${idx} class="list-group-item">
+                                <div class="row align-items-start">
+                                    <div class="col-auto">
+                                        <span class="badge bg-primary">${idx + 1}</span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="d-flex justify-content-between">
+                                            <div class="flex-fill">
+                                                <strong>${action || `Action ${idx + 1}`}</strong>
+                                                ${details && html`<div class="text-secondary small mt-1">${details}</div>`}
+                                                ${Array.isArray(affectedItems) && affectedItems.length > 0 && html`
+                                                    <div class="mt-2">
+                                                        <small class="text-muted">Affected items:</small>
+                                                        <ul class="small mb-0 mt-1">
+                                                            ${affectedItems.slice(0, 10).map(item => html`
+                                                                <li key=${item}><code>${typeof item === 'string' ? item : item.CVE || item.Id || JSON.stringify(item)}</code></li>
+                                                            `)}
+                                                            ${affectedItems.length > 10 && html`<li class="text-muted">...and ${affectedItems.length - 10} more</li>`}
+                                                        </ul>
+                                                    </div>
+                                                `}
+                                            </div>
+                                            ${priority && html`
+                                                <span class="badge bg-${priority === 'Critical' || priority === 'High' ? 'danger' : priority === 'Medium' ? 'warning' : 'info'} ms-2">
+                                                    ${priority}
+                                                </span>
+                                            `}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>`)}
+                            </div>`;
+                        })}
                     </div>
                 </div>`}
 
                 ${devices.length > 0 && html`<div>
                     <h4 class="mb-3 mt-4">Devices at Risk</h4>
                     <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead><tr><th>Device</th><th>Risk Level</th><th>Issues</th></tr></thead>
+                        <table class="table table-sm table-hover">
+                            <thead><tr><th>Device</th><th>Risk Score</th><th>Critical</th><th>High</th><th>Medium</th></tr></thead>
                             <tbody>
-                                ${devices.map((dev, idx) => html`<tr key=${idx}>
-                                    <td><code>${dev.DeviceId || dev}</code></td>
-                                    <td>
-                                        <span class="badge ${dev.RiskScore >= 80 ? 'bg-danger' : dev.RiskScore >= 50 ? 'bg-warning' : 'bg-info'}">
-                                            ${dev.RiskScore ? dev.RiskScore.toFixed(1) : 'Unknown'}
-                                        </span>
-                                    </td>
-                                    <td>${dev.CriticalCount + dev.HighCount || '-'}</td>
-                                </tr>`)}
+                                ${devices.map((dev, idx) => {
+                                    const deviceName = dev.Name || dev.Hostname || dev.DeviceName || '';
+                                    const deviceId = dev.DeviceId || dev.Id || dev;
+                                    const isStringDevice = typeof dev === 'string';
+                                    
+                                    return html`<tr key=${idx}>
+                                        <td>
+                                            ${deviceName && html`<div><strong>${deviceName}</strong></div>`}
+                                            <code class="small text-muted">${isStringDevice ? dev : deviceId}</code>
+                                        </td>
+                                        <td>
+                                            ${!isStringDevice && dev.RiskScore !== undefined ? html`
+                                                <span class="badge ${dev.RiskScore >= 80 ? 'bg-danger' : dev.RiskScore >= 50 ? 'bg-warning' : 'bg-info'}">
+                                                    ${dev.RiskScore.toFixed(1)}
+                                                </span>
+                                            ` : html`<span class="text-muted">-</span>`}
+                                        </td>
+                                        <td>${!isStringDevice && dev.CriticalCount !== undefined ? html`<span class="badge bg-danger">${dev.CriticalCount}</span>` : '-'}</td>
+                                        <td>${!isStringDevice && dev.HighCount !== undefined ? html`<span class="badge bg-warning">${dev.HighCount}</span>` : '-'}</td>
+                                        <td>${!isStringDevice && dev.MediumCount !== undefined ? html`<span class="badge bg-info">${dev.MediumCount}</span>` : '-'}</td>
+                                    </tr>`;
+                                })}
                             </tbody>
                         </table>
                     </div>

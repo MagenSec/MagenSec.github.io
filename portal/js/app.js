@@ -105,6 +105,22 @@ function setAuthenticationState(isAuthenticated) {
                 }
             }
         } catch {}
+        
+        // Initialize Bootstrap dropdowns (needed for dynamic content)
+        setTimeout(() => {
+            if (typeof bootstrap !== 'undefined') {
+                const dropdowns = document.querySelectorAll('[data-bs-toggle="dropdown"]');
+                logger.info(`[App] Initializing ${dropdowns.length} Bootstrap dropdowns`);
+                dropdowns.forEach(el => {
+                    if (!bootstrap.Dropdown.getInstance(el)) {
+                        new bootstrap.Dropdown(el);
+                        logger.debug(`[App] Initialized dropdown:`, el);
+                    }
+                });
+            } else {
+                logger.error('[App] Bootstrap not loaded - dropdowns will not work!');
+            }
+        }, 100);
     } else {
         // Show overlay, hide main page
         if (overlay) overlay.classList.add('active');
@@ -126,6 +142,16 @@ function renderApp(state = {}) {
     // Always update authentication UI state
     const isAuthenticated = auth.isAuthenticated();
     setAuthenticationState(isAuthenticated);
+    
+    // Render org switcher in navbar if authenticated
+    const orgSwitcherRoot = document.getElementById('org-switcher-root');
+    if (orgSwitcherRoot) {
+        if (isAuthenticated) {
+            render(html`<${SearchableOrgSwitcher} />`, orgSwitcherRoot);
+        } else {
+            render(null, orgSwitcherRoot);
+        }
+    }
     
     // Force new component instance with unique key combining page + counter
     renderCounter++;
@@ -200,12 +226,6 @@ async function init() {
             e.preventDefault();
             auth.logout();
         });
-    }
-    
-    // Render org switcher in navbar
-    const orgSwitcherRoot = document.getElementById('org-switcher-root');
-    if (orgSwitcherRoot && auth.isAuthenticated()) {
-        render(html`<${SearchableOrgSwitcher} />`, orgSwitcherRoot);
     }
     
     logger.info('[App] Ready');

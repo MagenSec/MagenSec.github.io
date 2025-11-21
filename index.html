@@ -30,8 +30,8 @@
     <meta name="twitter:image" content="https://magensec.gigabits.co.in/assets/GoldShield.webp"/>
     
     <!-- Tabler CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous"/>
     
     <!-- Plyr.io Video Player CSS -->
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
@@ -272,7 +272,7 @@
                                                 </div>
                                             </div>
                                             <div class="plyr__video-embed" id="intro-video-player">
-                                                <iframe src="https://www.youtube.com/embed/hsPRHHv7Xyg?origin=https://magensec.gigabits.co.in&amp;iv_load_policy=3&amp;modestbranding=1&amp;playsinline=1&amp;showinfo=0&amp;rel=0&amp;enablejsapi=1&amp;disablekb=1&amp;fs=1&amp;hl=en" allowfullscreen allowtransparency title="How Cyber Attacks Work - MagenSec Prevention Demo" sandbox="allow-scripts allow-same-origin allow-presentation" loading="lazy"></iframe>
+                                                <iframe src="" data-video-id="hsPRHHv7Xyg" allowfullscreen allowtransparency title="How Cyber Attacks Work - MagenSec Prevention Demo" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" loading="lazy"></iframe>
                                             </div>
                                         </div>
                                     </div>
@@ -1195,6 +1195,14 @@
                 
                 if (playerElement && !players[videoId]) {
                     try {
+                        // Set dynamic iframe src with correct origin for localhost/production
+                        const iframe = playerElement.querySelector('iframe[data-video-id]');
+                        if (iframe && !iframe.src) {
+                            const videoIdFromData = iframe.getAttribute('data-video-id');
+                            const origin = window.location.origin;
+                            iframe.src = `https://www.youtube.com/embed/${videoIdFromData}?origin=${encodeURIComponent(origin)}&iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1&disablekb=1&fs=1&hl=en`;
+                        }
+                        
                         players[videoId] = new Plyr(playerElement, {
                             controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
                             youtube: {
@@ -1454,8 +1462,13 @@
         // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
+                const href = this.getAttribute('href');
+                // Skip empty or invalid hashes
+                if (!href || href === '#' || href.length <= 1) {
+                    return;
+                }
                 e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
+                const target = document.querySelector(href);
                 if (target) {
                     target.scrollIntoView({
                         behavior: 'smooth',

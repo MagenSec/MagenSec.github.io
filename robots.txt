@@ -1,6 +1,6 @@
 User-agent: *
 Disallow: /diag/
-Disallow: /backup-original/
+Disallow: /portal/
 
 # Sitemap
 Sitemap: https://magensec.gigabits.co.in/sitemap.xml

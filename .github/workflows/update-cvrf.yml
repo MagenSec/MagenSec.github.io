@@ -14,7 +14,7 @@ on:
         description: 'Force full refresh (ignore cache)'
         required: false
         default: 'false'
-        type: boolean
+        type: string
 
 permissions:
   contents: write
@@ -34,7 +34,7 @@ jobs:
             MAX_UPDATES=1000
           fi
           FORCE_REFRESH_FLAG=""
-          if [ "${{ github.event.inputs.force_refresh }}" = "true" ]; then
+          if [ "${{ github.event.inputs.force_refresh }}" = "true" ] || [ "${{ github.event.inputs.force_refresh }}" = "True" ]; then
             FORCE_REFRESH_FLAG="-ForceRefresh"
           fi
           pwsh -NoProfile -NonInteractive diag/cvrf-parser.ps1 \
@@ -57,30 +57,49 @@ jobs:
 
       - name: Commit and push updates
         if: ${{ steps.git_status.outputs.has_changes == 'true' }}
+        timeout-minutes: 5
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Update CVRF data (${{ github.event_name }}) #${{ github.run_number }}"
           
-          # Try to push, pull and retry if rejected
+          # Try to push with force-with-lease, pull and retry if rejected
           MAX_RETRIES=3
           RETRY_COUNT=0
           
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if git push; then
+            # Use --force-with-lease for safer force push (only if no one else pushed)
+            if git push --force-with-lease origin main; then
               echo "✅ Successfully pushed changes"
               exit 0
             else
               echo "⚠️ Push rejected, pulling latest changes (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
-              git pull --rebase origin main
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              sleep 2
+              
+              # Fetch and rebase with timeout
+              if timeout 30s git pull --rebase origin main; then
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                sleep 2
+              else
+                echo "❌ Failed to pull/rebase - possible conflict or timeout"
+                git rebase --abort 2>/dev/null || true
+                exit 1
+              fi
             fi
           done
           
           echo "❌ Failed to push after $MAX_RETRIES attempts"
           exit 1
 
+      - name: Notify on success
+        if: ${{ success() && steps.git_status.outputs.has_changes == 'true' }}
+        run: |
+          echo "✅ CVRF data successfully updated and pushed!"
+          echo "📊 Workflow run: ${{ github.run_number }}"
+          echo "🔗 Commit: https://github.com/${{ github.repository }}/commit/$(git rev-parse HEAD)"
+      
       - name: Notify on failure
         if: ${{ failure() }}
-        run: echo "❌ CVRF update workflow failed!"
+        run: |
+          echo "❌ CVRF update workflow failed!"
+          echo "📊 Workflow run: ${{ github.run_number }}"
+          echo "🔗 View logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

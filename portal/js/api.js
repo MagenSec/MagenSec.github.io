@@ -4,7 +4,7 @@
  */
 
 import { auth } from './auth.js';
-import { config } from './config.js';
+import { config, logger } from './config.js';
 
 /**
  * Normalize API response to handle both camelCase and PascalCase
@@ -78,6 +78,30 @@ function normalizeResponse(obj) {
 }
 
 export class ApiClient {
+    constructor() {
+        this.cache = new Map();
+        this.cacheTimeout = 60000; // 1 minute default
+    }
+
+    getCsrfToken() {
+        // Try to get CSRF token from meta tag first
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+            return metaTag.getAttribute('content');
+        }
+        
+        // Fallback: get from cookie
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'XSRF-TOKEN' || name === 'csrf_token') {
+                return decodeURIComponent(value);
+            }
+        }
+        
+        return null;
+    }
+
     async request(endpoint, options = {}) {
         const url = `${config.API_BASE}${endpoint}`;
         const headers = {
@@ -89,6 +113,15 @@ export class ApiClient {
         const token = auth.getToken();
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Add CSRF token for state-changing requests
+        const method = options.method || 'GET';
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase())) {
+            const csrfToken = this.getCsrfToken();
+            if (csrfToken) {
+                headers['X-CSRF-Token'] = csrfToken;
+            }
         }
 
         try {
@@ -110,19 +143,50 @@ export class ApiClient {
             // Normalize response to handle both camelCase and PascalCase
             return normalizeResponse(data);
         } catch (error) {
-            console.error(`[API] ${endpoint} failed:`, error);
+            // Log full error details (respects logger production settings)
+            logger.error(`[API] ${endpoint} failed:`, error);
+            
+            // For network errors, throw user-friendly message (preserve original in debug)
+            if (error instanceof TypeError && error.message.includes('fetch')) {
+                const userError = new Error('Network error. Please check your connection.');
+                userError.originalError = error;
+                userError.status = 0;
+                throw userError;
+            }
+            
             throw error;
         }
     }
 
-    // Generic GET request
-    async get(endpoint, params = null) {
+    // Generic GET request with caching
+    async get(endpoint, params = null, options = {}) {
         let url = endpoint;
         if (params) {
             const queryString = new URLSearchParams(params).toString();
             url = `${endpoint}?${queryString}`;
         }
-        return this.request(url, { method: 'GET' });
+
+        // Check cache unless explicitly bypassed
+        const cacheKey = url;
+        if (!options.skipCache) {
+            const cached = this.cache.get(cacheKey);
+            if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+                logger.debug(`[API] Cache hit: ${url}`);
+                return cached.data;
+            }
+        }
+
+        const data = await this.request(url, { method: 'GET' });
+        
+        // Store in cache
+        this.cache.set(cacheKey, { data, timestamp: Date.now() });
+        
+        return data;
+    }
+
+    // Clear cache
+    clearCache() {
+        this.cache.clear();
     }
 
     // Generic POST request

@@ -449,10 +449,22 @@ export class SecurityDashboardPage extends Component {
 
     renderMarkdown(text) {
         if (!text) return '';
-        if (typeof window.marked === 'undefined' || typeof window.DOMPurify === 'undefined') {
-            return text; // Fallback to plain text
+        
+        if (!window.marked || !window.DOMPurify) {
+            logger.error('[SecurityDashboard] DOMPurify or marked.js not loaded - cannot render markdown safely');
+            return ''; // Return empty instead of unsafe fallback
         }
-        const rawHtml = window.marked.parse(text);
-        return window.DOMPurify.sanitize(rawHtml);
+        
+        try {
+            const rawHtml = window.marked.parse(text);
+            return window.DOMPurify.sanitize(rawHtml, {
+                ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'a', 'blockquote'],
+                ALLOWED_ATTR: ['href', 'title'],
+                ALLOW_DATA_ATTR: false
+            });
+        } catch (err) {
+            logger.error('[SecurityDashboard] Markdown parsing failed:', err);
+            return '';
+        }
     }
 }

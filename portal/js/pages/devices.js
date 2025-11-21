@@ -141,17 +141,26 @@ export class DevicesPage extends window.Component {
             const response = await api.getDevices(currentOrg.orgId);
             
             // Transform API response to expected format
-            const devices = (response.data?.devices || []).map(device => ({
-                id: device.deviceId,
-                name: device.deviceName || device.deviceId,
-                state: device.state || 'Unknown',
-                lastHeartbeat: device.lastHeartbeat,
-                firstHeartbeat: device.firstHeartbeat,
-                clientVersion: device.clientVersion,
-                licenseKey: device.licenseKey,
-                // Calculate inactiveMinutes client-side
-                inactiveMinutes: device.lastHeartbeat ? Math.floor((Date.now() - new Date(device.lastHeartbeat).getTime()) / 60000) : null
-            }));
+            const devices = (response.data?.devices || []).map(device => {
+                // Mask license key - only show last 8 characters
+                let maskedKey = null;
+                if (device.licenseKey) {
+                    const key = device.licenseKey;
+                    maskedKey = key.length > 8 ? `****-****-${key.slice(-8)}` : key;
+                }
+                
+                return {
+                    id: device.deviceId,
+                    name: device.deviceName || device.deviceId,
+                    state: device.state || 'Unknown',
+                    lastHeartbeat: device.lastHeartbeat,
+                    firstHeartbeat: device.firstHeartbeat,
+                    clientVersion: device.clientVersion,
+                    licenseKey: maskedKey,
+                    // Calculate inactiveMinutes client-side
+                    inactiveMinutes: device.lastHeartbeat ? Math.floor((Date.now() - new Date(device.lastHeartbeat).getTime()) / 60000) : null
+                };
+            });
             
             this.setState({ devices, loading: false });
         } catch (error) {
@@ -206,18 +215,18 @@ export class DevicesPage extends window.Component {
     }
 
     isDeviceInactive(device) {
-        // No heartbeat = inactive
-        if (!device.lastHeartbeat && device.state?.toLowerCase() !== 'deleted') {
+        // No heartbeat = offline
+        if (!device.lastHeartbeat) {
             return true;
         }
         // Use calculated inactiveMinutes
         if (device.inactiveMinutes !== null && device.inactiveMinutes !== undefined) {
             const state = device.state?.toLowerCase();
-            // Active devices: Expected heartbeat every 5 minutes, flag if >30 minutes inactive
+            // Active devices: Expected heartbeat every 5 minutes, flag as offline if >30 minutes
             if (state === 'active' && device.inactiveMinutes > 30) {
                 return true;
             }
-            // Disabled devices: Expected heartbeat every 60 minutes, flag if >120 minutes inactive
+            // Disabled devices: Expected heartbeat every 60 minutes, flag as offline if >120 minutes
             if (state === 'disabled' && device.inactiveMinutes > 120) {
                 return true;
             }
@@ -393,8 +402,8 @@ export class DevicesPage extends window.Component {
                                             <thead>
                                                 <tr>
                                                     <th>Device</th>
-                                                    <th>Status</th>
-                                                    <th>Last Seen</th>
+                                                    <th>License Status</th>
+                                                    <th>Connection Status</th>
                                                     <th class="w-1"></th>
                                                 </tr>
                                             </thead>
@@ -437,15 +446,10 @@ export class DevicesPage extends window.Component {
                                                                 <div class="text-muted small">First seen: ${this.formatLastSeen(device.firstHeartbeat)}</div>
                                                             ` : ''}
                                                             ${this.isDeviceInactive(device) ? html`
-                                                                <span class="badge bg-danger-lt mt-1">
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                        <path d="M12 9v2m0 4v.01" />
-                                                                        <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
-                                                                    </svg>
-                                                                    Inactive
-                                                                </span>
-                                                            ` : ''}
+                                                                <span class="badge bg-danger-lt mt-1">Offline</span>
+                                                            ` : html`
+                                                                <span class="badge bg-success-lt mt-1">Online</span>
+                                                            `}
                                                         </td>
                                                         <td>
                                                             <div class="dropdown">

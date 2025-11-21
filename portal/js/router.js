@@ -99,7 +99,22 @@ export function initRouter(renderApp) {
     });
 
     // Start router with hash-bang mode
+    // Set base to /portal/ for GitHub Pages, or current directory
+    const basePath = window.location.pathname.endsWith('/portal/') || window.location.pathname.endsWith('/portal') 
+        ? window.location.pathname.replace(/\/portal\/?$/, '/portal/')
+        : '/';
+    
+    page.base(basePath);
     page({ hashbang: true });
     
-    console.log('[Router] Initialized with hash-bang routing');
+    console.log('[Router] Initialized with hash-bang routing, base:', basePath);
+    
+    // Ensure we have a default route if at base
+    if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#!/') {
+        if (auth.isAuthenticated()) {
+            page.redirect('/dashboard');
+        } else {
+            page.redirect('/');
+        }
+    }
 }

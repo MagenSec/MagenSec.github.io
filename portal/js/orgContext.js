@@ -25,10 +25,28 @@ class OrgContext {
      * Initialize org context after login
      */
     async initialize() {
-        if (this.loading) return;
+        // Guard against concurrent initialization
+        if (this.loading) {
+            logger.debug('[OrgContext] Already loading, waiting for existing initialization');
+            // Wait for existing initialization to complete
+            if (this.initPromise) {
+                return this.initPromise;
+            }
+            return;
+        }
         
         try {
             this.loading = true;
+            this.initPromise = this._doInitialize();
+            await this.initPromise;
+        } finally {
+            this.loading = false;
+            this.initPromise = null;
+        }
+    }
+
+    async _doInitialize() {
+        try {
             const user = auth.getUser();
             const session = auth.getSession();
             

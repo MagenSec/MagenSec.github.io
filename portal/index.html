@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
     <title>MagenSec Security Center</title>
     
-    <!-- Tabler CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous">
-    <!-- Tabler Icons Webfont (no SVG sprite to avoid CORS) -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous">
+    <!--#include file=".cdn-includes/head.html" -->
     
-    <!-- External libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/dist/preact.umd.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/page@1.11.6/page.min.js" crossorigin="anonymous"></script>
+    <!-- Fallback CDN resources if SSI not processed (for local dev) -->
+    <!-- These load unconditionally but check avoids double-loading in production -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-GgnF119bh9fxkKuWHRQYSgEe1rSp5jB0EJ2W8eMf8mjowfwhZP2H1u8n8xJUW3FQ">
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-PwEnNZvp50/uDLtKrd1s2D4Xe/y+fCVtEigigjik/PgHlDXUF1uJ32m7guk/XWYV">
+    <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/dist/preact.umd.js" crossorigin="anonymous" integrity="sha384-U4OMVsjjX51xPGffCeL/sA3lRY9728Yr9c2GrxjjKXCqLDmTU3YTMoEo7S3w0zV0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js" crossorigin="anonymous" integrity="sha384-toVdrLSMaw7Y55MowcKqkmFL/Ek6Sky62NOk0b5sDDZBu2wcoPyyQUt9unDVjXhL"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0" crossorigin="anonymous" integrity="sha384-AMGf6SjYWuydruLCEKIx7wNrplae/LWMqStBYe5zhISiQeyuogc8OLM2QzJIreuY"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous" integrity="sha384-vdScihEZCfbPnBQf+lc7LgXUdJVYyhC3yWHUW5C5P5GpHRqVnaM6HJELJxT6IqwM"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js" crossorigin="anonymous" integrity="sha384-odPBjvtXVM/5hOYIr3A1dB+flh0c3wAT3bSesIOqEGmyUA4JoKf/YTWy0XKOYAY7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/page@1.11.6/page.min.js" crossorigin="anonymous" integrity="sha384-I21flNc4c7wK3Q4Zxf/hz43oz5U8ks1jEK2NdsOPELdxzIs9XHBgvBulNBRklYVf"></script>
     
     <style>
         /* Markdown content styling */
@@ -86,13 +87,13 @@
                     </a>
                 </h1>
                 <!-- Center: Org Switcher -->
-                <div class="navbar-nav flex-fill justify-content-center">
+                <div class="navbar-nav flex-fill justify-content-center d-flex align-items-center">
                     <div id="org-switcher-root"></div>
                 </div>
                 <!-- Right: User Menu -->
                 <div class="navbar-nav flex-row order-md-last">
                     <div class="nav-item dropdown">
-                        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
+                        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-expanded="false" role="button">
                             <span class="avatar avatar-sm" id="user-avatar">
                                 <img id="user-avatar-img" alt="User" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:50%;" />
                                 <span id="user-avatar-fallback" class="avatar-initials" style="display:none;"></span>
@@ -157,7 +158,7 @@
                                 </a>
                             </li>
                             <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#navbar-extra" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12.01" y2="8" /><polyline points="11 12 12 12 12 16 13 16" /></svg>
                                     </span>
@@ -189,17 +190,56 @@
         </div>
     </div>
     
-    <!-- Tabler Core -->
-    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js" crossorigin="anonymous"></script>
+    <!--#include file=".cdn-includes/footer.html" -->
+    
+    <!-- Fallback for Bootstrap and Tabler JS if SSI not processed (for local dev) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js" crossorigin="anonymous" integrity="sha384-skr6f2xmgHOAc9USAHvYxA0lNy9tzSr5JIkdr9ytaCy2C/ofOu+OWd+d/hsnEJFN"></script>
+    <script>
+        // Verify Bootstrap loaded
+        console.log('[Portal] Bootstrap available:', typeof bootstrap !== 'undefined');
+        console.log('[Portal] Tabler available:', typeof tabler !== 'undefined');
+        
+        // Initialize dropdowns on DOM ready
+        if (typeof bootstrap !== 'undefined') {
+            document.addEventListener('DOMContentLoaded', function() {
+                const dropdowns = document.querySelectorAll('[data-bs-toggle="dropdown"]');
+                console.log('[Portal] Initialized', dropdowns.length, 'dropdown(s)');
+                dropdowns.forEach(function(el) {
+                    const dropdown = new bootstrap.Dropdown(el);
+                    // Manually handle clicks since Bootstrap's data-api isn't working
+                    el.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropdown.toggle();
+                    });
+                });
+            });
+        }
+    </script>
     
     <!-- Initialize HTM -->
     <script>
-        // Initialize Preact and HTM globals
-        window.html = window.htm.bind(window.preact.h);
-        window.render = window.preact.render;
-        window.Component = window.preact.Component;
-        window.h = window.preact.h;
-        window.createRef = window.preact.createRef;
+        // Wait for libraries to load before initializing
+        function initializeGlobals() {
+            if (!window.preact || !window.htm) {
+                console.error('[Portal] Preact or HTM not loaded yet');
+                return false;
+            }
+            
+            // Initialize Preact and HTM globals
+            window.html = window.htm.bind(window.preact.h);
+            window.render = window.preact.render;
+            window.Component = window.preact.Component;
+            window.h = window.preact.h;
+            window.createRef = window.preact.createRef;
+            return true;
+        }
+        
+        // Try to initialize immediately, or wait for load event
+        if (!initializeGlobals()) {
+            window.addEventListener('load', initializeGlobals);
+        }
     </script>
     
     <!-- Load modules in sequence -->
@@ -217,22 +257,45 @@
         
         async function init() {
             try {
-                await loadModule('./js/config.js');
-                await loadModule('./js/theme.js');
-                await loadModule('./js/auth.js');
-                await loadModule('./js/api.js');
-                await loadModule('./js/orgContext.js');
-                await loadModule('./js/router.js');
-                await loadModule('./js/components/ChartRenderer.js');
-                await loadModule('./js/components/PromptSuggestions.js');
-                await loadModule('./js/components/SearchableOrgSwitcher.js');
-                await loadModule('./js/utils/manifestCache.js');
-                await loadModule('./js/pages/login.js');
-                await loadModule('./js/pages/dashboard-v2.js');
-                await loadModule('./js/pages/devices.js');
-                await loadModule('./js/pages/analyst.js');
-                await loadModule('./js/pages/posture.js');
-                await loadModule('./js/pages/placeholders.js');
+                // Load core modules first
+                await Promise.all([
+                    loadModule('./js/config.js'),
+                    loadModule('./js/theme.js')
+                ]);
+                
+                // Load auth and API layer
+                await Promise.all([
+                    loadModule('./js/auth.js'),
+                    loadModule('./js/api.js')
+                ]);
+                
+                // Load context and routing
+                await Promise.all([
+                    loadModule('./js/orgContext.js'),
+                    loadModule('./js/router.js'),
+                    loadModule('./js/utils/constants.js'),
+                    loadModule('./js/utils/manifestCache.js')
+                ]);
+                
+                // Load components in parallel
+                await Promise.all([
+                    loadModule('./js/components/ChartRenderer.js'),
+                    loadModule('./js/components/PromptSuggestions.js'),
+                    loadModule('./js/components/SearchableOrgSwitcher.js'),
+                    loadModule('./js/components/ErrorBoundary.js')
+                ]);
+                
+                // Load pages in parallel
+                await Promise.all([
+                    loadModule('./js/pages/login.js'),
+                    loadModule('./js/pages/dashboard-v2.js'),
+                    loadModule('./js/pages/devices.js'),
+                    loadModule('./js/pages/analyst.js'),
+                    loadModule('./js/pages/posture.js'),
+                    loadModule('./js/pages/placeholders.js')
+                ]);
+                
+                // Load app last
                 await loadModule('./js/app.js');
                 console.log('[App] All modules loaded successfully');
             } catch (error) {
