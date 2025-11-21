@@ -52,11 +52,9 @@ const RESOLVED_API_BASE = 'https://ms-central-api.proudsand-cb69619a.eastus.azur
 
 export const config = {
     // API Configuration
-    // - Production (GitHub Pages / Custom Domain): Use short.gy for zero-downtime deployments
-    // - Localhost: Use resolved direct URL (CORS works, updated by deploy script)
-    API_BASE: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? RESOLVED_API_BASE
-        : 'https://magensec.short.gy/webapi',
+    // - Use direct Azure Container Apps URL for all environments (CORS compatible)
+    // - Updated by buildDeployContainer.ps1 during deployment
+    API_BASE: RESOLVED_API_BASE,
     
     // Portal settings
     PORTAL_NAME: 'MagenSec Portal',
