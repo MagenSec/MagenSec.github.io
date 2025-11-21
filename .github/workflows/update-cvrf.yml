@@ -61,7 +61,25 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Update CVRF data (${{ github.event_name }}) #${{ github.run_number }}"
-          git push
+          
+          # Try to push, pull and retry if rejected
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if git push; then
+              echo "✅ Successfully pushed changes"
+              exit 0
+            else
+              echo "⚠️ Push rejected, pulling latest changes (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+              git pull --rebase origin main
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              sleep 2
+            fi
+          done
+          
+          echo "❌ Failed to push after $MAX_RETRIES attempts"
+          exit 1
 
       - name: Notify on failure
         if: ${{ failure() }}
