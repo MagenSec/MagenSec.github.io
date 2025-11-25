@@ -79,6 +79,74 @@ export function initRouter(renderApp) {
         page.redirect('/posture');
     });
 
+    // Security routes (protected)
+    page('/security/threat-intel', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'threat-intel', ctx });
+    });
+
+    page('/security/response', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'response-actions', ctx });
+    });
+
+    page('/security/vulnerabilities', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'vulnerabilities', ctx });
+    });
+
+    // Assets routes (protected)
+    page('/assets/software', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'software-inventory', ctx });
+    });
+
+    page('/assets/hardware', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'hardware-inventory', ctx });
+    });
+
+    // Reports routes (protected)
+    page('/reports/compliance', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'compliance-report', ctx });
+    });
+
+    // Advanced routes (protected)
+    page('/alerts', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'alerts', ctx });
+    });
+
+    page('/platform/insights', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'platform-insights', ctx });
+    });
+
     // Other placeholder routes (protected)
     const protectedRoutes = [
         ['inventory', 'inventory'],

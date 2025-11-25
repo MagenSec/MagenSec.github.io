@@ -8,11 +8,14 @@ import { orgContext } from './orgContext.js';
 import { initRouter } from './router.js';
 import { logger } from './config.js';
 import { LoginPage } from './pages/login.js';
-import { DashboardPage } from './pages/dashboard-v2.js';
+import { UnifiedDashboardPage } from './pages/unifiedDashboard.js';
 import { DevicesPage } from './pages/devices.js';
 import { AnalystPage } from './pages/analyst.js';
 import { PosturePage } from './pages/posture.js';
-import { InventoryPage, TrendsPage, OrgsPage, MembersPage, LicensesPage, AccountPage } from './pages/placeholders.js';
+import { ThreatIntelPage } from './pages/threatIntel.js';
+import { ResponseActionsPage } from './pages/responseActions.js';
+import { VulnerabilitiesPage } from './pages/vulnerabilities.js';
+import { InventoryPage, TrendsPage, OrgsPage, MembersPage, LicensesPage, AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, AlertsPage, PlatformInsightsPage } from './pages/placeholders.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
@@ -40,13 +43,29 @@ function App() {
         case 'login':
             return html`<${LoginPage} />`;
         case 'dashboard':
-            return html`<${DashboardPage} />`;
+            return html`<${UnifiedDashboardPage} />`;
         case 'devices':
             return html`<${DevicesPage} />`;
         case 'analyst':
             return html`<${AnalystPage} />`;
         case 'posture':
             return html`<${PosturePage} />`;
+        case 'threat-intel':
+            return html`<${ThreatIntelPage} />`;
+        case 'response-actions':
+            return html`<${ResponseActionsPage} />`;
+        case 'vulnerabilities':
+            return html`<${VulnerabilitiesPage} />`;
+        case 'software-inventory':
+            return html`<${SoftwareInventoryPage} />`;
+        case 'hardware-inventory':
+            return html`<${HardwareInventoryPage} />`;
+        case 'compliance-report':
+            return html`<${ComplianceReportPage} />`;
+        case 'alerts':
+            return html`<${AlertsPage} />`;
+        case 'platform-insights':
+            return html`<${PlatformInsightsPage} />`;
         case 'inventory':
             return html`<${InventoryPage} />`;
         case 'trends':

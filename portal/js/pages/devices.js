@@ -75,9 +75,8 @@ export class DevicesPage extends window.Component {
     }
 
     showToast(message, type = 'info') {
-        // Use Tabler toast (simple alert for now)
-        // TODO: Implement proper Tabler toast notification
-        alert(message);
+        const toastType = type === 'danger' ? 'error' : type;
+        window.toast[toastType](message);
     }
 
     openDownloadModal(arch) {
@@ -112,6 +111,78 @@ export class DevicesPage extends window.Component {
             a.click();
             document.body.removeChild(a);
             this.closeDownloadModal();
+        }
+    }
+
+    async disableDevice(deviceId) {
+        if (!confirm('Disable this device? Heartbeat will change to 60m, no telemetry will be sent.')) return;
+        
+        try {
+            const response = await api.put(`/api/devices/${deviceId}/disable`);
+            
+            if (response.success) {
+                this.loadDevices();
+                this.showToast('Device disabled successfully', 'success');
+            } else {
+                throw new Error(response.message || 'Failed to disable device');
+            }
+        } catch (error) {
+            console.error('[Devices] Disable failed:', error);
+            this.showToast(error.message, 'danger');
+        }
+    }
+
+    async activateDevice(deviceId) {
+        if (!confirm('Activate this device? Heartbeat will change to 5m, telemetry will be enabled.')) return;
+        
+        try {
+            const response = await api.put(`/api/devices/${deviceId}/activate`);
+            
+            if (response.success) {
+                this.loadDevices();
+                this.showToast('Device activated successfully', 'success');
+            } else {
+                throw new Error(response.message || 'Failed to activate device');
+            }
+        } catch (error) {
+            console.error('[Devices] Activate failed:', error);
+            this.showToast(error.message, 'danger');
+        }
+    }
+
+    async blockDevice(deviceId) {
+        if (!confirm('Block this device? Device will remove license and terminate. Seat will be released.')) return;
+        
+        try {
+            const response = await api.put(`/api/devices/${deviceId}/block`);
+            
+            if (response.success) {
+                this.loadDevices();
+                this.showToast('Device blocked successfully. Seat released.', 'success');
+            } else {
+                throw new Error(response.message || 'Failed to block device');
+            }
+        } catch (error) {
+            console.error('[Devices] Block failed:', error);
+            this.showToast(error.message, 'danger');
+        }
+    }
+
+    async deleteDevice(deviceId) {
+        if (!confirm('Delete this device? All telemetry data will be removed. This cannot be undone.')) return;
+        
+        try {
+            const response = await api.delete(`/api/devices/${deviceId}`);
+            
+            if (response.success) {
+                this.loadDevices();
+                this.showToast('Device deleted successfully. All data removed.', 'success');
+            } else {
+                throw new Error(response.message || 'Failed to delete device');
+            }
+        } catch (error) {
+            console.error('[Devices] Delete failed:', error);
+            this.showToast(error.message, 'danger');
         }
     }
 
@@ -457,12 +528,26 @@ export class DevicesPage extends window.Component {
                                                                     Actions
                                                                 </button>
                                                                 <div class="dropdown-menu dropdown-menu-end">
-                                                                    <a class="dropdown-item" href="#">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><line x1="16" y1="5" x2="19" y2="8" /></svg>
-                                                                        View Details
-                                                                    </a>
-                                                                    <div class="dropdown-divider"></div>
-                                                                    <a class="dropdown-item text-danger" href="#">
+                                                                    ${device.state?.toLowerCase() === 'active' ? html`
+                                                                        <a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.disableDevice(device.id); }}>
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="9" y1="12" x2="15" y2="12" /></svg>
+                                                                            Disable Device
+                                                                        </a>
+                                                                    ` : ''}
+                                                                    ${device.state?.toLowerCase() === 'disabled' ? html`
+                                                                        <a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.activateDevice(device.id); }}>
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon text-success" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
+                                                                            Activate Device
+                                                                        </a>
+                                                                    ` : ''}
+                                                                    ${device.state?.toLowerCase() !== 'blocked' && device.state?.toLowerCase() !== 'deleted' ? html`
+                                                                        <a class="dropdown-item text-warning" href="#" onClick=${(e) => { e.preventDefault(); this.blockDevice(device.id); }}>
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                                                                            Block Device
+                                                                        </a>
+                                                                        <div class="dropdown-divider"></div>
+                                                                    ` : ''}
+                                                                    <a class="dropdown-item text-danger" href="#" onClick=${(e) => { e.preventDefault(); this.deleteDevice(device.id); }}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
                                                                         Delete Device
                                                                     </a>

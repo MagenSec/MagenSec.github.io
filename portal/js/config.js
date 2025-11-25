@@ -68,7 +68,7 @@ export const logger = {
 };
 
 // Resolved API base URL (updated by buildDeployContainer.ps1)
-const RESOLVED_API_BASE = 'https://ms-central-api.proudsand-cb69619a.eastus.azurecontainerapps.io';
+const RESOLVED_API_BASE = 'https://magensec.gigabits.co.in/api/healthZ';
 
 // Import constants (will be available after module loading)
 // Note: Can't use import here due to load order, constants defined inline below

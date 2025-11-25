@@ -197,6 +197,21 @@ export class ApiClient {
         });
     }
 
+    // Generic PUT request
+    async put(endpoint, data = null) {
+        return this.request(endpoint, {
+            method: 'PUT',
+            body: data ? JSON.stringify(data) : undefined
+        });
+    }
+
+    // Generic DELETE request
+    async delete(endpoint) {
+        return this.request(endpoint, {
+            method: 'DELETE'
+        });
+    }
+
     // Dashboard data
     async getDashboardData(orgId) {
         return this.get('/api/dashboard', { orgId });
