@@ -25,7 +25,7 @@ export class OrgsPage extends Component {
   async loadOrgs() {
     try {
       this.setState({ loading: true, error: null });
-      const response = await api.get('/api/admin/orgs');
+      const response = await api.get('/api/v1/admin/orgs');
       
       if (response.success) {
         this.setState({ orgs: response.data || [], loading: false });

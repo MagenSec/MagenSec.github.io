@@ -43,7 +43,7 @@ export class LicensesPage extends Component {
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.get(`/api/orgs/${orgId}/licenses`);
+            const response = await api.get(`/api/v1/orgs/${orgId}/licenses`);
             
             if (response.success) {
                 this.setState({ licenses: response.data || [], loading: false });
@@ -64,7 +64,7 @@ export class LicensesPage extends Component {
             
             const { seats, days } = this.state.createForm;
             
-            const response = await api.post('/api/licenses', {
+            const response = await api.post('/api/v1/licenses', {
                 orgId,
                 seats: parseInt(seats),
                 days: parseInt(days)
@@ -87,7 +87,7 @@ export class LicensesPage extends Component {
         if (!confirm('Rotate license key? Old key will stop working for new devices.')) return;
         
         try {
-            const response = await api.put(`/api/licenses/${licenseId}/rotate`);
+            const response = await api.put(`/api/v1/licenses/${licenseId}/rotate`);
             
             if (response.success) {
                 this.loadLicenses();
@@ -106,7 +106,7 @@ export class LicensesPage extends Component {
         if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} this license? This will affect all associated devices.`)) return;
         
         try {
-            const response = await api.put(`/api/licenses/${licenseId}/${action}`);
+            const response = await api.put(`/api/v1/licenses/${licenseId}/${action}`);
             
             if (response.success) {
                 this.loadLicenses();
@@ -124,7 +124,7 @@ export class LicensesPage extends Component {
         if (!confirm('Delete this license? All devices will be unregistered. This cannot be undone.')) return;
         
         try {
-            const response = await api.delete(`/api/licenses/${licenseId}`);
+            const response = await api.delete(`/api/v1/licenses/${licenseId}`);
             
             if (response.success) {
                 this.loadLicenses();
@@ -150,7 +150,7 @@ export class LicensesPage extends Component {
         try {
             const { selectedLicense, creditForm } = this.state;
             
-            const response = await api.put(`/api/licenses/${selectedLicense.licenseId}/credits`, {
+            const response = await api.put(`/api/v1/licenses/${selectedLicense.licenseId}/credits`, {
                 totalCredits: parseInt(creditForm.totalCredits)
             });
             

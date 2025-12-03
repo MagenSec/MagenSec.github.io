@@ -108,7 +108,7 @@ class OrgContext {
             logger.debug('[OrgContext] Loading orgs from API...');
             
             // Call GET /api/users/me
-            const response = await api.get('/api/users/me');
+            const response = await api.get('/api/v1/users/me');
             
             if (!response.success || !response.data) {
                 throw new Error('Invalid API response');

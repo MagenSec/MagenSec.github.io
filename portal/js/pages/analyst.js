@@ -114,7 +114,7 @@ export class AnalystPage extends Component {
         this.setState({ loading: true, polling: false, error: null, result: null, reportId: null, feedback: { rating: null, comment: '' } });
 
         try {
-            const response = await api.post('/api/analyst/run', payload);
+            const response = await api.post('/api/v1/analyst/run', payload);
             
             // Normalized response: report, reportId, success, message (all lowercase)
             if (response.report || response.Report) {
@@ -184,7 +184,7 @@ export class AnalystPage extends Component {
         }
 
         try {
-            const status = await api.get(`/api/analyst/reports/${reportId}`);
+            const status = await api.get(`/api/v1/analyst/reports/${reportId}`);
 
             // Normalized response: report, status (with state, errorMessage)
             if (status.report) {
@@ -219,7 +219,7 @@ export class AnalystPage extends Component {
         }
 
         try {
-            await api.post('/api/analyst/feedback', {
+            await api.post('/api/v1/analyst/feedback', {
                 ReportId: reportId,
                 Rating: rating,
                 Comment: this.state.feedback.comment || ''
@@ -242,7 +242,7 @@ export class AnalystPage extends Component {
         }
         
         try {
-            await api.post('/api/analyst/feedback', {
+            await api.post('/api/v1/analyst/feedback', {
                 ReportId: reportId,
                 Rating: 'Neutral',
                 Comment: feedback.comment.trim()

@@ -74,7 +74,7 @@ export class UnifiedDashboardPage extends Component {
             const token = auth.getToken();
             const today = this.formatDate(new Date());
             const response = await fetch(
-                `${config.API_BASE}/api/analyst/reports/${orgId}/historical/${today}`,
+                `${config.API_BASE}/api/v1/analyst/reports/${orgId}/historical/${today}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -101,7 +101,7 @@ export class UnifiedDashboardPage extends Component {
             const user = auth.getUser();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.get(`/api/orgs/${orgId}/devices`);
+            const response = await api.get(`/api/v1/orgs/${orgId}/devices`);
             
             if (response.success) {
                 this.setState({ deviceStats: this.computeDeviceStats(response.data || []) });
@@ -117,7 +117,7 @@ export class UnifiedDashboardPage extends Component {
             const user = auth.getUser();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.get(`/api/orgs/${orgId}/licenses`);
+            const response = await api.get(`/api/v1/orgs/${orgId}/licenses`);
             
             if (response.success && response.data?.length > 0) {
                 this.setState({ licenseInfo: response.data[0] }); // Use first active license

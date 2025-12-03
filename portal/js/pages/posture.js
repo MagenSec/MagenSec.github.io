@@ -53,7 +53,7 @@ export class PosturePage extends Component {
         this.setState({ loading: true, error: null });
 
         try {
-            const data = await api.get(`/api/analyst/reports/${orgId}/historical/${date}`);
+            const data = await api.get(`/api/v1/analyst/reports/${orgId}/historical/${date}`);
 
             // Handle 404 - no report exists for this date (check both error field and success flag)
             if (!data || data.error === 'NOT_FOUND' || data.error?.includes('No dashboard report found') || data.success === false) {
@@ -125,7 +125,7 @@ export class PosturePage extends Component {
 
         try {
             // Trigger new dashboard generation with !dashboard prompt including orgId
-            const data = await api.post('/api/analyst/run', {
+            const data = await api.post('/api/v1/analyst/run', {
                 prompt: `!dashboard\nOrgId: ${currentOrg.orgId}`,
                 waitSeconds: 5 // Short timeout, expect 202
             });
@@ -175,7 +175,7 @@ export class PosturePage extends Component {
 
             try {
                 const response = await fetch(
-                    `${config.API_BASE}/api/analyst/reports/${reportId}`,
+                    `${config.API_BASE}/api/v1/analyst/reports/${reportId}`,
                     {
                         headers: {
                             'Authorization': `Bearer ${token}`

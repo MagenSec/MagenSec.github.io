@@ -39,7 +39,7 @@ export class MembersPage extends Component {
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.get(`/api/orgs/${orgId}/members`);
+            const response = await api.get(`/api/v1/orgs/${orgId}/members`);
             
             if (response.success) {
                 this.setState({ members: response.data || [], loading: false });
@@ -64,7 +64,7 @@ export class MembersPage extends Component {
                 throw new Error('Please enter a valid email address');
             }
             
-            const response = await api.post(`/api/orgs/${orgId}/members`, {
+            const response = await api.post(`/api/v1/orgs/${orgId}/members`, {
                 userEmail,
                 role
             });
@@ -92,7 +92,7 @@ export class MembersPage extends Component {
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.put(`/api/orgs/${orgId}/members/${userId}`, { role: newRole });
+            const response = await api.put(`/api/v1/orgs/${orgId}/members/${userId}`, { role: newRole });
             
             if (response.success) {
                 this.loadMembers();
@@ -114,7 +114,7 @@ export class MembersPage extends Component {
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.delete(`/api/orgs/${orgId}/members/${userId}`);
+            const response = await api.delete(`/api/v1/orgs/${orgId}/members/${userId}`);
             
             if (response.success) {
                 this.loadMembers();

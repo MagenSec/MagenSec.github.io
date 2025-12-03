@@ -67,7 +67,7 @@ export class SoftwareInventoryPage extends Component {
     if (!orgId) return;
 
     try {
-      const result = await api.get(`/api/assets/${orgId}/software`);
+      const result = await api.get(`/api/v1/assets/${orgId}/software`);
       if (result.success) {
         this.setState({ software: result.data.software, loading: false });
       } else {
@@ -145,7 +145,7 @@ export class HardwareInventoryPage extends Component {
     if (!orgId) return;
 
     try {
-      const result = await api.get(`/api/assets/${orgId}/hardware`);
+      const result = await api.get(`/api/v1/assets/${orgId}/hardware`);
       if (result.success) {
         this.setState({ hardware: result.data.hardware, loading: false });
       } else {
@@ -230,7 +230,7 @@ export class ComplianceReportPage extends Component {
 
     this.setState({ loading: true });
     try {
-      const result = await api.get(`/api/reports/${orgId}/compliance?framework=${this.state.framework}`);
+      const result = await api.get(`/api/v1/reports/${orgId}/compliance?framework=${this.state.framework}`);
       if (result.success) {
         this.setState({ report: result.data, loading: false });
       } else {
@@ -351,7 +351,7 @@ export class AlertsPage extends Component {
     this.setState({ loading: true });
     try {
       const query = this.state.severity !== 'all' ? `?severity=${this.state.severity}` : '';
-      const result = await api.get(`/api/alerts/${orgId}${query}`);
+      const result = await api.get(`/api/v1/alerts/${orgId}${query}`);
       if (result.success) {
         this.setState({ alerts: result.data.alerts, loading: false });
       } else {
@@ -463,7 +463,7 @@ export class PlatformInsightsPage extends Component {
     }
 
     try {
-      const result = await api.get('/api/admin/platform/insights');
+      const result = await api.get('/api/v1/admin/platform/insights');
       if (result.success) {
         this.setState({ insights: result.data, loading: false });
       } else {

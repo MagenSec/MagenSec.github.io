@@ -60,7 +60,7 @@ export class ResponseActionsPage extends Component {
         const user = auth.getUser();
         const orgId = currentOrg?.orgId || user.email;
         
-        const response = await api.get(`/api/orgs/${orgId}/devices`);
+        const response = await api.get(`/api/v1/orgs/${orgId}/devices`);
         if (response.success) {
             this.setState({ devices: response.data || [] });
         }
@@ -73,7 +73,7 @@ export class ResponseActionsPage extends Component {
         const orgId = currentOrg || user.email;
 
         try {
-            const response = await window.api.get(`/api/response/${orgId}/commands`);
+            const response = await window.api.get(`/api/v1/response/${orgId}/commands`);
             if (response.success) {
                 this.setState({ commands: response.data || [] });
             }
@@ -122,7 +122,7 @@ export class ResponseActionsPage extends Component {
                 parameters: commandParams
             };
 
-            const response = await window.api.post('/api/response/commands', payload);
+            const response = await window.api.post('/api/v1/response/commands', payload);
             
             if (response.success) {
                 this.setState({ 

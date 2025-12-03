@@ -41,7 +41,7 @@ export class ThreatIntelPage extends Component {
             const orgId = currentOrg?.orgId || user.email;
             
             // Load security detections from SecurityTelemetryEndpoint
-            const response = await window.api.get(`/api/security/${orgId}/detections`);
+            const response = await window.api.get(`/api/v1/security/${orgId}/detections`);
             
             if (response.success && response.data) {
                 this.setState({ detections: response.data, loading: false });

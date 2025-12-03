@@ -25,10 +25,10 @@ class DashboardPage extends Component {
       const orgId = currentOrg?.orgId || user.email;
       
       // Load dashboard stats
-      const statsResponse = await window.api.get(`/api/dashboard/${orgId}`);
+      const statsResponse = await window.api.get(`/api/v1/dashboard/${orgId}`);
       
       // Load alerts
-      const alertsResponse = await window.api.get(`/api/alerts/${orgId}`);
+      const alertsResponse = await window.api.get(`/api/v1/alerts/${orgId}`);
       
       if (statsResponse.success) {
         this.setState({ 

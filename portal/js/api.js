@@ -214,12 +214,12 @@ export class ApiClient {
 
     // Dashboard data
     async getDashboardData(orgId) {
-        return this.get('/api/dashboard', { orgId });
+        return this.get('/api/v1/dashboard', { orgId });
     }
 
     // Devices for organization
     async getDevices(orgId) {
-        return this.get(`/api/orgs/${orgId}/devices`);
+        return this.get(`/api/v1/orgs/${orgId}/devices`);
     }
 
     // Stats

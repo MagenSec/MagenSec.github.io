@@ -46,7 +46,7 @@ export class Auth {
 
     // Get OAuth configuration
     async getOAuthConfig() {
-        const response = await fetch(`${config.API_BASE}/api/oauth/config`);
+        const response = await fetch(`${config.API_BASE}/api/v1/oauth/config`);
         const data = await response.json();
         
         if (data.success) {
@@ -119,7 +119,7 @@ export class Auth {
         formData.append('code_verifier', codeVerifier);
         formData.append('state', state);
         
-        const response = await fetch(`${config.API_BASE}/api/oauth/callback`, {
+        const response = await fetch(`${config.API_BASE}/api/v1/oauth/callback`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: formData.toString()
@@ -166,7 +166,7 @@ export class Auth {
         if (!this.session?.sessionToken) return false;
         
         try {
-            const response = await fetch(`${AUTH_CONFIG.API_BASE}/api/oauth/validate-session`, {
+            const response = await fetch(`${AUTH_CONFIG.API_BASE}/api/v1/oauth/validate-session`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionToken: this.session.sessionToken })

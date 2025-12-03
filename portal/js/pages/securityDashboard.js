@@ -51,7 +51,7 @@ export class SecurityDashboardPage extends Component {
         try {
             const token = auth.getToken();
             const response = await fetch(
-                `${config.API_BASE}/api/analyst/reports/${currentOrg.orgId}/historical/${targetDate}`,
+                `${config.API_BASE}/api/v1/analyst/reports/${currentOrg.orgId}/historical/${targetDate}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -110,7 +110,7 @@ export class SecurityDashboardPage extends Component {
             const token = auth.getToken();
             
             // Trigger new dashboard generation with !dashboard prompt
-            const response = await fetch(`${config.API_BASE}/api/analyst/run`, {
+            const response = await fetch(`${config.API_BASE}/api/v1/analyst/run`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -169,7 +169,7 @@ export class SecurityDashboardPage extends Component {
 
             try {
                 const response = await fetch(
-                    `${config.API_BASE}/api/analyst/reports/${reportId}`,
+                    `${config.API_BASE}/api/v1/analyst/reports/${reportId}`,
                     {
                         headers: {
                             'Authorization': `Bearer ${token}`

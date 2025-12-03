@@ -37,7 +37,7 @@ export class VulnerabilitiesPage extends Component {
             const currentOrg = orgContext.getOrg();
             const orgId = currentOrg || user.email;
 
-            const response = await api.get(`/api/vulnerabilities/${orgId}`);
+            const response = await api.get(`/api/v1/vulnerabilities/${orgId}`);
             
             if (response.success) {
                 this.setState({ 

@@ -27,7 +27,7 @@ export class TrendsPage extends Component {
       const currentOrg = orgContext.getOrg();
       const orgId = currentOrg || user.email;
 
-      const response = await api.get(`/api/trends/${orgId}?days=${this.state.periodDays}`);
+      const response = await api.get(`/api/v1/trends/${orgId}?days=${this.state.periodDays}`);
       
       if (response.success) {
         this.setState({ trends: response.data, loading: false });

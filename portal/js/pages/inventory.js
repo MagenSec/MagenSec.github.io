@@ -24,7 +24,7 @@ class InventoryPage extends Component {
       const user = auth.getUser();
       const orgId = currentOrg?.orgId || user.email;
       
-      const response = await window.api.get(`/api/assets/${orgId}/software`);
+      const response = await window.api.get(`/api/v1/assets/${orgId}/software`);
       
       if (response.success && response.data) {
         this.setState({ inventory: response.data, loading: false });

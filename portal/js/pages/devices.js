@@ -118,7 +118,7 @@ export class DevicesPage extends window.Component {
         if (!confirm('Disable this device? Heartbeat will change to 60m, no telemetry will be sent.')) return;
         
         try {
-            const response = await api.put(`/api/devices/${deviceId}/disable`);
+            const response = await api.put(`/api/v1/devices/${deviceId}/disable`);
             
             if (response.success) {
                 this.loadDevices();
@@ -136,7 +136,7 @@ export class DevicesPage extends window.Component {
         if (!confirm('Activate this device? Heartbeat will change to 5m, telemetry will be enabled.')) return;
         
         try {
-            const response = await api.put(`/api/devices/${deviceId}/activate`);
+            const response = await api.put(`/api/v1/devices/${deviceId}/activate`);
             
             if (response.success) {
                 this.loadDevices();
@@ -154,7 +154,7 @@ export class DevicesPage extends window.Component {
         if (!confirm('Block this device? Device will remove license and terminate. Seat will be released.')) return;
         
         try {
-            const response = await api.put(`/api/devices/${deviceId}/block`);
+            const response = await api.put(`/api/v1/devices/${deviceId}/block`);
             
             if (response.success) {
                 this.loadDevices();
@@ -172,7 +172,7 @@ export class DevicesPage extends window.Component {
         if (!confirm('Delete this device? All telemetry data will be removed. This cannot be undone.')) return;
         
         try {
-            const response = await api.delete(`/api/devices/${deviceId}`);
+            const response = await api.delete(`/api/v1/devices/${deviceId}`);
             
             if (response.success) {
                 this.loadDevices();
