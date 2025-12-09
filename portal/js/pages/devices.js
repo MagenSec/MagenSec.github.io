@@ -210,6 +210,9 @@ export class DevicesPage extends window.Component {
 
             // Call real API
             const response = await api.getDevices(currentOrg.orgId);
+            if (!response.success) {
+                throw new Error(response.message || response.error || 'Failed to load devices');
+            }
             
             // Transform API response to expected format
             const devices = (response.data?.devices || []).map(device => {
