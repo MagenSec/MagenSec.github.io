@@ -70,28 +70,16 @@ export class UnifiedDashboardPage extends Component {
             const user = auth.getUser();
             const orgId = currentOrg?.orgId || user.email;
             
-            // Use existing Security Report API
-            const token = auth.getToken();
-            const today = this.formatDate(new Date());
-            const response = await fetch(
-                `${config.API_BASE}/api/v1/analyst/reports/${orgId}/historical/${today}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            if (response.ok) {
-                const data = await response.json();
-                this.setState({ securityReport: data });
-            } else if (response.status !== 404) {
-                // 404 means no report yet (expected), other errors are real problems
-                console.warn('[UnifiedDashboard] Security report failed:', response.status);
+            // Use Analytics API with orgId query parameter
+            const response = await api.get(`/api/v1/analytics/enhanced?orgId=${encodeURIComponent(orgId)}&period=7d`);
+            
+            if (response.success && response.data) {
+                this.setState({ securityReport: response.data });
+            } else {
+                console.warn('[UnifiedDashboard] Security report unavailable:', response.error || 'No data');
             }
         } catch (error) {
-            console.warn('[UnifiedDashboard] Security overview failed:', error);
+            console.warn('[UnifiedDashboard] Security overview failed:', error.message);
         }
     }
 
@@ -104,10 +92,12 @@ export class UnifiedDashboardPage extends Component {
             const response = await api.get(`/api/v1/orgs/${orgId}/devices`);
             
             if (response.success) {
-                this.setState({ deviceStats: this.computeDeviceStats(response.data || []) });
+                // Ensure data is an array; api.js response normalization may vary
+                const devicesData = Array.isArray(response.data) ? response.data : (response.data?.devices || []);
+                this.setState({ deviceStats: this.computeDeviceStats(devicesData) });
             }
         } catch (error) {
-            console.warn('[UnifiedDashboard] Device stats failed:', error);
+            console.warn('[UnifiedDashboard] Device stats failed:', error.message);
         }
     }
 
@@ -119,11 +109,15 @@ export class UnifiedDashboardPage extends Component {
             
             const response = await api.get(`/api/v1/orgs/${orgId}/licenses`);
             
-            if (response.success && response.data?.length > 0) {
-                this.setState({ licenseInfo: response.data[0] }); // Use first active license
+            if (response.success) {
+                // Ensure data is an array
+                const licensesData = Array.isArray(response.data) ? response.data : (response.data?.licenses || []);
+                if (licensesData.length > 0) {
+                    this.setState({ licenseInfo: licensesData[0] }); // Use first active license
+                }
             }
         } catch (error) {
-            console.warn('[UnifiedDashboard] License info failed:', error);
+            console.warn('[UnifiedDashboard] License info failed:', error.message);
         }
     }
 
