@@ -218,8 +218,8 @@ export class ApiClient {
     }
 
     // Devices for organization
-    async getDevices(orgId, options = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/devices`, null, options);
+    async getDevices(orgId, params = null, options = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/devices`, params, options);
     }
 
     // Stats

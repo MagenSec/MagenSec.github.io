@@ -263,7 +263,7 @@ export class DevicesPage extends window.Component {
             this.setState({ loading: true, error: null });
 
             // Call real API
-            const response = await api.getDevices(currentOrg.orgId, { skipCache: forceRefresh });
+            const response = await api.getDevices(currentOrg.orgId, { include: 'summary' }, { skipCache: forceRefresh });
             if (!response.success) {
                 throw new Error(response.message || response.error || 'Failed to load devices');
             }
@@ -293,7 +293,7 @@ export class DevicesPage extends window.Component {
                 return {
                     id: device.DeviceId || device.deviceId,
                     name: deviceName,
-                    state: device.state || 'Unknown',
+                    state: (device.state || device.State || 'Unknown'),
                     lastHeartbeat: device.lastHeartbeat,
                     firstHeartbeat: device.firstHeartbeat,
                     clientVersion: device.clientVersion,
@@ -346,7 +346,7 @@ export class DevicesPage extends window.Component {
 
     canBlockDevice(state) {
         const s = (state || '').toLowerCase();
-        return s === 'active' || s === 'enabled';
+        return s === 'active' || s === 'enabled' || s === 'inactive';
     }
 
     computeSecuritySummary(cves) {

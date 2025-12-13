@@ -47,6 +47,7 @@ export class DeviceDetailPage extends window.Component {
             case 'ACTIVE':
                 return 'bg-success';
             case 'ENABLED':
+            case 'INACTIVE':
                 return 'bg-primary';
             case 'BLOCKED':
                 return 'bg-danger';
@@ -55,6 +56,12 @@ export class DeviceDetailPage extends window.Component {
             default:
                 return 'bg-secondary';
         }
+    }
+
+    getStateDisplay(state) {
+        const s = this.normalizeState(state);
+        if (s === 'INACTIVE') return 'ENABLED';
+        return s;
     }
 
     async loadDeviceData() {
@@ -88,12 +95,33 @@ export class DeviceDetailPage extends window.Component {
             );
             const telemetryData = telemetryResp.success ? telemetryResp.data : null;
 
+            // If device name is missing (or equals deviceId), infer from telemetry hostname
+            const inferredHostname = telemetryData?.latest?.fields?.Hostname
+                || telemetryData?.latest?.fields?.hostname
+                || telemetryData?.latest?.fields?.MachineName
+                || telemetryData?.latest?.fields?.machineName
+                || telemetryData?.latest?.fields?.ComputerName
+                || telemetryData?.latest?.fields?.computerName
+                || null;
+
+            if (inferredHostname) {
+                const inferred = PiiDecryption.decryptIfEncrypted(String(inferredHostname));
+                const currentName = decryptedDevice.DeviceName || decryptedDevice.deviceName;
+                const trimmed = (currentName || '').trim();
+                if (!trimmed || trimmed === this.state.deviceId) {
+                    decryptedDevice.DeviceName = inferred;
+                    decryptedDevice.deviceName = inferred;
+                }
+            }
+
             // Get app inventory and decrypt fields
             const appsResp = await api.get(
                 `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/apps?limit=1000`
             );
-            const appList = appsResp.success 
-                ? (appsResp.data?.apps || appsResp.data || []).map(x => ({
+            const appPayload = appsResp.success 
+                ? (appsResp.data?.items || appsResp.data?.apps || appsResp.data?.list || appsResp.data || [])
+                : [];
+            const appList = appPayload.map(x => ({
                     appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
                     vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || ''),
                     version: x.applicationVersion || x.ApplicationVersion,
@@ -101,15 +129,16 @@ export class DeviceDetailPage extends window.Component {
                     isInstalled: x.isInstalled ?? x.IsInstalled,
                     lastSeen: x.lastSeen || x.LastSeen,
                     firstSeen: x.firstSeen || x.FirstSeen
-                }))
-                : [];
+                }));
 
             // Get CVEs and decrypt fields
             const cvesResp = await api.get(
                 `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/cves?limit=1000`
             );
-            const cveList = cvesResp.success
-                ? (cvesResp.data?.cves || cvesResp.data || []).map(x => ({
+            const cvePayload = cvesResp.success 
+                ? (cvesResp.data?.items || cvesResp.data?.cves || cvesResp.data?.list || cvesResp.data || [])
+                : [];
+            const cveList = cvePayload.map(x => ({
                     appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
                     vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || ''),
                     cveId: x.cveId || x.CveId,
@@ -117,8 +146,7 @@ export class DeviceDetailPage extends window.Component {
                     epss: x.epss || x.EPSS,
                     score: x.score || x.Score,
                     lastSeen: x.lastSeen || x.LastSeen
-                }))
-                : [];
+                }));
 
             // Build timeline from telemetry changes
             const timeline = this.buildTimeline(telemetryData);
@@ -290,7 +318,7 @@ export class DeviceDetailPage extends window.Component {
                                 <div class="col">
                                     <a href="#!/devices" class="btn btn-ghost-primary me-3">← Back</a>
                                     <h2 class="page-title d-inline-block">${device.DeviceName || device.deviceName || device.DeviceId || device.deviceId}</h2>
-                                    <span class="badge ${this.getStateBadgeClass(device.State || device.state)} ms-2">${this.normalizeState(device.State || device.state)}</span>
+                                    <span class="badge ${this.getStateBadgeClass(device.State || device.state)} ms-2">${this.getStateDisplay(device.State || device.state)}</span>
                                 </div>
                                 <div class="col-auto">
                                     ${device.LastHeartbeat ? html`
@@ -404,7 +432,7 @@ export class DeviceDetailPage extends window.Component {
     renderSpecsTab() {
         const { html } = window;
         const { device, telemetryDetail } = this.state;
-        const t = device?.Telemetry || {};
+        const fields = telemetryDetail?.latest?.fields || {};
 
         return html`
             <div class="row">
@@ -412,38 +440,38 @@ export class DeviceDetailPage extends window.Component {
                     <h6>Hardware</h6>
                     <dl class="row text-sm">
                         <dt class="col-sm-4">CPU</dt>
-                        <dd class="col-sm-8">${t.CPUName || ''} (${t.CPUCores || '?'} cores)</dd>
+                        <dd class="col-sm-8">${fields.CPUName || ''} (${fields.CPUCores || '?'} cores)</dd>
                         
                         <dt class="col-sm-4">RAM</dt>
-                        <dd class="col-sm-8">${t.TotalRamMb ? Math.round(t.TotalRamMb / 1024) + ' GB' : 'N/A'}</dd>
+                        <dd class="col-sm-8">${fields.TotalRAMMB ? Math.round(Number(fields.TotalRAMMB) / 1024) + ' GB' : 'N/A'}</dd>
                         
                         <dt class="col-sm-4">Disk</dt>
-                        <dd class="col-sm-8">${t.TotalDiskGb || 'N/A'} GB (${t.SystemDiskMediaType || 'N/A'}) ${t.SystemDiskBusType || ''}</dd>
+                        <dd class="col-sm-8">${fields.SystemDriveSizeGB || fields.TotalDiskGb || 'N/A'} GB (${fields.SystemDiskMediaType || 'N/A'}) ${fields.SystemDiskBusType || ''}</dd>
                         
                         <dt class="col-sm-4">Network</dt>
-                        <dd class="col-sm-8">${t.ConnectionType || 'N/A'} ${t.NetworkSpeedMbps ? '@ ' + t.NetworkSpeedMbps + ' Mbps' : ''}</dd>
+                        <dd class="col-sm-8">${fields.ConnectionType || 'N/A'} ${fields.NetworkSpeedMbps ? '@ ' + fields.NetworkSpeedMbps + ' Mbps' : ''}</dd>
                         
                         <dt class="col-sm-4">GPU</dt>
-                        <dd class="col-sm-8">${t.GPUName || 'N/A'} ${t.GpuRamMB ? '(' + t.GpuRamMB + ' MB)' : ''}</dd>
+                        <dd class="col-sm-8">${fields.GPUName || 'N/A'} ${fields.GpuRamMB ? '(' + fields.GpuRamMB + ' MB)' : ''}</dd>
                     </dl>
                 </div>
                 <div class="col-md-6">
                     <h6>Operating System</h6>
                     <dl class="row text-sm">
                         <dt class="col-sm-4">Edition</dt>
-                        <dd class="col-sm-8">${t.OSEdition || 'N/A'}</dd>
+                        <dd class="col-sm-8">${fields.OSEdition || 'N/A'}</dd>
                         
                         <dt class="col-sm-4">Version</dt>
-                        <dd class="col-sm-8">${t.OSVersion || 'N/A'}</dd>
+                        <dd class="col-sm-8">${fields.OSVersion || 'N/A'}</dd>
                         
                         <dt class="col-sm-4">Build</dt>
-                        <dd class="col-sm-8">${t.OSBuild || 'N/A'}</dd>
+                        <dd class="col-sm-8">${fields.FeaturePackVersion || fields.OSBuild || 'N/A'}</dd>
                         
                         <dt class="col-sm-4">Architecture</dt>
-                        <dd class="col-sm-8">${t.CPUArch || 'N/A'}</dd>
+                        <dd class="col-sm-8">${fields.CPUArch || 'N/A'}</dd>
                         
                         <dt class="col-sm-4">Last Updated</dt>
-                        <dd class="col-sm-8">${t.Timestamp ? this.formatDate(t.Timestamp) : 'N/A'}</dd>
+                        <dd class="col-sm-8">${telemetryDetail?.latest?.timestamp ? this.formatDate(telemetryDetail.latest.timestamp) : 'N/A'}</dd>
                     </dl>
                 </div>
             </div>

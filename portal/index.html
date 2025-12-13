@@ -199,22 +199,26 @@
         // Verify Bootstrap loaded
         console.log('[Portal] Bootstrap available:', typeof bootstrap !== 'undefined');
         console.log('[Portal] Tabler available:', typeof tabler !== 'undefined');
-        
-        // Initialize dropdowns on DOM ready
-        if (typeof bootstrap !== 'undefined') {
-            document.addEventListener('DOMContentLoaded', function() {
-                const dropdowns = document.querySelectorAll('[data-bs-toggle="dropdown"]');
-                console.log('[Portal] Initialized', dropdowns.length, 'dropdown(s)');
-                dropdowns.forEach(function(el) {
-                    const dropdown = new bootstrap.Dropdown(el);
-                    // Manually handle clicks since Bootstrap's data-api isn't working
-                    el.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        dropdown.toggle();
-                    });
-                });
-            });
+
+        // Bootstrap dropdowns need to work for SPA-rendered content.
+        // Use delegated click handling so dynamically-added dropdown toggles work.
+            if (typeof bootstrap !== 'undefined') {
+                document.addEventListener('click', (e) => {
+                    const toggle = e.target.closest('[data-bs-toggle="dropdown"]');
+                    if (!toggle) return;
+
+                    // If Bootstrap is available, always drive via the Dropdown API to avoid
+                    // timing issues where data-api isn't bound for SPA-rendered nodes.
+                    try {
+                        if (window.bootstrap?.Dropdown) {
+                            e.preventDefault();
+                            const instance = window.bootstrap.Dropdown.getOrCreateInstance(toggle);
+                            instance.toggle();
+                        }
+                    } catch (_err) {
+                        // no-op
+                    }
+                }, true);
         }
     </script>
     
