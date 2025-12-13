@@ -56,6 +56,15 @@ export function initRouter(renderApp) {
         renderApp({ page: 'devices', ctx });
     });
 
+    // Device Detail (protected)
+    page('/devices/:id', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'device-detail', ctx, params: { deviceId: ctx.params.id } });
+    });
+
     // AI Analyst (protected)
     page('/analyst', (ctx) => {
         if (!ctx.isAuthenticated) {

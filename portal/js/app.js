@@ -10,6 +10,7 @@ import { logger } from './config.js';
 import { LoginPage } from './pages/login.js';
 import { UnifiedDashboardPage } from './pages/unifiedDashboard.js';
 import { DevicesPage } from './pages/devices.js';
+import { DeviceDetailPage } from './pages/device-detail.js';
 import { AnalystPage } from './pages/analyst.js';
 import { PosturePage } from './pages/posture.js';
 import { ThreatIntelPage } from './pages/threatIntel.js';
@@ -23,6 +24,7 @@ const { html, render } = window;
 // App state
 let currentPage = 'login';
 let currentCtx = null;
+let currentParams = null;
 
 // Main app component
 function App() {
@@ -46,6 +48,9 @@ function App() {
             return html`<${UnifiedDashboardPage} />`;
         case 'devices':
             return html`<${DevicesPage} />`;
+        case 'device-detail':
+            return html`<${DeviceDetailPage} params=${{ deviceId: currentParams?.deviceId ?? currentCtx?.params?.deviceId ?? currentCtx?.params?.id }} />`;
+        
         case 'analyst':
             return html`<${AnalystPage} />`;
         case 'posture':
@@ -156,6 +161,7 @@ function renderApp(state = {}) {
     if (state) {
         currentPage = state.page;
         currentCtx = state.ctx;
+        currentParams = state.params;
         logger.debug(`[App] Rendering page: ${currentPage} (render #${renderCounter})`);
     }
     // Always update authentication UI state

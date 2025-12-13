@@ -6,6 +6,7 @@ import { auth } from '../auth.js';
 import { api } from '../api.js';
 import { orgContext } from '../orgContext.js';
 import { config } from '../config.js';
+import { PiiDecryption } from '../utils/piiDecryption.js';
 import { getInstallerConfig, clearManifestCache, getCacheStatus } from '../utils/manifestCache.js';
 
 export class DevicesPage extends window.Component {
@@ -19,21 +20,58 @@ export class DevicesPage extends window.Component {
             refreshingManifest: false,
             showDownloadModal: false,
             downloadTarget: null, // { name, url, size, arch }
-            manifestError: null
+            manifestError: null,
+            showDeviceModal: false,
+            telemetryLoading: false,
+            telemetryError: null,
+            telemetryDetail: null,
+            selectedDevice: null,
+            searchQuery: '',
+            inventoryLoading: false,
+            inventoryError: null,
+            appInventory: [],
+            cveInventory: []
         };
         this.orgUnsubscribe = null;
+    }
+
+    getDevicesCacheKey(orgId) {
+        return `ms_devices_cache_${orgId}`;
+    }
+
+    tryGetCachedDevices(orgId) {
+        try {
+            const raw = localStorage.getItem(this.getDevicesCacheKey(orgId));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.ts || !Array.isArray(parsed.devices)) return null;
+
+            // Use server cache hint as a guideline; keep local cache for up to 5 minutes.
+            if (Date.now() - parsed.ts > 5 * 60 * 1000) return null;
+            return parsed.devices;
+        } catch {
+            return null;
+        }
+    }
+
+    setCachedDevices(orgId, devices) {
+        try {
+            localStorage.setItem(this.getDevicesCacheKey(orgId), JSON.stringify({ ts: Date.now(), devices }));
+        } catch {
+            // Best-effort caching
+        }
     }
 
     componentDidMount() {
         // Subscribe to org changes to reload devices when user switches orgs
         this.orgUnsubscribe = orgContext.onChange(() => {
-            this.loadDevices();
+            this.loadDevices(false);
         });
         
         // Load installer config from manifest cache
         this.loadInstallerConfig();
         
-        this.loadDevices();
+        this.loadDevices(false);
     }
 
     async loadInstallerConfig() {
@@ -62,7 +100,7 @@ export class DevicesPage extends window.Component {
             }
             
             // Reload device list
-            await this.loadDevices();
+            await this.loadDevices(true);
             
             // Show success toast
             this.showToast('Page reloaded successfully', 'success');
@@ -114,51 +152,55 @@ export class DevicesPage extends window.Component {
         }
     }
 
-    async disableDevice(deviceId) {
-        if (!confirm('Disable this device? Heartbeat will change to 60m, no telemetry will be sent.')) return;
-        
+    getCurrentOrgId() {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg || !currentOrg.orgId) {
+            this.showToast('No organization selected', 'danger');
+            return null;
+        }
+        return currentOrg.orgId;
+    }
+
+    async enableDevice(deviceId) {
+        if (!confirm('Enable this device? The device must re-register (license validation + heartbeat) before it becomes ACTIVE again.')) return;
+
+        const orgId = this.getCurrentOrgId();
+        if (!orgId) return;
+
         try {
-            const response = await api.put(`/api/v1/devices/${deviceId}/disable`);
-            
+            const response = await api.put(`/api/v1/orgs/${orgId}/devices/${deviceId}/enable`);
+
             if (response.success) {
-                this.loadDevices();
-                this.showToast('Device disabled successfully', 'success');
+                this.optimisticSetDeviceState(deviceId, 'Enabled');
+                await this.loadDevices(true);
+                this.showToast('Device enabled. Re-registration required.', 'success');
             } else {
-                throw new Error(response.message || 'Failed to disable device');
+                throw new Error(response.message || 'Failed to enable device');
             }
         } catch (error) {
-            console.error('[Devices] Disable failed:', error);
+            console.error('[Devices] Enable failed:', error);
             this.showToast(error.message, 'danger');
         }
     }
 
-    async activateDevice(deviceId) {
-        if (!confirm('Activate this device? Heartbeat will change to 5m, telemetry will be enabled.')) return;
-        
-        try {
-            const response = await api.put(`/api/v1/devices/${deviceId}/activate`);
-            
-            if (response.success) {
-                this.loadDevices();
-                this.showToast('Device activated successfully', 'success');
-            } else {
-                throw new Error(response.message || 'Failed to activate device');
-            }
-        } catch (error) {
-            console.error('[Devices] Activate failed:', error);
-            this.showToast(error.message, 'danger');
-        }
-    }
+    async blockDevice(deviceId, deleteTelemetry = false) {
+        const confirmMessage = deleteTelemetry
+            ? 'Block this device and delete its telemetry? Device will remove license and terminate. Seat will be released. Telemetry deletion cannot be undone.'
+            : 'Block this device? Device will remove license and terminate. Seat will be released.';
 
-    async blockDevice(deviceId) {
-        if (!confirm('Block this device? Device will remove license and terminate. Seat will be released.')) return;
-        
+        if (!confirm(confirmMessage)) return;
+
+        const orgId = this.getCurrentOrgId();
+        if (!orgId) return;
+
         try {
-            const response = await api.put(`/api/v1/devices/${deviceId}/block`);
-            
+            const url = `/api/v1/orgs/${orgId}/devices/${deviceId}/block?deleteTelemetry=${deleteTelemetry ? 'true' : 'false'}`;
+            const response = await api.put(url);
+
             if (response.success) {
-                this.loadDevices();
-                this.showToast('Device blocked successfully. Seat released.', 'success');
+                this.optimisticSetDeviceState(deviceId, 'Blocked');
+                await this.loadDevices(true);
+                this.showToast(deleteTelemetry ? 'Device blocked. Seat released. Telemetry deleted.' : 'Device blocked successfully. Seat released.', 'success');
             } else {
                 throw new Error(response.message || 'Failed to block device');
             }
@@ -170,12 +212,16 @@ export class DevicesPage extends window.Component {
 
     async deleteDevice(deviceId) {
         if (!confirm('Delete this device? All telemetry data will be removed. This cannot be undone.')) return;
-        
+
+        const orgId = this.getCurrentOrgId();
+        if (!orgId) return;
+
         try {
-            const response = await api.delete(`/api/v1/devices/${deviceId}`);
-            
+            const response = await api.delete(`/api/v1/orgs/${orgId}/devices/${deviceId}`);
+
             if (response.success) {
-                this.loadDevices();
+                this.optimisticSetDeviceState(deviceId, 'Deleted');
+                await this.loadDevices(true);
                 this.showToast('Device deleted successfully. All data removed.', 'success');
             } else {
                 throw new Error(response.message || 'Failed to delete device');
@@ -193,10 +239,8 @@ export class DevicesPage extends window.Component {
         }
     }
 
-    async loadDevices() {
+    async loadDevices(forceRefresh = false) {
         try {
-            this.setState({ loading: true, error: null });
-
             // Get current org from context
             const currentOrg = orgContext.getCurrentOrg();
             if (!currentOrg || !currentOrg.orgId) {
@@ -208,8 +252,18 @@ export class DevicesPage extends window.Component {
                 return;
             }
 
+            if (!forceRefresh) {
+                const cached = this.tryGetCachedDevices(currentOrg.orgId);
+                if (cached) {
+                    this.setState({ devices: cached, loading: false, error: null });
+                    return;
+                }
+            }
+
+            this.setState({ loading: true, error: null });
+
             // Call real API
-            const response = await api.getDevices(currentOrg.orgId);
+            const response = await api.getDevices(currentOrg.orgId, { skipCache: forceRefresh });
             if (!response.success) {
                 throw new Error(response.message || response.error || 'Failed to load devices');
             }
@@ -223,24 +277,194 @@ export class DevicesPage extends window.Component {
                     maskedKey = key.length > 8 ? `****-****-${key.slice(-8)}` : key;
                 }
                 
+                const t = device.telemetry || {};
+                // Robust device name extraction with multiple fallbacks
+                const encryptedName = (device.deviceName && device.deviceName.trim()) 
+                    ? device.deviceName 
+                    : (device.DeviceName && device.DeviceName.trim()) 
+                    ? device.DeviceName 
+                    : (t.hostname && String(t.hostname).trim())
+                    ? t.hostname
+                    : (t.Hostname && String(t.Hostname).trim())
+                    ? t.Hostname
+                    : device.deviceId;
+                // Decrypt PII field
+                const deviceName = PiiDecryption.decrypt(encryptedName);
                 return {
-                    id: device.deviceId,
-                    name: device.deviceName || device.deviceId,
+                    id: device.DeviceId || device.deviceId,
+                    name: deviceName,
                     state: device.state || 'Unknown',
                     lastHeartbeat: device.lastHeartbeat,
                     firstHeartbeat: device.firstHeartbeat,
                     clientVersion: device.clientVersion,
                     licenseKey: maskedKey,
+                    telemetry: {
+                        osEdition: t.oseEdition || t.OSEdition,
+                        osVersion: t.osVersion || t.OSVersion,
+                        osBuild: t.osBuild || t.OSBuild,
+                        cpuArch: t.cpuArch || t.CPUArch,
+                        cpuName: t.cpuName || t.CPUName,
+                        cpuCores: t.cpuCores || t.CPUCores,
+                        cpuGHz: t.cpuGHz || t.CPUGHz,
+                        totalRamMb: t.totalRamMb || t.TotalRamMb,
+                        totalDiskGb: t.totalDiskGb || t.TotalDiskGb,
+                        connectionType: t.connectionType || t.ConnectionType,
+                        networkSpeedMbps: t.networkSpeedMbps || t.NetworkSpeedMbps,
+                        systemDiskMediaType: t.systemDiskMediaType || t.SystemDiskMediaType,
+                        systemDiskBusType: t.systemDiskBusType || t.SystemDiskBusType,
+                        timestamp: t.timestamp || t.Timestamp,
+                        rowKey: t.rowKey || t.RowKey
+                    },
                     // Calculate inactiveMinutes client-side
                     inactiveMinutes: device.lastHeartbeat ? Math.floor((Date.now() - new Date(device.lastHeartbeat).getTime()) / 60000) : null
                 };
             });
-            
+
+            this.setCachedDevices(currentOrg.orgId, devices);
             this.setState({ devices, loading: false });
         } catch (error) {
             console.error('[DevicesPage] Error loading devices:', error);
             this.setState({ error: error.message, loading: false });
         }
+    }
+
+    optimisticSetDeviceState(deviceId, newState) {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg || !currentOrg.orgId) return;
+
+        this.setState(prev => {
+            const updated = (prev.devices || []).map(d => (d.id === deviceId ? { ...d, state: newState } : d));
+            this.setCachedDevices(currentOrg.orgId, updated);
+            return { devices: updated };
+        });
+    }
+
+    canEnableDevice(state) {
+        const s = (state || '').toLowerCase();
+        return s === 'blocked' || s === 'deleted';
+    }
+
+    canBlockDevice(state) {
+        const s = (state || '').toLowerCase();
+        return s === 'active' || s === 'enabled';
+    }
+
+    computeSecuritySummary(cves) {
+        const counts = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 };
+        for (const c of (cves || [])) {
+            counts.total++;
+            const sev = String(c.severity || '').toUpperCase();
+            if (sev === 'CRITICAL') counts.critical++;
+            else if (sev === 'HIGH') counts.high++;
+            else if (sev === 'MEDIUM') counts.medium++;
+            else if (sev === 'LOW') counts.low++;
+            else counts.unknown++;
+        }
+
+        let badgeClass = 'bg-success-lt';
+        let label = 'Secure';
+        if (counts.critical > 0) { badgeClass = 'bg-danger-lt'; label = 'Critical'; }
+        else if (counts.high > 0) { badgeClass = 'bg-warning-lt'; label = 'High Risk'; }
+        else if (counts.medium > 0) { badgeClass = 'bg-secondary-lt'; label = 'Medium Risk'; }
+        else if (counts.total > 0) { badgeClass = 'bg-primary-lt'; label = 'Low Risk'; }
+
+        return { counts, badgeClass, label };
+    }
+
+    async openDeviceModal(device) {
+        this.setState({ showDeviceModal: true, selectedDevice: device, telemetryLoading: true, telemetryError: null, telemetryDetail: null, inventoryLoading: true, inventoryError: null, appInventory: [], cveInventory: [] });
+        try {
+            const currentOrg = orgContext.getCurrentOrg();
+            const resp = await api.get(`/api/v1/orgs/${currentOrg.orgId}/devices/${device.id}/telemetry?historyLimit=50&lastDays=180`);
+            if (!resp.success) throw new Error(resp.message || resp.error || 'Failed to load telemetry');
+            this.setState({ telemetryDetail: resp.data, telemetryLoading: false });
+            // Load app inventory and CVEs (org-scoped)
+            const appsResp = await api.get(`/api/v1/orgs/${currentOrg.orgId}/devices/${device.id}/apps?limit=500`);
+            const cvesResp = await api.get(`/api/v1/orgs/${currentOrg.orgId}/devices/${device.id}/cves?limit=500`);
+            const appList = (appsResp.success ? (appsResp.data?.apps || appsResp.data || []) : []).map(x => ({
+                appName: x.appName || x.AppName,
+                vendor: x.vendor || x.AppVendor,
+                version: x.applicationVersion || x.ApplicationVersion,
+                matchType: x.matchType || x.MatchType, // absolute | heuristic | none
+                isInstalled: x.isInstalled ?? x.IsInstalled,
+                lastSeen: x.lastSeen || x.LastSeen,
+                firstSeen: x.firstSeen || x.FirstSeen
+            }));
+            const cveList = (cvesResp.success ? (cvesResp.data?.cves || cvesResp.data || []) : []).map(x => ({
+                appName: x.appName || x.AppName,
+                vendor: x.vendor || x.AppVendor,
+                cveId: x.cveId || x.CveId,
+                severity: x.severity || x.Severity,
+                epss: x.epss || x.EPSS,
+                score: x.score || x.Score,
+                lastSeen: x.lastSeen || x.LastSeen
+            }));
+            this.setState({ appInventory: appList, cveInventory: cveList, inventoryLoading: false });
+        } catch (e) {
+            console.error('[Devices] Telemetry load failed', e);
+            this.setState({ telemetryError: e.message, telemetryLoading: false, inventoryError: e.message, inventoryLoading: false });
+        }
+    }
+
+    closeDeviceModal() {
+        this.setState({ showDeviceModal: false, selectedDevice: null, telemetryDetail: null, telemetryError: null });
+    }
+
+    setSearchQuery(q) {
+        this.setState({ searchQuery: q });
+    }
+
+    // Compute enriched application inventory status
+    computeAppStatus(apps) {
+        // Group by appName+vendor
+        const groups = {};
+        for (const a of apps) {
+            const key = `${(a.appName||'').toLowerCase()}|${(a.vendor||'').toLowerCase()}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(a);
+        }
+        const enriched = [];
+        for (const key of Object.keys(groups)) {
+            const list = groups[key].sort((x,y) => new Date(y.lastSeen||0) - new Date(x.lastSeen||0));
+            const current = list[0];
+            const previous = list.slice(1);
+            let status = 'current'; // current | updated | uninstalled
+            // Updated: previous exists with older version and lastSeen < current firstSeen or lastSeen < current lastSeen
+            if (previous.length > 0) {
+                const prevDifferentVersion = previous.find(p => (p.version||'') !== (current.version||''));
+                if (prevDifferentVersion) {
+                    const prevLast = new Date(prevDifferentVersion.lastSeen||0).getTime();
+                    const currStart = new Date(current.firstSeen||current.lastSeen||0).getTime();
+                    if (prevLast && currStart && prevLast < currStart) {
+                        status = 'updated';
+                    }
+                }
+            }
+            // Uninstalled: app was installed but lastSeen older than current scan timestamp and not seen in current scan
+            // Heuristic: if latest item flag isInstalled=false and an older item had isInstalled=true with lastSeen < latest scan
+            const latestSeen = new Date(current.lastSeen||0).getTime();
+            const prevInstalled = previous.find(p => p.isInstalled && new Date(p.lastSeen||0).getTime() < latestSeen);
+            if (!current.isInstalled && prevInstalled) {
+                status = 'uninstalled';
+            }
+            enriched.push({
+                appName: current.appName,
+                vendor: current.vendor,
+                version: current.version,
+                matchType: current.matchType,
+                isInstalled: current.isInstalled,
+                status,
+                lastSeen: current.lastSeen,
+                previousVersions: previous.map(p => ({ version: p.version, lastSeen: p.lastSeen }))
+            });
+        }
+        return enriched;
+    }
+
+    filterInventory(apps, q) {
+        if (!q) return apps;
+        const s = q.toLowerCase();
+        return apps.filter(a => (a.appName||'').toLowerCase().includes(s) || (a.vendor||'').toLowerCase().includes(s));
     }
 
     formatLastSeen(lastHeartbeat) {
@@ -289,19 +513,21 @@ export class DevicesPage extends window.Component {
     }
 
     isDeviceInactive(device) {
+        const state = device.state?.toLowerCase();
+
+        // Non-active states are considered offline in the portal.
+        if (state && state !== 'active') {
+            return true;
+        }
+
         // No heartbeat = offline
         if (!device.lastHeartbeat) {
             return true;
         }
         // Use calculated inactiveMinutes
         if (device.inactiveMinutes !== null && device.inactiveMinutes !== undefined) {
-            const state = device.state?.toLowerCase();
             // Active devices: Expected heartbeat every 5 minutes, flag as offline if >30 minutes
             if (state === 'active' && device.inactiveMinutes > 30) {
-                return true;
-            }
-            // Disabled devices: Expected heartbeat every 60 minutes, flag as offline if >120 minutes
-            if (state === 'disabled' && device.inactiveMinutes > 120) {
                 return true;
             }
         }
@@ -312,7 +538,7 @@ export class DevicesPage extends window.Component {
         switch (state?.toLowerCase()) {
             case 'active':
                 return 'bg-success';
-            case 'disabled':
+            case 'enabled':
                 return 'bg-warning';
             case 'blocked':
                 return 'bg-danger';
@@ -478,6 +704,7 @@ export class DevicesPage extends window.Component {
                                                     <th>Device</th>
                                                     <th>License Status</th>
                                                     <th>Connection Status</th>
+                                                    <th>Specs</th>
                                                     <th class="w-1"></th>
                                                 </tr>
                                             </thead>
@@ -490,7 +717,7 @@ export class DevicesPage extends window.Component {
                                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
                                                                 </span>
                                                                 <div class="flex-fill">
-                                                                    <div class="font-weight-medium">${device.name}</div>
+                                                                    <a href="#!/devices/${device.id}" class="font-weight-medium text-decoration-none text-reset" style="cursor: pointer;"><span class="text-primary fw-600">${device.name || device.id}</span></a>
                                                                     <div class="text-muted small">${device.id}</div>
                                                                     ${device.clientVersion ? html`
                                                                         <div class="text-muted small">Version: ${device.clientVersion}</div>
@@ -526,34 +753,88 @@ export class DevicesPage extends window.Component {
                                                             `}
                                                         </td>
                                                         <td>
+                                                            ${device.telemetry ? html`
+                                                                <div class="text-muted small">
+                                                                    <span class="me-2">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                            <rect x="7" y="7" width="10" height="10" rx="2" />
+                                                                            <rect x="10" y="10" width="4" height="4" rx="1" />
+                                                                            <path d="M3 10h2" />
+                                                                            <path d="M3 14h2" />
+                                                                            <path d="M19 10h2" />
+                                                                            <path d="M19 14h2" />
+                                                                            <path d="M10 3v2" />
+                                                                            <path d="M14 3v2" />
+                                                                            <path d="M10 19v2" />
+                                                                            <path d="M14 19v2" />
+                                                                        </svg>
+                                                                        ${device.telemetry.cpuName || device.telemetry.cpuArch || ''}
+                                                                    </span>
+                                                                    <span class="me-2">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                            <rect x="3" y="7" width="18" height="10" rx="2" />
+                                                                            <path d="M6 7v10" />
+                                                                            <path d="M10 7v10" />
+                                                                            <path d="M14 7v10" />
+                                                                            <path d="M18 7v10" />
+                                                                        </svg>
+                                                                        ${device.telemetry.totalRamMb ? Math.round(device.telemetry.totalRamMb/1024) + ' GB' : ''}
+                                                                    </span>
+                                                                    <span class="me-2">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                            <rect x="4" y="6" width="16" height="12" rx="2" />
+                                                                            <path d="M4 10h16" />
+                                                                            <circle cx="16" cy="14" r="1" />
+                                                                        </svg>
+                                                                        ${device.telemetry.totalDiskGb ? device.telemetry.totalDiskGb + ' GB' : ''}
+                                                                    </span>
+                                                                    <span class="me-2">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                            <path d="M2 9.5a15 15 0 0 1 20 0" />
+                                                                            <path d="M5 13a10 10 0 0 1 14 0" />
+                                                                            <path d="M8.5 16.5a5 5 0 0 1 7 0" />
+                                                                            <circle cx="12" cy="20" r="1" />
+                                                                        </svg>
+                                                                        ${device.telemetry.connectionType || ''}
+                                                                    </span>
+                                                                </div>
+                                                            ` : html`<span class="text-muted small">No telemetry yet</span>`}
+                                                        </td>
+                                                        <td>
                                                             <div class="dropdown">
                                                                 <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
                                                                     Actions
                                                                 </button>
                                                                 <div class="dropdown-menu dropdown-menu-end">
-                                                                    ${device.state?.toLowerCase() === 'active' ? html`
-                                                                        <a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.disableDevice(device.id); }}>
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="9" y1="12" x2="15" y2="12" /></svg>
-                                                                            Disable Device
-                                                                        </a>
+                                                                    <button type="button" class="dropdown-item" onclick=${() => this.openDeviceModal(device)}>
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>
+                                                                        View Details
+                                                                    </button>
+                                                                    ${this.canEnableDevice(device.state) ? html`
+                                                                        <button type="button" class="dropdown-item text-success" onclick=${() => this.enableDevice(device.id)}>
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
+                                                                            Enable Device
+                                                                        </button>
                                                                     ` : ''}
-                                                                    ${device.state?.toLowerCase() === 'disabled' ? html`
-                                                                        <a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.activateDevice(device.id); }}>
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon text-success" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
-                                                                            Activate Device
-                                                                        </a>
-                                                                    ` : ''}
-                                                                    ${device.state?.toLowerCase() !== 'blocked' && device.state?.toLowerCase() !== 'deleted' ? html`
-                                                                        <a class="dropdown-item text-warning" href="#" onClick=${(e) => { e.preventDefault(); this.blockDevice(device.id); }}>
+                                                                    ${this.canBlockDevice(device.state) ? html`
+                                                                        <button type="button" class="dropdown-item text-warning" onclick=${() => this.blockDevice(device.id, false)}>
                                                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                                                                             Block Device
-                                                                        </a>
+                                                                        </button>
+                                                                        <button type="button" class="dropdown-item text-warning" onclick=${() => this.blockDevice(device.id, true)}>
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                                                                            Block + Delete Telemetry
+                                                                        </button>
                                                                         <div class="dropdown-divider"></div>
                                                                     ` : ''}
-                                                                    <a class="dropdown-item text-danger" href="#" onClick=${(e) => { e.preventDefault(); this.deleteDevice(device.id); }}>
+                                                                    <button type="button" class="dropdown-item text-danger" onclick=${() => this.deleteDevice(device.id)}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
                                                                         Delete Device
-                                                                    </a>
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -608,6 +889,193 @@ export class DevicesPage extends window.Component {
                                             <line x1="12" y1="4" x2="12" y2="16" />
                                         </svg>
                                         Continue Download
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-backdrop fade show" style="z-index: 1054;"></div>
+                ` : ''}
+
+                ${this.state.showDeviceModal && this.state.selectedDevice ? window.html`
+                    <div class="modal modal-blur fade show" style="display: block; z-index: 1055;" tabindex="-1">
+                        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                            <div class="modal-content" style="z-index: 1056;">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">${this.state.selectedDevice.name}</h5>
+                                    <button type="button" class="btn-close" onclick=${(e) => { e.preventDefault(); this.closeDeviceModal(); }}></button>
+                                </div>
+                                <div class="modal-body">
+                                    ${this.state.telemetryLoading ? html`
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <div class="mt-3 text-muted">Loading telemetry...</div>
+                                        </div>
+                                    ` : this.state.telemetryError ? html`
+                                        <div class="alert alert-danger">${this.state.telemetryError}</div>
+                                    ` : this.state.telemetryDetail ? html`
+                                        <div class="mb-3">
+                                            <div class="input-group">
+                                                <span class="input-group-text">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
+                                                </span>
+                                                <input class="form-control" type="text" placeholder="Search apps or vendors" value=${this.state.searchQuery} onInput=${(e) => this.setSearchQuery(e.target.value)} />
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6>Current Specs</h6>
+                                                <ul class="list-unstyled text-muted small">
+                                                    <li><strong>OS:</strong> ${this.state.selectedDevice.telemetry?.osEdition || ''} ${this.state.selectedDevice.telemetry?.osVersion || ''} (${this.state.selectedDevice.telemetry?.osBuild || ''})</li>
+                                                    <li><strong>CPU:</strong> ${this.state.selectedDevice.telemetry?.cpuName || ''} ${this.state.selectedDevice.telemetry?.cpuCores ? '('+this.state.selectedDevice.telemetry.cpuCores+' cores)' : ''}</li>
+                                                    <li><strong>RAM:</strong> ${this.state.selectedDevice.telemetry?.totalRamMb ? Math.round(this.state.selectedDevice.telemetry.totalRamMb/1024)+' GB' : ''}</li>
+                                                    <li><strong>Disk:</strong> ${this.state.selectedDevice.telemetry?.totalDiskGb ? this.state.selectedDevice.telemetry.totalDiskGb+' GB' : ''} ${this.state.selectedDevice.telemetry?.systemDiskMediaType || ''} ${this.state.selectedDevice.telemetry?.systemDiskBusType || ''}</li>
+                                                    <li><strong>Network:</strong> ${this.state.selectedDevice.telemetry?.connectionType || ''} ${this.state.selectedDevice.telemetry?.networkSpeedMbps ? this.state.selectedDevice.telemetry.networkSpeedMbps+' Mbps' : ''}</li>
+                                                </ul>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6>Security Status</h6>
+                                                ${(() => {
+                                                    const summary = this.computeSecuritySummary(this.state.cveInventory);
+                                                    return html`
+                                                        <div class="mb-2">
+                                                            <span class="badge ${summary.badgeClass}">${summary.label}</span>
+                                                            <span class="text-muted ms-2">${summary.counts.total} CVEs</span>
+                                                        </div>
+                                                        <div class="text-muted small">
+                                                            <span class="me-2">Critical: ${summary.counts.critical}</span>
+                                                            <span class="me-2">High: ${summary.counts.high}</span>
+                                                            <span class="me-2">Medium: ${summary.counts.medium}</span>
+                                                            <span class="me-2">Low: ${summary.counts.low}</span>
+                                                        </div>
+                                                    `;
+                                                })()}
+
+                                                <h6 class="mt-3">Recent Changes</h6>
+                                                ${this.state.telemetryDetail.changes && this.state.telemetryDetail.changes.length > 0 ? html`
+                                                    <ul class="list-unstyled text-muted small">
+                                                        ${this.state.telemetryDetail.changes.map(change => html`
+                                                            <li class="mb-2">
+                                                                <div><strong>${new Date(change.at).toLocaleString()}</strong></div>
+                                                                <div>
+                                                                    ${Object.keys(change.delta).map(k => html`<span class="badge bg-secondary-lt me-2">${k}</span>`)}
+                                                                </div>
+                                                            </li>
+                                                        `)}
+                                                    </ul>
+                                                ` : html`<div class="text-muted">No significant changes detected</div>`}
+                                            </div>
+                                        </div>
+                                        <div class="mt-4">
+                                            <h6>Application Inventory</h6>
+                                            ${this.state.inventoryLoading ? html`
+                                                <div class="text-muted">Loading application inventory...</div>
+                                            ` : this.state.inventoryError ? html`
+                                                <div class="alert alert-danger">${this.state.inventoryError}</div>
+                                            ` : (() => {
+                                                const enriched = this.computeAppStatus(this.state.appInventory);
+                                                const filtered = this.filterInventory(enriched, this.state.searchQuery);
+                                                return html`
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>App</th>
+                                                                    <th>Vendor</th>
+                                                                    <th>Version</th>
+                                                                    <th>Status</th>
+                                                                    <th>Match</th>
+                                                                    <th>Last Seen</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                ${filtered.map(a => html`
+                                                                    <tr>
+                                                                        <td>${a.appName}</td>
+                                                                        <td>${a.vendor}</td>
+                                                                        <td>${a.version}</td>
+                                                                        <td>
+                                                                            ${a.status === 'updated' ? html`<span class="badge bg-success-lt">Updated</span>` : a.status === 'uninstalled' ? html`<span class="badge bg-warning-lt">Uninstalled</span>` : html`<span class="badge bg-secondary-lt">Current</span>`}
+                                                                        </td>
+                                                                        <td>
+                                                                            ${a.matchType === 'absolute' ? html`<span class="badge bg-primary-lt">Exact</span>` : a.matchType === 'heuristic' ? html`<span class="badge bg-cyan-lt">Heuristic</span>` : html`<span class="badge bg-muted">None</span>`}
+                                                                        </td>
+                                                                        <td>${a.lastSeen ? new Date(a.lastSeen).toLocaleString() : ''}</td>
+                                                                    </tr>
+                                                                `)}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                `;
+                                            })()}
+                                        </div>
+                                        <div class="mt-4">
+                                            <h6>Vulnerabilities (CVEs)</h6>
+                                            ${this.state.cveInventory && this.state.cveInventory.length > 0 ? html`
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>App</th>
+                                                                <th>Vendor</th>
+                                                                <th>CVE</th>
+                                                                <th>Severity</th>
+                                                                <th>EPSS</th>
+                                                                <th>Last Seen</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            ${this.state.cveInventory.map(c => html`
+                                                                <tr>
+                                                                    <td>${c.appName}</td>
+                                                                    <td>${c.vendor}</td>
+                                                                    <td><a href="https://nvd.nist.gov/vuln/detail/${c.cveId}" target="_blank" rel="noopener">${c.cveId}</a></td>
+                                                                    <td>
+                                                                        ${c.severity === 'CRITICAL' ? html`<span class="badge bg-danger-lt">Critical</span>` : c.severity === 'HIGH' ? html`<span class="badge bg-warning-lt">High</span>` : c.severity === 'MEDIUM' ? html`<span class="badge bg-secondary-lt">Medium</span>` : html`<span class="badge bg-muted">Low</span>`}
+                                                                    </td>
+                                                                    <td>${c.epss ? Number(c.epss).toFixed(2) : (c.score ?? '')}</td>
+                                                                    <td>${c.lastSeen ? new Date(c.lastSeen).toLocaleString() : ''}</td>
+                                                                </tr>
+                                                            `)}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            ` : html`<div class="text-muted">No known vulnerabilities for this device</div>`}
+                                        </div>
+                                        <div class="mt-3">
+                                            <h6>Telemetry History</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Timestamp</th>
+                                                            <th>OS</th>
+                                                            <th>CPU</th>
+                                                            <th>RAM</th>
+                                                            <th>Disk</th>
+                                                            <th>Network</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        ${this.state.telemetryDetail.history.map(s => html`
+                                                            <tr>
+                                                                <td>${new Date(s.timestamp).toLocaleString()}</td>
+                                                                <td>${s.fields.OSEdition || ''} ${s.fields.OSVersion || ''} (${s.fields.FeaturePackVersion || ''})</td>
+                                                                <td>${s.fields.CPUName || ''} ${s.fields.CPUCores ? '('+s.fields.CPUCores+' cores)' : ''}</td>
+                                                                <td>${s.fields.TotalRAMMB ? Math.round(Number(s.fields.TotalRAMMB)/1024)+' GB' : ''}</td>
+                                                                <td>${s.fields.SystemDriveSizeGB ? s.fields.SystemDriveSizeGB+' GB' : ''}</td>
+                                                                <td>${s.fields.ConnectionType || ''} ${s.fields.NetworkSpeedMbps ? s.fields.NetworkSpeedMbps+' Mbps' : ''}</td>
+                                                            </tr>
+                                                        `)}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    ` : html`<div class="text-muted">No telemetry</div>`}
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-link link-secondary" onclick=${(e) => { e.preventDefault(); this.closeDeviceModal(); }}>
+                                        Close
                                     </button>
                                 </div>
                             </div>
