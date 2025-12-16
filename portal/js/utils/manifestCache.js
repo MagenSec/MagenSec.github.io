@@ -5,7 +5,8 @@
 
 import { logger, config } from '../config.js';
 
-const MANIFEST_URL = 'https://magensec.short.gy/Update';
+// Use resolved manifest URL from config (avoids CORS issues with short URL redirects)
+const MANIFEST_URL = config.MANIFEST_URL;
 const CACHE_KEY = 'magensec_manifest_cache';
 const CACHE_LIFETIME_MS = 60 * 60 * 1000; // 1 hour
 

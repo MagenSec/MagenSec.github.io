@@ -67,8 +67,9 @@ export const logger = {
     }
 };
 
-// Resolved API base URL (updated by buildDeployContainer.ps1)
+// Resolved URLs (updated by buildDeployContainer.ps1 and Build-Installers.ps1)
 const RESOLVED_API_BASE = 'https://ms-central-api.wonderfulflower-8852e801.eastus.azurecontainerapps.io';
+const RESOLVED_MANIFEST_URL = 'https://msinstallers6w2f9s.blob.core.windows.net/latest/manifest.json?se=2026-12-05T18%3A27%3A55Z&sp=r&spr=https&sv=2022-11-02&sr=b&sig=jCYaRrMEBBseVuF%2BzLAiVE7HF6Ah488D0IlbB1kgwaY%3D';
 
 // Import constants (will be available after module loading)
 // Note: Can't use import here due to load order, constants defined inline below
@@ -76,8 +77,10 @@ const RESOLVED_API_BASE = 'https://ms-central-api.wonderfulflower-8852e801.eastu
 export const config = {
     // API Configuration
     // - Use direct Azure Container Apps URL for all environments (CORS compatible)
-    // - Updated by buildDeployContainer.ps1 during deployment
+    // - API_BASE updated by buildDeployContainer.ps1 during deployment
+    // - MANIFEST_URL updated by Build-Installers.ps1 when publishing packages
     API_BASE: RESOLVED_API_BASE,
+    MANIFEST_URL: RESOLVED_MANIFEST_URL,
     
     // Portal settings
     PORTAL_NAME: 'MagenSec Portal',
