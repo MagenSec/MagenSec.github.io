@@ -28,17 +28,133 @@ export class DeviceDetailPage extends window.Component {
             searchQuery: '',
             cveFilterSeverity: null, // filter CVEs by severity
             perfData: null, // Perf chart data if available
-            timeline: [] // Event timeline
+            timeline: [], // Event timeline
+            knownExploits: null,
+            exploitsLoadingError: null,
+            enrichedScore: null,
+            deviceSummary: null
         };
+        this.KNOWN_EXPLOITS_CACHE = { data: null, loadedAt: null, TTL_HOURS: 24 };
     }
 
     componentDidMount() {
         this.loadDeviceData();
     }
 
+    // Load known exploits from reliable sources (with caching)
+    async loadKnownExploitsAsync() {
+        // Check cache freshness
+        if (this.KNOWN_EXPLOITS_CACHE.data && this.KNOWN_EXPLOITS_CACHE.loadedAt) {
+            const ageHours = (Date.now() - this.KNOWN_EXPLOITS_CACHE.loadedAt) / (1000 * 60 * 60);
+            if (ageHours < this.KNOWN_EXPLOITS_CACHE.TTL_HOURS) {
+                this.setState({ knownExploits: this.KNOWN_EXPLOITS_CACHE.data });
+                return;
+            }
+        }
+        
+        // Try to load from MagenSec's hourly-updated repository
+        const url = 'https://raw.githubusercontent.com/MagenSec/MagenSec.github.io/main/diag/known_exploited_vulnerabilities.json';
+        
+        try {
+            const response = await fetch(url, { cache: 'reload', timeout: 5000 });
+            
+            if (!response.ok) {
+                console.debug(`[DeviceDetail] Known exploits source returned ${response.status}`);
+                throw new Error('Failed to load');
+            }
+            
+            const data = await response.json();
+            let cveIds = new Set();
+            
+            // Expected format: { vulnerabilities: [{ cveID, ... }, ...] }
+            if (data.vulnerabilities && Array.isArray(data.vulnerabilities)) {
+                cveIds = new Set(data.vulnerabilities
+                    .map(v => v.cveID || v.cveId)
+                    .filter(id => id && typeof id === 'string'));
+            } else if (Array.isArray(data)) {
+                cveIds = new Set(data
+                    .map(v => typeof v === 'string' ? v : (v.cveID || v.cveId))
+                    .filter(id => id && typeof id === 'string'));
+            }
+            
+            if (cveIds.size > 0) {
+                console.log(`[DeviceDetail] Loaded ${cveIds.size} known exploits`);
+                this.KNOWN_EXPLOITS_CACHE.data = cveIds;
+                this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
+                this.setState({ knownExploits: cveIds, exploitsLoadingError: null });
+            } else {
+                throw new Error('No CVEs parsed');
+            }
+        } catch (error) {
+            console.warn('[DeviceDetail] Could not load known exploits:', error.message);
+            // Graceful fallback: use empty set
+            this.KNOWN_EXPLOITS_CACHE.data = new Set();
+            this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
+            this.setState({ knownExploits: new Set(), exploitsLoadingError: 'Using baseline risk scores (known exploits unavailable)' });
+        }
+    }
+    
+    // Recalculate risk score using Hybrid Model with constituents from API
+    recalculateRiskScore(summary) {
+        if (!summary || summary.score === undefined) {
+            return { score: 0, constituents: null, enrichmentFactors: {} };
+        }
+        
+        const constituents = summary.constituents || summary.riskScoreConstituents;
+        if (!constituents || constituents.cveCount === 0) {
+            return { score: summary.score, constituents, enrichmentFactors: {} };
+        }
+        
+        // Base calculation: CVSS × EPSS
+        let riskFactor = constituents.maxCvssNormalized * constituents.maxEpssStored;
+        
+        // Check if any CVE is a known exploit
+        const hasKnownExploit = this.state.knownExploits && this.state.cveInventory.some(cve => 
+            this.state.knownExploits.has(cve.cveId)
+        );
+        const exploitFactor = hasKnownExploit ? 1.5 : 1.0;
+        
+        // Time decay: EPSS degrades over time
+        const epssDate = new Date(constituents.epssDate);
+        const daysSinceEpss = (Date.now() - epssDate) / (1000 * 60 * 60 * 24);
+        const timeDecayFactor = Math.max(0.1, 1.0 - (daysSinceEpss / 365));
+        
+        // Final score with all factors
+        const finalRisk = (
+            riskFactor *
+            constituents.exposureFactor *
+            constituents.privilegeFactor *
+            exploitFactor *
+            timeDecayFactor
+        ) * 100;
+        
+        const enrichedScore = Math.round(finalRisk * 100) / 100;
+        
+        return {
+            score: enrichedScore,
+            constituents,
+            enrichmentFactors: {
+                hasKnownExploit,
+                timeDecayFactor: Math.round(timeDecayFactor * 10000) / 10000,
+                daysSinceEpss: Math.round(daysSinceEpss)
+            }
+        };
+    }
+
     normalizeState(state) {
         if (!state) return 'UNKNOWN';
         return String(state).toUpperCase();
+    }
+
+    calculateRiskScore(device) {
+        if (!device || !device.Summary) return 0;
+        const summary = typeof device.Summary === 'string' ? JSON.parse(device.Summary) : device.Summary;
+        const criticalCves = summary.criticalCveCount || 0;
+        const highCves = summary.highCveCount || 0;
+        const mediumCves = summary.mediumCveCount || 0;
+        const lowCves = summary.lowCveCount || 0;
+        const score = Math.min(100, criticalCves * 20 + highCves * 10 + mediumCves * 5 + lowCves * 2);
+        return score;
     }
 
     getStateBadgeClass(state) {
@@ -76,8 +192,8 @@ export class DeviceDetailPage extends window.Component {
                 throw new Error('Invalid device id');
             }
 
-            // Get device details
-            const deviceResp = await api.get(`/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}`);
+            // Get device details with summary
+            const deviceResp = await api.get(`/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}?include=summary`);
             if (!deviceResp.success) {
                 throw new Error(deviceResp.message || 'Failed to load device');
             }
@@ -151,6 +267,19 @@ export class DeviceDetailPage extends window.Component {
             // Build timeline from telemetry changes
             const timeline = this.buildTimeline(telemetryData);
 
+            // Extract device summary for risk scoring
+            const summary = decryptedDevice.summary || decryptedDevice.Summary;
+            let deviceSummary = null;
+            if (summary) {
+                const summaryData = typeof summary === 'string' ? JSON.parse(summary) : summary;
+                deviceSummary = {
+                    apps: summaryData.appCount ?? null,
+                    cves: summaryData.cveCount ?? null,
+                    score: summaryData.riskScore ?? 0,
+                    constituents: summaryData.riskScoreConstituents || null
+                };
+            }
+
             this.setState({
                 device: decryptedDevice,
                 telemetryDetail: telemetryData,
@@ -158,7 +287,16 @@ export class DeviceDetailPage extends window.Component {
                 cveInventory: cveList,
                 telemetryHistory: telemetryData?.history || [],
                 timeline,
+                deviceSummary,
                 loading: false
+            });
+            
+            // Background: Load known exploits and enrich risk score
+            this.loadKnownExploitsAsync().then(() => {
+                if (deviceSummary) {
+                    const enriched = this.recalculateRiskScore(deviceSummary);
+                    this.setState({ enrichedScore: enriched });
+                }
             });
         } catch (error) {
             console.error('[DeviceDetail] Error loading device:', error);
@@ -334,17 +472,126 @@ export class DeviceDetailPage extends window.Component {
                         <div class="row row-cards mb-3">
                             <div class="col-md-3">
                                 <div class="card">
-                                    <div class="card-body">
-                                        <div class="text-muted small font-weight-medium">Security Status</div>
-                                        <div class="mt-2">
-                                            ${criticalCves.length > 0 ? html`
-                                                <span class="badge bg-danger-lt me-2">${criticalCves.length} Critical CVEs</span>
-                                            ` : ''}
-                                            ${highCves.length > 0 ? html`
-                                                <span class="badge bg-warning-lt">${highCves.length} High CVEs</span>
-                                            ` : html`
-                                                <span class="badge bg-success-lt">No Critical Issues</span>
-                                            `}
+                                    <div class="card-body d-flex align-items-center gap-3">
+                                        <!-- Risk Gauge -->
+                                        <div style="flex-shrink: 0;">
+                                            ${(() => {
+                                                const enriched = this.state.enrichedScore;
+                                                const summary = this.state.deviceSummary;
+                                                const score = enriched ? enriched.score : summary ? summary.score : this.calculateRiskScore(device);
+                                                const isEnriched = enriched && enriched.score !== (summary ? summary.score : this.calculateRiskScore(device));
+                                                
+                                                const worstSeverity = criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? 'MEDIUM' : this.state.cveInventory.length > 0 ? 'LOW' : 'CLEAN';
+                                                const gaugeColor = worstSeverity === 'CRITICAL' ? '#d63939' : worstSeverity === 'HIGH' ? '#f59f00' : worstSeverity === 'MEDIUM' ? '#fab005' : '#2fb344';
+                                                const angle = (score / 100) * 270;
+                                                const radian = (angle - 135) * (Math.PI / 180);
+                                                const cx = 25, cy = 25, r = 20;
+                                                const x = cx + r * Math.cos(radian);
+                                                const y = cy + r * Math.sin(radian);
+                                                
+                                                // Build tooltip text with constituents
+                                                let tooltipText = `Risk Score: ${score}`;
+                                                if (enriched && enriched.constituents) {
+                                                    const c = enriched.constituents;
+                                                    const e = enriched.enrichmentFactors;
+                                                    tooltipText = `Risk Score: ${score} (Enriched)\n` +
+                                                        `Baseline: ${summary ? summary.score : 0}\n` +
+                                                        `Max CVSS: ${(c.maxCvssNormalized * 10).toFixed(1)}\n` +
+                                                        `Max EPSS: ${(c.maxEpssStored * 100).toFixed(1)}%\n` +
+                                                        `CVE Count: ${c.cveCount}\n` +
+                                                        `Time Decay: ${(e.timeDecayFactor * 100).toFixed(1)}% (${e.daysSinceEpss} days)\n` +
+                                                        `Exploit Factor: ${e.hasKnownExploit ? '1.5\u00d7 (Known Exploit!)' : '1.0\u00d7'}`;
+                                                }
+                                                
+                                                return html`
+                                                    <div title="${tooltipText}" style="cursor: help; position: relative;">
+                                                        <svg width="50" height="50" viewBox="0 0 50 50">
+                                                            <circle cx="25" cy="25" r="20" fill="none" stroke="#e6e7e9" stroke-width="3"/>
+                                                            <path d="M 25 25 L 45 25 A 20 20 0 ${angle > 180 ? 1 : 0} 1 ${x} ${y}" fill="none" stroke="${gaugeColor}" stroke-width="3" stroke-linecap="round"/>
+                                                            <text x="25" y="28" text-anchor="middle" font-size="10" fill="#666">${Math.round(score)}</text>
+                                                        </svg>
+                                                        ${isEnriched ? html`
+                                                            <span style="position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; background: #2fb344; border-radius: 50%; border: 2px solid white; font-size: 8px; color: white; display: flex; align-items: center; justify-content: center;">✓</span>
+                                                        ` : ''}
+                                                    </div>
+                                                `;
+                                            })()}
+                                        </div>
+                                        <!-- Stacked Charts -->
+                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                                            <!-- App Vulnerability Pie -->
+                                            <div class="d-flex align-items-center gap-2">
+                                                ${(() => {
+                                                    const totalApps = enrichedApps.length || 0;
+                                                    const vulnerableApps = this.state.appInventory.filter(app => this.state.cveInventory.some(cve => cve.appName && app.appName && cve.appName.toLowerCase() === app.appName.toLowerCase())).length;
+                                                    const cleanApps = totalApps - vulnerableApps;
+                                                    const vulnAngle = totalApps > 0 ? (vulnerableApps / totalApps) * 360 : 0;
+                                                    const vulnRad = (vulnAngle - 90) * (Math.PI / 180);
+                                                    const vx = 20 + 16 * Math.cos(vulnRad);
+                                                    const vy = 20 + 16 * Math.sin(vulnRad);
+                                                    return html`
+                                                        <svg width="40" height="40" viewBox="0 0 40 40">
+                                                            <circle cx="20" cy="20" r="16" fill="${vulnerableApps > 0 ? '#d63939' : '#2fb344'}"/>
+                                                            ${cleanApps > 0 ? html`
+                                                                <path d="M 20 20 L 20 4 A 16 16 0 ${vulnAngle > 180 ? 1 : 0} 1 ${vx} ${vy} Z" fill="#2fb344"/>
+                                                            ` : ''}
+                                                        </svg>
+                                                        <div style="font-size: 11px;">
+                                                            <strong>${vulnerableApps}</strong>/${totalApps} apps vulnerable
+                                                        </div>
+                                                    `;
+                                                })()}
+                                            </div>
+                                            <!-- CVE Distribution Pie -->
+                                            <div class="d-flex align-items-center gap-2">
+                                                ${(() => {
+                                                    const totalCves = this.state.cveInventory.length;
+                                                    const critCount = criticalCves.length;
+                                                    const highCount = highCves.length;
+                                                    const mediumCount = this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length;
+                                                    const lowCount = this.state.cveInventory.filter(c => c.severity === 'LOW' || c.severity === 'Low').length;
+                                                    
+                                                    if (totalCves === 0) {
+                                                        return html`
+                                                            <svg width="40" height="40" viewBox="0 0 40 40">
+                                                                <circle cx="20" cy="20" r="16" fill="#2fb344"/>
+                                                            </svg>
+                                                            <div style="font-size: 11px;"><strong>0</strong> CVEs</div>
+                                                        `;
+                                                    }
+                                                    
+                                                    const addSlice = (startAngle, count, color) => {
+                                                        if (count === 0) return { path: '', endAngle: startAngle };
+                                                        const angle = (count / totalCves) * 360;
+                                                        const endAngle = startAngle + angle;
+                                                        const startRad = (startAngle - 90) * (Math.PI / 180);
+                                                        const endRad = (endAngle - 90) * (Math.PI / 180);
+                                                        const x1 = 20 + 16 * Math.cos(startRad);
+                                                        const y1 = 20 + 16 * Math.sin(startRad);
+                                                        const x2 = 20 + 16 * Math.cos(endRad);
+                                                        const y2 = 20 + 16 * Math.sin(endRad);
+                                                        const largeArc = angle > 180 ? 1 : 0;
+                                                        return {
+                                                            path: html`<path d="M 20 20 L ${x1} ${y1} A 16 16 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${color}"/>`,
+                                                            endAngle
+                                                        };
+                                                    };
+                                                    
+                                                    let currentAngle = 0;
+                                                    const slices = [];
+                                                    const slice1 = addSlice(currentAngle, critCount, '#d63939'); slices.push(slice1.path); currentAngle = slice1.endAngle;
+                                                    const slice2 = addSlice(currentAngle, highCount, '#f59f00'); slices.push(slice2.path); currentAngle = slice2.endAngle;
+                                                    const slice3 = addSlice(currentAngle, mediumCount, '#fab005'); slices.push(slice3.path); currentAngle = slice3.endAngle;
+                                                    const slice4 = addSlice(currentAngle, lowCount, '#74b816'); slices.push(slice4.path);
+                                                    
+                                                    return html`
+                                                        <svg width="40" height="40" viewBox="0 0 40 40">
+                                                            ${slices}
+                                                        </svg>
+                                                        <div style="font-size: 11px;"><strong>${totalCves}</strong> CVEs</div>
+                                                    `;
+                                                })()}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -352,31 +599,9 @@ export class DeviceDetailPage extends window.Component {
                             <div class="col-md-3">
                                 <div class="card">
                                     <div class="card-body">
-                                        <div class="text-muted small font-weight-medium">Applications</div>
+                                        <div class="text-muted small font-weight-medium">Registered</div>
                                         <div class="mt-2">
-                                            <span class="h4">${enrichedApps.length}</span>
-                                            <div class="text-muted small">${enrichedApps.filter(a => a.status === 'updated').length} updated</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="text-muted small font-weight-medium">Vulnerabilities</div>
-                                        <div class="mt-2">
-                                            <span class="h4">${this.state.cveInventory.length}</span>
-                                            <div class="text-muted small">Total CVEs</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="text-muted small font-weight-medium">First Seen</div>
-                                        <div class="mt-2">
-                                            <div class="text-muted small">${device.FirstHeartbeat ? this.formatDate(device.FirstHeartbeat) : 'N/A'}</div>
+                                            <div class="text-muted small">${device.FirstHeartbeat ? this.formatDate(device.FirstHeartbeat) : device.firstSeen ? this.formatDate(device.firstSeen) : device.createdAt ? this.formatDate(device.createdAt) : 'N/A'}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -488,9 +713,24 @@ export class DeviceDetailPage extends window.Component {
                                     <div class="text-muted small">${this.formatDate(change.at)}</div>
                                     <div class="text-sm"><strong>${Object.keys(change.delta).length} fields changed</strong></div>
                                     <div class="mt-2">
-                                        ${Object.keys(change.delta).map(k => html`
-                                            <span class="badge bg-secondary-lt me-2">${k}</span>
-                                        `)}
+                                        ${Object.keys(change.delta).map(k => {
+                                            const formatValue = (v) => {
+                                                if (v === null || v === undefined) return 'null';
+                                                if (typeof v === 'object') {
+                                                    // Avoid circular references from virtual DOM elements
+                                                    if (v && (v.__k || v.__)) return '[Virtual DOM Element]';
+                                                    try {
+                                                        return JSON.stringify(v);
+                                                    } catch (e) {
+                                                        return '[Complex Object]';
+                                                    }
+                                                }
+                                                return String(v);
+                                            };
+                                            return html`
+                                                <div class="mb-1"><span class="badge bg-secondary-lt me-2">${k}:</span> ${formatValue(change.delta[k])}</div>
+                                            `;
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -555,7 +795,7 @@ export class DeviceDetailPage extends window.Component {
                             <th>Vendor</th>
                             <th>Version</th>
                             <th>Status</th>
-                            <th>Match Type</th>
+                            <th>Risk / Match</th>
                             <th>CVEs</th>
                             <th>Last Seen</th>
                         </tr>
@@ -563,6 +803,10 @@ export class DeviceDetailPage extends window.Component {
                     <tbody>
                         ${filteredApps.map(app => {
                             const cves = this.getCvesByApp(app.appName);
+                            const worstSeverity = cves.some(c => c.severity === 'CRITICAL' || c.severity === 'Critical') ? 'CRITICAL' : 
+                                                 cves.some(c => c.severity === 'HIGH' || c.severity === 'High') ? 'HIGH' : 
+                                                 cves.some(c => c.severity === 'MEDIUM' || c.severity === 'Medium') ? 'MEDIUM' : 
+                                                 cves.length > 0 ? 'LOW' : 'CLEAN';
                             return html`
                                 <tr>
                                     <td class="font-weight-medium">${app.appName}</td>
@@ -574,9 +818,20 @@ export class DeviceDetailPage extends window.Component {
                                           html`<span class="badge bg-success-lt">Current</span>`}
                                     </td>
                                     <td>
-                                        ${app.matchType === 'absolute' ? html`<span class="badge bg-primary-lt">Exact</span>` :
-                                          app.matchType === 'heuristic' ? html`<span class="badge bg-cyan-lt">Heuristic</span>` :
-                                          html`<span class="badge bg-muted">None</span>`}
+                                        <div class="d-flex align-items-center gap-2">
+                                            ${worstSeverity === 'CRITICAL' ? html`<span class="badge bg-danger text-white">CRITICAL</span>` :
+                                              worstSeverity === 'HIGH' ? html`<span class="badge bg-warning">HIGH</span>` :
+                                              worstSeverity === 'MEDIUM' ? html`<span class="badge bg-yellow">MEDIUM</span>` :
+                                              worstSeverity === 'LOW' ? html`<span class="badge bg-info">LOW</span>` :
+                                              html`<span class="badge bg-success">CLEAN</span>`}
+                                            ${app.matchType === 'absolute' ? html`
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M3 12 L12 3 L21 12 Z"/></svg>
+                                            ` : app.matchType === 'heuristic' ? html`
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                                            ` : html`
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                                            `}
+                                        </div>
                                     </td>
                                     <td>
                                         ${cves.length > 0 ? html`
@@ -656,30 +911,40 @@ export class DeviceDetailPage extends window.Component {
                         </tr>
                     </thead>
                     <tbody>
-                        ${this.state.cveInventory.map(cve => html`
-                            <tr>
-                                <td>
-                                    <a href="https://nvd.nist.gov/vuln/detail/${cve.cveId}" target="_blank" rel="noopener" class="font-monospace text-primary">
-                                        ${cve.cveId}
-                                    </a>
-                                </td>
-                                <td class="font-weight-medium">${cve.appName}</td>
-                                <td>${cve.vendor || '—'}</td>
-                                <td>
-                                    <span class="badge ${this.getSeverityColor(cve.severity)} text-white">
-                                        ${(cve.severity || 'Unknown').toUpperCase()}
-                                    </span>
-                                </td>
-                                <td>
-                                    ${cve.epss ? html`
-                                        <span class="font-weight-medium">${Number(cve.epss).toFixed(2)}</span>
-                                    ` : html`
-                                        <span class="text-muted">—</span>
-                                    `}
-                                </td>
-                                <td class="text-muted small">${cve.lastSeen ? new Date(cve.lastSeen).toLocaleDateString() : '—'}</td>
-                            </tr>
-                        `)}
+                        ${this.state.cveInventory.map(cve => {
+                            const isKnownExploit = this.state.knownExploits && this.state.knownExploits.has(cve.cveId);
+                            return html`
+                                <tr>
+                                    <td>
+                                        <a href="https://nvd.nist.gov/vuln/detail/${cve.cveId}" target="_blank" rel="noopener" class="font-monospace text-primary d-inline-flex align-items-center gap-1">
+                                            ${cve.cveId}
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                        </a>
+                                        ${isKnownExploit ? html`
+                                            <span class="badge bg-danger-lt ms-2" title="Active exploitation detected in the wild">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                                                Known Exploit
+                                            </span>
+                                        ` : ''}
+                                    </td>
+                                    <td class="font-weight-medium">${cve.appName}</td>
+                                    <td>${cve.vendor || '—'}</td>
+                                    <td>
+                                        <span class="badge ${this.getSeverityColor(cve.severity)} text-white">
+                                            ${(cve.severity || 'Unknown').toUpperCase()}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        ${cve.epss ? html`
+                                            <span class="font-weight-medium">${Number(cve.epss).toFixed(2)}</span>
+                                        ` : html`
+                                            <span class="text-muted">—</span>
+                                        `}
+                                    </td>
+                                    <td class="text-muted small">${cve.lastSeen ? new Date(cve.lastSeen).toLocaleDateString() : '—'}</td>
+                                </tr>
+                            `;
+                        })}
                     </tbody>
                 </table>
                 ${this.state.cveInventory.length === 0 ? html`
