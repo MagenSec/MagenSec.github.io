@@ -19,10 +19,18 @@ export class UnifiedDashboardPage extends Component {
             error: null,
             user: null,
             currentOrg: null,
-            securityReport: null,
-            deviceStats: null,
+            dashboardData: null,
+            deviceStats: { total: 0, active: 0, disabled: 0, blocked: 0 },
+            threatSummary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+            complianceSummary: { score: 0, compliant: 0, nonCompliant: 0, total: 0 },
+            recentAlerts: [],
+            recentDevices: [],
             licenseInfo: null,
-            recentAlerts: []
+            securityScore: 0,
+            securityGrade: 'N/A',
+            lastScan: 'Never',
+            nextScan: 'Pending',
+            refreshInterval: null
         };
         this.orgUnsubscribe = null;
     }
@@ -50,54 +58,36 @@ export class UnifiedDashboardPage extends Component {
 
             this.setState({ user, currentOrg });
 
-            // Load data based on role
-            await Promise.all([
-                this.loadSecurityOverview(),
-                this.loadDeviceStats(),
-                this.loadLicenseInfo()
-            ]);
+            // Use the comprehensive dashboard API endpoint
+            const orgId = currentOrg?.orgId || user.email;
+            const response = await api.getDashboardData(orgId);
+            
+            if (response.success && response.data) {
+                const dashboard = response.data;
+                
+                // Extract all dashboard sections
+                this.setState({
+                    dashboardData: dashboard,
+                    deviceStats: dashboard.devices || { total: 0, active: 0, disabled: 0, blocked: 0 },
+                    threatSummary: dashboard.threats || { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+                    complianceSummary: dashboard.compliance || { score: 0, compliant: 0, nonCompliant: 0, total: 0 },
+                    recentAlerts: dashboard.alerts || [],
+                    recentDevices: dashboard.recentDevices || [],
+                    securityScore: dashboard.securityScore || 0,
+                    securityGrade: dashboard.grade || 'N/A',
+                    lastScan: dashboard.lastScan || 'Never',
+                    nextScan: dashboard.nextScan || 'Pending',
+                    loading: false
+                });
 
-            this.setState({ loading: false });
+                // Also load license info separately for credits display
+                await this.loadLicenseInfo();
+            } else {
+                throw new Error(response.message || response.error || 'Failed to load dashboard data');
+            }
         } catch (error) {
             console.error('[UnifiedDashboard] Load failed:', error);
             this.setState({ error: error.message, loading: false });
-        }
-    }
-
-    async loadSecurityOverview() {
-        try {
-            const currentOrg = orgContext.getCurrentOrg();
-            const user = auth.getUser();
-            const orgId = currentOrg?.orgId || user.email;
-            
-            // Use Analytics API with orgId query parameter
-            const response = await api.get(`/api/v1/analytics/enhanced?orgId=${encodeURIComponent(orgId)}&period=7d`);
-            
-            if (response.success && response.data) {
-                this.setState({ securityReport: response.data });
-            } else {
-                console.warn('[UnifiedDashboard] Security report unavailable:', response.error || 'No data');
-            }
-        } catch (error) {
-            console.warn('[UnifiedDashboard] Security overview failed:', error.message);
-        }
-    }
-
-    async loadDeviceStats() {
-        try {
-            const currentOrg = orgContext.getCurrentOrg();
-            const user = auth.getUser();
-            const orgId = currentOrg?.orgId || user.email;
-            
-            const response = await api.get(`/api/v1/orgs/${orgId}/devices`);
-            
-            if (response.success) {
-                // Ensure data is an array; api.js response normalization may vary
-                const devicesData = Array.isArray(response.data) ? response.data : (response.data?.devices || []);
-                this.setState({ deviceStats: this.computeDeviceStats(devicesData) });
-            }
-        } catch (error) {
-            console.warn('[UnifiedDashboard] Device stats failed:', error.message);
         }
     }
 
@@ -107,7 +97,7 @@ export class UnifiedDashboardPage extends Component {
             const user = auth.getUser();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.get(`/api/v1/orgs/${orgId}/licenses`);
+            const response = await api.getLicenses(orgId);
             
             if (response.success) {
                 // Ensure data is an array
@@ -121,6 +111,13 @@ export class UnifiedDashboardPage extends Component {
         }
     }
 
+    componentWillUnmount() {
+        if (this.orgUnsubscribe) this.orgUnsubscribe();
+        if (this.state.refreshInterval) {
+            clearInterval(this.state.refreshInterval);
+        }
+    }
+
     formatDate(date) {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -128,14 +125,35 @@ export class UnifiedDashboardPage extends Component {
         return `${year}${month}${day}`;
     }
 
-    computeDeviceStats(devices) {
-        const total = devices.length;
-        const active = devices.filter(d => d.state === 'Active').length;
-        const disabled = devices.filter(d => d.state === 'Disabled').length;
-        const blocked = devices.filter(d => d.state === 'Blocked').length;
-        const criticalCVEs = devices.reduce((sum, d) => sum + (d.criticalCVECount || 0), 0);
-        
-        return { total, active, disabled, blocked, criticalCVEs };
+    async refreshData() {
+        try {
+            const user = auth.getUser();
+            const currentOrg = orgContext.getCurrentOrg();
+            const orgId = currentOrg?.orgId || user.email;
+            
+            const response = await api.getDashboardData(orgId);
+            
+            if (response.success && response.data) {
+                const dashboard = response.data;
+                
+                this.setState({
+                    dashboardData: dashboard,
+                    deviceStats: dashboard.devices || this.state.deviceStats,
+                    threatSummary: dashboard.threats || this.state.threatSummary,
+                    complianceSummary: dashboard.compliance || this.state.complianceSummary,
+                    recentAlerts: dashboard.alerts || [],
+                    recentDevices: dashboard.recentDevices || [],
+                    securityScore: dashboard.securityScore || 0,
+                    securityGrade: dashboard.grade || 'N/A',
+                    lastScan: dashboard.lastScan || 'Never',
+                    nextScan: dashboard.nextScan || 'Pending'
+                });
+                
+                console.log('[UnifiedDashboard] Data refreshed');
+            }
+        } catch (error) {
+            console.warn('[UnifiedDashboard] Refresh failed:', error.message);
+        }
     }
 
     getUserRole() {
@@ -148,19 +166,24 @@ export class UnifiedDashboardPage extends Component {
     }
 
     getRiskScore() {
-        const { securityReport } = this.state;
-        if (!securityReport?.summary?.overallRiskScore) return null;
-        
-        const score = securityReport.summary.overallRiskScore;
-        return Math.round(score);
+        const { securityScore } = this.state;
+        return securityScore || 0;
     }
 
     getRiskColor(score) {
-        if (score === null) return 'secondary';
+        if (score === null || score === 0) return 'secondary';
         if (score >= 80) return 'danger';
         if (score >= 60) return 'warning';
         if (score >= 40) return 'info';
         return 'success';
+    }
+
+    getRiskLabel(score) {
+        if (score >= 80) return 'Critical';
+        if (score >= 60) return 'High';
+        if (score >= 40) return 'Medium';
+        if (score > 0) return 'Low';
+        return 'No Risk';
     }
 
     render() {
@@ -244,7 +267,8 @@ export class UnifiedDashboardPage extends Component {
     }
 
     renderKPICards(role, riskScore, riskColor) {
-        const { deviceStats, licenseInfo } = this.state;
+        const { deviceStats, licenseInfo, threatSummary, securityGrade, lastScan } = this.state;
+        const riskLabel = this.getRiskLabel(riskScore);
         
         // Security Score Card
         const scoreCard = html`
@@ -252,21 +276,19 @@ export class UnifiedDashboardPage extends Component {
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
-                            <div class="subheader">Risk Score</div>
+                            <div class="subheader">Security Score</div>
                             <div class="ms-auto lh-1">
-                                <div class="dropdown">
-                                    <a class="dropdown-toggle text-muted" href="#" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Last 24 hours</a>
-                                </div>
+                                <span class="badge bg-${riskColor}">${securityGrade}</span>
                             </div>
                         </div>
                         <div class="h1 mb-3">
-                            ${riskScore !== null ? html`<span class="text-${riskColor}">${riskScore}</span>` : html`<span class="text-muted">--</span>`}
+                            <span class="text-${riskColor}">${riskScore}</span>/100
                         </div>
                         <div class="d-flex mb-2">
-                            <div>${riskScore !== null ? (riskScore >= 70 ? 'High Risk' : riskScore >= 40 ? 'Medium Risk' : 'Low Risk') : 'No data'}</div>
+                            <div>${riskLabel} - Last scan: ${lastScan}</div>
                         </div>
                         <div class="progress progress-sm">
-                            <div class="progress-bar bg-${riskColor}" style="width: ${riskScore || 0}%" role="progressbar"></div>
+                            <div class="progress-bar bg-${riskColor}" style="width: ${riskScore}%" role="progressbar"></div>
                         </div>
                     </div>
                 </div>
@@ -281,15 +303,41 @@ export class UnifiedDashboardPage extends Component {
                         <div class="d-flex align-items-center">
                             <div class="subheader">Endpoints</div>
                         </div>
-                        <div class="h1 mb-3">${deviceStats?.total || 0}</div>
+                        <div class="h1 mb-3">${deviceStats.total}</div>
                         <div class="d-flex mb-2">
                             <div>
-                                <span class="badge bg-success me-1">${deviceStats?.active || 0}</span> Active
-                                ${deviceStats?.disabled > 0 && html`<span class="badge bg-secondary ms-2">${deviceStats.disabled}</span> Disabled`}
+                                <span class="badge bg-success me-1">${deviceStats.active}</span> Active
+                                ${deviceStats.disabled > 0 && html`<span class="badge bg-secondary ms-2">${deviceStats.disabled}</span> Disabled`}
+                                ${deviceStats.blocked > 0 && html`<span class="badge bg-danger ms-2">${deviceStats.blocked}</span> Blocked`}
                             </div>
                         </div>
                         <div class="progress progress-sm">
-                            <div class="progress-bar bg-primary" style="width: ${deviceStats?.total ? (deviceStats.active / deviceStats.total * 100) : 0}%" role="progressbar"></div>
+                            <div class="progress-bar bg-primary" style="width: ${deviceStats.total ? (deviceStats.active / deviceStats.total * 100) : 0}%" role="progressbar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Threats Card
+        const threatsCard = html`
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Threats</div>
+                        </div>
+                        <div class="h1 mb-3">${threatSummary.total}</div>
+                        <div class="d-flex mb-2">
+                            <div>
+                                ${threatSummary.critical > 0 && html`<span class="badge bg-danger me-1">${threatSummary.critical}</span> Critical`}
+                                ${threatSummary.high > 0 && html`<span class="badge bg-warning ms-1">${threatSummary.high}</span> High`}
+                                ${threatSummary.total === 0 && html`<span class="text-success">No threats detected</span>`}
+                            </div>
+                        </div>
+                        <div class="progress progress-sm">
+                            <div class="progress-bar bg-danger" style="width: ${threatSummary.total ? (threatSummary.critical / threatSummary.total * 100) : 0}%" role="progressbar"></div>
+                            <div class="progress-bar bg-warning" style="width: ${threatSummary.total ? (threatSummary.high / threatSummary.total * 100) : 0}%" role="progressbar"></div>
                         </div>
                     </div>
                 </div>
@@ -312,11 +360,12 @@ export class UnifiedDashboardPage extends Component {
                         <div class="d-flex mb-2">
                             <div>
                                 ${licenseInfo?.licenseType === 'Business' && html`
-                                    ${licenseInfo.remainingCredits || 0} credits remaining
+                                    ${licenseInfo.remainingCredits || 0} credits
                                 `}
                                 ${licenseInfo?.licenseType === 'Personal' && html`
                                     Personal license
                                 `}
+                                ${!licenseInfo && html`No license`}
                             </div>
                         </div>
                     </div>
@@ -324,28 +373,11 @@ export class UnifiedDashboardPage extends Component {
             </div>
         `;
 
-        // Alerts Card
-        const alertsCard = html`
-            <div class="col-sm-6 col-lg-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="subheader">Critical Items</div>
-                        </div>
-                        <div class="h1 mb-3 text-warning">${deviceStats?.criticalCVEs || 0}</div>
-                        <div class="d-flex mb-2">
-                            <div>Critical vulnerabilities</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        return html`${scoreCard}${devicesCard}${licenseCard}${alertsCard}`;
+        return html`${scoreCard}${devicesCard}${threatsCard}${licenseCard}`;
     }
 
     renderRoleContent(role) {
-        const { securityReport, deviceStats } = this.state;
+        const { threatSummary, complianceSummary, recentAlerts, recentDevices, deviceStats } = this.state;
         
         // Security Overview Widget
         const securityWidget = html`
@@ -358,47 +390,98 @@ export class UnifiedDashboardPage extends Component {
                         </div>
                     </div>
                     <div class="card-body">
-                        ${securityReport?.summary ? html`
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <div class="text-muted">Total Vulnerabilities</div>
-                                        <div class="h2">${securityReport.summary.totalVulnerabilities || 0}</div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h4 class="mb-3">Threats</h4>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <div class="text-muted">Critical</div>
+                                            <div class="h3 text-danger">${threatSummary.critical}</div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <div class="text-muted">Critical CVEs</div>
-                                        <div class="h2 text-danger">${securityReport.summary.criticalCount || 0}</div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <div class="text-muted">High</div>
+                                            <div class="h3 text-warning">${threatSummary.high}</div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <div class="text-muted">High Severity</div>
-                                        <div class="h2 text-warning">${securityReport.summary.highCount || 0}</div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <div class="text-muted">Medium</div>
+                                            <div class="h3">${threatSummary.medium}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <div class="text-muted">Low</div>
+                                            <div class="h3">${threatSummary.low}</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            ${securityReport.summary.topRecommendations?.length > 0 && html`
-                                <div class="mt-3">
-                                    <div class="text-muted mb-2">Top Recommendations</div>
-                                    <ul class="list-unstyled">
-                                        ${securityReport.summary.topRecommendations.slice(0, 3).map(rec => html`
-                                            <li class="mb-2">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline text-warning" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>
-                                                ${rec}
-                                            </li>
-                                        `)}
-                                    </ul>
+                            <div class="col-md-6">
+                                <h4 class="mb-3">Compliance</h4>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <div class="mb-3">
+                                            <div class="text-muted">Compliance Score</div>
+                                            <div class="h2">${complianceSummary.score}%</div>
+                                            <div class="progress progress-sm">
+                                                <div class="progress-bar ${complianceSummary.score >= 80 ? 'bg-success' : complianceSummary.score >= 60 ? 'bg-warning' : 'bg-danger'}" 
+                                                     style="width: ${complianceSummary.score}%" 
+                                                     role="progressbar"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <div class="text-muted">Compliant</div>
+                                            <div class="h3 text-success">${complianceSummary.compliant}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <div class="text-muted">Non-Compliant</div>
+                                            <div class="h3 text-danger">${complianceSummary.nonCompliant}</div>
+                                        </div>
+                                    </div>
                                 </div>
-                            `}
-                        ` : html`
-                            <div class="empty">
+                            </div>
+                        </div>
+                        
+                        ${recentAlerts.length > 0 && html`
+                            <div class="mt-4">
+                                <h4 class="mb-3">Recent Alerts</h4>
+                                <div class="list-group list-group-flush">
+                                    ${recentAlerts.slice(0, 5).map(alert => html`
+                                        <div class="list-group-item">
+                                            <div class="row align-items-center">
+                                                <div class="col-auto">
+                                                    <span class="badge ${alert.severity === 'critical' ? 'bg-danger' : 
+                                                                         alert.severity === 'high' ? 'bg-warning' : 
+                                                                         alert.severity === 'warning' ? 'bg-info' : 'bg-secondary'}">
+                                                        ${alert.severity}
+                                                    </span>
+                                                </div>
+                                                <div class="col">
+                                                    <div class="font-weight-medium">${alert.title}</div>
+                                                    <div class="text-muted small">${alert.device} - ${alert.detected}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                        `}
+                        
+                        ${threatSummary.total === 0 && recentAlerts.length === 0 && html`
+                            <div class="empty mt-4">
                                 <div class="empty-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l.01 0" /><path d="M11 12l1 0l0 4l1 0" /></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-success" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><path d="M9 12l2 2l4 -4" /></svg>
                                 </div>
-                                <p class="empty-title">No security report available</p>
-                                <p class="empty-subtitle text-muted">Security reports are generated daily</p>
+                                <p class="empty-title">No threats detected</p>
+                                <p class="empty-subtitle text-muted">Your systems are secure</p>
                             </div>
                         `}
                     </div>

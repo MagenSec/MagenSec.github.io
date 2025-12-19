@@ -212,19 +212,275 @@ export class ApiClient {
         });
     }
 
-    // Dashboard data
+    // === DASHBOARD ===
     async getDashboardData(orgId) {
         return this.get('/api/v1/dashboard', { orgId });
     }
 
-    // Devices for organization
+    // === DEVICES ===
     async getDevices(orgId, params = null, options = {}) {
         return this.get(`/api/v1/orgs/${orgId}/devices`, params, options);
     }
 
-    // Stats
-    async getStats() {
-        return this.request('/portal/api/stats');
+    async getDevice(deviceId) {
+        return this.get(`/api/v1/devices/${deviceId}`);
+    }
+
+    async updateDeviceState(deviceId, state) {
+        return this.put(`/api/v1/devices/${deviceId}/state`, { state });
+    }
+
+    async deleteDevice(deviceId) {
+        return this.delete(`/api/v1/devices/${deviceId}`);
+    }
+
+    async getDeviceTelemetry(deviceId, params = {}) {
+        return this.get(`/api/v1/devices/${deviceId}/telemetry`, params);
+    }
+
+    // === LICENSES ===
+    async getLicenses(orgId) {
+        return this.get(`/api/v1/orgs/${orgId}/licenses`);
+    }
+
+    async getLicense(licenseId) {
+        return this.get(`/api/v1/licenses/${licenseId}`);
+    }
+
+    async createLicense(data) {
+        return this.post('/api/v1/licenses', data);
+    }
+
+    async rotateLicense(licenseId) {
+        return this.put(`/api/v1/licenses/${licenseId}/rotate`);
+    }
+
+    async toggleLicense(licenseId, enabled) {
+        return this.put(`/api/v1/licenses/${licenseId}/toggle`, { enabled });
+    }
+
+    async deleteLicense(licenseId) {
+        return this.delete(`/api/v1/licenses/${licenseId}`);
+    }
+
+    async adjustLicenseCredits(licenseId, credits, reason) {
+        return this.put(`/api/v1/admin/licenses/${licenseId}/credits`, { 
+            creditAdjustment: credits, 
+            reason 
+        });
+    }
+
+    // === ORGANIZATION MEMBERS ===
+    async getMembers(orgId) {
+        return this.get(`/api/v1/orgs/${orgId}/members`);
+    }
+
+    async addMember(orgId, email, role = 'ReadWrite') {
+        return this.post(`/api/v1/orgs/${orgId}/members`, { email, role });
+    }
+
+    async updateMemberRole(orgId, userId, role) {
+        return this.put(`/api/v1/orgs/${orgId}/members/${userId}`, { role });
+    }
+
+    async removeMember(orgId, userId) {
+        return this.delete(`/api/v1/orgs/${orgId}/members/${userId}`);
+    }
+
+    // === CONFIGURATION ===
+    async getDefaultConfig() {
+        return this.get('/api/v1/config/default');
+    }
+
+    async updateDefaultConfig(config) {
+        return this.put('/api/v1/config/default', config);
+    }
+
+    async getOrgConfig(orgId) {
+        return this.get(`/api/v1/config/orgs/${orgId}`);
+    }
+
+    async updateOrgConfig(orgId, config) {
+        return this.put(`/api/v1/config/orgs/${orgId}`, config);
+    }
+
+    async getDeviceConfig(deviceId) {
+        return this.get(`/api/v1/config/devices/${deviceId}`);
+    }
+
+    async updateDeviceConfig(deviceId, config) {
+        return this.put(`/api/v1/config/devices/${deviceId}`, config);
+    }
+
+    // === USERS ===
+    async getUsers(orgId) {
+        return this.get('/api/v1/users', { orgId });
+    }
+
+    async getUser(email) {
+        return this.get(`/api/v1/users/${email}`);
+    }
+
+    async updateUser(email, data) {
+        return this.put(`/api/v1/users/${email}`, data);
+    }
+
+    async getUserOrgs(email) {
+        return this.get(`/api/v1/users/${email}/orgs`);
+    }
+
+    // === ADMIN - ORGANIZATIONS ===
+    async adminGetOrgs() {
+        return this.get('/api/v1/admin/orgs');
+    }
+
+    async adminGetOrg(orgId) {
+        return this.get(`/api/v1/admin/orgs/${orgId}`);
+    }
+
+    async adminCreateOrg(data) {
+        return this.post('/api/v1/admin/orgs', data);
+    }
+
+    async adminUpdateOrg(orgId, data) {
+        return this.put(`/api/v1/admin/orgs/${orgId}`, data);
+    }
+
+    async adminDisableOrg(orgId) {
+        return this.put(`/api/v1/admin/orgs/${orgId}/disable`);
+    }
+
+    async adminDeleteOrg(orgId) {
+        return this.delete(`/api/v1/admin/orgs/${orgId}`);
+    }
+
+    // === ADMIN - USERS ===
+    async adminGetAllUsers() {
+        return this.get('/api/v1/admin/users');
+    }
+
+    async adminElevateUser(userId, orgName, seats = 20, days = 365) {
+        return this.post(`/api/v1/admin/users/${userId}/elevate`, {
+            orgName,
+            seats,
+            days
+        });
+    }
+
+    async adminDowngradeUser(userId) {
+        return this.post(`/api/v1/admin/users/${userId}/downgrade`);
+    }
+
+    // === ADMIN - TELEMETRY CONFIG ===
+    async adminGetTelemetryConfig(orgId) {
+        return this.get(`/api/v1/admin/telemetry/config/${orgId}`);
+    }
+
+    async adminUpdateTelemetryConfig(orgId, config) {
+        return this.put(`/api/v1/admin/telemetry/config/${orgId}`, config);
+    }
+
+    // === SECURITY ===
+    async getSecurityTelemetry(params) {
+        return this.get('/api/v1/security/telemetry', params);
+    }
+
+    async submitSecurityTelemetry(data) {
+        return this.post('/api/v1/security/telemetry', data);
+    }
+
+    // === VULNERABILITIES ===
+    async getVulnerabilities(params) {
+        return this.get('/api/v1/vulnerabilities', params);
+    }
+
+    async getVulnerability(vulnId) {
+        return this.get(`/api/v1/vulnerabilities/${vulnId}`);
+    }
+
+    async mitigateVulnerability(vulnId, data) {
+        return this.post(`/api/v1/vulnerabilities/${vulnId}/mitigate`, data);
+    }
+
+    // === RESPONSE ACTIONS ===
+    async getResponseActions(params) {
+        return this.get('/api/v1/response-actions', params);
+    }
+
+    async createResponseAction(data) {
+        return this.post('/api/v1/response-actions', data);
+    }
+
+    async getResponseAction(actionId) {
+        return this.get(`/api/v1/response-actions/${actionId}`);
+    }
+
+    async updateResponseAction(actionId, data) {
+        return this.put(`/api/v1/response-actions/${actionId}`, data);
+    }
+
+    async deleteResponseAction(actionId) {
+        return this.delete(`/api/v1/response-actions/${actionId}`);
+    }
+
+    // === ANALYTICS & TRENDS ===
+    async getTrends(params) {
+        return this.get('/api/v1/trends', params);
+    }
+
+    async getAnalytics(params) {
+        return this.get('/api/v1/analytics', params);
+    }
+
+    async getAggregations(params) {
+        return this.get('/api/v1/aggregations', params);
+    }
+
+    async getAssets(params) {
+        return this.get('/api/v1/assets', params);
+    }
+
+    async getCompliance(params) {
+        return this.get('/api/v1/compliance', params);
+    }
+
+    async getAlerts(params) {
+        return this.get('/api/v1/alerts', params);
+    }
+
+    async getPlatformInsights(params) {
+        return this.get('/api/v1/platform-insights', params);
+    }
+
+    // === AI REPORTS ===
+    async getAIReports(params) {
+        return this.get('/api/v1/ai/reports', params);
+    }
+
+    async createAIReport(data) {
+        return this.post('/api/v1/ai/reports', data);
+    }
+
+    async getAIReport(reportId) {
+        return this.get(`/api/v1/ai/reports/${reportId}`);
+    }
+
+    async submitAIFeedback(reportId, feedback) {
+        return this.put(`/api/v1/ai/reports/${reportId}/feedback`, feedback);
+    }
+
+    // === TEST SEEDING ===
+    async seedTestData(data) {
+        return this.post('/api/v1/test/seed', data);
+    }
+
+    async unseedTestData() {
+        return this.delete('/api/v1/test/unseed');
+    }
+
+    // === HEALTH ===
+    async getHealth() {
+        return this.get('/health');
     }
 }
 
