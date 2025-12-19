@@ -25,14 +25,20 @@ export class DeviceDetailPage extends window.Component {
             cveInventory: [],
             telemetryHistory: [],
             activeTab: 'specs', // specs | inventory | risks | timeline | perf
+            appViewMode: 'vendor', // 'vendor' | 'flat'
+            expandedVendors: new Set(),
+            expandedApps: new Set(),
             searchQuery: '',
             cveFilterSeverity: null, // filter CVEs by severity
+            cveFilterApp: null, // cross-link filter from Inventory tab
             perfData: null, // Perf chart data if available
             timeline: [], // Event timeline
             knownExploits: null,
             exploitsLoadingError: null,
             enrichedScore: null,
-            deviceSummary: null
+            deviceSummary: null,
+            appSortKey: 'appName', // appName | severity | cveCount
+            appSortDir: 'asc'
         };
         this.KNOWN_EXPLOITS_CACHE = { data: null, loadedAt: null, TTL_HOURS: 24 };
     }
@@ -180,6 +186,31 @@ export class DeviceDetailPage extends window.Component {
         return s;
     }
 
+    // Compare device client version against latest installer manifest
+    isVersionOutdated(deviceVersion) {
+        if (!deviceVersion) return false;
+        const latestVersion = (this.state.installers?.ENGINE?.VERSION) || config.INSTALLERS.ENGINE.VERSION;
+        const parse = (v) => {
+            const parts = String(v).split('.').map(Number);
+            return { major: parts[0]||0, minor: parts[1]||0, build: parts[2]||0 };
+        };
+        const a = parse(deviceVersion);
+        const b = parse(latestVersion);
+        if (a.major < b.major) return true;
+        if (a.major === b.major && a.minor < b.minor) return true;
+        if (a.major === b.major && a.minor === b.minor && a.build < b.build) return true;
+        return false;
+    }
+
+    severityWeight(sev) {
+        const s = String(sev||'').toUpperCase();
+        if (s === 'CRITICAL') return 3;
+        if (s === 'HIGH') return 2;
+        if (s === 'MEDIUM') return 1;
+        if (s === 'LOW') return 0.5;
+        return 0;
+    }
+
     async loadDeviceData() {
         try {
             this.setState({ loading: true, error: null });
@@ -202,7 +233,9 @@ export class DeviceDetailPage extends window.Component {
             const decryptedDevice = {
                 ...deviceResp.data,
                 DeviceName: PiiDecryption.decryptIfEncrypted(deviceResp.data.DeviceName || deviceResp.data.deviceName || ''),
-                deviceName: PiiDecryption.decryptIfEncrypted(deviceResp.data.DeviceName || deviceResp.data.deviceName || '')
+                deviceName: PiiDecryption.decryptIfEncrypted(deviceResp.data.DeviceName || deviceResp.data.deviceName || ''),
+                // Ensure FirstHeartbeat is available for Registered date display
+                FirstHeartbeat: deviceResp.data.FirstHeartbeat || deviceResp.data.firstHeartbeat || deviceResp.data.RegisteredAt || deviceResp.data.registeredAt
             };
 
             // Get telemetry history and diffs
@@ -385,9 +418,106 @@ export class DeviceDetailPage extends window.Component {
         }
     }
 
+    // Filter out uninstalled and patched vulnerabilities from risk calculations
+    getActiveAppsAndCves() {
+        // Keep only installed apps or apps still showing in current telemetry
+        const activeApps = this.state.appInventory.filter(app => {
+            // Keep if installed
+            if (app.isInstalled === true) return true;
+            // Keep if lastSeen is recent (within 30 days)
+            if (app.lastSeen) {
+                const daysSinceSeen = (Date.now() - new Date(app.lastSeen).getTime()) / (1000 * 60 * 60 * 24);
+                if (daysSinceSeen <= 30) return true;
+            }
+            return false;
+        });
+
+        // Keep only unpatched CVEs
+        const activeCves = this.state.cveInventory.filter(cve => {
+            // Exclude if marked as patched
+            if (cve.isPatched === true) return false;
+            // Keep all others
+            return true;
+        });
+
+        return { activeApps, activeCves };
+    }
+
+    // Collapse apps with same name/vendor into latest entry with older versions as timeline
+    collapseAppsByNameVendor(apps) {
+        const grouped = {};
+        
+        apps.forEach(app => {
+            const key = `${(app.appName || '').toLowerCase()}|${(app.vendor || '').toLowerCase()}`;
+            if (!grouped[key]) {
+                grouped[key] = { latest: app, older: [] };
+            } else {
+                // Determine which is latest based on lastSeen
+                const currentLastSeen = new Date(grouped[key].latest.lastSeen || 0).getTime();
+                const newLastSeen = new Date(app.lastSeen || 0).getTime();
+                
+                if (newLastSeen > currentLastSeen) {
+                    grouped[key].older.push(grouped[key].latest);
+                    grouped[key].latest = app;
+                } else {
+                    grouped[key].older.push(app);
+                }
+            }
+        });
+
+        return Object.values(grouped);
+    }
+
     formatDate(dateStr) {
         if (!dateStr) return 'N/A';
-        return new Date(dateStr).toLocaleString();
+        const date = new Date(dateStr);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[date.getMonth()]}-${String(date.getDate()).padStart(2, '0')}, ${date.getFullYear()}`;
+    }
+
+    toggleVendor(vendorName) {
+        const expanded = new Set(this.state.expandedVendors);
+        if (expanded.has(vendorName)) {
+            expanded.delete(vendorName);
+        } else {
+            expanded.add(vendorName);
+        }
+        this.setState({ expandedVendors: expanded });
+    }
+
+    toggleAppVersions(appKey) {
+        const expanded = new Set(this.state.expandedApps);
+        if (expanded.has(appKey)) {
+            expanded.delete(appKey);
+        } else {
+            expanded.add(appKey);
+        }
+        this.setState({ expandedApps: expanded });
+    }
+
+    groupAppsByVendor(apps) {
+        const vendors = {};
+        for (const app of apps) {
+            const vendor = app.vendor || 'Unknown Vendor';
+            if (!vendors[vendor]) vendors[vendor] = [];
+            vendors[vendor].push(app);
+        }
+        return vendors;
+    }
+
+    groupAppVersions(apps) {
+        // Group by appName, return array of groups with versions sorted by date
+        const groups = {};
+        for (const app of apps) {
+            const key = app.appName.toLowerCase();
+            if (!groups[key]) groups[key] = { appName: app.appName, vendor: app.vendor, versions: [] };
+            groups[key].versions.push(app);
+        }
+        // Sort versions by firstSeen descending (newest first)
+        Object.values(groups).forEach(group => {
+            group.versions.sort((a, b) => new Date(b.firstSeen || 0) - new Date(a.firstSeen || 0));
+        });
+        return Object.values(groups);
     }
 
     render() {
@@ -442,7 +572,27 @@ export class DeviceDetailPage extends window.Component {
         }
 
         const enrichedApps = this.computeAppStatus(this.state.appInventory);
-        const filteredApps = this.filterApps(enrichedApps, searchQuery);
+        let filteredApps = this.filterApps(enrichedApps, searchQuery);
+        // Apply sorting for Applications tab
+        filteredApps = filteredApps.slice().sort((a,b) => {
+            if (this.state.appSortKey === 'appName') {
+                const r = String(a.appName||'').localeCompare(String(b.appName||''));
+                return this.state.appSortDir === 'asc' ? r : -r;
+            }
+            if (this.state.appSortKey === 'severity') {
+                const aw = Math.max(...this.getCvesByApp(a.appName).map(c => this.severityWeight(c.severity)), 0);
+                const bw = Math.max(...this.getCvesByApp(b.appName).map(c => this.severityWeight(c.severity)), 0);
+                const r = aw - bw;
+                return this.state.appSortDir === 'asc' ? r : -r;
+            }
+            if (this.state.appSortKey === 'cveCount') {
+                const ac = this.getCvesByApp(a.appName).length;
+                const bc = this.getCvesByApp(b.appName).length;
+                const r = ac - bc;
+                return this.state.appSortDir === 'asc' ? r : -r;
+            }
+            return 0;
+        });
         const criticalCves = this.state.cveInventory.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical');
         const highCves = this.state.cveInventory.filter(c => c.severity === 'HIGH' || c.severity === 'High');
 
@@ -456,13 +606,34 @@ export class DeviceDetailPage extends window.Component {
                                 <div class="col">
                                     <a href="#!/devices" class="btn btn-ghost-primary me-3">← Back</a>
                                     <h2 class="page-title d-inline-block">${device.DeviceName || device.deviceName || device.DeviceId || device.deviceId}</h2>
-                                    <span class="badge ${this.getStateBadgeClass(device.State || device.state)} ms-2">${this.getStateDisplay(device.State || device.state)}</span>
+                                    <span class="badge ${this.getStateBadgeClass(device.State || device.state)} ms-2" title="License state; Active/Enabled denotes license status. Online/offline shown separately.">${this.getStateDisplay(device.State || device.state)}</span>
+                                    ${(() => {
+                                        const dv = device.ClientVersion || device.clientVersion;
+                                        return dv && this.isVersionOutdated(dv) ? window.html`<span class="badge bg-warning-lt ms-2" title="Update available to v${config.INSTALLERS.ENGINE.VERSION}">Update Available</span>` : '';
+                                    })()}
                                 </div>
                                 <div class="col-auto">
+                                    <div class="btn-list mb-2">
+                                        <button class="btn btn-primary" disabled title="Coming soon - Device action queue">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 9a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" /><path d="M7 14l-3 3l-1 -1" /><path d="M9 13l2 2l4 -4" /></svg>
+                                            Update Client
+                                        </button>
+                                        <button class="btn btn-outline-primary" disabled title="Coming soon - App management">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3"/><line x1="12" y1="12" x2="20" y2="7.5"/><line x1="12" y1="12" x2="12" y2="21"/><line x1="12" y1="12" x2="4" y2="7.5"/></svg>
+                                            Uninstall App
+                                        </button>
+                                    </div>
                                     ${device.LastHeartbeat ? html`
                                         <div class="text-muted small">
                                             Last heartbeat: ${this.formatDate(device.LastHeartbeat)}
                                         </div>
+                                        ${(() => {
+                                            const last = device.LastHeartbeat;
+                                            if (!last) return '';
+                                            const mins = Math.floor((Date.now() - new Date(last).getTime())/60000);
+                                            const online = mins <= 30 && String(device.State||'').toUpperCase()==='ACTIVE';
+                                            return html`<span class="badge ${online?'bg-success-lt':'bg-danger-lt'} mt-1">${online?'Online':'Offline'}</span>`;
+                                        })()}
                                     ` : ''}
                                 </div>
                             </div>
@@ -606,6 +777,24 @@ export class DeviceDetailPage extends window.Component {
                                     </div>
                                 </div>
                             </div>
+                            <div class="col-md-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="text-muted small font-weight-medium">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="7" r="4" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
+                                            Logged-In User
+                                        </div>
+                                        <div class="mt-2">
+                                            ${(() => {
+                                                const f = this.state.telemetryDetail?.latest?.fields || {};
+                                                const encoded = f.UserName || f.Username || f.userName || f.LoggedOnUser || f.CurrentUser || null;
+                                                const u = encoded ? PiiDecryption.decryptIfEncrypted(String(encoded)) : null;
+                                                return html`<div class="text-muted small font-monospace">${u ? String(u) : 'N/A'}</div>`;
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Tabs -->
@@ -727,8 +916,17 @@ export class DeviceDetailPage extends window.Component {
                                                 }
                                                 return String(v);
                                             };
+                                            const deltaVal = change.delta[k];
+                                            const showArrow = deltaVal && typeof deltaVal === 'object' && (deltaVal.from !== undefined || deltaVal.to !== undefined);
                                             return html`
-                                                <div class="mb-1"><span class="badge bg-secondary-lt me-2">${k}:</span> ${formatValue(change.delta[k])}</div>
+                                                <div class="mb-1 d-flex align-items-center gap-2">
+                                                    <span class="badge bg-secondary-lt">${k}</span>
+                                                    ${showArrow ? html`
+                                                        <span class="text-muted">${formatValue(deltaVal.from)}</span>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-arrow-narrow-right" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="5" y1="12" x2="19" y2="12" /><line x1="15" y1="16" x2="19" y2="12" /><line x1="15" y1="8" x2="19" y2="12" /></svg>
+                                                        <span class="fw-medium">${formatValue(deltaVal.to)}</span>
+                                                    ` : html`<span>${formatValue(deltaVal)}</span>`}
+                                                </div>
                                             `;
                                         })}
                                     </div>
@@ -743,14 +941,23 @@ export class DeviceDetailPage extends window.Component {
 
     renderInventoryTab(enrichedApps, filteredApps) {
         const { html } = window;
+        const { appViewMode } = this.state;
         
         return html`
-            <div class="mb-3">
-                <div class="input-group">
+            <div class="mb-3 d-flex justify-content-between align-items-center">
+                <div class="input-group" style="max-width: 400px;">
                     <span class="input-group-text">
                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
                     </span>
                     <input class="form-control" type="text" placeholder="Search applications..." value=${this.state.searchQuery} onInput=${(e) => this.setState({ searchQuery: e.target.value })} />
+                </div>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm ${appViewMode === 'vendor' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ appViewMode: 'vendor' })}>
+                        Group by Vendor
+                    </button>
+                    <button type="button" class="btn btn-sm ${appViewMode === 'flat' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ appViewMode: 'flat' })}>
+                        Flat List
+                    </button>
                 </div>
             </div>
             <div class="row row-cards mb-3">
@@ -787,6 +994,147 @@ export class DeviceDetailPage extends window.Component {
                     </div>
                 </div>
             </div>
+            ${appViewMode === 'vendor' ? this.renderVendorGroupedView(filteredApps) : this.renderFlatListView(filteredApps)}
+        `;
+    }
+
+    renderVendorGroupedView(apps) {
+        const { html } = window;
+        const vendorGroups = this.groupAppsByVendor(apps);
+        const vendorNames = Object.keys(vendorGroups).sort();
+
+        return html`
+            <div class="accordion" id="vendorAccordion">
+                ${vendorNames.map(vendorName => {
+                    const vendorApps = vendorGroups[vendorName];
+                    const isExpanded = this.state.expandedVendors.has(vendorName);
+                    const appGroups = this.groupAppVersions(vendorApps);
+                    const totalCves = vendorApps.reduce((sum, app) => sum + this.getCvesByApp(app.appName).length, 0);
+
+                    return html`
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button ${isExpanded ? '' : 'collapsed'}" type="button" onclick=${() => this.toggleVendor(vendorName)}>
+                                    <div class="d-flex justify-content-between align-items-center w-100 pe-3">
+                                        <span class="fw-bold">${vendorName}</span>
+                                        <div class="d-flex gap-3 align-items-center">
+                                            <span class="badge bg-secondary-lt">${vendorApps.length} apps</span>
+                                            ${totalCves > 0 ? html`<span class="badge bg-danger-lt">${totalCves} CVEs</span>` : ''}
+                                        </div>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div class="accordion-collapse collapse ${isExpanded ? 'show' : ''}" data-bs-parent="#vendorAccordion">
+                                <div class="accordion-body p-0">
+                                    ${appGroups.map(appGroup => {
+                                        const latestVersion = appGroup.versions[0];
+                                        const hasMultipleVersions = appGroup.versions.length > 1;
+                                        const appKey = appGroup.appName.toLowerCase();
+                                        const isVersionsExpanded = this.state.expandedApps.has(appKey);
+                                        const cves = this.getCvesByApp(appGroup.appName);
+                                        const worstSeverity = cves.some(c => c.severity === 'CRITICAL') ? 'CRITICAL' : 
+                                                             cves.some(c => c.severity === 'HIGH') ? 'HIGH' : 
+                                                             cves.some(c => c.severity === 'MEDIUM') ? 'MEDIUM' : 
+                                                             cves.length > 0 ? 'LOW' : 'CLEAN';
+
+                                        return html`
+                                            <div class="border-bottom">
+                                                <div class="d-flex align-items-center p-3 gap-3" style="cursor: pointer;" onclick=${() => hasMultipleVersions && this.toggleAppVersions(appKey)}>
+                                                    ${latestVersion.isInstalled === false ? html`
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color: #ff7d00;" title="Running from disk">
+                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                            <path d="M5 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-14a1 1 0 0 1 1 -1"/>
+                                                            <path d="M9 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4"/>
+                                                            <path d="M5 8h8"/>
+                                                            <path d="M5 16h8"/>
+                                                        </svg>
+                                                    ` : html`
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color: #2fb344;" title="Installed">
+                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                            <polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3"/>
+                                                            <line x1="12" y1="12" x2="20" y2="7.5"/>
+                                                            <line x1="12" y1="12" x2="12" y2="21"/>
+                                                            <line x1="12" y1="12" x2="4" y2="7.5"/>
+                                                        </svg>
+                                                    `}
+                                                    <div class="flex-fill">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            ${hasMultipleVersions ? html`
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(${isVersionsExpanded ? '90deg' : '0deg'}); transition: transform 0.2s;">
+                                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                    <polyline points="9 6 15 12 9 18" />
+                                                                </svg>
+                                                            ` : ''}
+                                                            <span class="fw-medium">${appGroup.appName}</span>
+                                                            ${hasMultipleVersions ? html`<span class="badge bg-blue-lt">${appGroup.versions.length} versions</span>` : ''}
+                                                        </div>
+                                                        <div class="text-muted small">v${latestVersion.version || '—'} • ${this.formatDate(latestVersion.lastSeen)}</div>
+                                                    </div>
+                                                    <div class="d-flex gap-2 align-items-center">
+                                                        ${worstSeverity !== 'CLEAN' ? html`
+                                                            <span class="badge ${
+                                                              worstSeverity === 'CRITICAL' ? 'bg-danger' : 
+                                                              worstSeverity === 'HIGH' ? 'bg-warning' : 
+                                                              worstSeverity === 'MEDIUM' ? 'bg-secondary' : 
+                                                              'bg-info'
+                                                            } text-white">${worstSeverity}</span>
+                                                        ` : ''}
+                                                        ${cves.length > 0 ? html`
+                                                            <a href="#" class="badge bg-danger text-white" onclick=${(e) => { e.preventDefault(); e.stopPropagation(); this.setState({ cveFilterApp: appGroup.appName, activeTab: 'risks' }); }}>
+                                                                ${cves.length} CVEs
+                                                            </a>
+                                                        ` : ''}
+                                                    </div>
+                                                </div>
+                                                ${hasMultipleVersions && isVersionsExpanded ? html`
+                                                    <div class="ps-5 pe-3 pb-3">
+                                                        <div class="timeline timeline-simple">
+                                                            ${appGroup.versions.map((version, idx) => html`
+                                                                <div class="timeline-event ${idx === 0 ? 'timeline-event-latest' : ''}">
+                                                                    <div class="timeline-event-icon ${idx === 0 ? 'bg-primary' : 'bg-secondary'}"></div>
+                                                                    <div class="card card-sm">
+                                                                        <div class="card-body">
+                                                                            <div class="row align-items-center">
+                                                                                <div class="col">
+                                                                                    <div class="fw-medium">v${version.version || 'Unknown'}</div>
+                                                                                    <div class="text-muted small">
+                                                                                        ${this.formatDate(version.firstSeen)} 
+                                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-arrow-narrow-right mx-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="5" y1="12" x2="19" y2="12" /><line x1="15" y1="16" x2="19" y2="12" /><line x1="15" y1="8" x2="19" y2="12" /></svg>
+                                                                                        ${this.formatDate(version.lastSeen)}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div class="col-auto">
+                                                                                    ${version.isInstalled ? html`<span class="badge bg-success-lt">Installed</span>` : html`<span class="badge bg-warning-lt">Disk</span>`}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            `)}
+                                                        </div>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `;
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                })}
+            </div>
+            ${vendorNames.length === 0 && this.state.searchQuery ? html`
+                <div class="text-center text-muted py-5">
+                    No applications match your search
+                </div>
+            ` : ''}
+        `;
+    }
+
+    renderFlatListView(filteredApps) {
+        const { html } = window;
+        
+        return html`
             <div class="table-responsive">
                 <table class="table table-sm table-hover">
                     <thead>
@@ -795,8 +1143,12 @@ export class DeviceDetailPage extends window.Component {
                             <th>Vendor</th>
                             <th>Version</th>
                             <th>Status</th>
-                            <th>Risk / Match</th>
-                            <th>CVEs</th>
+                            <th>
+                                <a href="#" onclick=${(e)=>{e.preventDefault(); this.setState({ appSortKey: 'severity', appSortDir: this.state.appSortKey==='severity' && this.state.appSortDir==='desc' ? 'asc':'desc' });}} class="text-reset text-decoration-none">Risk / Match</a>
+                            </th>
+                            <th>
+                                <a href="#" onclick=${(e)=>{e.preventDefault(); this.setState({ appSortKey: 'cveCount', appSortDir: this.state.appSortKey==='cveCount' && this.state.appSortDir==='desc' ? 'asc':'desc' });}} class="text-reset text-decoration-none">CVEs</a>
+                            </th>
                             <th>Last Seen</th>
                         </tr>
                     </thead>
@@ -807,9 +1159,30 @@ export class DeviceDetailPage extends window.Component {
                                                  cves.some(c => c.severity === 'HIGH' || c.severity === 'High') ? 'HIGH' : 
                                                  cves.some(c => c.severity === 'MEDIUM' || c.severity === 'Medium') ? 'MEDIUM' : 
                                                  cves.length > 0 ? 'LOW' : 'CLEAN';
+                            const daysInstalled = app.firstSeen ? Math.round((Date.now() - new Date(app.firstSeen).getTime()) / (1000 * 60 * 60 * 24)) : null;
+                            const isFiltered = this.state.cveFilterApp === app.appName;
                             return html`
-                                <tr>
-                                    <td class="font-weight-medium">${app.appName}</td>
+                                <tr style="cursor: pointer; transition: background 0.15s;" onclick=${() => this.setState({ cveFilterApp: isFiltered ? null : app.appName, activeTab: 'risks' })} title="Click to filter CVEs by this app">
+                                    <td class="font-weight-medium d-flex align-items-center gap-2">
+                                        ${app.isInstalled === false ? html`
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color: #ff7d00;" title="Running from disk (not installed)">
+                                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                <path d="M5 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-14a1 1 0 0 1 1 -1"/>
+                                                <path d="M9 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4"/>
+                                                <path d="M5 8h8"/>
+                                                <path d="M5 16h8"/>
+                                            </svg>
+                                        ` : html`
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color: #2fb344;" title="Installed application">
+                                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                <polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3"/>
+                                                <line x1="12" y1="12" x2="20" y2="7.5"/>
+                                                <line x1="12" y1="12" x2="12" y2="21"/>
+                                                <line x1="12" y1="12" x2="4" y2="7.5"/>
+                                            </svg>
+                                        `}
+                                        ${app.appName}${isFiltered ? ' ⚡' : ''}
+                                    </td>
                                     <td>${app.vendor || '—'}</td>
                                     <td><code class="text-sm">${app.version || '—'}</code></td>
                                     <td>
@@ -818,29 +1191,32 @@ export class DeviceDetailPage extends window.Component {
                                           html`<span class="badge bg-success-lt">Current</span>`}
                                     </td>
                                     <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            ${worstSeverity === 'CRITICAL' ? html`<span class="badge bg-danger text-white">CRITICAL</span>` :
-                                              worstSeverity === 'HIGH' ? html`<span class="badge bg-warning">HIGH</span>` :
-                                              worstSeverity === 'MEDIUM' ? html`<span class="badge bg-yellow">MEDIUM</span>` :
-                                              worstSeverity === 'LOW' ? html`<span class="badge bg-info">LOW</span>` :
-                                              html`<span class="badge bg-success">CLEAN</span>`}
-                                            ${app.matchType === 'absolute' ? html`
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M3 12 L12 3 L21 12 Z"/></svg>
-                                            ` : app.matchType === 'heuristic' ? html`
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                                            ` : html`
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
-                                            `}
-                                        </div>
+                                        ${worstSeverity === 'CLEAN' ? '' : html`
+                                            <span class="badge ${
+                                              worstSeverity === 'CRITICAL' ? 'bg-danger' : 
+                                              worstSeverity === 'HIGH' ? 'bg-warning' : 
+                                              worstSeverity === 'MEDIUM' ? 'bg-secondary' : 
+                                              'bg-info'
+                                            } text-white d-inline-flex align-items-center gap-1" title="${worstSeverity} severity${app.matchType === 'absolute' ? ' - Exact Match' : app.matchType === 'heuristic' ? ' - Heuristic' : ''}">
+                                                ${worstSeverity}
+                                                ${app.matchType === 'absolute' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><path d="M3 12 L12 3 L21 12 Z"/></svg>` : 
+                                                app.matchType === 'heuristic' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>` : ''}
+                                            </span>
+                                        `}
                                     </td>
                                     <td>
                                         ${cves.length > 0 ? html`
-                                            <span class="badge ${cves.some(c => c.severity === 'CRITICAL' || c.severity === 'Critical') ? 'bg-danger-lt' : cves.some(c => c.severity === 'HIGH' || c.severity === 'High') ? 'bg-warning-lt' : 'bg-secondary-lt'}">
-                                                ${cves.length} CVEs
-                                            </span>
+                                            <a href="#" class="text-reset text-decoration-none" onclick=${(e) => { e.preventDefault(); this.setState({ cveFilterApp: app.appName, activeTab: 'risks' }); }} title="Show CVEs for this application">
+                                                <span class="badge ${cves.some(c => c.severity === 'CRITICAL' || c.severity === 'Critical') ? 'bg-danger' : cves.some(c => c.severity === 'HIGH' || c.severity === 'High') ? 'bg-warning' : 'bg-secondary'} text-white">
+                                                    ${cves.length}
+                                                </span>
+                                            </a>
                                         ` : html`<span class="text-muted">—</span>`}
                                     </td>
-                                    <td class="text-muted small">${app.lastSeen ? new Date(app.lastSeen).toLocaleDateString() : '—'}</td>
+                                    <td class="text-muted small">
+                                        ${app.lastSeen ? html`<div>${this.formatDate(app.lastSeen)}</div>` : '—'}
+                                        ${daysInstalled !== null ? html`<div style="font-size: 10px; color: #999;">${daysInstalled}d</div>` : ''}
+                                    </td>
                                 </tr>
                             `;
                         })}
@@ -858,12 +1234,26 @@ export class DeviceDetailPage extends window.Component {
     renderRisksTab() {
         const { html } = window;
         
-        const criticalCves = this.state.cveInventory.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical');
-        const highCves = this.state.cveInventory.filter(c => c.severity === 'HIGH' || c.severity === 'High');
-        const mediumCves = this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium');
-        const lowCves = this.state.cveInventory.filter(c => c.severity === 'LOW' || c.severity === 'Low');
+        // Get only active apps (not old uninstalled) and unpatched CVEs
+        const { activeApps, activeCves } = this.getActiveAppsAndCves();
+        
+        // Filter by selected app if cross-linked from Inventory tab
+        let filteredCves = this.state.cveFilterApp 
+            ? activeCves.filter(c => c.appName && c.appName.toLowerCase() === this.state.cveFilterApp.toLowerCase())
+            : activeCves;
+        
+        const criticalCves = filteredCves.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical');
+        const highCves = filteredCves.filter(c => c.severity === 'HIGH' || c.severity === 'High');
+        const mediumCves = filteredCves.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium');
+        const lowCves = filteredCves.filter(c => c.severity === 'LOW' || c.severity === 'Low');
 
         return html`
+            ${this.state.cveFilterApp ? html`
+                <div class="alert alert-info mb-3" style="position: relative;">
+                    <span>Filtering CVEs for <strong>${this.state.cveFilterApp}</strong></span>
+                    <button class="btn-close" onclick=${() => this.setState({ cveFilterApp: null })} style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);"></button>
+                </div>
+            ` : ''}
             <div class="row row-cards mb-3">
                 <div class="col-md-3">
                     <div class="card border-danger-lt">
@@ -911,7 +1301,7 @@ export class DeviceDetailPage extends window.Component {
                         </tr>
                     </thead>
                     <tbody>
-                        ${this.state.cveInventory.map(cve => {
+                        ${filteredCves.map(cve => {
                             const isKnownExploit = this.state.knownExploits && this.state.knownExploits.has(cve.cveId);
                             return html`
                                 <tr>
@@ -927,7 +1317,13 @@ export class DeviceDetailPage extends window.Component {
                                             </span>
                                         ` : ''}
                                     </td>
-                                    <td class="font-weight-medium">${cve.appName}</td>
+                                    <td class="font-weight-medium">
+                                        <a href="#" class="text-reset text-decoration-none d-inline-flex align-items-center gap-1" title="View application in Inventory tab"
+                                           onclick=${(e)=>{e.preventDefault(); this.setState({ activeTab: 'inventory', searchQuery: cve.appName });}}>
+                                           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                                           ${cve.appName}
+                                        </a>
+                                    </td>
                                     <td>${cve.vendor || '—'}</td>
                                     <td>
                                         <span class="badge ${this.getSeverityColor(cve.severity)} text-white">
@@ -935,11 +1331,8 @@ export class DeviceDetailPage extends window.Component {
                                         </span>
                                     </td>
                                     <td>
-                                        ${cve.epss ? html`
-                                            <span class="font-weight-medium">${Number(cve.epss).toFixed(2)}</span>
-                                        ` : html`
-                                            <span class="text-muted">—</span>
-                                        `}
+                                        ${cve.epss ? html`<span class="font-weight-medium">${Number(cve.epss).toFixed(2)}</span>` : html`<span class="text-muted">—</span>`}
+                                        ${cve.score ? html`<span class="badge bg-blue-lt ms-2">${Number(cve.score).toFixed(1)}</span>` : ''}
                                     </td>
                                     <td class="text-muted small">${cve.lastSeen ? new Date(cve.lastSeen).toLocaleDateString() : '—'}</td>
                                 </tr>
