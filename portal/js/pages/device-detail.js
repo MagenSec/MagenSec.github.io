@@ -475,6 +475,137 @@ export class DeviceDetailPage extends window.Component {
         return `${months[date.getMonth()]}-${String(date.getDate()).padStart(2, '0')}, ${date.getFullYear()}`;
     }
 
+    formatNetworkSpeed(mbps) {
+        const val = Number(mbps || 0);
+        if (!val || isNaN(val)) return '';
+        if (val >= 1000) {
+            const gbps = Math.round((val / 1000) * 10) / 10;
+            return `@ ${gbps.toFixed(1)} Gbps`;
+        }
+        return `@ ${Math.round(val)} Mbps`;
+    }
+
+    formatIPAddresses(ipArray, mode = 'primary') {
+        if (!ipArray || !Array.isArray(ipArray) || ipArray.length === 0) {
+            return mode === 'primary' ? 'No IP' : [];
+        }
+        
+        if (mode === 'primary') {
+            // Primary IP + count badge
+            const primary = ipArray[0];
+            const count = ipArray.length;
+            if (count > 1) {
+                return window.html`${primary} <span class="badge badge-sm bg-azure-lt ms-1">(+${count - 1})</span>`;
+            }
+            return primary;
+        }
+        
+        // Full list mode
+        return ipArray;
+    }
+
+    detectMobileDevice(telemetryHistory) {
+        /**
+         * INVENTORY USE CASE: Identify mobile vs stationary devices
+         * Mobile devices have multiple unique IPs over time (roaming between networks)
+         * Stationary devices have stable IPs
+         */
+        if (!telemetryHistory || !Array.isArray(telemetryHistory)) {
+            return { isMobile: false, uniqueIpCount: 0, stationaryThreshold: 3 };
+        }
+
+        const uniqueIps = new Set();
+        const stationaryThreshold = 3;
+
+        for (const entry of telemetryHistory) {
+            const ips = entry?.fields?.IPAddresses;
+            if (Array.isArray(ips)) {
+                ips.forEach(ip => uniqueIps.add(ip));
+            }
+        }
+
+        return {
+            isMobile: uniqueIps.size > stationaryThreshold,
+            uniqueIpCount: uniqueIps.size,
+            stationaryThreshold: stationaryThreshold
+        };
+    }
+
+    analyzeNetworkRisk(ipAddresses, telemetryHistory) {
+        /**
+         * SECURITY/COMPLIANCE USE CASES:
+         * - Detect unusual network patterns (public IP, APIPA)
+         * - Track network movement (included in timeline)
+         * - Identify network exposure risks
+         */
+        const result = {
+            publicIpPresent: false,
+            apipaPresent: false,
+            suspiciousPatterns: [],
+            riskFactors: []
+        };
+
+        if (!ipAddresses || !Array.isArray(ipAddresses)) {
+            return result;
+        }
+
+        // Check current IPs for public/APIPA ranges
+        for (const ip of ipAddresses) {
+            if (typeof ip !== 'string') continue;
+
+            // APIPA: 169.254.x.x (Windows uses this when DHCP fails)
+            if (ip.startsWith('169.254.')) {
+                result.apipaPresent = true;
+                result.riskFactors.push('APIPA detected: Device has network connectivity issues');
+            }
+
+            // Public IP ranges (not private, not loopback, not link-local)
+            if (!this.isPrivateIp(ip) && !ip.startsWith('127.') && !ip.startsWith('169.254.')) {
+                result.publicIpPresent = true;
+                result.riskFactors.push('Public IP detected: Device may be exposed to internet risks');
+            }
+        }
+
+        // Check for rapid IP changes (security/troubleshooting indicator)
+        if (telemetryHistory && telemetryHistory.length > 1) {
+            const recentIps = new Set();
+            const recentWindow = telemetryHistory.slice(0, 5); // Last 5 telemetry entries
+
+            for (const entry of recentWindow) {
+                const ips = entry?.fields?.IPAddresses;
+                if (Array.isArray(ips)) {
+                    ips.forEach(ip => recentIps.add(ip));
+                }
+            }
+
+            // More than 3 IP changes in last 5 telemetry points = unusual network movement
+            if (recentIps.size > 3) {
+                result.suspiciousPatterns.push(`Rapid network changes: ${recentIps.size} different IPs in recent activity`);
+            }
+        }
+
+        return result;
+    }
+
+    isPrivateIp(ip) {
+        /**
+         * Check if IP is in private ranges per RFC 1918
+         * 10.0.0.0 to 10.255.255.255
+         * 172.16.0.0 to 172.31.255.255
+         * 192.168.0.0 to 192.168.255.255
+         */
+        if (!ip || typeof ip !== 'string') return false;
+
+        const parts = ip.split('.').map(p => parseInt(p, 10));
+        if (parts.length !== 4) return false;
+
+        if (parts[0] === 10) return true;
+        if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+        if (parts[0] === 192 && parts[1] === 168) return true;
+
+        return false;
+    }
+
     toggleVendor(vendorName) {
         const expanded = new Set(this.state.expandedVendors);
         if (expanded.has(vendorName)) {
@@ -767,30 +898,32 @@ export class DeviceDetailPage extends window.Component {
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-12">
                                 <div class="card">
                                     <div class="card-body">
-                                        <div class="text-muted small font-weight-medium">Registered</div>
-                                        <div class="mt-2">
-                                            <div class="text-muted small">${device.FirstHeartbeat ? this.formatDate(device.FirstHeartbeat) : device.firstSeen ? this.formatDate(device.firstSeen) : device.createdAt ? this.formatDate(device.createdAt) : 'N/A'}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="text-muted small font-weight-medium">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="7" r="4" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
-                                            Logged-In User
-                                        </div>
-                                        <div class="mt-2">
-                                            ${(() => {
-                                                const f = this.state.telemetryDetail?.latest?.fields || {};
-                                                const encoded = f.UserName || f.Username || f.userName || f.LoggedOnUser || f.CurrentUser || null;
-                                                const u = encoded ? PiiDecryption.decryptIfEncrypted(String(encoded)) : null;
-                                                return html`<div class="text-muted small font-monospace">${u ? String(u) : 'N/A'}</div>`;
-                                            })()}
+                                        <div class="row g-2 align-items-center">
+                                            <div class="col-md-4">
+                                                <div class="text-muted small font-weight-medium">Registered</div>
+                                                <div class="fw-bold">${device.FirstHeartbeat ? this.formatDate(device.FirstHeartbeat) : device.firstSeen ? this.formatDate(device.firstSeen) : device.createdAt ? this.formatDate(device.createdAt) : 'N/A'}</div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-muted small font-weight-medium">Last Seen</div>
+                                                ${(() => {
+                                                    const lastSeen = this.state.telemetryDetail?.latest?.timestamp 
+                                                        || device.LastHeartbeat || device.lastHeartbeat 
+                                                        || device.LastSeen || device.lastSeen;
+                                                    return html`<div class="fw-bold">${lastSeen ? this.formatDate(lastSeen) : 'N/A'}</div>`;
+                                                })()}
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-muted small font-weight-medium">User</div>
+                                                ${(() => {
+                                                    const f = this.state.telemetryDetail?.latest?.fields || {};
+                                                    const encoded = f.UserName || f.Username || f.userName || f.LoggedOnUser || f.CurrentUser || null;
+                                                    const u = encoded ? PiiDecryption.decryptIfEncrypted(String(encoded)) : null;
+                                                    return html`<div class="fw-bold">${u ? String(u) : 'N/A'}</div>`;
+                                                })()}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -847,11 +980,15 @@ export class DeviceDetailPage extends window.Component {
         const { html } = window;
         const { device, telemetryDetail } = this.state;
         const fields = telemetryDetail?.latest?.fields || {};
+        const telemetry = device?.telemetry || device?.Telemetry;
+        const ipAddresses = telemetry?.ipAddresses || telemetry?.IPAddresses || fields.IPAddresses;
+        const mobileStatus = this.detectMobileDevice(telemetryDetail?.history);
+        const networkRisk = this.analyzeNetworkRisk(ipAddresses, telemetryDetail?.history);
 
         return html`
             <div class="row">
-                <div class="col-md-6">
-                    <h6>Hardware</h6>
+                <div class="col-md-5">
+                    <h5>Hardware</h5>
                     <dl class="row text-sm">
                         <dt class="col-sm-4">CPU</dt>
                         <dd class="col-sm-8">${fields.CPUName || ''} (${fields.CPUCores || '?'} cores)</dd>
@@ -863,14 +1000,14 @@ export class DeviceDetailPage extends window.Component {
                         <dd class="col-sm-8">${fields.SystemDriveSizeGB || fields.TotalDiskGb || 'N/A'} GB (${fields.SystemDiskMediaType || 'N/A'}) ${fields.SystemDiskBusType || ''}</dd>
                         
                         <dt class="col-sm-4">Network</dt>
-                        <dd class="col-sm-8">${fields.ConnectionType || 'N/A'} ${fields.NetworkSpeedMbps ? '@ ' + fields.NetworkSpeedMbps + ' Mbps' : ''}</dd>
+                        <dd class="col-sm-8">${fields.ConnectionType || 'N/A'} ${fields.NetworkSpeedMbps ? this.formatNetworkSpeed(fields.NetworkSpeedMbps) : ''}</dd>
                         
                         <dt class="col-sm-4">GPU</dt>
                         <dd class="col-sm-8">${fields.GPUName || 'N/A'} ${fields.GpuRamMB ? '(' + fields.GpuRamMB + ' MB)' : ''}</dd>
                     </dl>
                 </div>
-                <div class="col-md-6">
-                    <h6>Operating System</h6>
+                <div class="col-md-5">
+                    <h5>Operating System</h5>
                     <dl class="row text-sm">
                         <dt class="col-sm-4">Edition</dt>
                         <dd class="col-sm-8">${fields.OSEdition || 'N/A'}</dd>
@@ -884,14 +1021,33 @@ export class DeviceDetailPage extends window.Component {
                         <dt class="col-sm-4">Architecture</dt>
                         <dd class="col-sm-8">${fields.CPUArch || 'N/A'}</dd>
                         
+                        <dt class="col-sm-4">IP Address</dt>
+                        <dd class="col-sm-8">
+                            <div class="d-flex align-items-center gap-2">
+                                <span>${this.formatIPAddresses(ipAddresses, 'primary')}</span>
+                                ${mobileStatus.isMobile ? html`<span class="badge badge-sm bg-info-lt">Mobile</span>` : html`<span class="badge badge-sm bg-success-lt">Stationary</span>`}
+                                ${networkRisk.publicIpPresent ? html`<span class="badge badge-sm bg-warning-lt" title="Device has public IP(s)">Public IP</span>` : ''}
+                                ${networkRisk.apipaPresent ? html`<span class="badge badge-sm bg-danger-lt" title="Device has APIPA address (network issue indicator)">APIPA</span>` : ''}
+                            </div>
+                        </dd>
+                        
                         <dt class="col-sm-4">Last Updated</dt>
                         <dd class="col-sm-8">${telemetryDetail?.latest?.timestamp ? this.formatDate(telemetryDetail.latest.timestamp) : 'N/A'}</dd>
+                        
+                        ${ipAddresses && ipAddresses.length > 1 ? html`
+                            <dt class="col-sm-4">All IPs</dt>
+                            <dd class="col-sm-8">
+                                ${this.formatIPAddresses(ipAddresses, 'full').map(ip => html`
+                                    <span class="badge badge-sm bg-azure-lt me-1 mb-1">${ip}</span>
+                                `)}
+                            </dd>
+                        ` : ''}
                     </dl>
                 </div>
             </div>
             ${telemetryDetail && telemetryDetail.changes && telemetryDetail.changes.length > 0 ? html`
                 <div class="mt-4">
-                    <h6>Recent Hardware Changes</h6>
+                    <h5>Recent Hardware Changes</h5>
                     <div class="timeline timeline-simple">
                         ${telemetryDetail.changes.slice(0, 10).map(change => html`
                             <div class="timeline-event">
