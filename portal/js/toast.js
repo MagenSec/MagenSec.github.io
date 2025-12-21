@@ -80,11 +80,16 @@ class ToastManager {
     }
 
     getIcon(type) {
+        const check = '<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler me-2" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2l4 -4"/></svg>';
+        const alertCircle = '<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler me-2" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>';
+        const alertTriangle = '<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler me-2" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01"/><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75"/></svg>';
+        const info = '<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler me-2" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/></svg>';
+
         const icons = {
-            success: '<svg class="icon icon-tabler me-2" width="24" height="24"><use xlink:href="/portal/assets/tabler-icons.svg#tabler-check"/></svg>',
-            error: '<svg class="icon icon-tabler me-2" width="24" height="24"><use xlink:href="/portal/assets/tabler-icons.svg#tabler-alert-circle"/></svg>',
-            warning: '<svg class="icon icon-tabler me-2" width="24" height="24"><use xlink:href="/portal/assets/tabler-icons.svg#tabler-alert-triangle"/></svg>',
-            info: '<svg class="icon icon-tabler me-2" width="24" height="24"><use xlink:href="/portal/assets/tabler-icons.svg#tabler-info-circle"/></svg>'
+            success: check,
+            error: alertCircle,
+            warning: alertTriangle,
+            info
         };
         return icons[type] || icons.info;
     }

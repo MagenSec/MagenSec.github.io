@@ -26,6 +26,7 @@ export class DevicesPage extends window.Component {
             telemetryLoading: false,
             telemetryError: null,
             telemetryDetail: null,
+            filteredDevices: [],
             enrichedScores: {},
             deviceSummaries: {},
             knownExploits: new Set(),
@@ -45,16 +46,55 @@ export class DevicesPage extends window.Component {
             highlightedApp: null,
             highlightedCve: null,
             showRiskExplanationModal: false,
-            riskExplanationDevice: null
+            riskExplanationDevice: null,
+            filteredDevices: []
         };
         this.KNOWN_EXPLOITS_CACHE = { data: null, loadedAt: null, TTL_HOURS: 24 };
         this.DEVICES_CACHE = {};
+
+        this.riskChart = null;
+        this.appsChart = null;
+        this.cvesChart = null;
+        this.riskChartEl = null;
+        this.appsChartEl = null;
+        this.cvesChartEl = null;
+
+        this.tableRiskCharts = new Map();
+        this.tableRiskEls = new Map();
     }
 
     componentDidMount() {
         this.loadInstallerConfig();
         this.loadDevices();
         this.loadKnownExploitsAsync();
+    }
+
+    componentDidUpdate(prevProps, prevState) {
+        const modalOpened = this.state.showDeviceModal && this.state.selectedDevice;
+        const modalClosed = prevState.showDeviceModal && !this.state.showDeviceModal;
+
+        if (modalOpened) {
+            this.renderApexCharts();
+        }
+
+        if (modalClosed || (!this.state.selectedDevice && prevState.selectedDevice)) {
+            this.destroyApexCharts();
+        }
+
+        const filteredNow = this.getFilteredDevices();
+        const prevIds = (prevState.filteredDevices || []).map(d => d.id).join('|');
+        const currIds = filteredNow.map(d => d.id).join('|');
+        const summariesChanged = prevState.deviceSummaries !== this.state.deviceSummaries || prevState.enrichedScores !== this.state.enrichedScores;
+        if (prevIds !== currIds) {
+            this.setState({ filteredDevices: filteredNow }, () => this.renderTableApexCharts());
+        } else if (summariesChanged) {
+            this.renderTableApexCharts();
+        }
+    }
+
+    componentWillUnmount() {
+        this.destroyApexCharts();
+        this.destroyTableApexCharts();
     }
 
     // Modal rendering moved to render() method
@@ -116,8 +156,19 @@ export class DevicesPage extends window.Component {
                                                     <li><strong>Disk:</strong> ${this.state.selectedDevice.telemetry?.totalDiskGb ? this.state.selectedDevice.telemetry.totalDiskGb+' GB' : ''} ${this.state.selectedDevice.telemetry?.systemDiskMediaType || ''} ${this.state.selectedDevice.telemetry?.systemDiskBusType || ''}</li>
                                                     <li><strong>Network:</strong> ${this.state.selectedDevice.telemetry?.connectionType || ''} ${this.state.selectedDevice.telemetry?.networkSpeedMbps ? this.state.selectedDevice.telemetry.networkSpeedMbps+' Mbps' : ''}</li>
                                                     <li><strong>IP:</strong> ${(() => {
-                                                        const ips = this.state.selectedDevice.telemetry?.ipAddresses || this.state.selectedDevice.telemetry?.IPAddresses;
-                                                        if (!ips || !Array.isArray(ips) || ips.length === 0) return 'No IP';
+                                                        const raw = this.state.selectedDevice.telemetry?.ipAddresses || this.state.selectedDevice.telemetry?.IPAddresses;
+                                                        const ips = Array.isArray(raw)
+                                                            ? raw
+                                                            : (typeof raw === 'string'
+                                                                ? (() => {
+                                                                    try {
+                                                                        const parsed = JSON.parse(raw);
+                                                                        if (Array.isArray(parsed)) return parsed;
+                                                                    } catch (e) { /* fallback to delimiter split */ }
+                                                                    return raw.split(/[;,\s]+/).filter(Boolean);
+                                                                })()
+                                                                : []);
+                                                        if (!ips || ips.length === 0) return 'No IP';
                                                         const primary = ips[0];
                                                         const count = ips.length;
                                                         if (count > 1) {
@@ -135,63 +186,24 @@ export class DevicesPage extends window.Component {
                                                     const scoreColor = displayScore >= 80 ? '#d63939' : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : '#2fb344';
                                                     const totalCves = (summary.criticalCves || 0) + (summary.highCves || 0) + (summary.mediumCves || 0) + (summary.lowCves || 0);
                                                     return html`
-                                                        <div class="d-flex flex-column gap-3">
-                                                            <div class="d-flex align-items-center gap-3" style="cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(this.state.selectedDevice); }} title="Click to see what drives this risk score">
-                                                                <svg width="96" height="96" viewBox="0 0 100 100">
-                                                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#e9ecef" stroke-width="8"/>
-                                                                    <circle cx="50" cy="50" r="40" fill="none" stroke="${scoreColor}" stroke-width="8" stroke-dasharray="${(displayScore / 100 * 251.3).toFixed(2)} 251.3" stroke-linecap="round" transform="rotate(-90 50 50)" />
-                                                                    <text x="50" y="58" text-anchor="middle" font-size="24" font-weight="bold" fill="${scoreColor}">${Math.round(displayScore)}</text>
-                                                                </svg>
-                                                                <div>
-                                                                    <div class="text-muted small">Risk Score <span class="badge badge-sm bg-info-lt">Click for details</span></div>
-                                                                    <div><span class="badge ${summary.worstSeverity === 'CRITICAL' ? 'bg-danger-lt' : summary.worstSeverity === 'HIGH' ? 'bg-warning-lt' : summary.worstSeverity === 'MEDIUM' ? 'bg-secondary-lt' : 'bg-success-lt'}">${summary.worstSeverity}</span></div>
-                                                                </div>
-                                                            </div>
+                                                            <div class="d-flex flex-column gap-3">
+                                                            <div class="d-flex align-items-start gap-3 flex-wrap" style="cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(this.state.selectedDevice); }} title="Click to see what drives this risk score">
+                                                                                                <div style="width: 88px; height: 88px;" ref=${(el) => { this.riskChartEl = el; }}></div>
+                                                                                                <div class="d-flex flex-column gap-1 align-items-start" style="min-width: 140px;">
+                                                                                                    <div class="d-flex align-items-center gap-2">
+                                                                                                        <span class="text-muted small">Risk Score:</span>
+                                                                                                        <span class="badge ${summary.worstSeverity === 'CRITICAL' ? 'bg-danger-lt' : summary.worstSeverity === 'HIGH' ? 'bg-warning-lt' : summary.worstSeverity === 'MEDIUM' ? 'bg-secondary-lt' : 'bg-success-lt'}">${summary.worstSeverity}</span>
+                                                                                                    </div>
+                                                                                                    <div class="text-muted small">Click for details</div>
+                                                                                                </div>
+                                                                                            </div>
                                                             <div class="d-flex gap-4 justify-content-center">
                                                                 <div class="text-center">
-                                                                    <svg width="72" height="72" viewBox="0 0 72 72">
-                                                                        ${(() => {
-                                                                            const totalApps = summary.apps || 0;
-                                                                            const vulnApps = summary.vulnerableApps || 0;
-                                                                            const angle = totalApps > 0 ? (vulnApps / totalApps) * 360 : 0;
-                                                                            const largeArc = angle > 180 ? 1 : 0;
-                                                                            const x = 36 + 28 * Math.cos((angle - 90) * Math.PI / 180);
-                                                                            const y = 36 + 28 * Math.sin((angle - 90) * Math.PI / 180);
-                                                                            return html`
-                                                                                <circle cx="36" cy="36" r="28" fill="#2fb344"/>
-                                                                                ${vulnApps > 0 ? html`<path d="M 36 36 L 36 8 A 28 28 0 ${largeArc} 1 ${x} ${y} Z" fill="#d63939"/>` : ''}
-                                                                                <text x="36" y="42" text-anchor="middle" font-size="14" font-weight="bold" fill="white">${vulnApps}/${totalApps}</text>
-                                                                            `;
-                                                                        })()}
-                                                                    </svg>
+                                                                    <div style="width: 68px; height: 68px;" ref=${(el) => { this.appsChartEl = el; }}></div>
                                                                     <div class="text-muted small">Apps</div>
                                                                 </div>
                                                                 <div class="text-center">
-                                                                    <svg width="72" height="72" viewBox="0 0 72 72">
-                                                                        ${(() => {
-                                                                            if (totalCves === 0) {
-                                                                                return html`<circle cx="36" cy="36" r="28" fill="#2fb344"/><text x="36" y="42" text-anchor="middle" font-size="14" font-weight="bold" fill="white">0</text>`;
-                                                                            }
-                                                                            let currentAngle = 0;
-                                                                            const slices = [];
-                                                                            const addSlice = (count, color) => {
-                                                                                if (count === 0) return;
-                                                                                const angle = (count / totalCves) * 360;
-                                                                                const largeArc = angle > 180 ? 1 : 0;
-                                                                                const startX = 36 + 28 * Math.cos((currentAngle - 90) * Math.PI / 180);
-                                                                                const startY = 36 + 28 * Math.sin((currentAngle - 90) * Math.PI / 180);
-                                                                                currentAngle += angle;
-                                                                                const endX = 36 + 28 * Math.cos((currentAngle - 90) * Math.PI / 180);
-                                                                                const endY = 36 + 28 * Math.sin((currentAngle - 90) * Math.PI / 180);
-                                                                                slices.push(html`<path d="M 36 36 L ${startX} ${startY} A 28 28 0 ${largeArc} 1 ${endX} ${endY} Z" fill="${color}"/>`);
-                                                                            };
-                                                                            addSlice(summary.criticalCves, '#d63939');
-                                                                            addSlice(summary.highCves, '#f59f00');
-                                                                            addSlice(summary.mediumCves, '#fab005');
-                                                                            addSlice(summary.lowCves, '#74b816');
-                                                                            return html`${slices}<text x="36" y="42" text-anchor="middle" font-size="14" font-weight="bold" fill="white">${totalCves}</text>`;
-                                                                        })()}
-                                                                    </svg>
+                                                                    <div style="width: 68px; height: 68px;" ref=${(el) => { this.cvesChartEl = el; }}></div>
                                                                     <div class="text-muted small">CVEs</div>
                                                                 </div>
                                                             </div>
@@ -237,8 +249,15 @@ export class DevicesPage extends window.Component {
 
         const device = this.state.riskExplanationDevice;
         const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
-        const enriched = this.state.enrichedScores[device.id] || { score: summary.score, constituents: {} };
-        const constituents = enriched.constituents || {};
+        const enriched = this.state.enrichedScores[device.id] || { score: summary.score, constituents: summary.constituents || {} };
+        const constituents = enriched.constituents || summary.constituents || {};
+        const knownExploitCount = Number(constituents.knownExploitCount ?? (Array.isArray(constituents.knownExploitIds) ? constituents.knownExploitIds.length : 0)) || 0;
+        const hasKnownExploit = constituents.hasKnownExploit === true || knownExploitCount > 0;
+        const maxCvss = Number.isFinite(constituents.maxCvssNormalized) ? constituents.maxCvssNormalized : null;
+        const derivedCvss = maxCvss !== null ? maxCvss : this.cvssFromWorstSeverity(summary.worstSeverity);
+        const cvssBadgeClass = derivedCvss !== null
+            ? (derivedCvss >= 9 ? 'bg-danger-lt' : derivedCvss >= 7 ? 'bg-warning-lt' : derivedCvss >= 4 ? 'bg-info-lt' : 'bg-success-lt')
+            : '';
 
         return html`
             <div class="modal modal-blur fade show" style="display: block; z-index: 2055;" tabindex="-1" role="dialog" aria-modal="true">
@@ -270,9 +289,9 @@ export class DevicesPage extends window.Component {
                                                 <div class="text-muted small">Highest CVSS score from identified CVEs</div>
                                             </div>
                                             <div class="text-end">
-                                                ${constituents.maxCvssNormalized ? html`
-                                                    <span class="badge ${constituents.maxCvssNormalized >= 9 ? 'bg-danger' : constituents.maxCvssNormalized >= 7 ? 'bg-warning' : constituents.maxCvssNormalized >= 4 ? 'bg-info' : 'bg-success'}">
-                                                        ${(constituents.maxCvssNormalized * 10).toFixed(1)}/100
+                                                ${derivedCvss !== null ? html`
+                                                    <span class="badge ${cvssBadgeClass}">
+                                                        ${(derivedCvss).toFixed(1)}/10.0
                                                     </span>
                                                 ` : html`<span class="text-muted">None detected</span>`}
                                             </div>
@@ -300,9 +319,9 @@ export class DevicesPage extends window.Component {
                                             <div class="text-end">
                                                 ${summary.criticalCves + summary.highCves + summary.mediumCves + summary.lowCves > 0 ? html`
                                                     <div>
-                                                        ${summary.criticalCves > 0 ? html`<span class="badge bg-danger me-1">${summary.criticalCves} Critical</span>` : ''}
-                                                        ${summary.highCves > 0 ? html`<span class="badge bg-warning me-1">${summary.highCves} High</span>` : ''}
-                                                        ${summary.mediumCves > 0 ? html`<span class="badge bg-info me-1">${summary.mediumCves} Medium</span>` : ''}
+                                                        ${summary.criticalCves > 0 ? html`<span class="badge bg-danger-lt me-1">${summary.criticalCves} Critical</span>` : ''}
+                                                        ${summary.highCves > 0 ? html`<span class="badge bg-warning-lt me-1">${summary.highCves} High</span>` : ''}
+                                                        ${summary.mediumCves > 0 ? html`<span class="badge bg-info-lt me-1">${summary.mediumCves} Medium</span>` : ''}
                                                     </div>
                                                 ` : html`<span class="text-muted">No CVEs</span>`}
                                             </div>
@@ -317,7 +336,7 @@ export class DevicesPage extends window.Component {
                                             </div>
                                             <div class="text-end">
                                                 ${constituents.maxEpssStored ? html`
-                                                    <span class="badge ${constituents.maxEpssStored > 0.5 ? 'bg-danger' : constituents.maxEpssStored > 0.3 ? 'bg-warning' : 'bg-info'}">
+                                                    <span class="badge ${constituents.maxEpssStored > 0.5 ? 'bg-danger-lt' : constituents.maxEpssStored > 0.3 ? 'bg-warning-lt' : 'bg-info-lt'}">
                                                         ${(constituents.maxEpssStored * 100).toFixed(0)}%
                                                     </span>
                                                 ` : html`<span class="text-muted">Unknown</span>`}
@@ -332,7 +351,7 @@ export class DevicesPage extends window.Component {
                                                 <div class="text-muted small">CVEs with publicly available exploits</div>
                                             </div>
                                             <div class="text-end">
-                                                ${constituents.hasKnownExploit ? html`<span class="badge bg-danger">1+ Exploits</span>` : html`<span class="text-muted">None known</span>`}
+                                                ${hasKnownExploit ? html`<span class="badge bg-danger-lt">${knownExploitCount > 0 ? `${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}` : '1+ Exploits'}</span>` : html`<span class="text-muted">None known</span>`}
                                             </div>
                                         </div>
                                     </div>
@@ -396,6 +415,244 @@ export class DevicesPage extends window.Component {
             </div>
             <div class="modal-backdrop fade show" style="z-index: 2054;"></div>
         `;
+    }
+
+    renderApexCharts() {
+        if (!window.ApexCharts) {
+            console.warn('[DevicesPage] ApexCharts not available');
+            return;
+        }
+
+        if (!this.state.showDeviceModal || !this.state.selectedDevice) {
+            return;
+        }
+
+        const deviceId = this.state.selectedDevice.id;
+        const summary = this.state.deviceSummaries[deviceId] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
+        const enrichedScore = this.state.enrichedScores[deviceId]?.score ?? summary.score ?? 0;
+        const safeScore = Number.isFinite(enrichedScore) ? enrichedScore : 0;
+        const displayScore = Math.max(0, Math.min(100, Math.round(safeScore)));
+        const gradientStart = '#2fb344';
+        const gradientEnd = '#d63939';
+        const scoreColor = displayScore >= 80 ? gradientEnd : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : gradientStart;
+
+        if (this.riskChartEl) {
+            if (this.riskChart) this.riskChart.destroy();
+
+                const riskOptions = {
+                    chart: {
+                        type: 'radialBar',
+                        height: 62,
+                        sparkline: { enabled: true }
+                    },
+                    colors: [gradientStart],
+                    fill: {
+                        type: 'gradient',
+                        gradient: {
+                            shade: 'light',
+                            type: 'horizontal',
+                            colorStops: [
+                                { offset: 0, color: '#2fb344', opacity: 1 },
+                                { offset: 33, color: '#f59f00', opacity: 1 },
+                                { offset: 66, color: '#fab005', opacity: 1 },
+                                { offset: 100, color: '#d63939', opacity: 1 }
+                            ]
+                        }
+                    },
+                    series: [displayScore],
+                    plotOptions: {
+                        radialBar: {
+                            startAngle: -130,
+                            endAngle: 130,
+                            hollow: { size: '44%' },
+                            track: {
+                                background: '#e9ecef',
+                                strokeWidth: '88%'
+                            },
+                            dataLabels: {
+                                name: { show: false },
+                                value: {
+                                    formatter: (val) => `${Math.round(val)}%`,
+                                    fontSize: '18px',
+                                    fontWeight: 700,
+                                    offsetY: 6
+                                }
+                            }
+                        }
+                    },
+                    stroke: { lineCap: 'round' }
+                };
+
+            this.riskChart = new window.ApexCharts(this.riskChartEl, riskOptions);
+            this.riskChart.render();
+        }
+
+        const totalApps = summary.apps || 0;
+        const vulnApps = summary.vulnerableApps || 0;
+        const healthyApps = Math.max(totalApps - vulnApps, 0);
+        const appsSeries = totalApps > 0 ? [vulnApps, healthyApps] : [1];
+        const appsLabels = totalApps > 0 ? ['Vulnerable', 'Healthy'] : ['No data'];
+        const appsColors = totalApps > 0 ? ['#d63939', '#2fb344'] : ['#e9ecef'];
+        const appsTotalLabel = totalApps > 0 ? `${vulnApps}/${totalApps}` : '0/0';
+
+        if (this.appsChartEl) {
+            if (this.appsChart) this.appsChart.destroy();
+
+            const appsOptions = {
+                chart: {
+                    type: 'pie',
+                    height: 56,
+                    sparkline: { enabled: true }
+                },
+                series: appsSeries,
+                labels: appsLabels,
+                colors: appsColors,
+                legend: { show: false },
+                dataLabels: {
+                    enabled: true,
+                    style: { fontSize: '10px', fontWeight: 400 },
+                    dropShadow: { enabled: false },
+                    formatter: (val, opts) => `${opts.w.globals.labels[opts.seriesIndex]} ${appsSeries[opts.seriesIndex] ?? 0}`
+                },
+                stroke: { width: 0 },
+                plotOptions: { pie: { expandOnClick: false } },
+                tooltip: { enabled: false }
+            };
+
+            this.appsChart = new window.ApexCharts(this.appsChartEl, appsOptions);
+            this.appsChart.render();
+        }
+
+        const totalCves = (summary.criticalCves || 0) + (summary.highCves || 0) + (summary.mediumCves || 0) + (summary.lowCves || 0);
+        const cveSeries = totalCves > 0 ? [summary.criticalCves || 0, summary.highCves || 0, summary.mediumCves || 0, summary.lowCves || 0] : [1];
+        const cveLabels = totalCves > 0 ? ['Critical', 'High', 'Medium', 'Low'] : ['No CVEs'];
+        const cveColors = totalCves > 0 ? ['#d63939', '#f59f00', '#fab005', '#74b816'] : ['#e9ecef'];
+
+        if (this.cvesChartEl) {
+            if (this.cvesChart) this.cvesChart.destroy();
+
+            const cveOptions = {
+                chart: {
+                    type: 'pie',
+                    height: 56,
+                    sparkline: { enabled: true }
+                },
+                series: cveSeries,
+                labels: cveLabels,
+                colors: cveColors,
+                legend: { show: false },
+                dataLabels: {
+                    enabled: true,
+                    style: { fontSize: '10px', fontWeight: 400 },
+                    dropShadow: { enabled: false },
+                    formatter: (val, opts) => `${opts.w.globals.labels[opts.seriesIndex]} ${cveSeries[opts.seriesIndex] ?? 0}`
+                },
+                stroke: { width: 0 },
+                plotOptions: { pie: { expandOnClick: false } },
+                tooltip: { enabled: false }
+            };
+
+            this.cvesChart = new window.ApexCharts(this.cvesChartEl, cveOptions);
+            this.cvesChart.render();
+        }
+    }
+
+    renderTableApexCharts() {
+        if (!window.ApexCharts) {
+            console.warn('[DevicesPage] ApexCharts not available for table charts');
+            return;
+        }
+
+        const devices = this.state.filteredDevices || [];
+
+        // Destroy charts for rows no longer present
+        const currentIds = new Set(devices.map(d => d.id));
+        for (const [id, chart] of this.tableRiskCharts.entries()) {
+            if (!currentIds.has(id)) {
+                chart.destroy();
+                this.tableRiskCharts.delete(id);
+                this.tableRiskEls.delete(id);
+            }
+        }
+
+        devices.forEach(device => {
+            const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
+            const enriched = this.state.enrichedScores[device.id];
+            const displayScoreRaw = enriched?.score !== undefined ? enriched.score : summary.score || 0;
+            const displayScore = Number.isFinite(displayScoreRaw) ? displayScoreRaw : 0;
+            const clampedScore = Math.max(0, Math.min(100, Math.round(displayScore)));
+            const scoreColor = clampedScore >= 80 ? '#d63939' : clampedScore >= 60 ? '#f59f00' : clampedScore >= 40 ? '#fab005' : '#2fb344';
+
+            const riskEl = this.tableRiskEls.get(device.id);
+            if (riskEl) {
+                if (this.tableRiskCharts.has(device.id)) {
+                    this.tableRiskCharts.get(device.id).destroy();
+                }
+                const gradientStart = '#2fb344';
+                const gradientEnd = '#d63939';
+                    const riskOptions = {
+                        chart: { type: 'radialBar', height: 110, sparkline: { enabled: true } },
+                    colors: [gradientStart],
+                    fill: {
+                        type: 'gradient',
+                        gradient: {
+                            shade: 'light',
+                            type: 'horizontal',
+                            colorStops: [
+                                { offset: 0, color: '#2fb344', opacity: 1 },
+                                { offset: 33, color: '#f59f00', opacity: 1 },
+                                { offset: 66, color: '#fab005', opacity: 1 },
+                                { offset: 100, color: '#d63939', opacity: 1 }
+                            ]
+                        }
+                    },
+                    series: [clampedScore],
+                    plotOptions: {
+                        radialBar: {
+                            startAngle: -90,
+                            endAngle: 90,
+                            hollow: { size: '46%' },
+                            track: { background: '#e9ecef', strokeWidth: '82%' },
+                            dataLabels: {
+                                name: { show: false },
+                                value: { formatter: (val) => `${Math.round(val)}%`, fontSize: '14px', fontWeight: 700, offsetY: 4 }
+                            }
+                        }
+                    },
+                    stroke: { lineCap: 'round' }
+                };
+                const chart = new window.ApexCharts(riskEl, riskOptions);
+                chart.render();
+                this.tableRiskCharts.set(device.id, chart);
+            }
+
+        });
+    }
+
+    destroyTableApexCharts() {
+        for (const chart of this.tableRiskCharts.values()) chart.destroy();
+        this.tableRiskCharts.clear();
+        this.tableRiskEls.clear();
+    }
+
+    destroyApexCharts() {
+        if (this.riskChart) {
+            this.riskChart.destroy();
+            this.riskChart = null;
+        }
+
+        if (this.appsChart) {
+            this.appsChart.destroy();
+            this.appsChart = null;
+        }
+
+        if (this.cvesChart) {
+            this.cvesChart.destroy();
+            this.cvesChart = null;
+        }
+
+        if (this.riskChartEl) this.riskChartEl.innerHTML = '';
+        if (this.cvesChartEl) this.cvesChartEl.innerHTML = '';
     }
 
     enrichDeviceScore(summary) {
@@ -739,7 +996,7 @@ export class DevicesPage extends window.Component {
                     maskedKey = key.length > 8 ? `****-****-${key.slice(-8)}` : key;
                 }
                 
-                const t = device.telemetry || {};
+                const t = device.telemetry || device.Telemetry || {};
                 // Robust device name extraction with multiple fallbacks
                 const encryptedName = (device.deviceName && device.deviceName.trim()) 
                     ? device.deviceName 
@@ -761,7 +1018,7 @@ export class DevicesPage extends window.Component {
                     clientVersion: device.clientVersion,
                     licenseKey: maskedKey,
                     telemetry: {
-                        osEdition: t.oseEdition || t.OSEdition,
+                        osEdition: t.osEdition || t.OSEdition || t.oseEdition,
                         osVersion: t.osVersion || t.OSVersion,
                         osBuild: t.osBuild || t.OSBuild,
                         cpuArch: t.cpuArch || t.CPUArch,
@@ -788,7 +1045,18 @@ export class DevicesPage extends window.Component {
             });
 
             this.setCachedDevices(currentOrg.orgId, devices);
-            this.setState(prev => ({ devices, loading: false, deviceSummaries: { ...prev.deviceSummaries, ...summariesFromApi } }));
+            this.setState(prev => {
+                const updatedSelected = prev.selectedDevice ? devices.find(d => d.id === prev.selectedDevice.id) : null;
+                return {
+                    devices,
+                    loading: false,
+                    deviceSummaries: { ...prev.deviceSummaries, ...summariesFromApi },
+                    selectedDevice: updatedSelected || prev.selectedDevice
+                };
+            }, () => {
+                const filteredNow = this.getFilteredDevices();
+                this.setState({ filteredDevices: filteredNow }, () => this.renderTableApexCharts());
+            });
             
             // Background: Load known exploits and enrich risk scores
             this.loadKnownExploitsAsync();
@@ -1143,10 +1411,13 @@ export class DevicesPage extends window.Component {
         const low = summary.lowCveCount ?? summary.low ?? summary.lowCves ?? 0;
         const cveCount = summary.cveCount ?? (critical + high + medium + low);
         const vulnerableApps = summary.vulnerableAppCount ?? summary.appsWithCves ?? summary.appWithVulnCount ?? 0;
+        const knownExploitCount = summary.knownExploitCount ?? summary.exploitedCveCount ?? summary.exploitCount ?? 0;
+        const knownExploitIds = summary.knownExploitIds ?? summary.exploitedCveIds ?? [];
         const worstSeverity = (summary.highestRiskBucket || '').toUpperCase() ||
             (critical > 0 ? 'CRITICAL' : high > 0 ? 'HIGH' : medium > 0 ? 'MEDIUM' : low > 0 ? 'LOW' : 'LOW');
         const derivedWeight = this.severityWeight(worstSeverity);
         const baseScore = summary.riskScore ?? (cveCount * 2 + derivedWeight * 10);
+        const baseConstituents = summary.riskScoreConstituents || {};
         return {
             apps: summary.appCount ?? summary.apps ?? null,
             cves: cveCount ?? null,
@@ -1157,7 +1428,11 @@ export class DevicesPage extends window.Component {
             lowCves: low,
             worstSeverity,
             score: Math.min(100, Math.max(0, Math.round(baseScore ?? 0))),
-            constituents: summary.riskScoreConstituents || null
+            constituents: {
+                ...baseConstituents,
+                knownExploitCount,
+                knownExploitIds,
+            }
         };
     }
 
@@ -1245,6 +1520,15 @@ export class DevicesPage extends window.Component {
         return 0;
     }
 
+    cvssFromWorstSeverity(sev) {
+        const s = (sev || '').toUpperCase();
+        if (s === 'CRITICAL') return 9.5;
+        if (s === 'HIGH') return 8.0;
+        if (s === 'MEDIUM') return 5.0;
+        if (s === 'LOW') return 3.0;
+        return null;
+    }
+
     renderMatchBadge(matchType) {
         const normalize = (mt) => {
             if (typeof mt === 'number') return mt;
@@ -1285,7 +1569,7 @@ export class DevicesPage extends window.Component {
         const { html } = window;
         const { loading, devices, error, manifestError } = this.state;
 
-        const filteredDevices = this.getFilteredDevices();
+        const filteredDevices = (this.state.filteredDevices && this.state.filteredDevices.length > 0) ? this.state.filteredDevices : this.getFilteredDevices();
         const stats = this.computeDeviceStats(filteredDevices);
 
         return html`
@@ -1522,7 +1806,7 @@ export class DevicesPage extends window.Component {
                                         <table class="table table-vcenter card-table">
                                             <thead>
                                                 <tr>
-                                                    <th style="width: 80px; cursor: pointer;" onclick=${() => this.setSortField('risk')} title="Click to sort by risk score (higher = more vulnerable)">
+                                                    <th style="width: 130px; cursor: pointer;" onclick=${() => this.setSortField('risk')} title="Click to sort by risk score (higher = more vulnerable)">
                                                         <div class="d-flex align-items-center justify-content-center gap-1">
                                                             Risk %
                                                             ${this.state.sortField === 'risk' ? html`
@@ -1542,8 +1826,6 @@ export class DevicesPage extends window.Component {
                                                             ` : ''}
                                                         </div>
                                                     </th>
-                                                    <th style="width: 80px;">Apps</th>
-                                                    <th style="width: 80px;">CVEs</th>
                                                     <th>License</th>
                                                     <th>Connection</th>
                                                     <th>Specs</th>
@@ -1560,24 +1842,15 @@ export class DevicesPage extends window.Component {
                                                             const isEnriched = enriched && enriched.score !== (summary.score || 0);
                                                             const scoreColor = displayScore >= 80 ? '#d63939' : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : '#2fb344';
                                                             const scoreSeverity = displayScore >= 80 ? 'CRITICAL' : displayScore >= 60 ? 'HIGH' : displayScore >= 40 ? 'MEDIUM' : 'LOW';
-                                                            const severityBadge = displayScore >= 80 ? 'bg-danger' : displayScore >= 60 ? 'bg-warning' : displayScore >= 40 ? 'bg-secondary' : 'bg-success';
+                                                            const severityBadge = displayScore >= 80 ? 'bg-danger' : displayScore >= 60 ? 'bg-warning' : displayScore >= 40 ? 'bg-warning' : 'bg-success';
                                                             return html`
                                                             <!-- Risk Score Column -->
                                                             <td class="text-center">
                                                                 <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; color: inherit;" title="Click to see what drives this risk score">
-                                                                    <div style="position: relative; display: inline-block; cursor: pointer;">
-                                                                        <svg width="96" height="96" viewBox="0 0 60 60">
-                                                                            <circle cx="30" cy="30" r="24" fill="none" stroke="#e9ecef" stroke-width="6"/>
-                                                                            <circle cx="30" cy="30" r="24" fill="none"
-                                                                                stroke="${scoreColor}"
-                                                                                stroke-width="6"
-                                                                                stroke-dasharray="${(displayScore / 100 * 150.8).toFixed(2)} 150.8"
-                                                                                stroke-linecap="round"
-                                                                                transform="rotate(-90 30 30)" />
-                                                                            <text x="30" y="34" text-anchor="middle" font-size="14" font-weight="bold" fill="${scoreColor}">${displayScore}</text>
-                                                                        </svg>
-                                                                        ${isEnriched ? html`<span class="badge bg-success-lt" style="position:absolute;top:-6px;right:-6px;font-size:9px;" title="Enriched with known exploits">✓</span>` : ''}
-                                                                        <div class="text-muted small mt-1">Click for details</div>
+                                                                    <div style="position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer;">
+                                                                        <div style="width: 90px; height: 60px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
+                                                                        ${isEnriched ? html`<span class="badge bg-success-lt" style="position:absolute;top:4px;right:4px;font-size:9px;" title="Enriched with known exploits">✓</span>` : ''}
+                                                                        <div class="text-muted small">Click for details</div>
                                                                     </div>
                                                                 </a>
                                                             </td>
@@ -1586,75 +1859,22 @@ export class DevicesPage extends window.Component {
                                                             <td>
                                                                 <div class="d-flex flex-column">
                                                                     <a href="#!/devices/${device.id}" class="fw-600 text-primary text-decoration-none">${device.name || device.id}</a>
-                                                                    <span class="badge ${severityBadge} text-white mt-1" style="width: fit-content;">${scoreSeverity}</span>
+                                                                    ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? html`
+                                                                    <span class="badge bg-warning-lt" title="Update available: v${config.INSTALLERS.ENGINE.VERSION}">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                                            <circle cx="12" cy="12" r="9" />
+                                                                            <line x1="12" y1="8" x2="12" y2="12" />
+                                                                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                                        </svg>
+                                                                        Update MagenSec
+                                                                    </span>
+                                                                    ` : ''}
+                                                                    <span class="badge ${this.getStateBadgeClass(device.state)} text-white" style="width: fit-content;">License ${device.state}</span>
+                                                                    <span class="badge ${severityBadge} text-white mt-1" style="width: fit-content;">${scoreSeverity} RISK</span>
                                                                 </div>
                                                             </td>
                                                             
-                                                            <!-- Apps Column -->
-                                                            <td class="text-center">
-                                                                <a href="#" onclick=${(e) => { e.preventDefault(); this.openDeviceModal(device); this.setInventoryTab('apps'); }} style="text-decoration: none; color: inherit;" title="View apps">
-                                                                    ${(() => {
-                                                                        const totalApps = summary.apps || 0;
-                                                                        const vulnApps = summary.vulnerableApps || 0;
-                                                                        const angle = totalApps > 0 ? (vulnApps / totalApps) * 360 : 0;
-                                                                        const largeArc = angle > 180 ? 1 : 0;
-                                                                        const x = 20 + 16 * Math.cos((angle - 90) * Math.PI / 180);
-                                                                        const y = 20 + 16 * Math.sin((angle - 90) * Math.PI / 180);
-                                                                        return html`
-                                                                            <svg width="72" height="72" viewBox="0 0 40 40" style="cursor: pointer;">
-                                                                                <circle cx="20" cy="20" r="16" fill="#2fb344"/>
-                                                                                ${vulnApps > 0 ? html`<path d="M 20 20 L 20 4 A 16 16 0 ${largeArc} 1 ${x} ${y} Z" fill="#d63939"/>` : ''}
-                                                                                <text x="20" y="24" text-anchor="middle" font-size="10" font-weight="bold" fill="white">${vulnApps}/${totalApps}</text>
-                                                                            </svg>
-                                                                            <div class="text-muted small mt-1">Apps</div>
-                                                                        `;
-                                                                    })()}
-                                                                </a>
-                                                            </td>
-                                                            
-                                                            <!-- CVEs Column -->
-                                                            <td class="text-center">
-                                                                <a href="#" onclick=${(e) => { e.preventDefault(); this.openDeviceModal(device); this.setInventoryTab('cves'); }} style="text-decoration: none; color: inherit;" title="View CVEs">
-                                                                    ${(() => {
-                                                                        const crit = summary.criticalCves || 0;
-                                                                        const high = summary.highCves || 0;
-                                                                        const med = summary.mediumCves || 0;
-                                                                        const low = summary.lowCves || 0;
-                                                                        const totalCves = crit + high + med + low;
-                                                                        if (totalCves === 0) {
-                                                                            return html`
-                                                                                <svg width="72" height="72" viewBox="0 0 40 40" style="cursor: pointer;">
-                                                                                    <circle cx="20" cy="20" r="16" fill="#2fb344"/>
-                                                                                    <text x="20" y="24" text-anchor="middle" font-size="10" font-weight="bold" fill="white">0</text>
-                                                                                </svg>
-                                                                                <div class="text-muted small mt-1">CVEs</div>`;
-                                                                        }
-                                                                        let currentAngle = 0;
-                                                                        const slices = [];
-                                                                        const addSlice = (count, color) => {
-                                                                            if (count === 0) return;
-                                                                            const angle = (count / totalCves) * 360;
-                                                                            const largeArc = angle > 180 ? 1 : 0;
-                                                                            const startX = 20 + 16 * Math.cos((currentAngle - 90) * Math.PI / 180);
-                                                                            const startY = 20 + 16 * Math.sin((currentAngle - 90) * Math.PI / 180);
-                                                                            currentAngle += angle;
-                                                                            const endX = 20 + 16 * Math.cos((currentAngle - 90) * Math.PI / 180);
-                                                                            const endY = 20 + 16 * Math.sin((currentAngle - 90) * Math.PI / 180);
-                                                                            slices.push(html`<path d="M 20 20 L ${startX} ${startY} A 16 16 0 ${largeArc} 1 ${endX} ${endY} Z" fill="${color}"/>`);
-                                                                        };
-                                                                        addSlice(crit, '#d63939');
-                                                                        addSlice(high, '#f59f00');
-                                                                        addSlice(med, '#fab005');
-                                                                        addSlice(low, '#74b816');
-                                                                        return html`
-                                                                            <svg width="72" height="72" viewBox="0 0 40 40" style="cursor: pointer;">
-                                                                                ${slices}
-                                                                                <text x="20" y="24" text-anchor="middle" font-size="10" font-weight="bold" fill="white">${totalCves}</text>
-                                                                            </svg>
-                                                                            <div class="text-muted small mt-1">CVEs</div>`;
-                                                                    })()}
-                                                                </a>
-                                                            </td>
                                                             `;
                                                         })()}
                                                         
@@ -1676,64 +1896,49 @@ export class DevicesPage extends window.Component {
                                                             </div>
                                                         </td>
                                                         <td>
-                                                            <div class="text-muted">${this.formatLastSeen(device.lastHeartbeat)}</div>
-                                                            ${this.isDeviceInactive(device) ? html`
-                                                                <span class="badge bg-danger-lt mt-1">Offline</span>
-                                                            ` : html`
-                                                                <span class="badge bg-success-lt mt-1">Online</span>
-                                                            `}
-                                                            ${device.firstHeartbeat ? html`
-                                                                <div class="text-muted small">Registered ${this.formatAbsolute(device.firstHeartbeat)}</div>
-                                                            ` : ''}
-                                                        </td>
-                                                        <td>
-                                                            ${device.telemetry ? html`
-                                                                <div class="text-muted small">
-                                                                    <div class="mb-1">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                            <div class="d-flex flex-column gap-1">
+                                                                ${device.telemetry ? html`
+                                                                    <div class="d-flex align-items-center gap-2">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                                                             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                            <rect x="7" y="7" width="10" height="10" rx="2" />
-                                                                            <rect x="10" y="10" width="4" height="4" rx="1" />
-                                                                            <path d="M3 10h2" />
-                                                                            <path d="M3 14h2" />
-                                                                            <path d="M19 10h2" />
-                                                                            <path d="M19 14h2" />
-                                                                            <path d="M10 3v2" />
-                                                                            <path d="M14 3v2" />
-                                                                            <path d="M10 19v2" />
-                                                                            <path d="M14 19v2" />
-                                                                        </svg>
-                                                                        ${device.telemetry.cpuName || device.telemetry.cpuArch || ''}
-                                                                    </div>
-                                                                    <div class="mb-1">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                            <rect x="3" y="7" width="18" height="10" rx="2" />
-                                                                            <path d="M6 7v10" />
-                                                                            <path d="M10 7v10" />
-                                                                            <path d="M14 7v10" />
-                                                                            <path d="M18 7v10" />
-                                                                        </svg>
-                                                                        ${device.telemetry.totalRamMb ? Math.round(device.telemetry.totalRamMb/1024) + ' GB' : ''}
-                                                                    </div>
-                                                                    <div class="mb-1">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                            <ellipse cx="12" cy="6" rx="8" ry="3"/>
-                                                                            <path d="M4 6v6a8 3 0 0 0 16 0v-6" />
-                                                                            <path d="M4 12v6a8 3 0 0 0 16 0v-6" />
-                                                                        </svg>
-                                                                        ${device.telemetry.totalDiskGb ? device.telemetry.totalDiskGb + ' GB' : ''}
-                                                                    </div>
-                                                                    <div>
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                            <path d="M2 9.5a15 15 0 0 1 20 0" />
                                                                             <path d="M5 13a10 10 0 0 1 14 0" />
                                                                             <path d="M8.5 16.5a5 5 0 0 1 7 0" />
                                                                             <circle cx="12" cy="20" r="1" />
                                                                         </svg>
-                                                                        ${device.telemetry.connectionType || ''}
+                                                                        <span class="text-muted small">${device.telemetry.connectionType || 'Connected'}</span>
+                                                                        ${device.telemetry.networkSpeedMbps ? html`<span class="text-muted small">${this.formatNetworkSpeed(device.telemetry.networkSpeedMbps)}</span>` : ''}
+                                                                    </div>
+                                                                ` : html`<div class="text-muted small">No telemetry yet</div>`}
+
+                                                                <div class="d-flex align-items-center gap-2">
+                                                                    ${this.isDeviceInactive(device) ? html`<span class="badge bg-danger-lt">Offline</span>` : html`<span class="badge bg-success-lt">Online</span>`}
+                                                                    <span class="text-muted small">Last seen ${this.formatLastSeen(device.lastHeartbeat)}</span>
+                                                                </div>
+
+                                                                ${device.firstHeartbeat ? html`
+                                                                    <div class="text-muted small">Registered ${this.formatAbsolute(device.firstHeartbeat)}</div>
+                                                                ` : ''}
+
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            ${device.telemetry ? html`
+                                                                <div class="text-muted small d-flex flex-column gap-1">
+                                                                    <div class="d-flex align-items-center gap-1">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17.8 20l-12 -1.5c-1 -.1 -1.8 -.9 -1.8 -1.9v-9.2c0 -1 .8 -1.8 1.8 -1.9l12 -1.5c1.2 -.1 2.2 .8 2.2 1.9v12.1c0 1.2 -1.1 2.1 -2.2 1.9z" /><path d="M12 5l0 14" /><path d="M4 12l16 0" /></svg>
+                                                                        <span>${(device.telemetry.osEdition || '').trim()} ${(device.telemetry.osVersion || '').trim()}</span>
+                                                                    </div>
+                                                                    <div class="d-flex align-items-center gap-1">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 5m0 1a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1z"/><path d="M9 9h6v6h-6z"/><path d="M3 10h2"/><path d="M3 14h2"/><path d="M10 3v2"/><path d="M14 3v2"/><path d="M21 10h-2"/><path d="M21 14h-2"/><path d="M14 21v-2"/><path d="M10 21v-2"/></svg>
+                                                                        <span>${(device.telemetry.cpuName || '').trim()} ${device.telemetry.cpuCores ? `(${device.telemetry.cpuCores} cores)` : ''}</span>
+                                                                    </div>
+                                                                    <div class="d-flex align-items-center gap-1">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 20h.01" /><path d="M4 20h.01" /><path d="M8 20h.01" /><path d="M12 20h.01" /><path d="M16 20h.01" /><path d="M20 4h.01" /><path d="M4 4h.01" /><path d="M8 4h.01" /><path d="M12 4h.01" /><path d="M16 4l0 .01" /><path d="M4 8m0 1a1 1 0 0 1 1 -1h14a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-14a1 1 0 0 1 -1 -1z"/></svg>
+                                                                        <span>${device.telemetry.totalRamMb ? `${Math.round(device.telemetry.totalRamMb / 1024)} GB RAM` : 'RAM —'}</span>
+                                                                    </div>
+                                                                    <div class="d-flex align-items-center gap-1">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M16 3.937a9 9 0 1 0 5 8.063"/><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M20 4m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M20 4l-3.5 10l-2.5 2"/></svg>
+                                                                        <span>${device.telemetry.totalDiskGb ? `${device.telemetry.totalDiskGb} GB ${device.telemetry.systemDiskMediaType || ''}` : 'Disk —'}</span>
                                                                     </div>
                                                                 </div>
                                                             ` : html`<span class="text-muted small">No telemetry yet</span>`}
@@ -1748,7 +1953,7 @@ export class DevicesPage extends window.Component {
                                                                 </button>
                                                                 <div class="dropdown-menu dropdown-menu-end" style="min-width: 240px;">
                                                                     <!-- View Device (outside lifecycle) -->
-                                                                    <button type="button" class="dropdown-item" onclick=${() => this.openDeviceModal(device)}>
+                                                                    <button type="button" class="dropdown-item" onclick=${() => { window.location.hash = `#!/devices/${device.id}`; }}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>
                                                                         View Device
                                                                     </button>
@@ -1855,7 +2060,6 @@ export class DevicesPage extends window.Component {
                     <div class="modal-backdrop fade show" style="z-index: 1054;"></div>
                 ` : ''}
 
-                ${this.renderModal()}
                 ${this.renderRiskExplanationModal()}
         `;
     }

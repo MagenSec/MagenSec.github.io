@@ -14,7 +14,7 @@ export class DeviceDetailPage extends window.Component {
         super(props);
         const rawDeviceId = props.params?.deviceId || (window.location.hash.match(/\/devices\/([^/?]+)/) || [])[1];
         const deviceId = rawDeviceId ? decodeURIComponent(rawDeviceId) : null;
-        
+
         this.state = {
             deviceId,
             loading: true,
@@ -47,6 +47,20 @@ export class DeviceDetailPage extends window.Component {
         this.loadDeviceData();
     }
 
+    componentDidUpdate(prevProps, prevState) {
+        const deviceChanged = prevState.device !== this.state.device;
+        const appsChanged = prevState.appInventory !== this.state.appInventory;
+        const cvesChanged = prevState.cveInventory !== this.state.cveInventory;
+        const summaryChanged = prevState.deviceSummary !== this.state.deviceSummary || prevState.enrichedScore !== this.state.enrichedScore;
+        if (deviceChanged || appsChanged || cvesChanged || summaryChanged) {
+            this.renderDetailCharts();
+        }
+    }
+
+    componentWillUnmount() {
+        this.destroyDetailCharts();
+    }
+
     // Load known exploits from reliable sources (with caching)
     async loadKnownExploitsAsync() {
         // Check cache freshness
@@ -60,18 +74,17 @@ export class DeviceDetailPage extends window.Component {
         
         // Try to load from MagenSec's hourly-updated repository
         const url = 'https://raw.githubusercontent.com/MagenSec/MagenSec.github.io/main/diag/known_exploited_vulnerabilities.json';
-        
         try {
             const response = await fetch(url, { cache: 'reload', timeout: 5000 });
-            
+
             if (!response.ok) {
                 console.debug(`[DeviceDetail] Known exploits source returned ${response.status}`);
                 throw new Error('Failed to load');
             }
-            
+
             const data = await response.json();
             let cveIds = new Set();
-            
+
             // Expected format: { vulnerabilities: [{ cveID, ... }, ...] }
             if (data.vulnerabilities && Array.isArray(data.vulnerabilities)) {
                 cveIds = new Set(data.vulnerabilities
@@ -82,7 +95,7 @@ export class DeviceDetailPage extends window.Component {
                     .map(v => typeof v === 'string' ? v : (v.cveID || v.cveId))
                     .filter(id => id && typeof id === 'string'));
             }
-            
+
             if (cveIds.size > 0) {
                 console.log(`[DeviceDetail] Loaded ${cveIds.size} known exploits`);
                 this.KNOWN_EXPLOITS_CACHE.data = cveIds;
@@ -1285,6 +1298,123 @@ export class DeviceDetailPage extends window.Component {
                 </div>
             ` : ''}
         `;
+    }
+
+    renderDetailCharts() {
+        if (!window.ApexCharts) {
+            console.warn('[DeviceDetail] ApexCharts not available');
+            return;
+        }
+
+        if (!this.state.device) return;
+
+        const summary = this.state.deviceSummary;
+        const enriched = this.state.enrichedScore;
+        const baseScore = summary ? summary.score : this.calculateRiskScore(this.state.device);
+        const score = enriched ? enriched.score : baseScore;
+        const clampedScore = Math.max(0, Math.min(100, Math.round(score || 0)));
+
+        const criticalCves = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'CRITICAL');
+        const highCves = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'HIGH');
+        const mediumCves = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'MEDIUM');
+        const worstSeverity = criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : mediumCves.length > 0 ? 'MEDIUM' : this.state.cveInventory.length > 0 ? 'LOW' : 'CLEAN';
+        const gaugeColor = worstSeverity === 'CRITICAL' ? '#d63939' : worstSeverity === 'HIGH' ? '#f59f00' : worstSeverity === 'MEDIUM' ? '#fab005' : '#2fb344';
+
+        if (this.detailRiskChartEl) {
+            if (this.detailRiskChart) this.detailRiskChart.destroy();
+            const riskOptions = {
+                chart: { type: 'radialBar', height: 110, sparkline: { enabled: true } },
+                colors: [gaugeColor],
+                series: [clampedScore],
+                plotOptions: {
+                    radialBar: {
+                        startAngle: -135,
+                        endAngle: 135,
+                        hollow: { size: '65%' },
+                        track: { background: '#f1f3f5', strokeWidth: '100%' },
+                        dataLabels: {
+                            name: { show: false },
+                            value: { formatter: (val) => `${Math.round(val)}`, fontSize: '16px', fontWeight: 600, offsetY: 6 }
+                        }
+                    }
+                },
+                stroke: { lineCap: 'round' }
+            };
+            this.detailRiskChart = new window.ApexCharts(this.detailRiskChartEl, riskOptions);
+            this.detailRiskChart.render();
+        }
+
+        const vulnerableApps = this.state.appInventory.filter(app => this.state.cveInventory.some(cve => cve.appName && app.appName && cve.appName.toLowerCase() === app.appName.toLowerCase())).length;
+        const totalApps = this.state.appInventory.length;
+        const healthyApps = Math.max(totalApps - vulnerableApps, 0);
+        const appsSeries = totalApps > 0 ? [vulnerableApps, healthyApps] : [1];
+        const appsLabels = totalApps > 0 ? ['Vulnerable', 'Healthy'] : ['No data'];
+        const appsColors = totalApps > 0 ? ['#d63939', '#2fb344'] : ['#e9ecef'];
+        const appsTotalLabel = totalApps > 0 ? `${vulnerableApps}/${totalApps}` : '0/0';
+
+        if (this.detailAppsChartEl) {
+            if (this.detailAppsChart) this.detailAppsChart.destroy();
+            const appsOptions = {
+                chart: { type: 'donut', height: 95, sparkline: { enabled: true } },
+                series: appsSeries,
+                labels: appsLabels,
+                colors: appsColors,
+                legend: { show: false },
+                dataLabels: { enabled: false },
+                stroke: { width: 0 },
+                plotOptions: {
+                    pie: {
+                        donut: {
+                            size: '70%',
+                            labels: { show: true, name: { show: false }, value: { show: false }, total: { show: true, label: '', formatter: () => appsTotalLabel } }
+                        }
+                    }
+                }
+            };
+            this.detailAppsChart = new window.ApexCharts(this.detailAppsChartEl, appsOptions);
+            this.detailAppsChart.render();
+        }
+
+        const critCount = criticalCves.length;
+        const highCount = highCves.length;
+        const mediumCount = mediumCves.length;
+        const lowCount = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'LOW').length;
+        const totalCves = this.state.cveInventory.length;
+        const cveSeries = totalCves > 0 ? [critCount, highCount, mediumCount, lowCount] : [1];
+        const cveLabels = totalCves > 0 ? ['Critical', 'High', 'Medium', 'Low'] : ['No CVEs'];
+        const cveColors = totalCves > 0 ? ['#d63939', '#f59f00', '#fab005', '#74b816'] : ['#e9ecef'];
+
+        if (this.detailCvesChartEl) {
+            if (this.detailCvesChart) this.detailCvesChart.destroy();
+            const cveOptions = {
+                chart: { type: 'donut', height: 95, sparkline: { enabled: true } },
+                series: cveSeries,
+                labels: cveLabels,
+                colors: cveColors,
+                legend: { show: false },
+                dataLabels: { enabled: false },
+                stroke: { width: 0 },
+                plotOptions: {
+                    pie: {
+                        donut: {
+                            size: '70%',
+                            labels: { show: true, name: { show: false }, value: { show: false }, total: { show: true, label: '', formatter: () => `${totalCves}` } }
+                        }
+                    }
+                }
+            };
+            this.detailCvesChart = new window.ApexCharts(this.detailCvesChartEl, cveOptions);
+            this.detailCvesChart.render();
+        }
+    }
+
+    destroyDetailCharts() {
+        if (this.detailRiskChart) { this.detailRiskChart.destroy(); this.detailRiskChart = null; }
+        if (this.detailAppsChart) { this.detailAppsChart.destroy(); this.detailAppsChart = null; }
+        if (this.detailCvesChart) { this.detailCvesChart.destroy(); this.detailCvesChart = null; }
+        if (this.detailRiskChartEl) this.detailRiskChartEl.innerHTML = '';
+        if (this.detailAppsChartEl) this.detailAppsChartEl.innerHTML = '';
+        if (this.detailCvesChartEl) this.detailCvesChartEl.innerHTML = '';
     }
 
     renderFlatListView(filteredApps) {
