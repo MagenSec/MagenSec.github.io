@@ -1734,48 +1734,31 @@ export class DevicesPage extends window.Component {
                                         </div>
                                         <div class="col-md-7">
                                             <div class="row g-2">
-                                                <div class="col-md-4">
+                                                <div class="col-12">
                                                     <div class="card bg-light mb-0">
-                                                        <div class="card-body py-3">
-                                                            <div class="text-muted small mb-2">Filter by Device State</div>
-                                                            <div class="d-flex flex-column gap-2">
-                                                                <span class="badge badge-lg w-100 ${this.state.deviceFilters.connection === 'online' ? 'bg-green' : 'bg-green-lt'}" style="cursor: pointer;" onclick=${() => this.setDeviceFilter('connection', this.state.deviceFilters.connection === 'online' ? 'all' : 'online')}>
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
-                                                                    Online (${stats.online ?? stats.active})
-                                                                </span>
-                                                                <span class="badge badge-lg w-100 ${this.state.deviceFilters.connection === 'offline' ? 'bg-yellow' : 'bg-yellow-lt'}" style="cursor: pointer;" onclick=${() => this.setDeviceFilter('connection', this.state.deviceFilters.connection === 'offline' ? 'all' : 'offline')}>
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /></svg>
-                                                                    Offline (${stats.offline})
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-8">
-                                                    <div class="card bg-light mb-0">
-                                                        <div class="card-body py-3">
-                                                            <div class="text-muted small mb-2">Filter by License State</div>
-                                                            <div class="row g-2">
+                                                        <div class="card-body py-2 px-3">
+                                                            <div class="text-muted small mb-1">Filter by Device State</div>
+                                                            <div class="row g-2 align-items-start">
                                                                 <div class="col-6">
-                                                                    <span class="badge badge-lg w-100 ${this.state.deviceFilters.license === 'active' ? 'bg-green' : 'bg-green-lt'}" style="cursor: pointer;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'active' ? 'all' : 'active')}>
+                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'active' ? 'bg-green' : 'bg-green-lt'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'active' ? 'all' : 'active')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
                                                                         Active (${stats.active})
                                                                     </span>
                                                                 </div>
                                                                 <div class="col-6">
-                                                                    <span class="badge badge-lg w-100 ${this.state.deviceFilters.license === 'enabled' ? 'bg-blue' : 'bg-blue-lt'}" style="cursor: pointer;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'enabled' ? 'all' : 'enabled')}>
+                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'enabled' ? 'bg-blue' : 'bg-blue-lt'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'enabled' ? 'all' : 'enabled')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /></svg>
                                                                         Enabled (${stats.enabled})
                                                                     </span>
                                                                 </div>
                                                                 <div class="col-6">
-                                                                    <span class="badge badge-lg w-100 ${this.state.deviceFilters.license === 'blocked' ? 'bg-red' : 'bg-red-lt'}" style="cursor: pointer;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'blocked' ? 'all' : 'blocked')}>
+                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'blocked' ? 'bg-red' : 'bg-red-lt'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'blocked' ? 'all' : 'blocked')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                                                                         Blocked (${stats.blocked})
                                                                     </span>
                                                                 </div>
                                                                 <div class="col-6">
-                                                                    <span class="badge badge-lg w-100 ${this.state.deviceFilters.license === 'deleted' ? 'bg-secondary' : 'bg-secondary-lt'}" style="cursor: pointer;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'deleted' ? 'all' : 'deleted')}>
+                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'deleted' ? 'bg-secondary' : 'bg-secondary-lt'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'deleted' ? 'all' : 'deleted')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /></svg>
                                                                         Deleted (${stats.deleted})
                                                                     </span>
@@ -1874,13 +1857,18 @@ export class DevicesPage extends window.Component {
                                                             const scoreColor = displayScore >= 80 ? '#d63939' : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : '#2fb344';
                                                             const scoreSeverity = displayScore >= 80 ? 'CRITICAL' : displayScore >= 60 ? 'HIGH' : displayScore >= 40 ? 'MEDIUM' : 'LOW';
                                                             const severityBadge = displayScore >= 80 ? 'bg-danger' : displayScore >= 60 ? 'bg-warning' : displayScore >= 40 ? 'bg-warning' : 'bg-success';
+                                                            const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+                                                            const versionBadgeClass = isOutdated ? 'bg-warning-lt text-dark' : 'bg-secondary-lt';
+                                                            const versionTitle = isOutdated ? `Update available: v${config.INSTALLERS.ENGINE.VERSION}` : 'Current installed MagenSec version';
+                                                            const versionLabel = device.clientVersion || 'Unknown version';
                                                             return html`
                                                             <!-- Risk Score Column -->
                                                             <td class="text-center">
                                                                 <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; color: inherit;" title="Click to see what drives this risk score">
-                                                                    <div style="position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer;">
+                                                                    <div style="position: relative; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; cursor: pointer;">
                                                                         <div style="width: 90px; height: 60px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
-                                                                        ${isEnriched ? html`<span class="badge bg-success-lt" style="position:absolute;top:4px;right:4px;font-size:9px;" title="Enriched with known exploits">✓</span>` : ''}
+                                                                        ${isEnriched ? html`<span class="badge bg-success-lt" style="position:absolute; top:2px; right:-6px; font-size:9px;" title="Enriched with known exploits">✓</span>` : ''}
+                                                                        <span class="badge ${severityBadge} text-white text-start" style="min-width: 96px;">${scoreSeverity} RISK</span>
                                                                         <div class="text-muted small">Click for details</div>
                                                                     </div>
                                                                 </a>
@@ -1890,19 +1878,16 @@ export class DevicesPage extends window.Component {
                                                             <td>
                                                                 <div class="d-flex flex-column">
                                                                     <a href="#!/devices/${device.id}" class="fw-600 text-primary text-decoration-none">${device.name || device.id}</a>
-                                                                    ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? html`
-                                                                    <span class="badge bg-warning-lt" title="Update available: v${config.INSTALLERS.ENGINE.VERSION}">
+                                                                    <span class="badge ${versionBadgeClass} d-inline-flex align-items-center gap-1 position-relative" title=${versionTitle}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                                                             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                            <circle cx="12" cy="12" r="9" />
-                                                                            <line x1="12" y1="8" x2="12" y2="12" />
-                                                                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                                            <path d="M12 4l7 4v4c0 5 -3 8 -7 8s-7 -3 -7 -8v-4z" />
+                                                                            <path d="M10 13l2 2l2 -2" />
                                                                         </svg>
-                                                                        Update MagenSec
+                                                                        ${versionLabel}
+                                                                        ${isOutdated ? html`<span class="badge bg-warning badge-notification" style="position:absolute; top:-4px; right:-4px;"></span>` : ''}
                                                                     </span>
-                                                                    ` : ''}
-                                                                    <span class="badge ${this.getStateBadgeClass(device.state)} text-white" style="width: fit-content;">${device.state}</span>
-                                                                    <span class="badge ${severityBadge} text-white mt-1" style="width: fit-content;">${scoreSeverity} RISK</span>
+                                                                    <span class="badge ${this.getStateBadgeClass(device.state)} text-white text-start" style="min-width: 96px;">${device.state}</span>
                                                                 </div>
                                                             </td>
                                                             `;
