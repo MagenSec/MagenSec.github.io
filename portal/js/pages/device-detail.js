@@ -39,7 +39,8 @@ export class DeviceDetailPage extends window.Component {
             enrichedScore: null,
             deviceSummary: null,
             appSortKey: 'appName', // appName | severity | cveCount
-            appSortDir: 'asc'
+            appSortDir: 'asc',
+            showAllIps: false
         };
     }
 
@@ -293,7 +294,8 @@ export class DeviceDetailPage extends window.Component {
                 telemetryHistory: telemetryData?.history || [],
                 timeline,
                 deviceSummary,
-                loading: false
+                loading: false,
+                showAllIps: false
             });
             
             // Background: Load known exploits and enrich risk score
@@ -950,12 +952,30 @@ export class DeviceDetailPage extends window.Component {
 
     renderSpecsTab() {
         const { html } = window;
-        const { device, telemetryDetail } = this.state;
+        const { device, telemetryDetail, showAllIps } = this.state;
         const fields = telemetryDetail?.latest?.fields || {};
         const telemetry = device?.telemetry || device?.Telemetry;
-        const ipAddresses = telemetry?.ipAddresses || telemetry?.IPAddresses || fields.IPAddresses;
+
+        // Normalize IP addresses to an array for downstream consumers
+        const ipRaw = telemetry?.ipAddresses || telemetry?.IPAddresses || fields.IPAddresses;
+        const ipAddresses = (() => {
+            if (Array.isArray(ipRaw)) return ipRaw;
+            if (typeof ipRaw === 'string') {
+                try {
+                    const parsed = JSON.parse(ipRaw);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (err) { /* fall through to delimiter split */ }
+                return ipRaw.split(/[;,\s]+/).filter(Boolean);
+            }
+            return [];
+        })();
         const mobileStatus = this.detectMobileDevice(telemetryDetail?.history);
         const networkRisk = this.analyzeNetworkRisk(ipAddresses, telemetryDetail?.history);
+        const hasExtraIps = Array.isArray(ipAddresses) && ipAddresses.length > 1;
+        const toggleAllIps = (e) => {
+            e.preventDefault();
+            this.setState({ showAllIps: !showAllIps });
+        };
 
         return html`
             <div class="row">
@@ -964,6 +984,9 @@ export class DeviceDetailPage extends window.Component {
                     <dl class="row text-sm">
                         <dt class="col-sm-4">CPU</dt>
                         <dd class="col-sm-8">${fields.CPUName || ''} (${fields.CPUCores || '?'} cores)</dd>
+                        
+                        <dt class="col-sm-4">Architecture</dt>
+                        <dd class="col-sm-8">${fields.CPUArch || 'N/A'}</dd>
                         
                         <dt class="col-sm-4">RAM</dt>
                         <dd class="col-sm-8">${fields.TotalRAMMB ? Math.round(Number(fields.TotalRAMMB) / 1024) + ' GB' : 'N/A'}</dd>
@@ -990,30 +1013,34 @@ export class DeviceDetailPage extends window.Component {
                         <dt class="col-sm-4">Build</dt>
                         <dd class="col-sm-8">${fields.FeaturePackVersion || fields.OSBuild || 'N/A'}</dd>
                         
-                        <dt class="col-sm-4">Architecture</dt>
-                        <dd class="col-sm-8">${fields.CPUArch || 'N/A'}</dd>
-                        
                         <dt class="col-sm-4">IP Address</dt>
                         <dd class="col-sm-8">
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
                                 <span>${this.formatIPAddresses(ipAddresses, 'primary')}</span>
                                 ${mobileStatus.isMobile ? html`<span class="badge badge-sm bg-info-lt">Mobile</span>` : html`<span class="badge badge-sm bg-success-lt">Stationary</span>`}
                                 ${networkRisk.publicIpPresent ? html`<span class="badge badge-sm bg-warning-lt" title="Device has public IP(s)">Public IP</span>` : ''}
                                 ${networkRisk.apipaPresent ? html`<span class="badge badge-sm bg-danger-lt" title="Device has APIPA address (network issue indicator)">APIPA</span>` : ''}
+                                ${hasExtraIps ? html`
+                                    <button class="btn btn-link btn-sm px-0" onclick=${toggleAllIps} aria-expanded=${showAllIps}>
+                                        ${showAllIps ? 'Hide all IPs' : `Show all (${ipAddresses.length})`}
+                                    </button>
+                                ` : ''}
                             </div>
+                            ${hasExtraIps && showAllIps ? html`
+                                <div class="card card-sm bg-light border mt-2">
+                                    <div class="card-body py-2 px-3">
+                                        <div class="d-flex flex-wrap gap-1">
+                                            ${this.formatIPAddresses(ipAddresses, 'full').map(ip => html`
+                                                <span class="badge badge-sm bg-azure-lt me-1 mb-1">${ip}</span>
+                                            `)}
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
                         </dd>
                         
                         <dt class="col-sm-4">Last Updated</dt>
                         <dd class="col-sm-8">${telemetryDetail?.latest?.timestamp ? this.formatDate(telemetryDetail.latest.timestamp) : 'N/A'}</dd>
-                        
-                        ${ipAddresses && ipAddresses.length > 1 ? html`
-                            <dt class="col-sm-4">All IPs</dt>
-                            <dd class="col-sm-8">
-                                ${this.formatIPAddresses(ipAddresses, 'full').map(ip => html`
-                                    <span class="badge badge-sm bg-azure-lt me-1 mb-1">${ip}</span>
-                                `)}
-                            </dd>
-                        ` : ''}
                     </dl>
                 </div>
             </div>
@@ -1270,8 +1297,10 @@ export class DeviceDetailPage extends window.Component {
         const summary = this.state.deviceSummary;
         const enriched = this.state.enrichedScore;
         const baseScore = summary ? summary.score : this.calculateRiskScore(this.state.device);
-        const score = enriched ? enriched.score : baseScore;
-        const clampedScore = Math.max(0, Math.min(100, Math.round(score || 0)));
+        const scoreRaw = enriched && enriched.score !== undefined ? enriched.score : baseScore;
+        const scoreNum = Number(scoreRaw);
+        const score = Number.isFinite(scoreNum) ? scoreNum : 0;
+        const clampedScore = Math.max(0, Math.min(100, Math.round(score)));
 
         const criticalCves = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'CRITICAL');
         const highCves = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'HIGH');

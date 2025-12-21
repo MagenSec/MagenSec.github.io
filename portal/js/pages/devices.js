@@ -432,7 +432,8 @@ export class DevicesPage extends window.Component {
         const deviceId = this.state.selectedDevice.id;
         const summary = this.state.deviceSummaries[deviceId] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
         const enrichedScore = this.state.enrichedScores[deviceId]?.score ?? summary.score ?? 0;
-        const safeScore = Number.isFinite(enrichedScore) ? enrichedScore : 0;
+        const numericEnriched = Number(enrichedScore);
+        const safeScore = Number.isFinite(numericEnriched) ? numericEnriched : 0;
         const displayScore = Math.max(0, Math.min(100, Math.round(safeScore)));
         const gradientStart = '#2fb344';
         const gradientEnd = '#d63939';
@@ -581,7 +582,8 @@ export class DevicesPage extends window.Component {
             const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
             const enriched = this.state.enrichedScores[device.id];
             const displayScoreRaw = enriched?.score !== undefined ? enriched.score : summary.score || 0;
-            const displayScore = Number.isFinite(displayScoreRaw) ? displayScoreRaw : 0;
+            const numericScore = Number(displayScoreRaw);
+            const displayScore = Number.isFinite(numericScore) ? numericScore : 0;
             const clampedScore = Math.max(0, Math.min(100, Math.round(displayScore)));
             const scoreColor = clampedScore >= 80 ? '#d63939' : clampedScore >= 60 ? '#f59f00' : clampedScore >= 40 ? '#fab005' : '#2fb344';
 
@@ -593,8 +595,7 @@ export class DevicesPage extends window.Component {
                 const gradientStart = '#2fb344';
                 const gradientEnd = '#d63939';
                     const riskOptions = {
-                        chart: { type: 'radialBar', height: 110, sparkline: { enabled: true } },
-                    colors: [gradientStart],
+                        chart: { type: 'radialBar', height: 100, sparkline: { enabled: true } },                    colors: [gradientStart],
                     fill: {
                         type: 'gradient',
                         gradient: {
@@ -1707,7 +1708,7 @@ export class DevicesPage extends window.Component {
                             <div class="card mb-3">
                                 <div class="card-body">
                                     <div class="row g-3 align-items-start">
-                                        <div class="col-md-5">
+                                        <div class="col-md-7">
                                             <label class="form-label fw-bold">Search Box</label>
                                             <div class="input-icon">
                                                 <span class="input-icon-addon">
@@ -1732,10 +1733,10 @@ export class DevicesPage extends window.Component {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="col-md-7">
-                                            <div class="row g-2">
-                                                <div class="col-12">
-                                                    <div class="card bg-light mb-0">
+                                        <div class="col-md-5">
+                                            <div class="row g-2 justify-content-end">
+                                                <div class="col-12 d-flex justify-content-end">
+                                                    <div class="card bg-light mb-0" style="width: 60%; min-width: 280px;">
                                                         <div class="card-body py-2 px-3">
                                                             <div class="text-muted small mb-1">Filter by Device State</div>
                                                             <div class="row g-2 align-items-start">
@@ -1853,6 +1854,7 @@ export class DevicesPage extends window.Component {
                                                             const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                                                             const enriched = this.state.enrichedScores[device.id];
                                                             const displayScore = enriched?.score !== undefined ? enriched.score : summary.score || 0;
+                                                            const clampedScore = Math.max(0, Math.min(100, Math.round(Number.isFinite(displayScore) ? displayScore : 0)));
                                                             const isEnriched = enriched && enriched.score !== (summary.score || 0);
                                                             const scoreColor = displayScore >= 80 ? '#d63939' : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : '#2fb344';
                                                             const scoreSeverity = displayScore >= 80 ? 'CRITICAL' : displayScore >= 60 ? 'HIGH' : displayScore >= 40 ? 'MEDIUM' : 'LOW';
@@ -1864,30 +1866,59 @@ export class DevicesPage extends window.Component {
                                                             return html`
                                                             <!-- Risk Score Column -->
                                                             <td class="text-center">
-                                                                <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; color: inherit;" title="Click to see what drives this risk score">
-                                                                    <div style="position: relative; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; cursor: pointer;">
-                                                                        <div style="width: 90px; height: 60px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
-                                                                        ${isEnriched ? html`<span class="badge bg-success-lt" style="position:absolute; top:2px; right:-6px; font-size:9px;" title="Enriched with known exploits">✓</span>` : ''}
-                                                                        <span class="badge ${severityBadge} text-white text-start" style="min-width: 96px;">${scoreSeverity} RISK</span>
-                                                                        <div class="text-muted small">Click for details</div>
-                                                                    </div>
-                                                                </a>
+                                                                <div style="display: inline-flex; gap: 10px; align-items: flex-start;">
+                                                                    <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; color: inherit;">
+                                                                        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer;">
+                                                                            <div style="width: 100px; height: 50px; position: relative;">
+                                                                                <div style="width: 100px; height: 50px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
+                                                                            </div>
+                                                                            <span class="badge ${severityBadge} text-white d-inline-flex justify-content-center align-items-center text-uppercase text-center" style="min-width: 110px;" title=${`Risk score: ${clampedScore}/100`}>${scoreSeverity} RISK</span>
+                                                                            <div class="text-muted small">Click for details</div>
+                                                                        </div>
+                                                                    </a>
+                                                                    ${isEnriched ? html`
+                                                                        <span class="badge bg-success-lt text-success d-inline-flex align-items-center justify-content-center" style="width: 34px; height: 34px; border-radius: 8px; align-self: flex-start;" title="Enriched with known exploits">
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                                                                                <circle cx="12" cy="12" r="9" />
+                                                                                <path d="M9 12l2 2l4 -4" />
+                                                                            </svg>
+                                                                        </span>
+                                                                    ` : ''}
+                                                                </div>
                                                             </td>
                                                             
                                                             <!-- Device Name Column -->
                                                             <td>
-                                                                <div class="d-flex flex-column">
-                                                                    <a href="#!/devices/${device.id}" class="fw-600 text-primary text-decoration-none">${device.name || device.id}</a>
-                                                                    <span class="badge ${versionBadgeClass} d-inline-flex align-items-center gap-1 position-relative" title=${versionTitle}>
+                                                                <div class="d-flex flex-column gap-1">
+                                                                    <a href="#!/devices/${device.id}" class="badge bg-azure-lt text-primary fw-700 d-inline-flex align-items-center justify-content-center gap-1 text-decoration-none" style="min-width: 120px; font-size: 1.05em;">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                                                                            <path d="M3 5h18v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" />
+                                                                            <path d="M7 21h10" />
+                                                                            <path d="M9 9h6" />
+                                                                            <path d="M9 12h3" />
+                                                                            <path d="M15 14l2 2l4 -4" />
+                                                                        </svg>
+                                                                        ${device.name || device.id}
+                                                                    </a>
+                                                                    <span class="badge ${versionBadgeClass} d-inline-flex align-items-center justify-content-center gap-1 position-relative" style="min-width: 120px;" title=${versionTitle}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                            <path d="M12 4l7 4v4c0 5 -3 8 -7 8s-7 -3 -7 -8v-4z" />
-                                                                            <path d="M10 13l2 2l2 -2" />
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                                                                            <path d="M12 3l7 4v5c0 5 -3.5 9 -7 9s-7 -4 -7 -9v-5z" />
+                                                                            <path d="M9 12l2 2l4 -4" />
                                                                         </svg>
                                                                         ${versionLabel}
                                                                         ${isOutdated ? html`<span class="badge bg-warning badge-notification" style="position:absolute; top:-4px; right:-4px;"></span>` : ''}
                                                                     </span>
-                                                                    <span class="badge ${this.getStateBadgeClass(device.state)} text-white text-start" style="min-width: 96px;">${device.state}</span>
+                                                                    <span class="badge ${this.getStateBadgeClass(device.state)} text-white d-inline-flex align-items-center justify-content-center gap-1 text-start" style="min-width: 120px;">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                                                                            <circle cx="12" cy="12" r="9" />
+                                                                            <path d="M12 8v4l2 2" />
+                                                                        </svg>
+                                                                        ${device.state}
+                                                                    </span>
                                                                 </div>
                                                             </td>
                                                             `;
