@@ -233,7 +233,7 @@ export class DevicesPage extends window.Component {
 
     renderRiskExplanationModal() {
         const { html } = window;
-        if (!this.state.showRiskExplanationModal || !this.state.riskExplanationDevice) return '';
+        if (!this.state.showRiskExplanationModal || !this.state.riskExplanationDevice) return null;
 
         const device = this.state.riskExplanationDevice;
         const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
@@ -241,16 +241,16 @@ export class DevicesPage extends window.Component {
         const constituents = enriched.constituents || {};
 
         return html`
-            <div class="modal modal-blur fade show" style="display: block; z-index: 2055;" tabindex="-1">
+            <div class="modal modal-blur fade show" style="display: block; z-index: 2055;" tabindex="-1" role="dialog" aria-modal="true">
                 <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-                    <div class="modal-content">
+                    <div class="modal-content" style="z-index: 2056;">
                         <div class="modal-header bg-light">
-                            <h5 class="modal-title">Risk Score Explanation</h5>
+                            <h5 class="modal-title">Risk Score Analysis</h5>
                             <button type="button" class="btn-close" onclick=${() => this.closeRiskExplanationModal()}></button>
                         </div>
                         <div class="modal-body">
                             <div class="mb-4">
-                                <h6 class="text-muted">Overall Risk: <strong>${Math.round(enriched.score || 0)}/100</strong></h6>
+                                <h5 class="text-muted">Overall Risk: <strong>${Math.round(enriched.score || 0)}/100</strong></h5>
                                 <div class="progress mb-3" style="height: 8px;">
                                     <div class="progress-bar ${enriched.score >= 80 ? 'bg-danger' : enriched.score >= 60 ? 'bg-warning' : enriched.score >= 40 ? 'bg-warning' : 'bg-success'}" style="width: ${Math.min(enriched.score || 0, 100)}%"></div>
                                 </div>
@@ -261,9 +261,8 @@ export class DevicesPage extends window.Component {
                             </div>
 
                             <div class="mb-4">
-                                <h6>What Contributes to This Risk?</h6>
+                                <h5>What Contributes to This Risk?</h5>
                                 <div class="list-group list-group-flush">
-                                    <!-- CVE Severity -->
                                     <div class="list-group-item">
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div>
@@ -280,7 +279,6 @@ export class DevicesPage extends window.Component {
                                         </div>
                                     </div>
 
-                                    <!-- CVE Count -->
                                     <div class="list-group-item">
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div>
@@ -288,14 +286,11 @@ export class DevicesPage extends window.Component {
                                                 <div class="text-muted small">Number of apps with known vulnerabilities</div>
                                             </div>
                                             <div class="text-end">
-                                                ${summary.vulnerableApps ? html`
-                                                    <span class="badge bg-warning-lt">${summary.vulnerableApps} apps</span>
-                                                ` : html`<span class="text-muted">None found</span>`}
+                                                ${summary.vulnerableApps ? html`<span class="badge bg-warning-lt">${summary.vulnerableApps} apps</span>` : html`<span class="text-muted">None found</span>`}
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Total CVEs -->
                                     <div class="list-group-item">
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div>
@@ -314,7 +309,6 @@ export class DevicesPage extends window.Component {
                                         </div>
                                     </div>
 
-                                    <!-- EPSS Exploitability -->
                                     <div class="list-group-item">
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div>
@@ -331,7 +325,6 @@ export class DevicesPage extends window.Component {
                                         </div>
                                     </div>
 
-                                    <!-- Known Exploits -->
                                     <div class="list-group-item">
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div>
@@ -339,14 +332,11 @@ export class DevicesPage extends window.Component {
                                                 <div class="text-muted small">CVEs with publicly available exploits</div>
                                             </div>
                                             <div class="text-end">
-                                                ${constituents.hasKnownExploit ? html`
-                                                    <span class="badge bg-danger">1+ Exploits</span>
-                                                ` : html`<span class="text-muted">None known</span>`}
+                                                ${constituents.hasKnownExploit ? html`<span class="badge bg-danger">1+ Exploits</span>` : html`<span class="text-muted">None known</span>`}
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Network Exposure -->
                                     <div class="list-group-item">
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div>
@@ -362,41 +352,40 @@ export class DevicesPage extends window.Component {
                             </div>
 
                             <div class="mb-4">
-                                <h6>How to Reduce This Risk</h6>
+                                <h5>How to Reduce This Risk</h5>
                                 <ol class="small">
                                     ${summary.vulnerableApps > 0 ? html`
                                         <li class="mb-2">
-                                            <strong>Patch Vulnerable Applications</strong><br>
+                                            <strong>Patch Vulnerable Applications</strong><br />
                                             <span class="text-muted">Update ${summary.vulnerableApps} application(s) to the latest versions. This is the most effective way to reduce risk.</span>
                                         </li>
                                     ` : ''}
                                     ${summary.criticalCves > 0 || summary.highCves > 0 ? html`
                                         <li class="mb-2">
-                                            <strong>Prioritize Critical/High CVEs</strong><br>
+                                            <strong>Prioritize Critical/High CVEs</strong><br />
                                             <span class="text-muted">Address the ${summary.criticalCves + summary.highCves} most severe vulnerabilities first.</span>
                                         </li>
                                     ` : ''}
                                     <li class="mb-2">
-                                        <strong>Restrict Network Access</strong><br>
+                                        <strong>Restrict Network Access</strong><br />
                                         <span class="text-muted">Limit exposure by using VPN, firewalls, or network segmentation to reduce attack surface.</span>
                                     </li>
                                     <li class="mb-2">
-                                        <strong>Keep System Updated</strong><br>
+                                        <strong>Keep System Updated</strong><br />
                                         <span class="text-muted">Enable automatic Windows and application updates to receive patches quickly.</span>
                                     </li>
                                     <li class="mb-2">
-                                        <strong>Monitor Device Activity</strong><br>
+                                        <strong>Monitor Device Activity</strong><br />
                                         <span class="text-muted">Review telemetry regularly and watch for unusual network or system behavior.</span>
                                     </li>
                                 </ol>
                             </div>
 
                             <div class="alert alert-info small">
-                                <strong>Note:</strong> This score is calculated using a proprietary risk model that considers vulnerability severity,
-                                exploit probability, attack surface, and other factors. The exact formula is not disclosed to prevent gaming the system.
+                                <strong>Note:</strong> This score is calculated using a proprietary risk model that considers vulnerability severity, exploit probability, attack surface, and other factors. The exact formula is not disclosed to prevent gaming the system.
                             </div>
                         </div>
-                        <div class="modal-footer">
+                        <div class="modal-footer d-flex justify-content-between align-items-center">
                             <button type="button" class="btn btn-secondary" onclick=${() => this.closeRiskExplanationModal()}>Close</button>
                             <a href="#!/devices/${device.id}" class="btn btn-primary" onclick=${(e) => { e.preventDefault(); this.closeRiskExplanationModal(); window.location.hash = `#!/devices/${device.id}`; }}>
                                 View Details
@@ -404,8 +393,8 @@ export class DevicesPage extends window.Component {
                         </div>
                     </div>
                 </div>
-                <div class="modal-backdrop fade show" style="z-index: 2054;"></div>
             </div>
+            <div class="modal-backdrop fade show" style="z-index: 2054;"></div>
         `;
     }
 
