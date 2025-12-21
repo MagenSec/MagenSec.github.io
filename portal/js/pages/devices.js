@@ -1826,7 +1826,6 @@ export class DevicesPage extends window.Component {
                                                             ` : ''}
                                                         </div>
                                                     </th>
-                                                    <th>License</th>
                                                     <th>Connection</th>
                                                     <th>Specs</th>
                                                     <th class="w-1"></th>
@@ -1870,31 +1869,12 @@ export class DevicesPage extends window.Component {
                                                                         Update MagenSec
                                                                     </span>
                                                                     ` : ''}
-                                                                    <span class="badge ${this.getStateBadgeClass(device.state)} text-white" style="width: fit-content;">License ${device.state}</span>
+                                                                    <span class="badge ${this.getStateBadgeClass(device.state)} text-white" style="width: fit-content;">${device.state}</span>
                                                                     <span class="badge ${severityBadge} text-white mt-1" style="width: fit-content;">${scoreSeverity} RISK</span>
                                                                 </div>
                                                             </td>
-                                                            
                                                             `;
                                                         })()}
-                                                        
-                                                        <!-- License Column -->
-                                                        <td>
-                                                            <div class="d-flex flex-column align-items-start gap-1">
-                                                                <span class="badge ${this.getStateBadgeClass(device.state)} text-white">${device.state}</span>
-                                                                ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? html`
-                                                                    <span class="badge bg-warning-lt" title="Update available: v${config.INSTALLERS.ENGINE.VERSION}">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                            <circle cx="12" cy="12" r="9" />
-                                                                            <line x1="12" y1="8" x2="12" y2="12" />
-                                                                            <line x1="12" y1="16" x2="12.01" y2="16" />
-                                                                        </svg>
-                                                                        Update Available
-                                                                    </span>
-                                                                ` : ''}
-                                                            </div>
-                                                        </td>
                                                         <td>
                                                             <div class="d-flex flex-column gap-1">
                                                                 ${device.telemetry ? html`
