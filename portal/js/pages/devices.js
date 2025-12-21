@@ -8,6 +8,7 @@ import { orgContext } from '../orgContext.js';
 import { config } from '../config.js';
 import { PiiDecryption } from '../utils/piiDecryption.js';
 import { getInstallerConfig, clearManifestCache, getCacheStatus } from '../utils/manifestCache.js';
+import { getKevSet } from '../utils/kevCache.js';
 
 export class DevicesPage extends window.Component {
     constructor(props) {
@@ -251,10 +252,10 @@ export class DevicesPage extends window.Component {
         const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
         const enriched = this.state.enrichedScores[device.id] || { score: summary.score, constituents: summary.constituents || {} };
         const constituents = enriched.constituents || summary.constituents || {};
-        const knownExploitCount = Number(constituents.knownExploitCount ?? (Array.isArray(constituents.knownExploitIds) ? constituents.knownExploitIds.length : 0)) || 0;
-        const hasKnownExploit = constituents.hasKnownExploit === true || knownExploitCount > 0;
-        const maxCvss = Number.isFinite(constituents.maxCvssNormalized) ? constituents.maxCvssNormalized : null;
-        const derivedCvss = maxCvss !== null ? maxCvss : this.cvssFromWorstSeverity(summary.worstSeverity);
+        const exploitInfo = this.deriveKnownExploitInfo(constituents);
+        const knownExploitCount = exploitInfo.count;
+        const hasKnownExploit = exploitInfo.has;
+        const derivedCvss = this.deriveCvss(constituents, summary);
         const cvssBadgeClass = derivedCvss !== null
             ? (derivedCvss >= 9 ? 'bg-danger-lt' : derivedCvss >= 7 ? 'bg-warning-lt' : derivedCvss >= 4 ? 'bg-info-lt' : 'bg-success-lt')
             : '';
@@ -320,8 +321,9 @@ export class DevicesPage extends window.Component {
                                                 ${summary.criticalCves + summary.highCves + summary.mediumCves + summary.lowCves > 0 ? html`
                                                     <div>
                                                         ${summary.criticalCves > 0 ? html`<span class="badge bg-danger-lt me-1">${summary.criticalCves} Critical</span>` : ''}
-                                                        ${summary.highCves > 0 ? html`<span class="badge bg-warning-lt me-1">${summary.highCves} High</span>` : ''}
-                                                        ${summary.mediumCves > 0 ? html`<span class="badge bg-info-lt me-1">${summary.mediumCves} Medium</span>` : ''}
+                                                        ${summary.highCves > 0 ? html`<span class="badge bg-orange-lt me-1">${summary.highCves} High</span>` : ''}
+                                                        ${summary.mediumCves > 0 ? html`<span class="badge bg-yellow-lt me-1">${summary.mediumCves} Medium</span>` : ''}
+                                                        ${summary.lowCves > 0 ? html`<span class="badge bg-azure-lt me-1">${summary.lowCves} Low</span>` : ''}
                                                     </div>
                                                 ` : html`<span class="text-muted">No CVEs</span>`}
                                             </div>
@@ -696,54 +698,17 @@ export class DevicesPage extends window.Component {
     }
 
     async loadKnownExploitsAsync() {
-        // Check cache freshness
-        if (this.KNOWN_EXPLOITS_CACHE.data && this.KNOWN_EXPLOITS_CACHE.loadedAt) {
-            const ageHours = (Date.now() - this.KNOWN_EXPLOITS_CACHE.loadedAt) / (1000 * 60 * 60);
-            if (ageHours < this.KNOWN_EXPLOITS_CACHE.TTL_HOURS) {
-                this.setState({ knownExploits: this.KNOWN_EXPLOITS_CACHE.data });
-                return;
-            }
-        }
-        
-        // Try to load from MagenSec's hourly-updated repository
-        const url = 'https://raw.githubusercontent.com/MagenSec/MagenSec.github.io/main/diag/known_exploited_vulnerabilities.json';
-        
         try {
-            const response = await fetch(url, { cache: 'reload', timeout: 5000 });
-            
-            if (!response.ok) {
-                console.debug(`[DevicesPage] Known exploits source returned ${response.status}`);
-                throw new Error('Failed to load');
-            }
-            
-            const data = await response.json();
-            let cveIds = new Set();
-            
-            // Expected format: { vulnerabilities: [{ cveID, ... }, ...] }
-            if (data.vulnerabilities && Array.isArray(data.vulnerabilities)) {
-                cveIds = new Set(data.vulnerabilities
-                    .map(v => v.cveID || v.cveId)
-                    .filter(id => id && typeof id === 'string'));
-            } else if (Array.isArray(data)) {
-                cveIds = new Set(data
-                    .map(v => typeof v === 'string' ? v : (v.cveID || v.cveId))
-                    .filter(id => id && typeof id === 'string'));
-            }
-            
-            if (cveIds.size > 0) {
-                console.log(`[DevicesPage] Loaded ${cveIds.size} known exploits`);
-                this.KNOWN_EXPLOITS_CACHE.data = cveIds;
-                this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
-                this.setState({ knownExploits: cveIds });
-            } else {
-                throw new Error('No CVEs parsed');
-            }
+            const kevSet = await getKevSet();
+            this.KNOWN_EXPLOITS_CACHE.data = kevSet;
+            this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
+            this.setState({ knownExploits: kevSet });
         } catch (error) {
             console.warn('[DevicesPage] Could not load known exploits:', error.message);
-            // Graceful fallback: use empty set
-            this.KNOWN_EXPLOITS_CACHE.data = new Set();
+            const empty = new Set();
+            this.KNOWN_EXPLOITS_CACHE.data = empty;
             this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
-            this.setState({ knownExploits: new Set() });
+            this.setState({ knownExploits: empty });
         }
     }
 
@@ -1418,6 +1383,13 @@ export class DevicesPage extends window.Component {
         const derivedWeight = this.severityWeight(worstSeverity);
         const baseScore = summary.riskScore ?? (cveCount * 2 + derivedWeight * 10);
         const baseConstituents = summary.riskScoreConstituents || {};
+        let cveIds = (summary.cveIds || summary.topCveIds || summary.recentCveIds || []).filter(Boolean);
+        if ((!cveIds || cveIds.length === 0) && Array.isArray(summary.cves)) {
+            cveIds = summary.cves
+                .map(c => c?.cveId || c?.cveID)
+                .filter(id => typeof id === 'string' && id.length > 0);
+        }
+        const maxCvssNormalized = summary.maxCvssNormalized ?? summary.maxCvss ?? summary.highestCvssNormalized ?? summary.highestCvss ?? baseConstituents.maxCvssNormalized ?? baseConstituents.maxCvss;
         return {
             apps: summary.appCount ?? summary.apps ?? null,
             cves: cveCount ?? null,
@@ -1432,6 +1404,8 @@ export class DevicesPage extends window.Component {
                 ...baseConstituents,
                 knownExploitCount,
                 knownExploitIds,
+                cveIds,
+                maxCvssNormalized
             }
         };
     }
@@ -1527,6 +1501,64 @@ export class DevicesPage extends window.Component {
         if (s === 'MEDIUM') return 5.0;
         if (s === 'LOW') return 3.0;
         return null;
+    }
+
+    deriveCvss(constituents, summary) {
+        const c = constituents || {};
+        const s = summary || {};
+        const candidates = [
+            c.maxCvssNormalized,
+            c.maxCvss,
+            c.highestCvssNormalized,
+            c.highestCvss,
+            s.maxCvssNormalized,
+            s.maxCvss,
+            s.highestCvssNormalized,
+            s.highestCvss,
+            s.cvssMax,
+            s.cvssHighest
+        ].filter(v => Number.isFinite(v));
+
+        let cvss = candidates.length > 0 ? candidates[0] : null;
+        if (cvss !== null && cvss <= 1.5) {
+            cvss = cvss * 10; // normalize 0-1 inputs to 0-10 scale
+        }
+        if (cvss !== null) {
+            cvss = Math.max(0, Math.min(10, cvss));
+        }
+        if (cvss === null) {
+            cvss = this.cvssFromWorstSeverity(s.worstSeverity);
+        }
+        return cvss;
+    }
+
+    deriveKnownExploitInfo(constituents) {
+        const c = constituents || {};
+        const explicitCount = Number(c.knownExploitCount);
+        if (Number.isFinite(explicitCount) && explicitCount > 0) {
+            return { count: explicitCount, has: true, ids: c.knownExploitIds || [] };
+        }
+
+        const explicitIds = Array.isArray(c.knownExploitIds) ? c.knownExploitIds : [];
+        const cveIds = Array.isArray(c.cveIds) ? c.cveIds
+            : Array.isArray(c.topCveIds) ? c.topCveIds
+            : Array.isArray(c.cves) ? c.cves
+            : Array.isArray(explicitIds) ? explicitIds
+            : [];
+
+        const knownExploits = this.state.knownExploits || new Set();
+        if (knownExploits.size > 0 && cveIds.length > 0) {
+            const matched = cveIds.filter(id => knownExploits.has(id));
+            if (matched.length > 0) {
+                return { count: matched.length, has: true, ids: matched };
+            }
+        }
+
+        if (explicitIds.length > 0) {
+            return { count: explicitIds.length, has: true, ids: explicitIds };
+        }
+
+        return { count: 0, has: false, ids: [] };
     }
 
     renderMatchBadge(matchType) {

@@ -8,6 +8,7 @@ import { api } from '../api.js';
 import { orgContext } from '../orgContext.js';
 import { config } from '../config.js';
 import { PiiDecryption } from '../utils/piiDecryption.js';
+import { getKevSet } from '../utils/kevCache.js';
 
 export class DeviceDetailPage extends window.Component {
     constructor(props) {
@@ -40,7 +41,6 @@ export class DeviceDetailPage extends window.Component {
             appSortKey: 'appName', // appName | severity | cveCount
             appSortDir: 'asc'
         };
-        this.KNOWN_EXPLOITS_CACHE = { data: null, loadedAt: null, TTL_HOURS: 24 };
     }
 
     componentDidMount() {
@@ -61,54 +61,13 @@ export class DeviceDetailPage extends window.Component {
         this.destroyDetailCharts();
     }
 
-    // Load known exploits from reliable sources (with caching)
+    // Load known exploits via shared KEV cache (local diag first, then GitHub)
     async loadKnownExploitsAsync() {
-        // Check cache freshness
-        if (this.KNOWN_EXPLOITS_CACHE.data && this.KNOWN_EXPLOITS_CACHE.loadedAt) {
-            const ageHours = (Date.now() - this.KNOWN_EXPLOITS_CACHE.loadedAt) / (1000 * 60 * 60);
-            if (ageHours < this.KNOWN_EXPLOITS_CACHE.TTL_HOURS) {
-                this.setState({ knownExploits: this.KNOWN_EXPLOITS_CACHE.data });
-                return;
-            }
-        }
-        
-        // Try to load from MagenSec's hourly-updated repository
-        const url = 'https://raw.githubusercontent.com/MagenSec/MagenSec.github.io/main/diag/known_exploited_vulnerabilities.json';
         try {
-            const response = await fetch(url, { cache: 'reload', timeout: 5000 });
-
-            if (!response.ok) {
-                console.debug(`[DeviceDetail] Known exploits source returned ${response.status}`);
-                throw new Error('Failed to load');
-            }
-
-            const data = await response.json();
-            let cveIds = new Set();
-
-            // Expected format: { vulnerabilities: [{ cveID, ... }, ...] }
-            if (data.vulnerabilities && Array.isArray(data.vulnerabilities)) {
-                cveIds = new Set(data.vulnerabilities
-                    .map(v => v.cveID || v.cveId)
-                    .filter(id => id && typeof id === 'string'));
-            } else if (Array.isArray(data)) {
-                cveIds = new Set(data
-                    .map(v => typeof v === 'string' ? v : (v.cveID || v.cveId))
-                    .filter(id => id && typeof id === 'string'));
-            }
-
-            if (cveIds.size > 0) {
-                console.log(`[DeviceDetail] Loaded ${cveIds.size} known exploits`);
-                this.KNOWN_EXPLOITS_CACHE.data = cveIds;
-                this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
-                this.setState({ knownExploits: cveIds, exploitsLoadingError: null });
-            } else {
-                throw new Error('No CVEs parsed');
-            }
+            const kevSet = await getKevSet();
+            this.setState({ knownExploits: kevSet, exploitsLoadingError: null });
         } catch (error) {
             console.warn('[DeviceDetail] Could not load known exploits:', error.message);
-            // Graceful fallback: use empty set
-            this.KNOWN_EXPLOITS_CACHE.data = new Set();
-            this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
             this.setState({ knownExploits: new Set(), exploitsLoadingError: 'Using baseline risk scores (known exploits unavailable)' });
         }
     }
