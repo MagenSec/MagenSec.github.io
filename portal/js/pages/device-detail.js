@@ -16,6 +16,8 @@ export class DeviceDetailPage extends window.Component {
         const rawDeviceId = props.params?.deviceId || (window.location.hash.match(/\/devices\/([^/?]+)/) || [])[1];
         const deviceId = rawDeviceId ? decodeURIComponent(rawDeviceId) : null;
 
+        this.perfCharts = {};
+
         this.state = {
             deviceId,
             loading: true,
@@ -33,6 +35,10 @@ export class DeviceDetailPage extends window.Component {
             cveFilterSeverity: null, // filter CVEs by severity
             cveFilterApp: null, // cross-link filter from Inventory tab
             perfData: null, // Perf chart data if available
+            perfError: null,
+            perfLoading: false,
+            perfBucket: '1h', // 1h | 6h | 1d
+            perfRangeDays: 7, // lookback days
             timeline: [], // Event timeline
             knownExploits: null,
             exploitsLoadingError: null,
@@ -41,6 +47,53 @@ export class DeviceDetailPage extends window.Component {
             appSortKey: 'appName', // appName | severity | cveCount
             appSortDir: 'asc',
             showAllIps: false
+        };
+    }
+
+    normalizePerfAggregation(raw) {
+        if (!raw) return null;
+
+        const coerce = (val) => {
+            const n = Number(val);
+            return Number.isFinite(n) ? n : 0;
+        };
+
+        const points = Array.isArray(raw.points) ? raw.points : [];
+        const normalizedPoints = points.map(p => ({
+            bucketStartUtc: p.bucketStartUtc || p.BucketStartUtc,
+            samples: coerce(p.samples ?? p.Samples),
+            cpuAvg: coerce(p.cpuAvg ?? p.CpuAvg),
+            cpuMin: coerce(p.cpuMin ?? p.CpuMin),
+            cpuMax: coerce(p.cpuMax ?? p.CpuMax),
+            memoryAvg: coerce(p.memoryAvg ?? p.MemoryAvg),
+            memoryMin: coerce(p.memoryMin ?? p.MemoryMin),
+            memoryMax: coerce(p.memoryMax ?? p.MemoryMax),
+            memoryAvgMb: coerce(p.memoryAvgMb ?? p.MemoryAvgMb),
+            diskTotalMbAvg: coerce(p.diskTotalMbAvg ?? p.DiskTotalMbAvg ?? p.diskAvg ?? p.DiskAvg),
+            diskTotalMbMin: coerce(p.diskTotalMbMin ?? p.DiskTotalMbMin ?? p.diskMin ?? p.DiskMin),
+            diskTotalMbMax: coerce(p.diskTotalMbMax ?? p.DiskTotalMbMax ?? p.diskMax ?? p.DiskMax),
+            diskAppMbAvg: coerce(p.diskAppMbAvg ?? p.DiskAppMbAvg),
+            diskIntelMbAvg: coerce(p.diskIntelMbAvg ?? p.DiskIntelMbAvg),
+            networkMbpsAvg: coerce(p.networkMbpsAvg ?? p.NetworkMbpsAvg ?? p.networkAvg ?? p.NetworkAvg),
+            networkMbpsMin: coerce(p.networkMbpsMin ?? p.NetworkMbpsMin ?? p.networkMin ?? p.NetworkMin),
+            networkMbpsMax: coerce(p.networkMbpsMax ?? p.NetworkMbpsMax ?? p.networkMax ?? p.NetworkMax),
+            networkBytesSent: coerce(p.networkBytesSent ?? p.NetworkBytesSent),
+            networkBytesReceived: coerce(p.networkBytesReceived ?? p.NetworkBytesReceived),
+            networkRequests: coerce(p.networkRequests ?? p.NetworkRequests),
+            networkFailures: coerce(p.networkFailures ?? p.NetworkFailures)
+        })).sort((a, b) => new Date(a.bucketStartUtc) - new Date(b.bucketStartUtc));
+
+        return {
+            ...raw,
+            bucketMinutes: raw.bucketMinutes ?? raw.BucketMinutes ?? 60,
+            startUtc: raw.startUtc || raw.StartUtc,
+            endUtc: raw.endUtc || raw.EndUtc,
+            computedUtc: raw.computedUtc || raw.ComputedUtc,
+            sampleCount: raw.sampleCount ?? raw.SampleCount ?? 0,
+            status: raw.status || raw.Status,
+            fromCache: raw.fromCache ?? raw.FromCache ?? false,
+            isFresh: raw.isFresh ?? raw.IsFresh ?? false,
+            points: normalizedPoints
         };
     }
 
@@ -53,13 +106,23 @@ export class DeviceDetailPage extends window.Component {
         const appsChanged = prevState.appInventory !== this.state.appInventory;
         const cvesChanged = prevState.cveInventory !== this.state.cveInventory;
         const summaryChanged = prevState.deviceSummary !== this.state.deviceSummary || prevState.enrichedScore !== this.state.enrichedScore;
+        const perfChanged = prevState.perfData !== this.state.perfData;
+        const tabChanged = prevState.activeTab !== this.state.activeTab;
+        const perfFilterChanged = prevState.perfBucket !== this.state.perfBucket || prevState.perfRangeDays !== this.state.perfRangeDays;
         if (deviceChanged || appsChanged || cvesChanged || summaryChanged) {
             this.renderDetailCharts();
+        }
+        if (this.state.activeTab === 'perf' && (perfChanged || tabChanged || perfFilterChanged)) {
+            this.renderPerfCharts();
+        }
+        if (prevState.activeTab === 'perf' && this.state.activeTab !== 'perf') {
+            this.destroyPerfCharts();
         }
     }
 
     componentWillUnmount() {
         this.destroyDetailCharts();
+        this.destroyPerfCharts();
     }
 
     // Load known exploits via shared KEV cache (local diag first, then GitHub)
@@ -126,14 +189,44 @@ export class DeviceDetailPage extends window.Component {
     }
 
     calculateRiskScore(device) {
-        if (!device || !device.Summary) return 0;
+        const fromInventory = () => {
+            const cves = this.state?.cveInventory || [];
+            if (!Array.isArray(cves) || cves.length === 0) return 0;
+            return this.scoreFromCves(cves);
+        };
+
+        if (!device || !device.Summary) return fromInventory();
+
         const summary = typeof device.Summary === 'string' ? JSON.parse(device.Summary) : device.Summary;
-        const criticalCves = summary.criticalCveCount || 0;
-        const highCves = summary.highCveCount || 0;
-        const mediumCves = summary.mediumCveCount || 0;
-        const lowCves = summary.lowCveCount || 0;
-        const score = Math.min(100, criticalCves * 20 + highCves * 10 + mediumCves * 5 + lowCves * 2);
+        const normalized = this.normalizeSummary(summary);
+        const score = normalized?.score ?? 0;
+
+        // If summary shows zero but we have CVEs in inventory, fall back to inventory-based score
+        if (!score) {
+            return fromInventory();
+        }
+
         return score;
+    }
+
+    scoreFromCves(cves) {
+        const counts = cves.reduce((acc, c) => {
+            const s = String(c.severity || '').toUpperCase();
+            if (s === 'CRITICAL') acc.crit += 1;
+            else if (s === 'HIGH') acc.high += 1;
+            else if (s === 'MEDIUM') acc.med += 1;
+            else if (s) acc.low += 1;
+            return acc;
+        }, { crit: 0, high: 0, med: 0, low: 0 });
+
+        const total = counts.crit + counts.high + counts.med + counts.low;
+        const worstWeight = counts.crit > 0 ? this.severityWeight('CRITICAL')
+            : counts.high > 0 ? this.severityWeight('HIGH')
+            : counts.med > 0 ? this.severityWeight('MEDIUM')
+            : counts.low > 0 ? this.severityWeight('LOW')
+            : 0;
+
+        return Math.min(100, Math.max(0, total * 2 + worstWeight * 10));
     }
 
     getRiskScoreValue(summary, deviceFallbackScore = 0) {
@@ -193,9 +286,75 @@ export class DeviceDetailPage extends window.Component {
         return 0;
     }
 
+    severityLabelFromWeight(weight) {
+        if (weight >= 3) return 'CRITICAL';
+        if (weight >= 2) return 'HIGH';
+        if (weight >= 1) return 'MEDIUM';
+        if (weight > 0) return 'LOW';
+        return 'LOW';
+    }
+
+    normalizeSummary(summary) {
+        if (!summary) return null;
+
+        const critical = summary.criticalCveCount ?? summary.critical ?? summary.criticalCves ?? 0;
+        const high = summary.highCveCount ?? summary.high ?? summary.highCves ?? 0;
+        const medium = summary.mediumCveCount ?? summary.medium ?? summary.mediumCves ?? 0;
+        const low = summary.lowCveCount ?? summary.low ?? summary.lowCves ?? 0;
+        const cveCount = summary.cveCount ?? (critical + high + medium + low);
+        const vulnerableApps = summary.vulnerableAppCount ?? summary.appsWithCves ?? summary.appWithVulnCount ?? 0;
+        const knownExploitCount = summary.knownExploitCount ?? summary.exploitedCveCount ?? summary.exploitCount ?? 0;
+        const knownExploitIds = summary.knownExploitIds ?? summary.exploitedCveIds ?? [];
+
+        const worstSeverity = (summary.highestRiskBucket || '').toUpperCase()
+            || (critical > 0 ? 'CRITICAL' : high > 0 ? 'HIGH' : medium > 0 ? 'MEDIUM' : low > 0 ? 'LOW' : 'LOW');
+        const derivedWeight = this.severityWeight(worstSeverity);
+
+        const baseScore = summary.riskScore
+            ?? summary.score
+            ?? summary.riskScoreNormalized
+            ?? summary.risk
+            ?? (cveCount * 2 + derivedWeight * 10);
+
+        const baseConstituents = summary.riskScoreConstituents || summary.constituents || {};
+        let cveIds = (summary.cveIds || summary.topCveIds || summary.recentCveIds || []).filter(Boolean);
+        if ((!cveIds || cveIds.length === 0) && Array.isArray(summary.cves)) {
+            cveIds = summary.cves
+                .map(c => c?.cveId || c?.cveID)
+                .filter(id => typeof id === 'string' && id.length > 0);
+        }
+
+        const maxCvssNormalized = summary.maxCvssNormalized
+            ?? summary.maxCvss
+            ?? summary.highestCvssNormalized
+            ?? summary.highestCvss
+            ?? baseConstituents.maxCvssNormalized
+            ?? baseConstituents.maxCvss;
+
+        return {
+            apps: summary.appCount ?? summary.apps ?? null,
+            cves: cveCount ?? null,
+            vulnerableApps,
+            criticalCves: critical,
+            highCves: high,
+            mediumCves: medium,
+            lowCves: low,
+            worstSeverity,
+            score: Math.min(100, Math.max(0, Math.round(baseScore ?? 0))),
+            constituents: {
+                ...baseConstituents,
+                knownExploitCount,
+                knownExploitIds,
+                cveIds,
+                maxCvssNormalized,
+                cveCount
+            }
+        };
+    }
+
     async loadDeviceData() {
         try {
-            this.setState({ loading: true, error: null });
+            this.setState({ loading: true, error: null, perfLoading: true, perfError: null });
             const currentOrg = orgContext.getCurrentOrg();
             if (!currentOrg || !currentOrg.orgId) {
                 throw new Error('No organization selected');
@@ -287,12 +446,7 @@ export class DeviceDetailPage extends window.Component {
             let deviceSummary = null;
             if (summary) {
                 const summaryData = typeof summary === 'string' ? JSON.parse(summary) : summary;
-                deviceSummary = {
-                    apps: summaryData.appCount ?? null,
-                    cves: summaryData.cveCount ?? null,
-                    score: summaryData.riskScore ?? 0,
-                    constituents: summaryData.riskScoreConstituents || null
-                };
+                deviceSummary = this.normalizeSummary(summaryData);
             }
 
             this.setState({
@@ -306,6 +460,7 @@ export class DeviceDetailPage extends window.Component {
                 loading: false,
                 showAllIps: false
             });
+            this.loadPerfData(this.state.perfBucket, this.state.perfRangeDays);
             
             // Background: Load known exploits and enrich risk score
             this.loadKnownExploitsAsync().then(() => {
@@ -317,6 +472,48 @@ export class DeviceDetailPage extends window.Component {
         } catch (error) {
             console.error('[DeviceDetail] Error loading device:', error);
             this.setState({ error: error.message, loading: false });
+        }
+    }
+
+    async loadPerfData(bucket, rangeDays) {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg || !currentOrg.orgId) {
+            this.setState({ perfError: 'No organization selected', perfData: null, perfLoading: false });
+            return;
+        }
+
+        if (!this.state.deviceId) {
+            this.setState({ perfError: 'Invalid device id', perfData: null, perfLoading: false });
+            return;
+        }
+
+        const endUtc = new Date();
+        const startUtc = new Date(endUtc.getTime() - (Number(rangeDays) || 1) * 24 * 60 * 60 * 1000);
+
+        this.setState({ perfLoading: true, perfError: null });
+        try {
+            const perfResp = await api.get(
+                `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/perf`,
+                {
+                    bucket: bucket || '1h',
+                    startUtc: startUtc.toISOString(),
+                    endUtc: endUtc.toISOString()
+                }
+            );
+
+            if (perfResp.success && perfResp.data) {
+                const perfData = this.normalizePerfAggregation(perfResp.data);
+                this.setState({ perfData, perfError: null, perfLoading: false });
+            } else {
+                this.setState({
+                    perfError: perfResp.message || perfResp.error || 'Failed to load performance data',
+                    perfData: null,
+                    perfLoading: false
+                });
+            }
+        } catch (err) {
+            console.warn('[DeviceDetail] Perf aggregation failed:', err);
+            this.setState({ perfError: err.message || 'Failed to load performance data', perfData: null, perfLoading: false });
         }
     }
 
@@ -466,6 +663,15 @@ export class DeviceDetailPage extends window.Component {
             return `@ ${gbps.toFixed(1)} Gbps`;
         }
         return `@ ${Math.round(val)} Mbps`;
+    }
+
+    formatBytesHuman(bytes) {
+        const n = Number(bytes) || 0;
+        const abs = Math.abs(n);
+        if (abs >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(2)} GB`;
+        if (abs >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(2)} MB`;
+        if (abs >= 1024) return `${(n / 1024).toFixed(1)} KB`;
+        return `${Math.round(n)} B`;
     }
 
     formatIPAddresses(ipArray, mode = 'primary') {
@@ -710,30 +916,17 @@ export class DeviceDetailPage extends window.Component {
         const criticalCves = this.state.cveInventory.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical');
         const highCves = this.state.cveInventory.filter(c => c.severity === 'HIGH' || c.severity === 'High');
 
-        const riskScoreRaw = this.state.enrichedScore?.score
-            ?? this.getRiskScoreValue(this.state.deviceSummary, this.calculateRiskScore(device))
-            ?? this.calculateRiskScore(device)
+        const riskScoreRaw = this.getRiskScoreValue(this.state.deviceSummary, this.calculateRiskScore(device))
             ?? 0;
         const riskScore = (() => {
             const n = Number(riskScoreRaw);
             if (!Number.isFinite(n)) return 0;
             return Math.max(0, Math.min(100, Math.round(n)));
         })();
-        const worstSeverity = criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? 'MEDIUM' : this.state.cveInventory.length > 0 ? 'LOW' : 'CLEAN';
+        const worstSeverity = (this.state.deviceSummary?.worstSeverity || '').toUpperCase()
+            || (criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? 'MEDIUM' : this.state.cveInventory.length > 0 ? 'LOW' : 'CLEAN');
         const knownExploitCount = this.state.knownExploits ? this.state.cveInventory.filter(c => this.state.knownExploits.has(c.cveId)).length : 0;
         const latestFields = this.state.telemetryDetail?.latest?.fields || {};
-        const toPercent = (v) => {
-            const n = Number(v);
-            if (!Number.isFinite(n)) return null;
-            return Math.max(0, Math.min(100, Math.round(n)));
-        };
-        const cpuPercent = toPercent(latestFields.CpuUsagePercent || latestFields.CPUUsage || latestFields.cpuUsagePercent || latestFields.cpuUsage);
-        const totalRamMb = Number(latestFields.TotalRAMMB || latestFields.totalRamMb || 0);
-        const freeRamMb = Number(latestFields.AvailableRAMMB || latestFields.availableRamMb || 0);
-        const memPercent = totalRamMb > 0 && Number.isFinite(freeRamMb) ? Math.max(0, Math.min(100, Math.round(((totalRamMb - freeRamMb) / totalRamMb) * 100))) : null;
-        const diskTotal = Number(latestFields.SystemDriveSizeGB || latestFields.systemDriveSizeGb || 0);
-        const diskFree = Number(latestFields.SystemDriveFreeGB || latestFields.systemDriveFreeGb || 0);
-        const diskPercent = diskTotal > 0 && Number.isFinite(diskFree) ? Math.max(0, Math.min(100, Math.round(((diskTotal - diskFree) / diskTotal) * 100))) : null;
         const ipRaw = latestFields.IPAddresses || latestFields.ipAddresses;
         const ipList = Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : [];
         const mobileStatus = this.detectMobileDevice(this.state.telemetryDetail?.history);
@@ -1007,52 +1200,6 @@ export class DeviceDetailPage extends window.Component {
                             </div>
                         </div>
 
-                        <!-- Performance Snapshot -->
-                        <div class="row row-cards mb-3">
-                            <div class="col-md-4">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div class="text-muted small">CPU Utilization</div>
-                                            <span class="badge ${cpuPercent !== null && cpuPercent >= 80 ? 'bg-warning-lt' : 'bg-success-lt'}">${cpuPercent !== null ? cpuPercent + '%' : 'N/A'}</span>
-                                        </div>
-                                        <div class="progress progress-sm mt-2" style="height: 8px;">
-                                            <div class="progress-bar bg-primary" role="progressbar" style="width: ${cpuPercent !== null ? cpuPercent : 0}%"></div>
-                                        </div>
-                                        <div class="text-muted small mt-1">Realtime CPU usage from latest telemetry</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div class="text-muted small">Memory In Use</div>
-                                            <span class="badge ${memPercent !== null && memPercent >= 80 ? 'bg-warning-lt' : 'bg-success-lt'}">${memPercent !== null ? memPercent + '%' : 'N/A'}</span>
-                                        </div>
-                                        <div class="progress progress-sm mt-2" style="height: 8px;">
-                                            <div class="progress-bar bg-azure" role="progressbar" style="width: ${memPercent !== null ? memPercent : 0}%"></div>
-                                        </div>
-                                        <div class="text-muted small mt-1">Based on reported RAM totals</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div class="text-muted small">System Drive Used</div>
-                                            <span class="badge ${diskPercent !== null && diskPercent >= 85 ? 'bg-warning-lt' : 'bg-success-lt'}">${diskPercent !== null ? diskPercent + '%' : 'N/A'}</span>
-                                        </div>
-                                        <div class="progress progress-sm mt-2" style="height: 8px;">
-                                            <div class="progress-bar bg-indigo" role="progressbar" style="width: ${diskPercent !== null ? diskPercent : 0}%"></div>
-                                        </div>
-                                        <div class="text-muted small mt-1">${diskTotal ? `${diskTotal} GB total` : 'Storage details pending'}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Tabs -->
                         <div class="card">
                             <div class="card-header border-bottom-0">
@@ -1073,6 +1220,11 @@ export class DeviceDetailPage extends window.Component {
                                         </a>
                                     </li>
                                     <li class="nav-item">
+                                        <a class="nav-link ${activeTab === 'perf' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'perf' }, () => this.renderPerfCharts()); }} role="tab">
+                                            Performance
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
                                         <a class="nav-link ${activeTab === 'timeline' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'timeline' }); }} role="tab">
                                             Timeline (${this.state.timeline.length})
                                         </a>
@@ -1089,8 +1241,172 @@ export class DeviceDetailPage extends window.Component {
                                 <!-- Risks Tab -->
                                 ${activeTab === 'risks' ? this.renderRisksTab() : ''}
                                 
+                                <!-- Performance Tab -->
+                                ${activeTab === 'perf' ? this.renderPerfTab() : ''}
+
                                 <!-- Timeline Tab -->
                                 ${activeTab === 'timeline' ? this.renderTimelineTab() : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderPerfTab() {
+        const { html } = window;
+        const perf = this.state.perfData;
+        const { perfBucket, perfRangeDays, perfLoading } = this.state;
+
+        if (this.state.perfError) {
+            return html`<div class="alert alert-warning">${this.state.perfError}</div>`;
+        }
+
+        if (perfLoading && !perf) {
+            return html`<div class="text-muted">Loading performance timeline…</div>`;
+        }
+
+        if (!perf) {
+            return html`<div class="text-muted">No performance data loaded yet.</div>`;
+        }
+
+        const points = perf.points || [];
+        if (points.length === 0) {
+            return html`<div class="alert alert-info">No performance telemetry available for this window.</div>`;
+        }
+
+        const fmtRange = (val) => val ? new Date(val).toLocaleString() : 'N/A';
+        const latestPoint = points[points.length - 1];
+        const pct = (v) => Number.isFinite(Number(v)) ? `${Math.round(Number(v))}%` : 'N/A';
+        const mb = (v) => Number.isFinite(Number(v)) ? `${Math.round(Number(v))} MB` : 'N/A';
+        const mbps = (v) => Number.isFinite(Number(v)) ? `${Math.round(Number(v))} Mbps` : 'N/A';
+
+        const cpuPercentiles = this.calculatePercentiles(points.map(p => p.cpuAvg ?? p.CpuAvg));
+        const memPercentiles = this.calculatePercentiles(points.map(p => p.memoryAvg ?? p.MemoryAvg));
+        const memMbPercentiles = this.calculatePercentiles(points.map(p => p.memoryAvgMb ?? p.MemoryAvgMb));
+        const diskPercentiles = this.calculatePercentiles(points.map(p => p.diskTotalMbAvg ?? p.diskAvg ?? p.DiskAvg));
+        const netPercentiles = this.calculatePercentiles(points.map(p => p.networkMbpsAvg ?? p.networkAvg ?? p.NetworkAvg));
+
+        const bucketOptions = [
+            { label: '1h buckets', value: '1h' },
+            { label: '6h buckets', value: '6h' },
+            { label: '1d buckets', value: '1d' }
+        ];
+
+        const rangeOptions = [
+            { label: '24h', value: 1 },
+            { label: '3 days', value: 3 },
+            { label: '7 days', value: 7 },
+            { label: '14 days', value: 14 },
+            { label: '30 days', value: 30 }
+        ];
+
+        const onBucketChange = (e) => {
+            const value = e.target.value;
+            this.setState({ perfBucket: value }, () => this.loadPerfData(value, this.state.perfRangeDays));
+        };
+
+        const onRangeChange = (e) => {
+            const value = Number(e.target.value) || 7;
+            this.setState({ perfRangeDays: value }, () => this.loadPerfData(this.state.perfBucket, value));
+        };
+
+        const percentileBadge = (label, val, formatter) => html`
+            <span class="badge bg-light text-body fw-normal border">${label}: ${val !== null && val !== undefined ? formatter(val) : '—'}</span>
+        `;
+
+        return html`
+            <div class="row row-cards">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header align-items-start justify-content-between flex-wrap gap-3">
+                            <div>
+                                <div class="card-title mb-0">Performance (bucketed)</div>
+                                <div class="text-muted small">
+                                    Window: ${fmtRange(perf.startUtc)} – ${fmtRange(perf.endUtc)} • Bucket ${perf.bucketMinutes}m • Computed ${fmtRange(perf.computedUtc)}
+                                </div>
+                                <div class="text-muted small">${points.length} points • ${perf.sampleCount || 0} samples${perf.fromCache ? ' • cached' : ''}${perf.isFresh ? ' • fresh' : ''}</div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <label class="form-label m-0 text-muted small">Bucket</label>
+                                <select class="form-select form-select-sm" value=${perfBucket} onchange=${onBucketChange} disabled=${perfLoading}>
+                                    ${bucketOptions.map(opt => html`<option value=${opt.value} selected=${perfBucket === opt.value}>${opt.label}</option>`) }
+                                </select>
+                                <label class="form-label m-0 text-muted small">Range</label>
+                                <select class="form-select form-select-sm" value=${perfRangeDays} onchange=${onRangeChange} disabled=${perfLoading}>
+                                    ${rangeOptions.map(opt => html`<option value=${opt.value} selected=${Number(perfRangeDays) === Number(opt.value)}>${opt.label}</option>`) }
+                                </select>
+                                ${perfLoading ? html`<div class="spinner-border spinner-border-sm text-primary" role="status"></div>` : ''}
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <div class="fw-bold">CPU</div>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                    ${percentileBadge('P50', cpuPercentiles?.p50, pct)}
+                                                    ${percentileBadge('P90', cpuPercentiles?.p90, pct)}
+                                                    ${percentileBadge('P95', cpuPercentiles?.p95, pct)}
+                                                </div>
+                                            </div>
+                                            <div ref=${(el) => { this.perfCpuEl = el; }} style="min-height: 220px;"></div>
+                                            <div class="text-muted small mt-2">Latest: ${pct(latestPoint?.cpuAvg)}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <div class="fw-bold">Memory</div>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                    ${percentileBadge('P50', memPercentiles?.p50, pct)}
+                                                    ${percentileBadge('P90', memPercentiles?.p90, pct)}
+                                                    ${percentileBadge('P95', memPercentiles?.p95, pct)}
+                                                </div>
+                                            </div>
+                                            <div ref=${(el) => { this.perfMemEl = el; }} style="min-height: 220px;"></div>
+                                                <div class="text-muted small mt-2">Latest: ${pct(latestPoint?.memoryAvg)} (${mb(latestPoint?.memoryAvgMb)} used)</div>
+                                                <div class="text-muted small">RAM percent is relative to reported device RAM; MB line shows working set.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <div class="fw-bold">DB Footprint</div>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                        ${percentileBadge('P50', diskPercentiles?.p50, mb)}
+                                                        ${percentileBadge('P90', diskPercentiles?.p90, mb)}
+                                                        ${percentileBadge('P95', diskPercentiles?.p95, mb)}
+                                                </div>
+                                            </div>
+                                            <div ref=${(el) => { this.perfDiskEl = el; }} style="min-height: 220px;"></div>
+                                                <div class="text-muted small mt-2">Latest total: ${mb(latestPoint?.diskTotalMbAvg)} (App ${mb(latestPoint?.diskAppMbAvg)}, Intel ${mb(latestPoint?.diskIntelMbAvg)})</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <div class="fw-bold">Network</div>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                    ${percentileBadge('P50', netPercentiles?.p50, mbps)}
+                                                    ${percentileBadge('P90', netPercentiles?.p90, mbps)}
+                                                    ${percentileBadge('P95', netPercentiles?.p95, mbps)}
+                                                </div>
+                                            </div>
+                                            <div ref=${(el) => { this.perfNetEl = el; }} style="min-height: 220px;"></div>
+                                                <div class="text-muted small mt-2">Latest: ${mbps(latestPoint?.networkMbpsAvg)} • Sent ${this.formatBytesHuman(latestPoint?.networkBytesSent)} • Recv ${this.formatBytesHuman(latestPoint?.networkBytesReceived)} • Requests ${Math.round(latestPoint?.networkRequests || 0)} • Failures ${Math.round(latestPoint?.networkFailures || 0)}</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1550,6 +1866,219 @@ export class DeviceDetailPage extends window.Component {
         }
     }
 
+    calculatePercentiles(values) {
+        const nums = (values || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+        if (nums.length === 0) return null;
+
+        const pick = (p) => {
+            const idx = Math.max(0, Math.min(nums.length - 1, Math.floor(p * (nums.length - 1))));
+            return nums[idx];
+        };
+
+        return {
+            p50: pick(0.5),
+            p90: pick(0.9),
+            p95: pick(0.95),
+            max: nums[nums.length - 1],
+            latest: nums[nums.length - 1]
+        };
+    }
+
+    renderPerfCharts() {
+        if (!window.ApexCharts) {
+            console.warn('[DeviceDetail] ApexCharts not available for perf charts');
+            return;
+        }
+
+        const perf = this.state.perfData;
+        const rawPoints = Array.isArray(perf?.points) ? perf.points : [];
+        const validPoints = rawPoints.filter(p => p.bucketStartUtc || p.BucketStartUtc);
+        if (!perf || validPoints.length === 0) {
+            this.destroyPerfCharts();
+            return;
+        }
+
+        const clampPct = (val) => {
+            const n = Number(val);
+            if (!Number.isFinite(n)) return 0;
+            return Math.max(0, Math.min(100, Math.round(n)));
+        };
+
+        const numeric = (val) => {
+            const n = Number(val);
+            return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+        };
+
+        const points = validPoints.map(p => ({
+            ts: new Date(p.bucketStartUtc || p.BucketStartUtc).getTime(),
+            cpu: clampPct(p.cpuAvg ?? p.CpuAvg),
+            memPct: clampPct(p.memoryAvg ?? p.MemoryAvg),
+            memMb: numeric(p.memoryAvgMb ?? p.MemoryAvgMb),
+            diskTotal: numeric(p.diskTotalMbAvg ?? p.diskAvg ?? p.DiskAvg),
+            diskApp: numeric(p.diskAppMbAvg ?? p.DiskAppMbAvg),
+            diskIntel: numeric(p.diskIntelMbAvg ?? p.DiskIntelMbAvg),
+            netMbps: numeric(p.networkMbpsAvg ?? p.networkAvg ?? p.NetworkAvg),
+            netSentBytes: numeric(p.networkBytesSent ?? p.NetworkBytesSent ?? 0),
+            netRecvBytes: numeric(p.networkBytesReceived ?? p.NetworkBytesReceived ?? 0),
+            netRequests: numeric(p.networkRequests ?? p.NetworkRequests),
+            netFailures: numeric(p.networkFailures ?? p.NetworkFailures)
+        }))
+        .filter(p => Number.isFinite(p.ts))
+        .sort((a, b) => a.ts - b.ts);
+
+        if (points.length === 0) {
+            this.destroyPerfCharts();
+            return;
+        }
+
+        const buildAnnotations = (percentiles, formatter) => {
+            if (!percentiles) return [];
+            const lines = [];
+            const addLine = (value, label, color) => {
+                if (!Number.isFinite(value)) return;
+                lines.push({
+                    y: value,
+                    borderColor: color,
+                    strokeDashArray: 4,
+                    label: {
+                        borderColor: color,
+                        style: { color: '#000', background: '#fff' },
+                        text: `${label} ${formatter(value)}`
+                    }
+                });
+            };
+            addLine(percentiles.p50, 'P50', '#868e96');
+            addLine(percentiles.p90, 'P90', '#fab005');
+            addLine(percentiles.p95, 'P95', '#d63939');
+            return lines;
+        };
+
+        const chartConfigs = [
+            {
+                key: 'cpu',
+                el: 'perfCpuEl',
+                series: [
+                    { name: 'CPU %', data: points.map(p => [p.ts, p.cpu]) }
+                ],
+                colors: ['#206bc4'],
+                yaxis: [{ min: 0, max: 100, labels: { formatter: (val) => `${Math.round(val)}%` }, title: { text: 'CPU (%)' } }],
+                tooltipFormatter: (val) => `${Math.round(val)}%`,
+                annotations: buildAnnotations(this.calculatePercentiles(points.map(p => p.cpu)), (v) => `${Math.round(v)}%`)
+            },
+            {
+                key: 'mem',
+                el: 'perfMemEl',
+                series: [
+                    { name: 'Memory %', data: points.map(p => [p.ts, p.memPct]) },
+                    { name: 'Memory MB', data: points.map(p => [p.ts, p.memMb]) }
+                ],
+                colors: ['#0ca678', '#15aabf'],
+                yaxis: [
+                    { min: 0, max: 100, labels: { formatter: (val) => `${Math.round(val)}%` }, title: { text: 'Memory (%)' } },
+                    { opposite: true, labels: { formatter: (val) => `${Math.round(val)} MB` }, title: { text: 'Working Set (MB)' } }
+                ],
+                tooltipFormatter: (val, opts) => opts.seriesIndex === 0 ? `${Math.round(val)}%` : `${Math.round(val)} MB`,
+                annotations: buildAnnotations(this.calculatePercentiles(points.map(p => p.memPct)), (v) => `${Math.round(v)}%`)
+            },
+            {
+                key: 'disk',
+                el: 'perfDiskEl',
+                series: [
+                    { name: 'Total MB', data: points.map(p => [p.ts, p.diskTotal]) },
+                    { name: 'App DB MB', data: points.map(p => [p.ts, p.diskApp]) },
+                    { name: 'Intel DB MB', data: points.map(p => [p.ts, p.diskIntel]) }
+                ],
+                colors: ['#fab005', '#ffa94d', '#ffd43b'],
+                yaxis: [{ min: 0, labels: { formatter: (val) => `${Math.round(val)} MB` }, title: { text: 'DB Size (MB)' } }],
+                tooltipFormatter: (val) => `${Math.round(val)} MB`,
+                annotations: buildAnnotations(this.calculatePercentiles(points.map(p => p.diskTotal)), (v) => `${Math.round(v)} MB`)
+            },
+            {
+                key: 'net',
+                el: 'perfNetEl',
+                series: [
+                    { name: 'Throughput Mbps', type: 'area', data: points.map(p => [p.ts, p.netMbps]) },
+                    { name: 'Requests', type: 'column', data: points.map(p => [p.ts, p.netRequests]) },
+                    { name: 'Failures', type: 'column', data: points.map(p => [p.ts, p.netFailures]) }
+                ],
+                colors: ['#a34ee3', '#2fb344', '#d63939'],
+                yaxis: [
+                    { labels: { formatter: (val) => `${Math.round(val)} Mbps` }, title: { text: 'Network (Mbps)' } },
+                    { opposite: true, labels: { formatter: (val) => `${Math.round(val)}` }, title: { text: 'Requests / Failures' } }
+                ],
+                tooltipFormatter: (val, opts) => {
+                    if (opts.seriesIndex === 0) return `${Math.round(val)} Mbps`;
+                    const point = points[opts.dataPointIndex] || {};
+                    const sent = this.formatBytesHuman(point.netSentBytes);
+                    const recv = this.formatBytesHuman(point.netRecvBytes);
+                    if (opts.seriesIndex === 1) return `${Math.round(val)} requests (sent ${sent}, recv ${recv})`;
+                    return `${Math.round(val)} failures (sent ${sent}, recv ${recv})`;
+                },
+                annotations: buildAnnotations(this.calculatePercentiles(points.map(p => p.netMbps)), (v) => `${Math.round(v)} Mbps`)
+            }
+        ];
+
+        chartConfigs.forEach(cfg => {
+            const el = this[cfg.el];
+            if (!el) return;
+
+            const seriesData = (cfg.series || []).map((s) => ({
+                name: s.name,
+                type: s.type || 'area',
+                data: s.data.filter(([ts, val]) => Number.isFinite(ts) && Number.isFinite(val))
+            })).filter(s => s.data.length > 0);
+
+            if (seriesData.length === 0) {
+                if (this.perfCharts[cfg.key]) {
+                    this.perfCharts[cfg.key].destroy();
+                    this.perfCharts[cfg.key] = null;
+                }
+                return;
+            }
+
+            if (this.perfCharts[cfg.key]) {
+                this.perfCharts[cfg.key].destroy();
+                this.perfCharts[cfg.key] = null;
+            }
+
+            const options = {
+                chart: {
+                    height: 220,
+                    toolbar: { show: false },
+                    animations: { enabled: true },
+                    stacked: cfg.key === 'disk'
+                },
+                colors: cfg.colors,
+                stroke: { curve: 'smooth', width: 2 },
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 0.6,
+                        opacityFrom: 0.35,
+                        opacityTo: 0.05
+                    }
+                },
+                dataLabels: { enabled: false },
+                legend: { show: true },
+                xaxis: {
+                    type: 'datetime',
+                    labels: { datetimeUTC: false }
+                },
+                yaxis: cfg.yaxis,
+                tooltip: {
+                    shared: false,
+                    x: { format: 'MMM dd, HH:mm' },
+                    y: { formatter: cfg.tooltipFormatter }
+                },
+                annotations: { yaxis: cfg.annotations },
+                series: seriesData
+            };
+
+            this.perfCharts[cfg.key] = new window.ApexCharts(el, options);
+            this.perfCharts[cfg.key].render();
+        });
+    }
+
     destroyDetailCharts() {
         if (this.detailRiskChart) { this.detailRiskChart.destroy(); this.detailRiskChart = null; }
         if (this.detailAppsChart) { this.detailAppsChart.destroy(); this.detailAppsChart = null; }
@@ -1557,6 +2086,24 @@ export class DeviceDetailPage extends window.Component {
         if (this.detailRiskChartEl) this.detailRiskChartEl.innerHTML = '';
         if (this.detailAppsChartEl) this.detailAppsChartEl.innerHTML = '';
         if (this.detailCvesChartEl) this.detailCvesChartEl.innerHTML = '';
+    }
+
+    destroyPerfCharts() {
+        if (this.perfCharts) {
+            Object.keys(this.perfCharts).forEach(key => {
+                const chart = this.perfCharts[key];
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+                this.perfCharts[key] = null;
+            });
+        }
+
+        ['perfCpuEl', 'perfMemEl', 'perfDiskEl', 'perfNetEl'].forEach(ref => {
+            if (this[ref]) {
+                this[ref].innerHTML = '';
+            }
+        });
     }
 
     renderFlatListView(filteredApps) {
