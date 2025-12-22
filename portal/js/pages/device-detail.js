@@ -136,6 +136,15 @@ export class DeviceDetailPage extends window.Component {
         return score;
     }
 
+    getRiskScoreValue(summary, deviceFallbackScore = 0) {
+        // Normalize various summary shapes to a sane numeric risk score
+        const raw = summary
+            ? (summary.score ?? summary.riskScore ?? summary.riskScoreNormalized ?? summary.risk ?? 0)
+            : deviceFallbackScore;
+        const n = Number(raw);
+        return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+    }
+
     getStateBadgeClass(state) {
         const s = this.normalizeState(state);
         switch (s) {
@@ -701,6 +710,36 @@ export class DeviceDetailPage extends window.Component {
         const criticalCves = this.state.cveInventory.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical');
         const highCves = this.state.cveInventory.filter(c => c.severity === 'HIGH' || c.severity === 'High');
 
+        const riskScoreRaw = this.state.enrichedScore?.score
+            ?? this.getRiskScoreValue(this.state.deviceSummary, this.calculateRiskScore(device))
+            ?? this.calculateRiskScore(device)
+            ?? 0;
+        const riskScore = (() => {
+            const n = Number(riskScoreRaw);
+            if (!Number.isFinite(n)) return 0;
+            return Math.max(0, Math.min(100, Math.round(n)));
+        })();
+        const worstSeverity = criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? 'MEDIUM' : this.state.cveInventory.length > 0 ? 'LOW' : 'CLEAN';
+        const knownExploitCount = this.state.knownExploits ? this.state.cveInventory.filter(c => this.state.knownExploits.has(c.cveId)).length : 0;
+        const latestFields = this.state.telemetryDetail?.latest?.fields || {};
+        const toPercent = (v) => {
+            const n = Number(v);
+            if (!Number.isFinite(n)) return null;
+            return Math.max(0, Math.min(100, Math.round(n)));
+        };
+        const cpuPercent = toPercent(latestFields.CpuUsagePercent || latestFields.CPUUsage || latestFields.cpuUsagePercent || latestFields.cpuUsage);
+        const totalRamMb = Number(latestFields.TotalRAMMB || latestFields.totalRamMb || 0);
+        const freeRamMb = Number(latestFields.AvailableRAMMB || latestFields.availableRamMb || 0);
+        const memPercent = totalRamMb > 0 && Number.isFinite(freeRamMb) ? Math.max(0, Math.min(100, Math.round(((totalRamMb - freeRamMb) / totalRamMb) * 100))) : null;
+        const diskTotal = Number(latestFields.SystemDriveSizeGB || latestFields.systemDriveSizeGb || 0);
+        const diskFree = Number(latestFields.SystemDriveFreeGB || latestFields.systemDriveFreeGb || 0);
+        const diskPercent = diskTotal > 0 && Number.isFinite(diskFree) ? Math.max(0, Math.min(100, Math.round(((diskTotal - diskFree) / diskTotal) * 100))) : null;
+        const ipRaw = latestFields.IPAddresses || latestFields.ipAddresses;
+        const ipList = Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : [];
+        const mobileStatus = this.detectMobileDevice(this.state.telemetryDetail?.history);
+        const networkRisk = this.analyzeNetworkRisk(ipList, this.state.telemetryDetail?.history);
+        const recentChangeCount = this.state.telemetryDetail?.changes?.length || 0;
+
         return html`
             <div class="page-wrapper">
                 <div class="page-body">
@@ -752,12 +791,10 @@ export class DeviceDetailPage extends window.Component {
                                         <!-- Risk Gauge -->
                                         <div style="flex-shrink: 0;">
                                             ${(() => {
-                                                const enriched = this.state.enrichedScore;
                                                 const summary = this.state.deviceSummary;
-                                                const score = enriched ? enriched.score : summary ? summary.score : this.calculateRiskScore(device);
-                                                const isEnriched = enriched && enriched.score !== (summary ? summary.score : this.calculateRiskScore(device));
-                                                
-                                                const worstSeverity = criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? 'MEDIUM' : this.state.cveInventory.length > 0 ? 'LOW' : 'CLEAN';
+                                                const score = riskScore;
+                                                const isEnriched = this.state.enrichedScore && Number(this.state.enrichedScore.score) !== Number(summary ? summary.score : this.calculateRiskScore(device));
+                                                const enriched = this.state.enrichedScore;
                                                 const gaugeColor = worstSeverity === 'CRITICAL' ? '#d63939' : worstSeverity === 'HIGH' ? '#f59f00' : worstSeverity === 'MEDIUM' ? '#fab005' : '#2fb344';
                                                 const angle = (score / 100) * 270;
                                                 const radian = (angle - 135) * (Math.PI / 180);
@@ -875,12 +912,12 @@ export class DeviceDetailPage extends window.Component {
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-body">
-                                        <div class="row g-2 align-items-center">
-                                            <div class="col-md-4">
+                                        <div class="row g-3 align-items-center">
+                                            <div class="col-md-3">
                                                 <div class="text-muted small font-weight-medium">Registered</div>
                                                 <div class="fw-bold">${device.FirstHeartbeat ? this.formatDate(device.FirstHeartbeat) : device.firstSeen ? this.formatDate(device.firstSeen) : device.createdAt ? this.formatDate(device.createdAt) : 'N/A'}</div>
                                             </div>
-                                            <div class="col-md-4">
+                                            <div class="col-md-3">
                                                 <div class="text-muted small font-weight-medium">Last Seen</div>
                                                 ${(() => {
                                                     const lastSeen = this.state.telemetryDetail?.latest?.timestamp 
@@ -889,7 +926,7 @@ export class DeviceDetailPage extends window.Component {
                                                     return html`<div class="fw-bold">${lastSeen ? this.formatDate(lastSeen) : 'N/A'}</div>`;
                                                 })()}
                                             </div>
-                                            <div class="col-md-4">
+                                            <div class="col-md-3">
                                                 <div class="text-muted small font-weight-medium">User</div>
                                                 ${(() => {
                                                     const f = this.state.telemetryDetail?.latest?.fields || {};
@@ -898,7 +935,119 @@ export class DeviceDetailPage extends window.Component {
                                                     return html`<div class="fw-bold">${u ? String(u) : 'N/A'}</div>`;
                                                 })()}
                                             </div>
+                                            <div class="col-md-3">
+                                                <div class="text-muted small font-weight-medium">Exposure</div>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge ${networkRisk.publicIpPresent ? 'bg-warning-lt' : 'bg-success-lt'}">${networkRisk.publicIpPresent ? 'Internet-exposed' : 'Private'}</span>
+                                                    ${networkRisk.apipaPresent ? html`<span class="badge bg-danger-lt">APIPA</span>` : ''}
+                                                    ${mobileStatus.isMobile ? html`<span class="badge bg-info-lt">Mobile (${mobileStatus.uniqueIpCount})</span>` : ''}
+                                                </div>
+                                            </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Highlights Row -->
+                        <div class="row row-cards mb-3">
+                            <div class="col-md-3">
+                                <div class="card card-sm h-100">
+                                    <div class="card-body">
+                                        <div class="text-muted small">Risk posture</div>
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="h3 mb-0">${riskScore}</div>
+                                            <span class="badge ${
+                                                worstSeverity === 'CRITICAL' ? 'bg-danger' :
+                                                worstSeverity === 'HIGH' ? 'bg-warning' :
+                                                worstSeverity === 'MEDIUM' ? 'bg-secondary' :
+                                                'bg-success'
+                                            }">${worstSeverity}</span>
+                                        </div>
+                                        <div class="text-muted small mt-1">Worst severity across ${this.state.cveInventory.length} CVEs</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card card-sm h-100">
+                                    <div class="card-body">
+                                        <div class="text-muted small">Known exploits</div>
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="h3 mb-0">${knownExploitCount}</div>
+                                            ${knownExploitCount > 0 ? html`<span class="badge bg-danger-lt">Action required</span>` : html`<span class="badge bg-success-lt">None</span>`}
+                                        </div>
+                                        <div class="text-muted small mt-1">KEV-mapped vulnerabilities on this device</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card card-sm h-100">
+                                    <div class="card-body">
+                                        <div class="text-muted small">Network signals</div>
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            ${networkRisk.publicIpPresent ? html`<span class="badge bg-warning-lt">Public IP</span>` : html`<span class="badge bg-success-lt">Private only</span>`}
+                                            ${networkRisk.apipaPresent ? html`<span class="badge bg-danger-lt">APIPA</span>` : ''}
+                                            ${networkRisk.suspiciousPatterns.length > 0 ? html`<span class="badge bg-yellow-lt">${networkRisk.suspiciousPatterns.length} alerts</span>` : html`<span class="badge bg-azure-lt">Stable</span>`}
+                                        </div>
+                                        <div class="text-muted small mt-1">${ipList.length || '0'} IPs observed; ${mobileStatus.isMobile ? 'roaming detected' : 'stationary'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card card-sm h-100">
+                                    <div class="card-body">
+                                        <div class="text-muted small">Activity</div>
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="h3 mb-0">${recentChangeCount}</div>
+                                            <span class="badge bg-blue-lt">Changes</span>
+                                        </div>
+                                        <div class="text-muted small mt-1">Recent hardware/system changes tracked</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Performance Snapshot -->
+                        <div class="row row-cards mb-3">
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="text-muted small">CPU Utilization</div>
+                                            <span class="badge ${cpuPercent !== null && cpuPercent >= 80 ? 'bg-warning-lt' : 'bg-success-lt'}">${cpuPercent !== null ? cpuPercent + '%' : 'N/A'}</span>
+                                        </div>
+                                        <div class="progress progress-sm mt-2" style="height: 8px;">
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width: ${cpuPercent !== null ? cpuPercent : 0}%"></div>
+                                        </div>
+                                        <div class="text-muted small mt-1">Realtime CPU usage from latest telemetry</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="text-muted small">Memory In Use</div>
+                                            <span class="badge ${memPercent !== null && memPercent >= 80 ? 'bg-warning-lt' : 'bg-success-lt'}">${memPercent !== null ? memPercent + '%' : 'N/A'}</span>
+                                        </div>
+                                        <div class="progress progress-sm mt-2" style="height: 8px;">
+                                            <div class="progress-bar bg-azure" role="progressbar" style="width: ${memPercent !== null ? memPercent : 0}%"></div>
+                                        </div>
+                                        <div class="text-muted small mt-1">Based on reported RAM totals</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="text-muted small">System Drive Used</div>
+                                            <span class="badge ${diskPercent !== null && diskPercent >= 85 ? 'bg-warning-lt' : 'bg-success-lt'}">${diskPercent !== null ? diskPercent + '%' : 'N/A'}</span>
+                                        </div>
+                                        <div class="progress progress-sm mt-2" style="height: 8px;">
+                                            <div class="progress-bar bg-indigo" role="progressbar" style="width: ${diskPercent !== null ? diskPercent : 0}%"></div>
+                                        </div>
+                                        <div class="text-muted small mt-1">${diskTotal ? `${diskTotal} GB total` : 'Storage details pending'}</div>
                                     </div>
                                 </div>
                             </div>
@@ -1296,7 +1445,7 @@ export class DeviceDetailPage extends window.Component {
 
         const summary = this.state.deviceSummary;
         const enriched = this.state.enrichedScore;
-        const baseScore = summary ? summary.score : this.calculateRiskScore(this.state.device);
+        const baseScore = summary ? this.getRiskScoreValue(summary, this.calculateRiskScore(this.state.device)) : this.calculateRiskScore(this.state.device);
         const scoreRaw = enriched && enriched.score !== undefined ? enriched.score : baseScore;
         const scoreNum = Number(scoreRaw);
         const score = Number.isFinite(scoreNum) ? scoreNum : 0;
@@ -1332,10 +1481,15 @@ export class DeviceDetailPage extends window.Component {
             this.detailRiskChart.render();
         }
 
+        const safeNum = (v) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : 0;
+        };
+
         const vulnerableApps = this.state.appInventory.filter(app => this.state.cveInventory.some(cve => cve.appName && app.appName && cve.appName.toLowerCase() === app.appName.toLowerCase())).length;
         const totalApps = this.state.appInventory.length;
         const healthyApps = Math.max(totalApps - vulnerableApps, 0);
-        const appsSeries = totalApps > 0 ? [vulnerableApps, healthyApps] : [1];
+        const appsSeries = totalApps > 0 ? [safeNum(vulnerableApps), safeNum(healthyApps)] : [1];
         const appsLabels = totalApps > 0 ? ['Vulnerable', 'Healthy'] : ['No data'];
         const appsColors = totalApps > 0 ? ['#d63939', '#2fb344'] : ['#e9ecef'];
         const appsTotalLabel = totalApps > 0 ? `${vulnerableApps}/${totalApps}` : '0/0';
@@ -1363,11 +1517,11 @@ export class DeviceDetailPage extends window.Component {
             this.detailAppsChart.render();
         }
 
-        const critCount = criticalCves.length;
-        const highCount = highCves.length;
-        const mediumCount = mediumCves.length;
-        const lowCount = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'LOW').length;
-        const totalCves = this.state.cveInventory.length;
+        const critCount = safeNum(criticalCves.length);
+        const highCount = safeNum(highCves.length);
+        const mediumCount = safeNum(mediumCves.length);
+        const lowCount = safeNum(this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'LOW').length);
+        const totalCves = safeNum(this.state.cveInventory.length);
         const cveSeries = totalCves > 0 ? [critCount, highCount, mediumCount, lowCount] : [1];
         const cveLabels = totalCves > 0 ? ['Critical', 'High', 'Medium', 'Low'] : ['No CVEs'];
         const cveColors = totalCves > 0 ? ['#d63939', '#f59f00', '#fab005', '#74b816'] : ['#e9ecef'];
