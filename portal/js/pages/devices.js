@@ -256,6 +256,7 @@ export class DevicesPage extends window.Component {
         const knownExploitCount = exploitInfo.count;
         const hasKnownExploit = exploitInfo.has;
         const derivedCvss = this.deriveCvss(constituents, summary);
+        const networkExposure = this.deriveNetworkExposure(this.state.telemetryDetail);
         const cvssBadgeClass = derivedCvss !== null
             ? (derivedCvss >= 9 ? 'bg-danger-lt' : derivedCvss >= 7 ? 'bg-warning-lt' : derivedCvss >= 4 ? 'bg-info-lt' : 'bg-success-lt')
             : '';
@@ -365,8 +366,16 @@ export class DevicesPage extends window.Component {
                                                 <div class="text-muted small">Device network configuration and IP type</div>
                                             </div>
                                             <div class="text-end">
-                                                <span class="badge bg-info-lt">Analyzed</span>
+                                                <span class="badge ${networkExposure.badgeClass}">${networkExposure.label}</span>
                                             </div>
+                                        </div>
+                                        ${networkExposure.reasons && networkExposure.reasons.length ? html`
+                                            <div class="text-muted small mt-1">
+                                                ${networkExposure.reasons.join(' • ')}
+                                            </div>
+                                        ` : ''}
+                                        <div class="text-muted small mt-1" title="Firewall status, inbound ports, endpoint protection require admin privileges to collect">
+                                            Missing signals (admin required): ${networkExposure.missingAdmin.join(', ')}
                                         </div>
                                     </div>
                                 </div>
@@ -1074,6 +1083,114 @@ export class DevicesPage extends window.Component {
         else if (counts.total > 0) { badgeClass = 'bg-primary-lt'; label = 'Low Risk'; }
 
         return { counts, badgeClass, label };
+    }
+
+    isPrivateIp(ip) {
+        if (!ip) return false;
+        const v4 = ip.split('.');
+        if (v4.length === 4) {
+            const [a, b] = v4.map(Number);
+            if (a === 10) return true;
+            if (a === 172 && b >= 16 && b <= 31) return true;
+            if (a === 192 && b === 168) return true;
+            if (a === 127) return true;
+            return false;
+        }
+        // IPv6 unique local fc00::/7
+        return ip.startsWith('fc') || ip.startsWith('Fd') || ip.startsWith('fd');
+    }
+
+    deriveNetworkExposure(telemetryDetail) {
+        const fields = telemetryDetail?.history?.[0]?.fields || telemetryDetail?.latest?.fields || {};
+        const rawExposure = fields.NetworkExposureJson || fields.networkExposureJson;
+        const ipRaw = fields.IPAddresses || fields.ipAddresses;
+        let parsed = null;
+        if (rawExposure) {
+            try { parsed = JSON.parse(rawExposure); } catch (e) { parsed = null; }
+        }
+
+        const ips = (() => {
+            if (Array.isArray(ipRaw)) return ipRaw;
+            if (typeof ipRaw === 'string') {
+                try {
+                    const parsedIps = JSON.parse(ipRaw);
+                    if (Array.isArray(parsedIps)) return parsedIps;
+                } catch (err) { /* fall back */ }
+                return ipRaw.split(/[;,\s]+/).filter(Boolean);
+            }
+            return [];
+        })();
+
+        const exposure = {
+            label: 'Unknown',
+            badgeClass: 'bg-secondary-lt',
+            reasons: [],
+            missingAdmin: [
+                'Firewall status',
+                'Inbound RDP/SMB exposure',
+                'Endpoint protection status'
+            ]
+        };
+
+        const hasAnyData = parsed !== null || (ips && ips.length > 0);
+        if (!hasAnyData) {
+            exposure.reasons.push('No network telemetry available');
+            return exposure;
+        }
+
+        const data = parsed || {};
+        const publicIpCount = data.PublicIpCount ?? data.publicIpCount ?? ips.filter(ip => !this.isPrivateIp(ip)).length;
+        const privateIpCount = data.PrivateIpCount ?? data.privateIpCount ?? ips.filter(ip => this.isPrivateIp(ip)).length;
+        const vpnInterfaces = data.VpnInterfaces ?? data.vpnInterfaces ?? 0;
+        const wirelessInterfaces = data.WirelessInterfaces ?? data.wirelessInterfaces ?? 0;
+        const ethernetInterfaces = data.EthernetInterfaces ?? data.ethernetInterfaces ?? 0;
+        const apipaPresent = data.ApipaPresent ?? data.apipaPresent ?? false;
+        const gatewayCount = data.GatewayCount ?? data.gatewayCount ?? null;
+        const uniqueIpCount = data.UniqueIpCount ?? data.uniqueIpCount ?? ips.length;
+        const isMetered = data.IsMetered ?? data.isMetered ?? fields.IsMeteredConnection ?? fields.isMeteredConnection;
+
+        if (publicIpCount > 0) {
+            exposure.label = 'High';
+            exposure.badgeClass = 'bg-danger-lt';
+            exposure.reasons.push('Public IP detected');
+        } else if (vpnInterfaces > 0) {
+            exposure.label = 'Lower';
+            exposure.badgeClass = 'bg-success-lt';
+            exposure.reasons.push('VPN interface active');
+        } else if (wirelessInterfaces > 0 && privateIpCount > 0) {
+            exposure.label = 'Medium';
+            exposure.badgeClass = 'bg-warning-lt';
+            exposure.reasons.push('Wireless connection detected');
+        } else if (ethernetInterfaces > 0) {
+            exposure.label = 'Medium';
+            exposure.badgeClass = 'bg-info-lt';
+            exposure.reasons.push('Wired connection detected');
+        }
+
+        if (apipaPresent) {
+            exposure.reasons.push('APIPA detected (DHCP issues)');
+        }
+
+        if (isMetered) {
+            exposure.reasons.push('Metered connection');
+        }
+
+        if (gatewayCount === 0) {
+            exposure.reasons.push('No gateway (likely isolated)');
+        }
+
+        if (exposure.reasons.length === 0) {
+            exposure.reasons.push('Standard private network detected');
+            exposure.label = exposure.label === 'Unknown' ? 'Low' : exposure.label;
+            exposure.badgeClass = exposure.badgeClass === 'bg-secondary-lt' ? 'bg-success-lt' : exposure.badgeClass;
+        }
+
+        // Add context on IP diversity if available
+        if (uniqueIpCount > 3) {
+            exposure.reasons.push('Multiple IPs observed (mobility)');
+        }
+
+        return exposure;
     }
 
     async openDeviceModal(device) {
