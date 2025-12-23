@@ -283,6 +283,8 @@ export class DeviceDetailPage extends window.Component {
         switch (s) {
             case 'ACTIVE':
                 return 'bg-success';
+            case 'DISABLED':
+                return 'bg-warning';
             case 'ENABLED':
             case 'INACTIVE':
                 return 'bg-primary';
@@ -297,8 +299,24 @@ export class DeviceDetailPage extends window.Component {
 
     getStateDisplay(state) {
         const s = this.normalizeState(state);
-        if (s === 'INACTIVE') return 'ENABLED';
-        return s;
+        switch (s) {
+            case 'ACTIVE':
+                return 'Active';
+            case 'ENABLED':
+                return 'Enabled';
+            case 'INACTIVE':
+                return 'Inactive';
+            case 'DISABLED':
+                return 'Disabled';
+            case 'BLOCKED':
+                return 'Blocked';
+            case 'DELETED':
+                return 'Deleted';
+            case 'UNKNOWN':
+                return 'Unknown';
+            default:
+                return s ? s.charAt(0) + s.slice(1).toLowerCase() : 'Unknown';
+        }
     }
 
     // Compare device client version against latest installer manifest
@@ -322,7 +340,6 @@ export class DeviceDetailPage extends window.Component {
         if (s === 'CRITICAL') return 3;
         if (s === 'HIGH') return 2;
         if (s === 'MEDIUM') return 1;
-        if (s === 'LOW') return 0.5;
         return 0;
     }
 
@@ -330,7 +347,6 @@ export class DeviceDetailPage extends window.Component {
         if (weight >= 3) return 'CRITICAL';
         if (weight >= 2) return 'HIGH';
         if (weight >= 1) return 'MEDIUM';
-        if (weight > 0) return 'LOW';
         return 'LOW';
     }
 
@@ -341,8 +357,9 @@ export class DeviceDetailPage extends window.Component {
         const high = summary.highCveCount ?? summary.high ?? summary.highCves ?? 0;
         const medium = summary.mediumCveCount ?? summary.medium ?? summary.mediumCves ?? 0;
         const low = summary.lowCveCount ?? summary.low ?? summary.lowCves ?? 0;
-        const cveCount = summary.cveCount ?? (critical + high + medium + low);
-        const vulnerableApps = summary.vulnerableAppCount ?? summary.appsWithCves ?? summary.appWithVulnCount ?? 0;
+        const cveCount = summary.totalCveCount ?? summary.cveCount ?? summary.cves ?? (critical + high + medium + low);
+        const vulnerableApps = summary.vulnerableAppCount ?? summary.vulnerableApps ?? null;
+
         const knownExploitCount = summary.knownExploitCount ?? summary.exploitedCveCount ?? summary.exploitCount ?? 0;
         const knownExploitIds = summary.knownExploitIds ?? summary.exploitedCveIds ?? [];
 
@@ -354,7 +371,7 @@ export class DeviceDetailPage extends window.Component {
             ?? summary.score
             ?? summary.riskScoreNormalized
             ?? summary.risk
-            ?? (cveCount * 2 + derivedWeight * 10);
+            ?? (cveCount ? (cveCount * 2 + derivedWeight * 10) : 0);
 
         const baseConstituents = summary.riskScoreConstituents || summary.constituents || {};
         let cveIds = (summary.cveIds || summary.topCveIds || summary.recentCveIds || []).filter(Boolean);
@@ -1991,12 +2008,13 @@ export class DeviceDetailPage extends window.Component {
                 const closedEnd = Number.isFinite(endCandidate) ? endCandidate : startTs;
                 const endTs = (seg.IsOpen || seg.isOpen) ? now : closedEnd;
                 const finalEnd = Number.isFinite(endTs) ? Math.max(startTs, endTs) : startTs;
+                const safeEnd = Number.isFinite(finalEnd) ? Math.max(startTs + 1, finalEnd) : startTs + 1;
 
-                if (!Number.isFinite(finalEnd)) return null;
+                if (!Number.isFinite(safeEnd)) return null;
 
                 return {
                     label,
-                    y: [startTs, finalEnd]
+                    y: [startTs, safeEnd]
                 };
             })
             .filter((seg) => seg && Number.isFinite(seg.y?.[0]) && Number.isFinite(seg.y?.[1]))
@@ -2211,6 +2229,16 @@ export class DeviceDetailPage extends window.Component {
                 type: s.type || 'area',
                 data: s.data.filter(([ts, val]) => Number.isFinite(ts) && Number.isFinite(val))
             })).filter(s => s.data.length > 0);
+
+            const hasInvalid = seriesData.some(s => s.data.some(([ts, val]) => !Number.isFinite(ts) || !Number.isFinite(val)));
+            if (hasInvalid || seriesData.length === 0) {
+                console.warn('[DeviceDetail] Skipping perf chart due to invalid series', cfg.key);
+                if (this.perfCharts[cfg.key]) {
+                    this.perfCharts[cfg.key].destroy();
+                    this.perfCharts[cfg.key] = null;
+                }
+                return;
+            }
 
             if (seriesData.length === 0) {
                 if (this.perfCharts[cfg.key]) {
