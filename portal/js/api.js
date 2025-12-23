@@ -132,7 +132,20 @@ export class ApiClient {
 
             const data = await response.json();
             
-            if (!response.ok) {
+            const isUnauthorizedEnvelope = data && data.success === false && (data.error === 'UNAUTHORIZED' || data.error === 'INVALID_SESSION' || data.error === 'SESSION_EXPIRED');
+
+            if (!response.ok || isUnauthorizedEnvelope) {
+                // Handle expired/invalid session uniformly
+                if (response.status === 401 || isUnauthorizedEnvelope) {
+                    auth.clearSession();
+                    window.location.href = '/portal/?expired=1';
+                    // Throw to halt downstream handlers
+                    const error = new Error('Session expired');
+                    error.status = 401;
+                    error.response = data;
+                    throw error;
+                }
+
                 const error = new Error(data.message || data.error || `HTTP ${response.status}: ${response.statusText}`);
                 error.status = response.status;
                 error.statusText = response.statusText;
@@ -220,6 +233,10 @@ export class ApiClient {
     // === DEVICES ===
     async getDevices(orgId, params = null, options = {}) {
         return this.get(`/api/v1/orgs/${orgId}/devices`, params, options);
+    }
+
+    async getDeviceSessions(orgId, deviceId, params = null, options = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/devices/${deviceId}/session`, params, options);
     }
 
     async getDevice(deviceId) {

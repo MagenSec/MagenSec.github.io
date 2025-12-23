@@ -954,7 +954,7 @@ export class DevicesPage extends window.Component {
             this.setState({ loading: true, error: null });
 
             // Call real API
-            const response = await api.getDevices(currentOrg.orgId, { include: 'summary' }, { skipCache: forceRefresh });
+            const response = await api.getDevices(currentOrg.orgId, { include: 'summary,session' }, { skipCache: forceRefresh });
             if (!response.success) {
                 throw new Error(response.message || response.error || 'Failed to load devices');
             }
@@ -1010,7 +1010,8 @@ export class DevicesPage extends window.Component {
                         rowKey: t.rowKey || t.RowKey
                     },
                     // Calculate inactiveMinutes client-side
-                    inactiveMinutes: device.lastHeartbeat ? Math.floor((Date.now() - new Date(device.lastHeartbeat).getTime()) / 60000) : null
+                    inactiveMinutes: device.lastHeartbeat ? Math.floor((Date.now() - new Date(device.lastHeartbeat).getTime()) / 60000) : null,
+                    perfSessions: device.perfSessions || device.PerfSessions
                 };
 
                 if (summary) {

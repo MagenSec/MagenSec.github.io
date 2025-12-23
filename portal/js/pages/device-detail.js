@@ -46,8 +46,35 @@ export class DeviceDetailPage extends window.Component {
             deviceSummary: null,
             appSortKey: 'appName', // appName | severity | cveCount
             appSortDir: 'asc',
-            showAllIps: false
+            showAllIps: false,
+            sessionExpanded: false,
+            sessionLoading: false,
+            sessionError: null
         };
+    }
+
+    renderSessionList(list) {
+        const { html } = window;
+        if (!list || list.length === 0) {
+            return html`<div class="text-muted small">No sessions observed in this window.</div>`;
+        }
+
+        const fmt = (d) => d ? new Date(d).toLocaleString() : 'N/A';
+        const top = list.slice(-8); // show latest 8 segments
+
+        return html`
+            <div class="list-group list-group-flush">
+                ${top.map(seg => html`
+                    <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center gap-2">
+                        <div>
+                            <div class="fw-semibold">${seg.Label || seg.label}</div>
+                            <div class="text-muted small">${fmt(seg.StartUtc || seg.startUtc)} → ${fmt(seg.EndUtc || seg.endUtc)}${seg.IsOpen || seg.isOpen ? ' (open)' : ''}</div>
+                        </div>
+                        <span class="badge bg-light text-body border">${seg.Samples || seg.samples || 0} samples</span>
+                    </div>
+                `)}
+            </div>
+        `;
     }
 
     normalizePerfAggregation(raw) {
@@ -81,7 +108,11 @@ export class DeviceDetailPage extends window.Component {
             networkBytesReceived: coerce(p.networkBytesReceived ?? p.NetworkBytesReceived),
             networkRequests: coerce(p.networkRequests ?? p.NetworkRequests),
             networkFailures: coerce(p.networkFailures ?? p.NetworkFailures)
-        })).sort((a, b) => new Date(a.bucketStartUtc) - new Date(b.bucketStartUtc));
+        }))
+        .filter(p => p.bucketStartUtc)
+        .sort((a, b) => new Date(a.bucketStartUtc) - new Date(b.bucketStartUtc))
+        // Deduplicate any repeated bucket timestamps to keep chart x-values strictly increasing
+        .filter((p, idx, arr) => idx === 0 || new Date(p.bucketStartUtc).getTime() !== new Date(arr[idx - 1].bucketStartUtc).getTime());
 
         return {
             ...raw,
@@ -109,8 +140,16 @@ export class DeviceDetailPage extends window.Component {
         const perfChanged = prevState.perfData !== this.state.perfData;
         const tabChanged = prevState.activeTab !== this.state.activeTab;
         const perfFilterChanged = prevState.perfBucket !== this.state.perfBucket || prevState.perfRangeDays !== this.state.perfRangeDays;
+        const sessionsChanged = prevState.deviceSessions !== this.state.deviceSessions;
         if (deviceChanged || appsChanged || cvesChanged || summaryChanged) {
             this.renderDetailCharts();
+        }
+        const enteredPerfTab = tabChanged && this.state.activeTab === 'perf';
+        if (enteredPerfTab && !this.state.perfLoading && !this.state.perfData) {
+            this.loadPerfData(this.state.perfBucket, this.state.perfRangeDays);
+        }
+        if (sessionsChanged && this.state.sessionExpanded) {
+            this.renderSessionChart();
         }
         if (this.state.activeTab === 'perf' && (perfChanged || tabChanged || perfFilterChanged)) {
             this.renderPerfCharts();
@@ -123,6 +162,7 @@ export class DeviceDetailPage extends window.Component {
     componentWillUnmount() {
         this.destroyDetailCharts();
         this.destroyPerfCharts();
+        this.destroySessionChart();
     }
 
     // Load known exploits via shared KEV cache (local diag first, then GitHub)
@@ -354,7 +394,7 @@ export class DeviceDetailPage extends window.Component {
 
     async loadDeviceData() {
         try {
-            this.setState({ loading: true, error: null, perfLoading: true, perfError: null });
+            this.setState({ loading: true, error: null, perfLoading: false, perfError: null, perfData: null });
             const currentOrg = orgContext.getCurrentOrg();
             if (!currentOrg || !currentOrg.orgId) {
                 throw new Error('No organization selected');
@@ -457,10 +497,11 @@ export class DeviceDetailPage extends window.Component {
                 telemetryHistory: telemetryData?.history || [],
                 timeline,
                 deviceSummary,
+                deviceSessions: null,
                 loading: false,
                 showAllIps: false
             });
-            this.loadPerfData(this.state.perfBucket, this.state.perfRangeDays);
+            this.destroySessionChart();
             
             // Background: Load known exploits and enrich risk score
             this.loadKnownExploitsAsync().then(() => {
@@ -932,6 +973,12 @@ export class DeviceDetailPage extends window.Component {
         const mobileStatus = this.detectMobileDevice(this.state.telemetryDetail?.history);
         const networkRisk = this.analyzeNetworkRisk(ipList, this.state.telemetryDetail?.history);
         const recentChangeCount = this.state.telemetryDetail?.changes?.length || 0;
+        const sessionSummary = this.state.deviceSessions;
+        const versionSessions = sessionSummary?.VersionSessions || sessionSummary?.versionSessions || [];
+        const sessionWindowText = sessionSummary
+            ? `Window ${sessionSummary.startUtc || sessionSummary.StartUtc ? this.formatDate(sessionSummary.startUtc || sessionSummary.StartUtc) : 'N/A'} – ${sessionSummary.endUtc || sessionSummary.EndUtc ? this.formatDate(sessionSummary.endUtc || sessionSummary.EndUtc) : 'N/A'}`
+            : 'No client version history yet';
+        const hasVersionSessions = Array.isArray(versionSessions) && versionSessions.length > 0;
 
         return html`
             <div class="page-wrapper">
@@ -1196,6 +1243,30 @@ export class DeviceDetailPage extends window.Component {
                                         </div>
                                         <div class="text-muted small mt-1">Recent hardware/system changes tracked</div>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Client Version Timeline -->
+                        <div class="row row-cards mb-3">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <div class="card-title mb-0">Client version history</div>
+                                            <div class="text-muted small">${sessionWindowText}</div>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-primary" onclick=${(e) => { e.preventDefault(); this.toggleSessionCollapse(); }}>
+                                            ${this.state.sessionExpanded ? 'Hide timeline' : 'Show timeline'}
+                                        </button>
+                                    </div>
+                                    ${this.state.sessionExpanded ? html`
+                                        <div class="card-body">
+                                            ${this.state.sessionLoading ? html`<div class="text-muted">Loading client version history…</div>` : ''}
+                                            ${!this.state.sessionLoading && hasVersionSessions ? html`<div ref=${(el) => { this.sessionChartEl = el; }} style="min-height: 240px;"></div>` : ''}
+                                            ${!this.state.sessionLoading && !hasVersionSessions ? html`<div class="text-muted small">No client version history in this window.</div>` : ''}
+                                        </div>
+                                    ` : ''}
                                 </div>
                             </div>
                         </div>
@@ -1884,6 +1955,119 @@ export class DeviceDetailPage extends window.Component {
         };
     }
 
+    renderSessionChart() {
+        if (!this.state.sessionExpanded) {
+            this.destroySessionChart();
+            return;
+        }
+
+        if (!this.sessionChartEl) {
+            this.destroySessionChart();
+            return;
+        }
+
+        const sessions = this.state.deviceSessions;
+        const versionSessions = sessions?.VersionSessions || sessions?.versionSessions || [];
+
+        // Clear chart if no data
+        if (!window.ApexCharts) {
+            this.destroySessionChart('Client version history unavailable (charts not loaded).');
+            return;
+        }
+
+        const toTimestamp = (value) => {
+            const ts = new Date(value).getTime();
+            return Number.isFinite(ts) ? ts : NaN;
+        };
+
+        const now = Date.now();
+        const data = versionSessions
+            .map(seg => {
+                const label = seg.Label || seg.label || 'Unknown';
+                const startTs = toTimestamp(seg.StartUtc ?? seg.startUtc ?? seg.start);
+                const endCandidate = toTimestamp(seg.EndUtc ?? seg.endUtc ?? seg.end);
+                if (!Number.isFinite(startTs)) return null;
+
+                const closedEnd = Number.isFinite(endCandidate) ? endCandidate : startTs;
+                const endTs = (seg.IsOpen || seg.isOpen) ? now : closedEnd;
+                const finalEnd = Number.isFinite(endTs) ? Math.max(startTs, endTs) : startTs;
+
+                if (!Number.isFinite(finalEnd)) return null;
+
+                return {
+                    label,
+                    y: [startTs, finalEnd]
+                };
+            })
+            .filter((seg) => seg && Number.isFinite(seg.y?.[0]) && Number.isFinite(seg.y?.[1]))
+            .sort((a, b) => a.y[0] - b.y[0]);
+
+        const hasInvalid = data.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
+        if (hasInvalid) {
+            console.warn('[DeviceDetail] Skipping session chart due to invalid timestamps', data);
+            this.destroySessionChart('Client version history unavailable (invalid timestamps).');
+            return;
+        }
+
+        if (data.length === 0) {
+            this.destroySessionChart('No client version history in this window.');
+            return;
+        }
+
+        if (this.sessionChart) {
+            this.sessionChart.destroy();
+            this.sessionChart = null;
+        }
+
+        const options = {
+            chart: {
+                type: 'rangeBar',
+                height: 260,
+                toolbar: { show: false }
+            },
+            plotOptions: {
+                bar: {
+                    horizontal: true,
+                    rangeBarGroupRows: true,
+                    barHeight: '70%'
+                }
+            },
+            series: [
+                {
+                    name: 'Version',
+                    data: data.map(d => ({ x: d.label, y: d.y }))
+                }
+            ],
+            colors: ['#206bc4'],
+            dataLabels: {
+                enabled: true,
+                formatter: (_val, opts) => data[opts.dataPointIndex]?.label || '',
+                style: { colors: ['#fff'], fontSize: '11px' }
+            },
+            xaxis: {
+                type: 'datetime',
+                labels: { datetimeFormatter: { hour: 'MMM dd HH:mm', day: 'MMM dd' } }
+            },
+            yaxis: { labels: { style: { fontSize: '11px' } } },
+            grid: { strokeDashArray: 4 },
+            tooltip: {
+                custom: ({ dataPointIndex }) => {
+                    const seg = data[dataPointIndex];
+                    if (!seg) return '';
+                    const fmt = (v) => new Date(v).toLocaleString();
+                    return `
+                        <div class="apex-tooltip p-2">
+                            <div><strong>${seg.label}</strong></div>
+                            <div class="text-muted small">${fmt(seg.y[0])} – ${fmt(seg.y[1])}</div>
+                        </div>`;
+                }
+            }
+        };
+
+        this.sessionChart = new window.ApexCharts(this.sessionChartEl, options);
+        this.sessionChart.render();
+    }
+
     renderPerfCharts() {
         if (!window.ApexCharts) {
             console.warn('[DeviceDetail] ApexCharts not available for perf charts');
@@ -2049,7 +2233,7 @@ export class DeviceDetailPage extends window.Component {
                     stacked: cfg.key === 'disk'
                 },
                 colors: cfg.colors,
-                stroke: { curve: 'smooth', width: 2 },
+                stroke: { curve: 'straight', width: 2 },
                 fill: {
                     type: 'gradient',
                     gradient: {
@@ -2102,6 +2286,65 @@ export class DeviceDetailPage extends window.Component {
         ['perfCpuEl', 'perfMemEl', 'perfDiskEl', 'perfNetEl'].forEach(ref => {
             if (this[ref]) {
                 this[ref].innerHTML = '';
+            }
+        });
+    }
+
+    destroySessionChart(message = '') {
+        if (this.sessionChart && typeof this.sessionChart.destroy === 'function') {
+            this.sessionChart.destroy();
+            this.sessionChart = null;
+        }
+
+        if (this.sessionChartEl) {
+            this.sessionChartEl.innerHTML = message ? `<div class="text-muted small">${message}</div>` : '';
+        }
+    }
+
+    async loadSessionTimeline(force = false) {
+        if (this.state.sessionLoading) return;
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg || !currentOrg.orgId) {
+            this.setState({ sessionError: 'No organization selected', sessionLoading: false });
+            return;
+        }
+        if (!this.state.deviceId) {
+            this.setState({ sessionError: 'Invalid device id', sessionLoading: false });
+            return;
+        }
+
+        this.setState({ sessionLoading: true, sessionError: null });
+        try {
+            const resp = await api.getDeviceSessions(
+                currentOrg.orgId,
+                this.state.deviceId,
+                { bucket: '6h', forceRefresh: force || !this.state.deviceSessions },
+                { skipCache: true }
+            );
+            if (resp?.success) {
+                this.setState({ deviceSessions: resp.data });
+            } else {
+                this.setState({ sessionError: resp?.message || 'Failed to load session timeline' });
+            }
+        } catch (err) {
+            console.warn('[DeviceDetail] Session fetch failed', err);
+            this.setState({ sessionError: err?.message || 'Failed to load session timeline' });
+        } finally {
+            this.setState({ sessionLoading: false }, () => {
+                if (this.state.sessionExpanded && this.state.deviceSessions) {
+                    this.renderSessionChart();
+                }
+            });
+        }
+    }
+
+    toggleSessionCollapse() {
+        const next = !this.state.sessionExpanded;
+        this.setState({ sessionExpanded: next }, () => {
+            if (this.state.sessionExpanded) {
+                this.loadSessionTimeline();
+            } else {
+                this.destroySessionChart();
             }
         });
     }
