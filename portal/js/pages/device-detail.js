@@ -27,7 +27,7 @@ export class DeviceDetailPage extends window.Component {
             appInventory: [],
             cveInventory: [],
             telemetryHistory: [],
-            activeTab: 'specs', // specs | inventory | risks | timeline
+            activeTab: 'riskAssessment', // riskAssessment | inventory | cves
             appViewMode: 'vendor', // 'vendor' | 'flat'
             expandedVendors: new Set(),
             expandedApps: new Set(),
@@ -44,8 +44,8 @@ export class DeviceDetailPage extends window.Component {
             exploitsLoadingError: null,
             enrichedScore: null,
             deviceSummary: null,
-            appSortKey: 'appName', // appName | severity | cveCount
-            appSortDir: 'asc',
+            appSortKey: 'severity', // appName | severity | cveCount
+            appSortDir: 'desc',
             showAllIps: false,
             sessionExpanded: false,
             sessionLoading: false,
@@ -680,7 +680,7 @@ export class DeviceDetailPage extends window.Component {
         switch (severity?.toUpperCase?.()) {
             case 'CRITICAL': return 'bg-danger-lt';
             case 'HIGH': return 'bg-warning-lt';
-            case 'MEDIUM': return 'bg-secondary-lt';
+            case 'MEDIUM': return 'bg-warning-lt';
             case 'LOW': return 'bg-info-lt';
             default: return 'bg-muted';
         }
@@ -1029,7 +1029,9 @@ export class DeviceDetailPage extends window.Component {
         const sessionTabs = [
             { key: 'version', label: 'Client versions', hasData: hasVersionSessions },
             { key: 'pid', label: 'PID sessions', hasData: hasPidSessions },
-            { key: 'perf', label: 'Performance', hasData: !!this.state.perfData }
+            { key: 'perf', label: 'Performance', hasData: !!this.state.perfData },
+            { key: 'specs', label: 'Specs', hasData: true },
+            { key: 'timeline', label: 'Timeline', hasData: this.state.timeline?.length > 0 }
         ];
         const sessionIcon = (key) => {
             switch (key) {
@@ -1071,10 +1073,6 @@ export class DeviceDetailPage extends window.Component {
                                         <button class="btn btn-primary" disabled title="Coming soon - Device action queue">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 9a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" /><path d="M7 14l-3 3l-1 -1" /><path d="M9 13l2 2l4 -4" /></svg>
                                             Update Client
-                                        </button>
-                                        <button class="btn btn-outline-primary" disabled title="Coming soon - App management">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3"/><line x1="12" y1="12" x2="20" y2="7.5"/><line x1="12" y1="12" x2="12" y2="21"/><line x1="12" y1="12" x2="4" y2="7.5"/></svg>
-                                            Uninstall App
                                         </button>
                                     </div>
                                     ${device.LastHeartbeat ? html`
@@ -1270,11 +1268,11 @@ export class DeviceDetailPage extends window.Component {
                                             <span class="badge ${
                                                 worstSeverity === 'CRITICAL' ? 'bg-danger' :
                                                 worstSeverity === 'HIGH' ? 'bg-warning' :
-                                                worstSeverity === 'MEDIUM' ? 'bg-secondary' :
+                                                worstSeverity === 'MEDIUM' ? 'bg-warning' :
                                                 'bg-success'
-                                            }">${worstSeverity}</span>
+                                            } text-white">${worstSeverity}</span>
                                         </div>
-                                        <div class="text-muted small mt-1">Worst severity across ${this.state.cveInventory.length} CVEs</div>
+                                        <div class="text-muted small mt-1">Baseline risk score (0–100, not a percentage). Worst severity across ${this.state.cveInventory.length} CVEs.</div>
                                     </div>
                                 </div>
                             </div>
@@ -1368,6 +1366,16 @@ export class DeviceDetailPage extends window.Component {
                                                             ${this.renderPerfTab(true)}
                                                         </div>
                                                     ` : ''}
+                                                    ${this.state.sessionTab === 'specs' ? html`
+                                                        <div class="tab-pane active show">
+                                                            ${this.renderSpecsTab()}
+                                                        </div>
+                                                    ` : ''}
+                                                    ${this.state.sessionTab === 'timeline' ? html`
+                                                        <div class="tab-pane active show">
+                                                            ${this.renderTimelineTab()}
+                                                        </div>
+                                                    ` : ''}
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -1381,8 +1389,8 @@ export class DeviceDetailPage extends window.Component {
                             <div class="card-header border-bottom-0">
                                 <ul class="nav nav-tabs card-header-tabs" role="tablist">
                                     <li class="nav-item">
-                                        <a class="nav-link ${activeTab === 'specs' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'specs' }); }} role="tab">
-                                            Specs
+                                        <a class="nav-link ${activeTab === 'riskAssessment' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'riskAssessment' }); }} role="tab">
+                                            Risk Assessment
                                         </a>
                                     </li>
                                     <li class="nav-item">
@@ -1392,28 +1400,20 @@ export class DeviceDetailPage extends window.Component {
                                     </li>
                                     <li class="nav-item">
                                         <a class="nav-link ${activeTab === 'risks' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'risks' }); }} role="tab">
-                                            Risks & CVEs (${this.state.cveInventory.length})
-                                        </a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link ${activeTab === 'timeline' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'timeline' }); }} role="tab">
-                                            Timeline (${this.state.timeline.length})
+                                            CVEs (${this.state.cveInventory.length})
                                         </a>
                                     </li>
                                 </ul>
                             </div>
                             <div class="card-body">
-                                <!-- Specs Tab -->
-                                ${activeTab === 'specs' ? this.renderSpecsTab() : ''}
+                                <!-- Risk Assessment Tab -->
+                                ${activeTab === 'riskAssessment' ? this.renderRiskAssessment() : ''}
                                 
                                 <!-- Inventory Tab -->
                                 ${activeTab === 'inventory' ? this.renderInventoryTab(enrichedApps, filteredApps) : ''}
                                 
-                                <!-- Risks Tab -->
+                                <!-- CVEs Tab -->
                                 ${activeTab === 'risks' ? this.renderRisksTab() : ''}
-
-                                <!-- Timeline Tab -->
-                                ${activeTab === 'timeline' ? this.renderTimelineTab() : ''}
                             </div>
                         </div>
                     </div>
@@ -2198,7 +2198,8 @@ export class DeviceDetailPage extends window.Component {
             .filter(seg => seg && Number.isFinite(seg.y?.[0]) && Number.isFinite(seg.y?.[1]))
             .sort((a, b) => a.y[0] - b.y[0]);
 
-        const pidData = mapSegments(pidSessions, (seg) => seg.Pid || seg.pid || seg.Label || seg.label);
+        const pidData = mapSegments(pidSessions, (seg) => seg.Pid || seg.pid || seg.Label || seg.label)
+            .map((seg, idx) => ({ ...seg, x: `Session ${idx + 1}` }));
 
         const hasInvalid = pidData.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
         if (hasInvalid) {
@@ -2236,15 +2237,7 @@ export class DeviceDetailPage extends window.Component {
             series: [{ name: 'PID', data: pidData }],
             colors: ['#0ca678'],
             legend: { show: false },
-            dataLabels: {
-                enabled: true,
-                formatter: (_val, opts) => {
-                    const series = opts.w?.config?.series?.[opts.seriesIndex];
-                    const point = series?.data?.[opts.dataPointIndex];
-                    return point?.x || '';
-                },
-                style: { colors: ['#fff'], fontSize: '11px' }
-            },
+            dataLabels: { enabled: false },
             xaxis: {
                 type: 'datetime',
                 labels: { datetimeFormatter: { hour: 'MMM dd HH:mm', day: 'MMM dd' } }
@@ -2655,18 +2648,18 @@ export class DeviceDetailPage extends window.Component {
                                           html`<span class="badge bg-success-lt">Current</span>`}
                                     </td>
                                     <td>
-                                        ${worstSeverity === 'CLEAN' ? '' : html`
-                                            <span class="badge ${
-                                              worstSeverity === 'CRITICAL' ? 'bg-danger' : 
-                                              worstSeverity === 'HIGH' ? 'bg-warning' : 
-                                              worstSeverity === 'MEDIUM' ? 'bg-secondary' : 
-                                              'bg-info'
-                                            } text-white d-inline-flex align-items-center gap-1" title="${worstSeverity} severity${app.matchType === 'absolute' ? ' - Exact Match' : app.matchType === 'heuristic' ? ' - Heuristic' : ''}">
-                                                ${worstSeverity}
-                                                ${app.matchType === 'absolute' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><path d="M3 12 L12 3 L21 12 Z"/></svg>` : 
-                                                app.matchType === 'heuristic' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>` : ''}
-                                            </span>
-                                        `}
+                                                                                ${worstSeverity === 'CLEAN' ? '' : html`
+                                                                                        <span class="badge ${
+                                                                                            worstSeverity === 'CRITICAL' ? 'bg-danger' : 
+                                                                                            worstSeverity === 'HIGH' ? 'bg-warning' : 
+                                                                                            worstSeverity === 'MEDIUM' ? 'bg-warning' : 
+                                                                                            'bg-info'
+                                                                                        } text-white d-inline-flex align-items-center gap-2" title="${worstSeverity} severity${app.matchType === 'absolute' ? ' - Database match' : app.matchType === 'heuristic' ? ' - AI/heuristic match' : ''}">
+                                                                                                ${worstSeverity}
+                                                                                                ${app.matchType === 'absolute' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 L12 3 L21 12 Z"/></svg>` : ''}
+                                                                                                ${app.matchType === 'heuristic' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l3 4.5l-3 4.5h-6l-3 -4.5z"/><path d="M9 4v9"/><path d="M15 4v9"/></svg>` : ''}
+                                                                                        </span>
+                                                                                `}
                                     </td>
                                     <td>
                                         ${cves.length > 0 ? html`
@@ -2695,6 +2688,64 @@ export class DeviceDetailPage extends window.Component {
         `;
     }
 
+    renderRiskAssessment() {
+        const { html } = window;
+
+        const { activeCves } = this.getActiveAppsAndCves();
+        const critical = activeCves.filter(c => (c.severity || '').toUpperCase() === 'CRITICAL');
+        const high = activeCves.filter(c => (c.severity || '').toUpperCase() === 'HIGH');
+        const medium = activeCves.filter(c => (c.severity || '').toUpperCase() === 'MEDIUM');
+        const low = activeCves.filter(c => (c.severity || '').toUpperCase() === 'LOW');
+        const worstSeverity = this.getWorstSeverity?.(activeCves) || (critical.length ? 'CRITICAL' : high.length ? 'HIGH' : medium.length ? 'MEDIUM' : low.length ? 'LOW' : 'CLEAN');
+        const riskScoreValue = (() => {
+            const raw = this.getRiskScoreValue(this.state.deviceSummary, this.calculateRiskScore(this.state.deviceSummary || {}));
+            const n = Number(raw);
+            if (!Number.isFinite(n)) return 0;
+            return Math.max(0, Math.min(100, Math.round(n)));
+        })();
+        const knownExploitCount = this.state.knownExploits ? activeCves.filter(c => this.state.knownExploits.has(c.cveId)).length : 0;
+
+        return html`
+            <div class="row row-cards">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="text-muted small">Risk posture</div>
+                                <span class="badge ${this.getSeverityColor(worstSeverity)} text-white">${worstSeverity}</span>
+                            </div>
+                            <div class="display-5 fw-bold">${riskScoreValue}</div>
+                            <div class="text-muted small">Score is 0–100 baseline; severity badge reflects worst active issue.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted small">Known exploits surfaced</div>
+                            <div class="display-6 fw-bold">${knownExploitCount}</div>
+                            <div class="text-muted small">Prioritized above other CVEs in the list.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted small">Exposure mix</div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-danger-lt text-white">Critical ${critical.length}</span>
+                                <span class="badge bg-warning-lt text-white">High ${high.length}</span>
+                                <span class="badge bg-warning-lt text-white">Medium ${medium.length}</span>
+                                <span class="badge bg-info-lt text-white">Low ${low.length}</span>
+                            </div>
+                            <div class="text-muted small mt-2">Driven by installed apps and unpatched CVEs only.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     renderRisksTab() {
         const { html } = window;
         
@@ -2706,6 +2757,16 @@ export class DeviceDetailPage extends window.Component {
             ? activeCves.filter(c => c.appName && c.appName.toLowerCase() === this.state.cveFilterApp.toLowerCase())
             : activeCves;
         
+        const weightSeverity = (sev) => this.severityWeight(sev || '');
+        filteredCves = filteredCves.slice().sort((a, b) => {
+            const knownA = this.state.knownExploits && this.state.knownExploits.has(a.cveId) ? 1 : 0;
+            const knownB = this.state.knownExploits && this.state.knownExploits.has(b.cveId) ? 1 : 0;
+            if (knownA !== knownB) return knownB - knownA; // known exploits first
+            const sevDiff = weightSeverity(b.severity) - weightSeverity(a.severity);
+            if (sevDiff !== 0) return sevDiff;
+            return (b.epss || 0) - (a.epss || 0);
+        });
+
         const criticalCves = filteredCves.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical');
         const highCves = filteredCves.filter(c => c.severity === 'HIGH' || c.severity === 'High');
         const mediumCves = filteredCves.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium');
