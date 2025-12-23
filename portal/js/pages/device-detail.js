@@ -27,7 +27,7 @@ export class DeviceDetailPage extends window.Component {
             appInventory: [],
             cveInventory: [],
             telemetryHistory: [],
-            activeTab: 'specs', // specs | inventory | risks | timeline | perf
+            activeTab: 'specs', // specs | inventory | risks | timeline
             appViewMode: 'vendor', // 'vendor' | 'flat'
             expandedVendors: new Set(),
             expandedApps: new Set(),
@@ -49,7 +49,8 @@ export class DeviceDetailPage extends window.Component {
             showAllIps: false,
             sessionExpanded: false,
             sessionLoading: false,
-            sessionError: null
+            sessionError: null,
+            sessionTab: 'version' // legacy tab flag, charts now split
         };
     }
 
@@ -138,23 +139,30 @@ export class DeviceDetailPage extends window.Component {
         const cvesChanged = prevState.cveInventory !== this.state.cveInventory;
         const summaryChanged = prevState.deviceSummary !== this.state.deviceSummary || prevState.enrichedScore !== this.state.enrichedScore;
         const perfChanged = prevState.perfData !== this.state.perfData;
-        const tabChanged = prevState.activeTab !== this.state.activeTab;
         const perfFilterChanged = prevState.perfBucket !== this.state.perfBucket || prevState.perfRangeDays !== this.state.perfRangeDays;
         const sessionsChanged = prevState.deviceSessions !== this.state.deviceSessions;
+        const sessionTabChanged = prevState.sessionTab !== this.state.sessionTab;
+        const sessionExpandedChanged = prevState.sessionExpanded !== this.state.sessionExpanded;
+        const perfTabActive = this.state.sessionExpanded && this.state.sessionTab === 'perf';
+        const perfTabEntered = perfTabActive && (!prevState.sessionExpanded || prevState.sessionTab !== 'perf');
         if (deviceChanged || appsChanged || cvesChanged || summaryChanged) {
             this.renderDetailCharts();
         }
-        const enteredPerfTab = tabChanged && this.state.activeTab === 'perf';
-        if (enteredPerfTab && !this.state.perfLoading && !this.state.perfData) {
-            this.loadPerfData(this.state.perfBucket, this.state.perfRangeDays);
-        }
         if (sessionsChanged && this.state.sessionExpanded) {
             this.renderSessionChart();
+            this.renderPidSessionChart();
         }
-        if (this.state.activeTab === 'perf' && (perfChanged || tabChanged || perfFilterChanged)) {
+        if ((sessionTabChanged || sessionExpandedChanged) && this.state.sessionExpanded) {
+            this.renderSessionChart();
+            this.renderPidSessionChart();
+        }
+        if (perfTabEntered && !this.state.perfLoading && !this.state.perfData) {
+            this.loadPerfData(this.state.perfBucket, this.state.perfRangeDays);
+        }
+        if (perfTabActive && (perfChanged || perfFilterChanged || perfTabEntered)) {
             this.renderPerfCharts();
         }
-        if (prevState.activeTab === 'perf' && this.state.activeTab !== 'perf') {
+        if ((prevState.sessionTab === 'perf' && this.state.sessionTab !== 'perf') || (prevState.sessionExpanded && !this.state.sessionExpanded)) {
             this.destroyPerfCharts();
         }
     }
@@ -163,6 +171,7 @@ export class DeviceDetailPage extends window.Component {
         this.destroyDetailCharts();
         this.destroyPerfCharts();
         this.destroySessionChart();
+        this.destroyPidSessionChart();
     }
 
     // Load known exploits via shared KEV cache (local diag first, then GitHub)
@@ -226,6 +235,27 @@ export class DeviceDetailPage extends window.Component {
     normalizeState(state) {
         if (!state) return 'UNKNOWN';
         return String(state).toUpperCase();
+    }
+
+    getVersionSessions(summary) {
+        if (!summary) return [];
+        const candidates = [
+            summary.VersionSessions,
+            summary.versionSessions,
+            summary.Sessions,
+            summary.sessions,
+            summary.clientVersionSessions,
+            summary.ClientVersionSessions
+        ];
+        const picked = candidates.find((c) => Array.isArray(c) && c.length > 0);
+        return Array.isArray(picked) ? picked : [];
+    }
+
+    getPidSessions(summary) {
+        if (!summary) return [];
+        const candidates = [summary.pidSessions, summary.PidSessions, summary.sessionsPid, summary.SessionsPid];
+        const picked = candidates.find((c) => Array.isArray(c) && c.length > 0);
+        return Array.isArray(picked) ? picked : [];
     }
 
     calculateRiskScore(device) {
@@ -738,13 +768,8 @@ export class DeviceDetailPage extends window.Component {
         }
         
         if (mode === 'primary') {
-            // Primary IP + count badge
-            const primary = ipArray[0];
-            const count = ipArray.length;
-            if (count > 1) {
-                return window.html`${primary} <span class="badge badge-sm bg-azure-lt ms-1">(+${count - 1})</span>`;
-            }
-            return primary;
+            // Primary IP only; "Show all" control reveals the full list
+            return ipArray[0];
         }
         
         // Full list mode
@@ -991,11 +1016,39 @@ export class DeviceDetailPage extends window.Component {
         const networkRisk = this.analyzeNetworkRisk(ipList, this.state.telemetryDetail?.history);
         const recentChangeCount = this.state.telemetryDetail?.changes?.length || 0;
         const sessionSummary = this.state.deviceSessions;
-        const versionSessions = sessionSummary?.VersionSessions || sessionSummary?.versionSessions || [];
+        const versionSessions = this.getVersionSessions(sessionSummary);
+        const pidSessionsRaw = this.getPidSessions(sessionSummary);
+        const pidSessions = Array.isArray(pidSessionsRaw)
+            ? pidSessionsRaw.filter(seg => seg && (seg.Pid || seg.pid || seg.Label || seg.label))
+            : [];
         const sessionWindowText = sessionSummary
             ? `Window ${sessionSummary.startUtc || sessionSummary.StartUtc ? this.formatDate(sessionSummary.startUtc || sessionSummary.StartUtc) : 'N/A'} – ${sessionSummary.endUtc || sessionSummary.EndUtc ? this.formatDate(sessionSummary.endUtc || sessionSummary.EndUtc) : 'N/A'}`
             : 'No client version history yet';
         const hasVersionSessions = Array.isArray(versionSessions) && versionSessions.length > 0;
+        const hasPidSessions = Array.isArray(pidSessions) && pidSessions.length > 0;
+        const sessionTabs = [
+            { key: 'version', label: 'Client versions', hasData: hasVersionSessions },
+            { key: 'pid', label: 'PID sessions', hasData: hasPidSessions },
+            { key: 'perf', label: 'Performance', hasData: !!this.state.perfData }
+        ];
+        const sessionIcon = (key) => {
+            switch (key) {
+                case 'version':
+                    return html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M13 5h-6a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-6" /><path d="M9 11l4 -4l4 4" /><path d="M14 7l0 8" /></svg>`;
+                case 'pid':
+                    return html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6" /><path d="M9 11h6" /><path d="M9 15h4" /></svg>`;
+                case 'perf':
+                default:
+                    return html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /><path d="M4 12l3 -4l4 2l5 -6l4 4" /></svg>`;
+            }
+        };
+        const handleSessionTabClick = (key) => {
+            this.setState({ sessionTab: key, sessionExpanded: true }, () => {
+                if (key === 'version') this.renderSessionChart();
+                if (key === 'pid') this.renderPidSessionChart();
+                if (key === 'perf') this.renderPerfCharts();
+            });
+        };
 
         return html`
             <div class="page-wrapper">
@@ -1264,13 +1317,13 @@ export class DeviceDetailPage extends window.Component {
                             </div>
                         </div>
 
-                        <!-- Client Version Timeline -->
+                        <!-- Client Version & PID Timelines -->
                         <div class="row row-cards mb-3">
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                                         <div>
-                                            <div class="card-title mb-0">Client version history</div>
+                                            <div class="card-title mb-0">Client version & PID history</div>
                                             <div class="text-muted small">${sessionWindowText}</div>
                                         </div>
                                         <button class="btn btn-sm btn-outline-primary" onclick=${(e) => { e.preventDefault(); this.toggleSessionCollapse(); }}>
@@ -1279,9 +1332,44 @@ export class DeviceDetailPage extends window.Component {
                                     </div>
                                     ${this.state.sessionExpanded ? html`
                                         <div class="card-body">
-                                            ${this.state.sessionLoading ? html`<div class="text-muted">Loading client version history…</div>` : ''}
-                                            ${!this.state.sessionLoading && hasVersionSessions ? html`<div ref=${(el) => { this.sessionChartEl = el; }} style="min-height: 240px;"></div>` : ''}
-                                            ${!this.state.sessionLoading && !hasVersionSessions ? html`<div class="text-muted small">No client version history in this window.</div>` : ''}
+                                            ${this.state.sessionLoading ? html`<div class="text-muted">Loading client session history…</div>` : ''}
+                                            ${!this.state.sessionLoading ? html`
+                                                <ul class="nav nav-tabs nav-fill mb-3" role="tablist">
+                                                    ${sessionTabs.map(tab => html`
+                                                        <li class="nav-item" role="presentation">
+                                                            <a class="nav-link ${this.state.sessionTab === tab.key ? 'active' : ''}" href="#" role="tab" onclick=${(e) => { e.preventDefault(); handleSessionTabClick(tab.key); }}>
+                                                                <span class="d-flex align-items-center justify-content-center gap-2">
+                                                                    ${sessionIcon(tab.key)}
+                                                                    <span>${tab.label}</span>
+                                                                </span>
+                                                            </a>
+                                                        </li>
+                                                    `)}
+                                                </ul>
+                                                <div class="text-muted small mb-3">${sessionWindowText}</div>
+                                                <div class="tab-content">
+                                                    ${this.state.sessionTab === 'version' ? html`
+                                                        <div class="tab-pane active show">
+                                                            <div class="text-muted small mb-1">Client versions</div>
+                                                            <div ref=${(el) => { this.sessionChartEl = el; }} style="min-height: 240px;"></div>
+                                                            ${!hasVersionSessions ? html`<div class="text-muted small">No client version history in this window.</div>` : ''}
+                                                        </div>
+                                                    ` : ''}
+                                                    ${this.state.sessionTab === 'pid' ? html`
+                                                        <div class="tab-pane active show">
+                                                            <div class="text-muted small mb-1">Process IDs</div>
+                                                            <div ref=${(el) => { this.pidSessionChartEl = el; }} style="min-height: 200px;"></div>
+                                                            ${!hasPidSessions ? html`<div class="text-muted small">No PID session history in this window.</div>` : ''}
+                                                        </div>
+                                                    ` : ''}
+                                                    ${this.state.sessionTab === 'perf' ? html`
+                                                        <div class="tab-pane active show">
+                                                            <div class="text-muted small mb-2">Performance timeline</div>
+                                                            ${this.renderPerfTab(true)}
+                                                        </div>
+                                                    ` : ''}
+                                                </div>
+                                            ` : ''}
                                         </div>
                                     ` : ''}
                                 </div>
@@ -1308,11 +1396,6 @@ export class DeviceDetailPage extends window.Component {
                                         </a>
                                     </li>
                                     <li class="nav-item">
-                                        <a class="nav-link ${activeTab === 'perf' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'perf' }, () => this.renderPerfCharts()); }} role="tab">
-                                            Performance
-                                        </a>
-                                    </li>
-                                    <li class="nav-item">
                                         <a class="nav-link ${activeTab === 'timeline' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'timeline' }); }} role="tab">
                                             Timeline (${this.state.timeline.length})
                                         </a>
@@ -1328,9 +1411,6 @@ export class DeviceDetailPage extends window.Component {
                                 
                                 <!-- Risks Tab -->
                                 ${activeTab === 'risks' ? this.renderRisksTab() : ''}
-                                
-                                <!-- Performance Tab -->
-                                ${activeTab === 'perf' ? this.renderPerfTab() : ''}
 
                                 <!-- Timeline Tab -->
                                 ${activeTab === 'timeline' ? this.renderTimelineTab() : ''}
@@ -1342,7 +1422,7 @@ export class DeviceDetailPage extends window.Component {
         `;
     }
 
-    renderPerfTab() {
+    renderPerfTab(embedded = false) {
         const { html } = window;
         const perf = this.state.perfData;
         const { perfBucket, perfRangeDays, perfLoading } = this.state;
@@ -1404,98 +1484,117 @@ export class DeviceDetailPage extends window.Component {
             <span class="badge bg-light text-body fw-normal border">${label}: ${val !== null && val !== undefined ? formatter(val) : '—'}</span>
         `;
 
+        const headerContent = html`
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                    <div class="fw-bold">Performance (bucketed)</div>
+                    <div class="text-muted small">
+                        Window: ${fmtRange(perf.startUtc)} – ${fmtRange(perf.endUtc)} • Bucket ${perf.bucketMinutes}m • Computed ${fmtRange(perf.computedUtc)}
+                    </div>
+                    <div class="text-muted small">${points.length} points • ${perf.sampleCount || 0} samples${perf.fromCache ? ' • cached' : ''}${perf.isFresh ? ' • fresh' : ''}</div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <label class="form-label m-0 text-muted small">Bucket</label>
+                    <select class="form-select form-select-sm" value=${perfBucket} onchange=${onBucketChange} disabled=${perfLoading}>
+                        ${bucketOptions.map(opt => html`<option value=${opt.value} selected=${perfBucket === opt.value}>${opt.label}</option>`)}
+                    </select>
+                    <label class="form-label m-0 text-muted small">Range</label>
+                    <select class="form-select form-select-sm" value=${perfRangeDays} onchange=${onRangeChange} disabled=${perfLoading}>
+                        ${rangeOptions.map(opt => html`<option value=${opt.value} selected=${Number(perfRangeDays) === Number(opt.value)}>${opt.label}</option>`)}
+                    </select>
+                    ${perfLoading ? html`<div class="spinner-border spinner-border-sm text-primary" role="status"></div>` : ''}
+                </div>
+            </div>
+        `;
+
+        const chartGrid = html`
+            <div class="row g-3">
+                <div class="col-12 col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="fw-bold">CPU</div>
+                                <div class="d-flex gap-1 flex-wrap">
+                                    ${percentileBadge('P50', cpuPercentiles?.p50, pct)}
+                                    ${percentileBadge('P90', cpuPercentiles?.p90, pct)}
+                                    ${percentileBadge('P95', cpuPercentiles?.p95, pct)}
+                                </div>
+                            </div>
+                            <div ref=${(el) => { this.perfCpuEl = el; }} style="min-height: 220px;"></div>
+                            <div class="text-muted small mt-2">Latest: ${pct(latestPoint?.cpuAvg)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="fw-bold">Memory</div>
+                                <div class="d-flex gap-1 flex-wrap">
+                                    ${percentileBadge('P50', memPercentiles?.p50, pct)}
+                                    ${percentileBadge('P90', memPercentiles?.p90, pct)}
+                                    ${percentileBadge('P95', memPercentiles?.p95, pct)}
+                                </div>
+                            </div>
+                            <div ref=${(el) => { this.perfMemEl = el; }} style="min-height: 220px;"></div>
+                            <div class="text-muted small mt-2">Latest: ${pct(latestPoint?.memoryAvg)} (${mb(latestPoint?.memoryAvgMb)} used)</div>
+                            <div class="text-muted small">RAM percent is relative to reported device RAM; MB line shows working set.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="fw-bold">DB Footprint</div>
+                                <div class="d-flex gap-1 flex-wrap">
+                                    ${percentileBadge('P50', diskPercentiles?.p50, mb)}
+                                    ${percentileBadge('P90', diskPercentiles?.p90, mb)}
+                                    ${percentileBadge('P95', diskPercentiles?.p95, mb)}
+                                </div>
+                            </div>
+                            <div ref=${(el) => { this.perfDiskEl = el; }} style="min-height: 220px;"></div>
+                            <div class="text-muted small mt-2">Latest total: ${mb(latestPoint?.diskTotalMbAvg)} (App ${mb(latestPoint?.diskAppMbAvg)}, Intel ${mb(latestPoint?.diskIntelMbAvg)})</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="fw-bold">Network</div>
+                                <div class="d-flex gap-1 flex-wrap">
+                                    ${percentileBadge('P50', netPercentiles?.p50, mbps)}
+                                    ${percentileBadge('P90', netPercentiles?.p90, mbps)}
+                                    ${percentileBadge('P95', netPercentiles?.p95, mbps)}
+                                </div>
+                            </div>
+                            <div ref=${(el) => { this.perfNetEl = el; }} style="min-height: 220px;"></div>
+                            <div class="text-muted small mt-2">Latest: ${mbps(latestPoint?.networkMbpsAvg)} • Sent ${this.formatBytesHuman(latestPoint?.networkBytesSent)} • Recv ${this.formatBytesHuman(latestPoint?.networkBytesReceived)} • Requests ${Math.round(latestPoint?.networkRequests || 0)} • Failures ${Math.round(latestPoint?.networkFailures || 0)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        if (embedded) {
+            return html`
+                <div class="d-flex flex-column gap-3">
+                    ${headerContent}
+                    ${chartGrid}
+                </div>
+            `;
+        }
+
         return html`
             <div class="row row-cards">
                 <div class="col-12">
                     <div class="card">
-                        <div class="card-header align-items-start justify-content-between flex-wrap gap-3">
-                            <div>
-                                <div class="card-title mb-0">Performance (bucketed)</div>
-                                <div class="text-muted small">
-                                    Window: ${fmtRange(perf.startUtc)} – ${fmtRange(perf.endUtc)} • Bucket ${perf.bucketMinutes}m • Computed ${fmtRange(perf.computedUtc)}
-                                </div>
-                                <div class="text-muted small">${points.length} points • ${perf.sampleCount || 0} samples${perf.fromCache ? ' • cached' : ''}${perf.isFresh ? ' • fresh' : ''}</div>
-                            </div>
-                            <div class="d-flex flex-wrap gap-2 align-items-center">
-                                <label class="form-label m-0 text-muted small">Bucket</label>
-                                <select class="form-select form-select-sm" value=${perfBucket} onchange=${onBucketChange} disabled=${perfLoading}>
-                                    ${bucketOptions.map(opt => html`<option value=${opt.value} selected=${perfBucket === opt.value}>${opt.label}</option>`) }
-                                </select>
-                                <label class="form-label m-0 text-muted small">Range</label>
-                                <select class="form-select form-select-sm" value=${perfRangeDays} onchange=${onRangeChange} disabled=${perfLoading}>
-                                    ${rangeOptions.map(opt => html`<option value=${opt.value} selected=${Number(perfRangeDays) === Number(opt.value)}>${opt.label}</option>`) }
-                                </select>
-                                ${perfLoading ? html`<div class="spinner-border spinner-border-sm text-primary" role="status"></div>` : ''}
-                            </div>
+                        <div class="card-header">
+                            ${headerContent}
                         </div>
                         <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-12 col-lg-6">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <div class="fw-bold">CPU</div>
-                                                <div class="d-flex gap-1 flex-wrap">
-                                                    ${percentileBadge('P50', cpuPercentiles?.p50, pct)}
-                                                    ${percentileBadge('P90', cpuPercentiles?.p90, pct)}
-                                                    ${percentileBadge('P95', cpuPercentiles?.p95, pct)}
-                                                </div>
-                                            </div>
-                                            <div ref=${(el) => { this.perfCpuEl = el; }} style="min-height: 220px;"></div>
-                                            <div class="text-muted small mt-2">Latest: ${pct(latestPoint?.cpuAvg)}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-12 col-lg-6">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <div class="fw-bold">Memory</div>
-                                                <div class="d-flex gap-1 flex-wrap">
-                                                    ${percentileBadge('P50', memPercentiles?.p50, pct)}
-                                                    ${percentileBadge('P90', memPercentiles?.p90, pct)}
-                                                    ${percentileBadge('P95', memPercentiles?.p95, pct)}
-                                                </div>
-                                            </div>
-                                            <div ref=${(el) => { this.perfMemEl = el; }} style="min-height: 220px;"></div>
-                                                <div class="text-muted small mt-2">Latest: ${pct(latestPoint?.memoryAvg)} (${mb(latestPoint?.memoryAvgMb)} used)</div>
-                                                <div class="text-muted small">RAM percent is relative to reported device RAM; MB line shows working set.</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-12 col-lg-6">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                    <div class="fw-bold">DB Footprint</div>
-                                                <div class="d-flex gap-1 flex-wrap">
-                                                        ${percentileBadge('P50', diskPercentiles?.p50, mb)}
-                                                        ${percentileBadge('P90', diskPercentiles?.p90, mb)}
-                                                        ${percentileBadge('P95', diskPercentiles?.p95, mb)}
-                                                </div>
-                                            </div>
-                                            <div ref=${(el) => { this.perfDiskEl = el; }} style="min-height: 220px;"></div>
-                                                <div class="text-muted small mt-2">Latest total: ${mb(latestPoint?.diskTotalMbAvg)} (App ${mb(latestPoint?.diskAppMbAvg)}, Intel ${mb(latestPoint?.diskIntelMbAvg)})</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-12 col-lg-6">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <div class="fw-bold">Network</div>
-                                                <div class="d-flex gap-1 flex-wrap">
-                                                    ${percentileBadge('P50', netPercentiles?.p50, mbps)}
-                                                    ${percentileBadge('P90', netPercentiles?.p90, mbps)}
-                                                    ${percentileBadge('P95', netPercentiles?.p95, mbps)}
-                                                </div>
-                                            </div>
-                                            <div ref=${(el) => { this.perfNetEl = el; }} style="min-height: 220px;"></div>
-                                                <div class="text-muted small mt-2">Latest: ${mbps(latestPoint?.networkMbpsAvg)} • Sent ${this.formatBytesHuman(latestPoint?.networkBytesSent)} • Recv ${this.formatBytesHuman(latestPoint?.networkBytesReceived)} • Requests ${Math.round(latestPoint?.networkRequests || 0)} • Failures ${Math.round(latestPoint?.networkFailures || 0)}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            ${chartGrid}
                         </div>
                     </div>
                 </div>
@@ -1597,53 +1696,6 @@ export class DeviceDetailPage extends window.Component {
                     </dl>
                 </div>
             </div>
-            ${telemetryDetail && telemetryDetail.changes && telemetryDetail.changes.length > 0 ? html`
-                <div class="mt-4">
-                    <h5>Recent Hardware Changes</h5>
-                    <div class="timeline timeline-simple">
-                        ${telemetryDetail.changes.slice(0, 10).map(change => html`
-                            <div class="timeline-event">
-                                <div class="timeline-event-icon bg-yellow-lt">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9 -9 9s-9 -1.8 -9 -9s1.8 -9 9 -9" /><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /></svg>
-                                </div>
-                                <div class="timeline-event-content">
-                                    <div class="text-muted small">${this.formatDate(change.at)}</div>
-                                    <div class="text-sm"><strong>${Object.keys(change.delta).length} fields changed</strong></div>
-                                    <div class="mt-2">
-                                        ${Object.keys(change.delta).map(k => {
-                                            const formatValue = (v) => {
-                                                if (v === null || v === undefined) return 'null';
-                                                if (typeof v === 'object') {
-                                                    // Avoid circular references from virtual DOM elements
-                                                    if (v && (v.__k || v.__)) return '[Virtual DOM Element]';
-                                                    try {
-                                                        return JSON.stringify(v);
-                                                    } catch (e) {
-                                                        return '[Complex Object]';
-                                                    }
-                                                }
-                                                return String(v);
-                                            };
-                                            const deltaVal = change.delta[k];
-                                            const showArrow = deltaVal && typeof deltaVal === 'object' && (deltaVal.from !== undefined || deltaVal.to !== undefined);
-                                            return html`
-                                                <div class="mb-1 d-flex align-items-center gap-2">
-                                                    <span class="badge bg-secondary-lt">${k}</span>
-                                                    ${showArrow ? html`
-                                                        <span class="text-muted">${formatValue(deltaVal.from)}</span>
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-arrow-narrow-right" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="5" y1="12" x2="19" y2="12" /><line x1="15" y1="16" x2="19" y2="12" /><line x1="15" y1="8" x2="19" y2="12" /></svg>
-                                                        <span class="fw-medium">${formatValue(deltaVal.to)}</span>
-                                                    ` : html`<span>${formatValue(deltaVal)}</span>`}
-                                                </div>
-                                            `;
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        `)}
-                    </div>
-                </div>
-            ` : ''}
         `;
     }
 
@@ -1971,24 +2023,34 @@ export class DeviceDetailPage extends window.Component {
             latest: nums[nums.length - 1]
         };
     }
-
-    renderSessionChart() {
-        if (!this.state.sessionExpanded) {
-            this.destroySessionChart();
-            return;
+    
+    destroyPidSessionChart(message = '') {
+        if (this.pidSessionChart && typeof this.pidSessionChart.destroy === 'function') {
+            this.pidSessionChart.destroy();
+            this.pidSessionChart = null;
         }
 
-        if (!this.sessionChartEl) {
-            this.destroySessionChart();
+        if (this.pidSessionChartEl) {
+            this.pidSessionChartEl.innerHTML = message ? `<div class="text-muted small">${message}</div>` : '';
+        }
+    }
+
+    renderSessionChart() {
+        if (!this.state.sessionExpanded || this.state.sessionTab !== 'version') {
+            this.destroySessionChart('', false);
             return;
         }
 
         const sessions = this.state.deviceSessions;
-        const versionSessions = sessions?.VersionSessions || sessions?.versionSessions || [];
+        const versionSessions = this.getVersionSessions(sessions);
 
-        // Clear chart if no data
         if (!window.ApexCharts) {
             this.destroySessionChart('Client version history unavailable (charts not loaded).');
+            return;
+        }
+
+        if (!Array.isArray(versionSessions) || versionSessions.length === 0) {
+            this.destroySessionChart('No client version history in this window.');
             return;
         }
 
@@ -1998,9 +2060,9 @@ export class DeviceDetailPage extends window.Component {
         };
 
         const now = Date.now();
-        const data = versionSessions
+        const mapSegments = (segments, labelResolver) => segments
             .map(seg => {
-                const label = seg.Label || seg.label || 'Unknown';
+                const label = labelResolver(seg) || 'Unknown';
                 const startTs = toTimestamp(seg.StartUtc ?? seg.startUtc ?? seg.start);
                 const endCandidate = toTimestamp(seg.EndUtc ?? seg.endUtc ?? seg.end);
                 if (!Number.isFinite(startTs)) return null;
@@ -2012,22 +2074,21 @@ export class DeviceDetailPage extends window.Component {
 
                 if (!Number.isFinite(safeEnd)) return null;
 
-                return {
-                    label,
-                    y: [startTs, safeEnd]
-                };
+                return { x: label, y: [startTs, safeEnd] };
             })
-            .filter((seg) => seg && Number.isFinite(seg.y?.[0]) && Number.isFinite(seg.y?.[1]))
+            .filter(seg => seg && Number.isFinite(seg.y?.[0]) && Number.isFinite(seg.y?.[1]))
             .sort((a, b) => a.y[0] - b.y[0]);
 
-        const hasInvalid = data.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
+        const versionData = mapSegments(versionSessions, (seg) => seg.Label || seg.label || seg.Version || seg.version);
+
+        const hasInvalid = versionData.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
         if (hasInvalid) {
-            console.warn('[DeviceDetail] Skipping session chart due to invalid timestamps', data);
-            this.destroySessionChart('Client version history unavailable (invalid timestamps).');
+            console.warn('[DeviceDetail] Skipping version session chart due to invalid timestamps', { versionData });
+            this.destroySessionChart('Client session history unavailable (invalid timestamps).');
             return;
         }
 
-        if (data.length === 0) {
+        if (versionData.length === 0) {
             this.destroySessionChart('No client version history in this window.');
             return;
         }
@@ -2035,6 +2096,10 @@ export class DeviceDetailPage extends window.Component {
         if (this.sessionChart) {
             this.sessionChart.destroy();
             this.sessionChart = null;
+        }
+
+        if (this.sessionChartEl) {
+            this.sessionChartEl.innerHTML = '';
         }
 
         const options = {
@@ -2046,20 +2111,19 @@ export class DeviceDetailPage extends window.Component {
             plotOptions: {
                 bar: {
                     horizontal: true,
-                    rangeBarGroupRows: true,
                     barHeight: '70%'
                 }
             },
-            series: [
-                {
-                    name: 'Version',
-                    data: data.map(d => ({ x: d.label, y: d.y }))
-                }
-            ],
+            series: [{ name: 'Version', data: versionData }],
             colors: ['#206bc4'],
+            legend: { show: false },
             dataLabels: {
                 enabled: true,
-                formatter: (_val, opts) => data[opts.dataPointIndex]?.label || '',
+                formatter: (_val, opts) => {
+                    const series = opts.w?.config?.series?.[opts.seriesIndex];
+                    const point = series?.data?.[opts.dataPointIndex];
+                    return point?.x || '';
+                },
                 style: { colors: ['#fff'], fontSize: '11px' }
             },
             xaxis: {
@@ -2069,13 +2133,14 @@ export class DeviceDetailPage extends window.Component {
             yaxis: { labels: { style: { fontSize: '11px' } } },
             grid: { strokeDashArray: 4 },
             tooltip: {
-                custom: ({ dataPointIndex }) => {
-                    const seg = data[dataPointIndex];
+                custom: ({ seriesIndex, dataPointIndex, w }) => {
+                    const series = w?.config?.series?.[seriesIndex];
+                    const seg = series?.data?.[dataPointIndex];
                     if (!seg) return '';
                     const fmt = (v) => new Date(v).toLocaleString();
                     return `
                         <div class="apex-tooltip p-2">
-                            <div><strong>${seg.label}</strong></div>
+                            <div><strong>${seg.x || ''}</strong></div>
                             <div class="text-muted small">${fmt(seg.y[0])} – ${fmt(seg.y[1])}</div>
                         </div>`;
                 }
@@ -2086,15 +2151,150 @@ export class DeviceDetailPage extends window.Component {
         this.sessionChart.render();
     }
 
+    renderPidSessionChart() {
+        if (!this.state.sessionExpanded || this.state.sessionTab !== 'pid') {
+            this.destroyPidSessionChart();
+            return;
+        }
+
+        const sessions = this.state.deviceSessions;
+        const pidSessionsRaw = this.getPidSessions(sessions);
+        const pidSessions = Array.isArray(pidSessionsRaw)
+            ? pidSessionsRaw.filter(seg => seg && (seg.Pid || seg.pid || seg.Label || seg.label))
+            : [];
+
+        if (!window.ApexCharts) {
+            this.destroyPidSessionChart('PID session history unavailable (charts not loaded).');
+            return;
+        }
+
+        if (!Array.isArray(pidSessions) || pidSessions.length === 0) {
+            this.destroyPidSessionChart('No PID session history in this window.');
+            return;
+        }
+
+        const toTimestamp = (value) => {
+            const ts = new Date(value).getTime();
+            return Number.isFinite(ts) ? ts : NaN;
+        };
+
+        const now = Date.now();
+        const mapSegments = (segments, labelResolver) => segments
+            .map(seg => {
+                const label = labelResolver(seg) || 'PID';
+                const startTs = toTimestamp(seg.StartUtc ?? seg.startUtc ?? seg.start);
+                const endCandidate = toTimestamp(seg.EndUtc ?? seg.endUtc ?? seg.end);
+                if (!Number.isFinite(startTs)) return null;
+
+                const closedEnd = Number.isFinite(endCandidate) ? endCandidate : startTs;
+                const endTs = (seg.IsOpen || seg.isOpen) ? now : closedEnd;
+                const finalEnd = Number.isFinite(endTs) ? Math.max(startTs, endTs) : startTs;
+                const safeEnd = Number.isFinite(finalEnd) ? Math.max(startTs + 1, finalEnd) : startTs + 1;
+
+                if (!Number.isFinite(safeEnd)) return null;
+
+                return { x: label, y: [startTs, safeEnd] };
+            })
+            .filter(seg => seg && Number.isFinite(seg.y?.[0]) && Number.isFinite(seg.y?.[1]))
+            .sort((a, b) => a.y[0] - b.y[0]);
+
+        const pidData = mapSegments(pidSessions, (seg) => seg.Pid || seg.pid || seg.Label || seg.label);
+
+        const hasInvalid = pidData.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
+        if (hasInvalid) {
+            console.warn('[DeviceDetail] Skipping PID session chart due to invalid timestamps', { pidData });
+            this.destroyPidSessionChart('PID session history unavailable (invalid timestamps).');
+            return;
+        }
+
+        if (pidData.length === 0) {
+            this.destroyPidSessionChart('No PID session history in this window.');
+            return;
+        }
+
+        if (this.pidSessionChart) {
+            this.pidSessionChart.destroy();
+            this.pidSessionChart = null;
+        }
+
+        if (this.pidSessionChartEl) {
+            this.pidSessionChartEl.innerHTML = '';
+        }
+
+        const options = {
+            chart: {
+                type: 'rangeBar',
+                height: 220,
+                toolbar: { show: false }
+            },
+            plotOptions: {
+                bar: {
+                    horizontal: true,
+                    barHeight: '70%'
+                }
+            },
+            series: [{ name: 'PID', data: pidData }],
+            colors: ['#0ca678'],
+            legend: { show: false },
+            dataLabels: {
+                enabled: true,
+                formatter: (_val, opts) => {
+                    const series = opts.w?.config?.series?.[opts.seriesIndex];
+                    const point = series?.data?.[opts.dataPointIndex];
+                    return point?.x || '';
+                },
+                style: { colors: ['#fff'], fontSize: '11px' }
+            },
+            xaxis: {
+                type: 'datetime',
+                labels: { datetimeFormatter: { hour: 'MMM dd HH:mm', day: 'MMM dd' } }
+            },
+            yaxis: { labels: { style: { fontSize: '11px' } } },
+            grid: { strokeDashArray: 4 },
+            tooltip: {
+                custom: ({ seriesIndex, dataPointIndex, w }) => {
+                    const series = w?.config?.series?.[seriesIndex];
+                    const seg = series?.data?.[dataPointIndex];
+                    if (!seg) return '';
+                    const fmt = (v) => new Date(v).toLocaleString();
+                    return `
+                        <div class="apex-tooltip p-2">
+                            <div><strong>${seg.x || ''}</strong></div>
+                            <div class="text-muted small">${fmt(seg.y[0])} – ${fmt(seg.y[1])}</div>
+                        </div>`;
+                }
+            }
+        };
+
+        this.pidSessionChart = new window.ApexCharts(this.pidSessionChartEl, options);
+        this.pidSessionChart.render();
+    }
+
     renderPerfCharts() {
         if (!window.ApexCharts) {
             console.warn('[DeviceDetail] ApexCharts not available for perf charts');
             return;
         }
 
+        if (!this.state.sessionExpanded || this.state.sessionTab !== 'perf') {
+            this.destroyPerfCharts();
+            return;
+        }
+
         const perf = this.state.perfData;
         const rawPoints = Array.isArray(perf?.points) ? perf.points : [];
-        const validPoints = rawPoints.filter(p => p.bucketStartUtc || p.BucketStartUtc);
+
+        const coerceTs = (p) => {
+            const candidate = p.timestamp ?? p.bucketStartUtc ?? p.BucketStartUtc ?? p.bucketUtc ?? p.BucketUtc ?? p.startUtc ?? p.StartUtc;
+            if (Number.isFinite(candidate)) return candidate;
+            const ts = new Date(candidate).getTime();
+            return Number.isFinite(ts) ? ts : NaN;
+        };
+
+        const validPoints = rawPoints
+            .map((p) => ({ ...p, __ts: coerceTs(p) }))
+            .filter((p) => Number.isFinite(p.__ts));
+
         if (!perf || validPoints.length === 0) {
             this.destroyPerfCharts();
             return;
@@ -2111,22 +2311,34 @@ export class DeviceDetailPage extends window.Component {
             return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
         };
 
-        const points = validPoints.map(p => ({
-            ts: new Date(p.bucketStartUtc || p.BucketStartUtc).getTime(),
-            cpu: clampPct(p.cpuAvg ?? p.CpuAvg),
-            memPct: clampPct(p.memoryAvg ?? p.MemoryAvg),
-            memMb: numeric(p.memoryAvgMb ?? p.MemoryAvgMb),
-            diskTotal: numeric(p.diskTotalMbAvg ?? p.diskAvg ?? p.DiskAvg),
-            diskApp: numeric(p.diskAppMbAvg ?? p.DiskAppMbAvg),
-            diskIntel: numeric(p.diskIntelMbAvg ?? p.DiskIntelMbAvg),
-            netMbps: numeric(p.networkMbpsAvg ?? p.networkAvg ?? p.NetworkAvg),
-            netSentBytes: numeric(p.networkBytesSent ?? p.NetworkBytesSent ?? 0),
-            netRecvBytes: numeric(p.networkBytesReceived ?? p.NetworkBytesReceived ?? 0),
-            netRequests: numeric(p.networkRequests ?? p.NetworkRequests),
-            netFailures: numeric(p.networkFailures ?? p.NetworkFailures)
-        }))
-        .filter(p => Number.isFinite(p.ts))
-        .sort((a, b) => a.ts - b.ts);
+        const points = validPoints
+            .map(p => ({
+                ts: p.__ts,
+                cpu: clampPct(p.cpuAvg ?? p.CpuAvg),
+                memPct: clampPct(p.memoryAvg ?? p.MemoryAvg),
+                memMb: numeric(p.memoryAvgMb ?? p.MemoryAvgMb),
+                diskTotal: numeric(p.diskTotalMbAvg ?? p.diskAvg ?? p.DiskAvg),
+                diskApp: numeric(p.diskAppMbAvg ?? p.DiskAppMbAvg),
+                diskIntel: numeric(p.diskIntelMbAvg ?? p.DiskIntelMbAvg),
+                netMbps: numeric(p.networkMbpsAvg ?? p.networkAvg ?? p.NetworkAvg),
+                netSentBytes: numeric(p.networkBytesSent ?? p.NetworkBytesSent ?? 0),
+                netRecvBytes: numeric(p.networkBytesReceived ?? p.NetworkBytesReceived ?? 0),
+                netRequests: numeric(p.networkRequests ?? p.NetworkRequests),
+                netFailures: numeric(p.networkFailures ?? p.NetworkFailures)
+            }))
+            .filter(p => Number.isFinite(p.ts)
+                && Number.isFinite(p.cpu)
+                && Number.isFinite(p.memPct)
+                && Number.isFinite(p.memMb)
+                && Number.isFinite(p.diskTotal)
+                && Number.isFinite(p.diskApp)
+                && Number.isFinite(p.diskIntel)
+                && Number.isFinite(p.netMbps)
+                && Number.isFinite(p.netSentBytes)
+                && Number.isFinite(p.netRecvBytes)
+                && Number.isFinite(p.netRequests)
+                && Number.isFinite(p.netFailures))
+            .sort((a, b) => a.ts - b.ts);
 
         if (points.length === 0) {
             this.destroyPerfCharts();
@@ -2318,7 +2530,7 @@ export class DeviceDetailPage extends window.Component {
         });
     }
 
-    destroySessionChart(message = '') {
+    destroySessionChart(message = '', destroyPidToo = true) {
         if (this.sessionChart && typeof this.sessionChart.destroy === 'function') {
             this.sessionChart.destroy();
             this.sessionChart = null;
@@ -2326,6 +2538,11 @@ export class DeviceDetailPage extends window.Component {
 
         if (this.sessionChartEl) {
             this.sessionChartEl.innerHTML = message ? `<div class="text-muted small">${message}</div>` : '';
+        }
+
+        // Also clear PID chart to keep both timelines in sync when requested
+        if (destroyPidToo) {
+            this.destroyPidSessionChart();
         }
     }
 
@@ -2361,6 +2578,7 @@ export class DeviceDetailPage extends window.Component {
             this.setState({ sessionLoading: false }, () => {
                 if (this.state.sessionExpanded && this.state.deviceSessions) {
                     this.renderSessionChart();
+                    this.renderPidSessionChart();
                 }
             });
         }
