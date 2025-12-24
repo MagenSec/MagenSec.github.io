@@ -795,6 +795,656 @@ export class DeviceDetailPage extends window.Component {
         return ipArray;
     }
 
+    escapeHtml(value) {
+        const s = value === null || value === undefined ? '' : String(value);
+        return s
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
+    buildDeviceReportModel() {
+        const currentOrg = orgContext.getCurrentOrg();
+        const device = this.state.device || {};
+        const telemetryDetail = this.state.telemetryDetail || {};
+        const latestFields = telemetryDetail?.latest?.fields || {};
+
+        const telemetry = device?.telemetry || device?.Telemetry;
+        const ipRaw = telemetry?.ipAddresses || telemetry?.IPAddresses || latestFields.IPAddresses || latestFields.ipAddresses;
+        const ipAddresses = (() => {
+            if (Array.isArray(ipRaw)) return ipRaw;
+            if (typeof ipRaw === 'string') {
+                try {
+                    const parsed = JSON.parse(ipRaw);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (err) { /* fall through */ }
+                return ipRaw.split(/[;\,\s]+/).filter(Boolean);
+            }
+            return [];
+        })();
+
+        const mobileStatus = this.detectMobileDevice(telemetryDetail?.history);
+        const networkRisk = this.analyzeNetworkRisk(ipAddresses, telemetryDetail?.history);
+
+        const cves = Array.isArray(this.state.cveInventory) ? this.state.cveInventory : [];
+        const apps = Array.isArray(this.state.appInventory) ? this.state.appInventory : [];
+
+        const bySeverity = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0 };
+        for (const cve of cves) {
+            const sev = String(cve?.severity || '').toUpperCase();
+            if (sev === 'CRITICAL') bySeverity.CRITICAL++;
+            else if (sev === 'HIGH') bySeverity.HIGH++;
+            else if (sev === 'MEDIUM') bySeverity.MEDIUM++;
+            else if (sev === 'LOW') bySeverity.LOW++;
+            else bySeverity.UNKNOWN++;
+        }
+
+        const knownExploitCount = this.state.knownExploits
+            ? cves.filter(c => this.state.knownExploits.has(c.cveId)).length
+            : 0;
+
+        const updateAvailable = (() => {
+            const dv = device.ClientVersion || device.clientVersion;
+            return dv && this.isVersionOutdated(dv);
+        })();
+
+        const nowIso = new Date().toISOString();
+
+        // Top vulnerable apps (by CVE count, then worst severity)
+        const appToCves = new Map();
+        for (const cve of cves) {
+            const name = (cve?.appName || '').toString().trim();
+            if (!name) continue;
+            if (!appToCves.has(name)) appToCves.set(name, []);
+            appToCves.get(name).push(cve);
+        }
+        const topApps = Array.from(appToCves.entries())
+            .map(([appName, list]) => {
+                const worst = Math.max(...list.map(x => this.severityWeight(x?.severity)), 0);
+                const worstSeverity = this.severityLabelFromWeight(worst);
+                return {
+                    appName,
+                    cveCount: list.length,
+                    worstSeverity
+                };
+            })
+            .sort((a, b) => (b.cveCount - a.cveCount) || (this.severityWeight(b.worstSeverity) - this.severityWeight(a.worstSeverity)) || a.appName.localeCompare(b.appName))
+            .slice(0, 15);
+
+        // Top CVEs (by severity weight, then id)
+        const topCves = cves
+            .slice()
+            .sort((a, b) => {
+                const aw = this.severityWeight(a?.severity);
+                const bw = this.severityWeight(b?.severity);
+                if (bw !== aw) return bw - aw;
+                return String(a?.cveId || '').localeCompare(String(b?.cveId || ''));
+            })
+            .slice(0, 25)
+            .map(c => ({
+                cveId: c.cveId,
+                severity: c.severity,
+                appName: c.appName,
+                isPatched: c.isPatched
+            }));
+
+        const summaryScore = this.getRiskScoreValue(this.state.deviceSummary, this.calculateRiskScore(device));
+
+        const recommendations = [];
+        if (updateAvailable) {
+            recommendations.push(`Update device client to v${config.INSTALLERS.ENGINE.VERSION}.`);
+        }
+        if ((device.State || device.state || '').toString().toUpperCase() !== 'ACTIVE') {
+            recommendations.push('Validate license/device state and re-register if needed.');
+        }
+        if (networkRisk?.publicIpPresent) {
+            recommendations.push('Reduce network exposure: avoid public IPs where possible; enforce firewalling/VPN.')
+        }
+        if (networkRisk?.apipaPresent) {
+            recommendations.push('Investigate network misconfiguration (APIPA addresses detected).');
+        }
+        if (knownExploitCount > 0) {
+            recommendations.push('Prioritize remediation for CVEs with known public exploitation.');
+        }
+        if (bySeverity.CRITICAL > 0) {
+            recommendations.push('Prioritize patching for CRITICAL vulnerabilities.');
+        }
+        if (cves.length === 0) {
+            recommendations.push('No CVEs detected in current inventory. Continue monitoring.');
+        }
+
+        return {
+            reportType: 'DeviceSecurityReport',
+            reportVersion: 1,
+            generatedAtUtc: nowIso,
+            org: {
+                orgId: currentOrg?.orgId || null,
+                name: currentOrg?.name || null
+            },
+            device: {
+                deviceId: device.DeviceId || device.deviceId || null,
+                deviceName: device.DeviceName || device.deviceName || null,
+                state: device.State || device.state || null,
+                clientVersion: device.ClientVersion || device.clientVersion || null,
+                firstHeartbeat: device.FirstHeartbeat || device.firstHeartbeat || null,
+                lastHeartbeat: device.LastHeartbeat || device.lastHeartbeat || null
+            },
+            telemetry: {
+                latestTimestamp: telemetryDetail?.latest?.timestamp || null,
+                currentUser: (() => {
+                    const encoded = latestFields.UserName || latestFields.Username || latestFields.userName || latestFields.LoggedOnUser || latestFields.CurrentUser || null;
+                    const u = encoded ? PiiDecryption.decryptIfEncrypted(String(encoded)) : null;
+                    return u ? String(u) : null;
+                })(),
+                ipAddresses,
+                mobile: mobileStatus?.isMobile || false,
+                uniqueIpCount: mobileStatus?.uniqueIpCount || 0,
+                publicIpPresent: !!networkRisk?.publicIpPresent,
+                apipaPresent: !!networkRisk?.apipaPresent,
+                hardware: {
+                    cpuName: latestFields.CPUName || null,
+                    cpuCores: latestFields.CPUCores || null,
+                    cpuArch: latestFields.CPUArch || null,
+                    totalRamMb: latestFields.TotalRAMMB || null,
+                    systemDriveSizeGb: latestFields.SystemDriveSizeGB || latestFields.TotalDiskGb || null,
+                    systemDiskMediaType: latestFields.SystemDiskMediaType || null,
+                    systemDiskBusType: latestFields.SystemDiskBusType || null,
+                    gpuName: latestFields.GPUName || null
+                },
+                os: {
+                    edition: latestFields.OSEdition || null,
+                    version: latestFields.OSVersion || null,
+                    build: latestFields.FeaturePackVersion || latestFields.OSBuild || null
+                }
+            },
+            inventory: {
+                appsTotal: apps.length,
+                cvesTotal: cves.length,
+                cvesBySeverity: bySeverity,
+                knownExploitCount,
+                topVulnerableApps: topApps,
+                topCves
+            },
+            risk: {
+                riskScore: summaryScore,
+                model: 'PortalSummaryScore'
+            },
+            sessions: this.state.deviceSessions || null,
+            timeline: Array.isArray(this.state.timeline) ? this.state.timeline.slice(0, 20) : [],
+            perf: this.state.perfData || null,
+            recommendations
+        };
+    }
+
+    generateDeviceReportHtml(model) {
+        const titleDevice = model?.device?.deviceName || model?.device?.deviceId || 'Device';
+        const safeTitle = this.escapeHtml(titleDevice);
+        const safeOrg = this.escapeHtml(model?.org?.name || model?.org?.orgId || '');
+        const safeGenerated = this.escapeHtml(model?.generatedAtUtc || '');
+        const safeState = this.escapeHtml(model?.device?.state || '');
+        const safeVersion = this.escapeHtml(model?.device?.clientVersion || '');
+        const safeRisk = this.escapeHtml(model?.risk?.riskScore ?? '');
+
+        const ipList = Array.isArray(model?.telemetry?.ipAddresses) ? model.telemetry.ipAddresses : [];
+        const topApps = Array.isArray(model?.inventory?.topVulnerableApps) ? model.inventory.topVulnerableApps : [];
+        const topCves = Array.isArray(model?.inventory?.topCves) ? model.inventory.topCves : [];
+        const recommendations = Array.isArray(model?.recommendations) ? model.recommendations : [];
+        const timeline = Array.isArray(model?.timeline) ? model.timeline : [];
+
+        const jsonBlock = this.escapeHtml(JSON.stringify(model, null, 2));
+
+        const c = model?.inventory?.cvesBySeverity || {};
+
+        return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MagenSec Device Security Report - ${safeTitle}</title>
+  <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    h2 { margin: 24px 0 10px; font-size: 16px; }
+        .muted { font-size: 12px; opacity: 0.75; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+        .card { border: 1px solid; border-radius: 8px; padding: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid; padding: 8px; text-align: left; font-size: 12px; vertical-align: top; }
+        th { font-weight: 600; }
+    ul { margin: 8px 0 0 18px; }
+        pre { white-space: pre-wrap; word-break: break-word; font-size: 11px; padding: 10px; border: 1px solid; border-radius: 8px; }
+    @media print { body { margin: 0.5in; } .no-print { display:none; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 10px;">
+    <button onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+  <h1>Device Security Report</h1>
+  <div class="muted">Generated (UTC): ${safeGenerated}</div>
+  <div class="muted">Organization: ${safeOrg}</div>
+
+  <h2>Executive Summary</h2>
+  <div class="card">
+    <div class="grid">
+      <div><strong>Device</strong><div>${safeTitle}</div></div>
+      <div><strong>State</strong><div>${safeState}</div></div>
+      <div><strong>Client Version</strong><div>${safeVersion}</div></div>
+      <div><strong>Risk Score</strong><div>${safeRisk} / 100</div></div>
+      <div><strong>CVEs</strong><div>${this.escapeHtml(model?.inventory?.cvesTotal ?? 0)}</div></div>
+      <div><strong>Known Exploits</strong><div>${this.escapeHtml(model?.inventory?.knownExploitCount ?? 0)}</div></div>
+    </div>
+  </div>
+
+  <h2>Vulnerability Summary</h2>
+  <div class="card">
+    <div class="grid">
+      <div><strong>Critical</strong><div>${this.escapeHtml(c.CRITICAL ?? 0)}</div></div>
+      <div><strong>High</strong><div>${this.escapeHtml(c.HIGH ?? 0)}</div></div>
+      <div><strong>Medium</strong><div>${this.escapeHtml(c.MEDIUM ?? 0)}</div></div>
+      <div><strong>Low</strong><div>${this.escapeHtml(c.LOW ?? 0)}</div></div>
+    </div>
+  </div>
+
+  <h2>Top Vulnerable Software</h2>
+  <table>
+    <thead><tr><th>Application</th><th>CVEs</th><th>Worst Severity</th></tr></thead>
+    <tbody>
+      ${topApps.length ? topApps.map(a => `<tr><td>${this.escapeHtml(a.appName)}</td><td>${this.escapeHtml(a.cveCount)}</td><td>${this.escapeHtml(a.worstSeverity)}</td></tr>`).join('') : `<tr><td colspan="3">No vulnerable applications detected in current inventory.</td></tr>`}
+    </tbody>
+  </table>
+
+  <h2>Top CVEs</h2>
+  <table>
+    <thead><tr><th>CVE</th><th>Severity</th><th>Application</th><th>Patched</th></tr></thead>
+    <tbody>
+      ${topCves.length ? topCves.map(cve => `<tr><td>${this.escapeHtml(cve.cveId || '')}</td><td>${this.escapeHtml(cve.severity || '')}</td><td>${this.escapeHtml(cve.appName || '')}</td><td>${this.escapeHtml(cve.isPatched === true ? 'Yes' : 'No')}</td></tr>`).join('') : `<tr><td colspan="4">No CVEs available.</td></tr>`}
+    </tbody>
+  </table>
+
+  <h2>Network & Telemetry Snapshot</h2>
+  <div class="card">
+    <div class="grid">
+      <div><strong>Last Telemetry</strong><div>${this.escapeHtml(model?.telemetry?.latestTimestamp || 'N/A')}</div></div>
+      <div><strong>Current User</strong><div>${this.escapeHtml(model?.telemetry?.currentUser || 'N/A')}</div></div>
+      <div><strong>Exposure</strong><div>${this.escapeHtml(model?.telemetry?.publicIpPresent ? 'Internet-exposed' : 'Private')}</div></div>
+      <div><strong>Mobility</strong><div>${this.escapeHtml(model?.telemetry?.mobile ? 'Mobile' : 'Stationary')}</div></div>
+    </div>
+    <div style="margin-top:10px;"><strong>IP Addresses</strong><div class="muted">${ipList.length ? ipList.map(ip => this.escapeHtml(ip)).join(', ') : 'N/A'}</div></div>
+  </div>
+
+  <h2>Recommendations</h2>
+  <div class="card">
+    ${recommendations.length ? `<ul>${recommendations.map(r => `<li>${this.escapeHtml(r)}</li>`).join('')}</ul>` : `<div class="muted">No recommendations generated.</div>`}
+  </div>
+
+  <h2>Timeline (Recent)</h2>
+  <table>
+    <thead><tr><th>Time (UTC)</th><th>Event</th><th>Details</th></tr></thead>
+    <tbody>
+      ${timeline.length ? timeline.map(ev => `<tr><td>${this.escapeHtml(ev.timestampUtc || ev.timestamp || '')}</td><td>${this.escapeHtml(ev.title || ev.type || '')}</td><td>${this.escapeHtml(ev.description || '')}</td></tr>`).join('') : `<tr><td colspan="3">No timeline events available.</td></tr>`}
+    </tbody>
+  </table>
+
+  <h2>Appendix: Raw Report Data (JSON)</h2>
+  <pre>${jsonBlock}</pre>
+</body>
+</html>`;
+    }
+
+        generateDeviceReportPrintableHtml(model) {
+                const titleDevice = model?.device?.deviceName || model?.device?.deviceId || 'Device';
+                const safeTitle = this.escapeHtml(titleDevice);
+                const safeOrg = this.escapeHtml(model?.org?.name || model?.org?.orgId || '');
+                const safeGenerated = this.escapeHtml(model?.generatedAtUtc || '');
+                const safeState = this.escapeHtml(model?.device?.state || '');
+                const safeVersion = this.escapeHtml(model?.device?.clientVersion || '');
+                const safeDeviceId = this.escapeHtml(model?.device?.deviceId || '');
+
+                const riskScore = Number(model?.risk?.riskScore ?? 0);
+                const safeRisk = this.escapeHtml(Number.isFinite(riskScore) ? Math.max(0, Math.min(100, riskScore)) : 0);
+
+                const c = model?.inventory?.cvesBySeverity || {};
+                const crit = Number(c.CRITICAL ?? 0) || 0;
+                const high = Number(c.HIGH ?? 0) || 0;
+                const med = Number(c.MEDIUM ?? 0) || 0;
+                const low = Number(c.LOW ?? 0) || 0;
+                const totalCves = Number(model?.inventory?.cvesTotal ?? (crit + high + med + low)) || 0;
+                const knownExploitCount = Number(model?.inventory?.knownExploitCount ?? 0) || 0;
+
+                const topApps = (Array.isArray(model?.inventory?.topVulnerableApps) ? model.inventory.topVulnerableApps : []).slice(0, 5);
+                const topCves = (Array.isArray(model?.inventory?.topCves) ? model.inventory.topCves : []).slice(0, 6);
+                const recommendations = (Array.isArray(model?.recommendations) ? model.recommendations : []).slice(0, 5);
+                const timeline = Array.isArray(model?.timeline) ? model.timeline.slice(0, 6) : [];
+
+                const summaryPoints = [];
+                if (knownExploitCount > 0) summaryPoints.push(`${knownExploitCount} CVEs with known exploits`);
+                if (crit + high > 0) summaryPoints.push(`${crit + high} critical/high CVEs`);
+                if (totalCves > 0) summaryPoints.push(`${totalCves} total CVEs on device`);
+                if ((model?.network?.publicIpPresent) === true) summaryPoints.push('Device is internet-exposed');
+                if (summaryPoints.length === 0) summaryPoints.push('No immediate blocking risks detected.');
+
+                const modelJsonForScript = this.escapeHtml(JSON.stringify(model));
+                const sevTotal = Math.max(1, crit + high + med + low);
+                const pct = (n) => Math.round((Math.max(0, Number(n) || 0) / sevTotal) * 100);
+
+                return `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MagenSec Device Security Report - ${safeTitle}</title>
+
+    <!-- Tabler CSS (same as portal) -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-GgnF119bh9fxkKuWHRQYSgEe1rSp5jB0EJ2W8eMf8mjowfwhZP2H1u8n8xJUW3FQ">
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-PwEnNZvp50/uDLtKrd1s2D4Xe/y+fCVtEigigjik/PgHlDXUF1uJ32m7guk/XWYV">
+
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0" crossorigin="anonymous" integrity="sha384-AMGf6SjYWuydruLCEKIx7wNrplae/LWMqStBYe5zhISiQeyuogc8OLM2QzJIreuY"></script>
+
+    <style>
+        @media print {
+            .d-print-none { display: none !important; }
+            a[href]:after { content: ""; }
+        }
+        body { background: #f8fafc; }
+        .report-hero { background: linear-gradient(135deg, #0b7285, #1c7ed6); color: #fff; border-radius: 12px; padding: 20px; }
+        .report-hero h1 { color: #fff; }
+        .report-chart { min-height: 260px; }
+        .kpi-card { border: 1px solid #e9ecef; border-radius: 10px; padding: 16px; background: #fff; }
+        .kpi-label { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: #868e96; }
+        .kpi-value { font-size: 22px; font-weight: 700; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="page-wrapper">
+            <div class="page-body">
+                <div class="container-xl">
+                    <div class="d-print-none mb-3 d-flex gap-2">
+                        <button class="btn btn-primary" onclick="window.print()">
+                            <i class="ti ti-printer"></i>
+                            Print / Save as PDF
+                        </button>
+                        <a class="btn btn-secondary" href="#" onclick="window.close(); return false;">Close</a>
+                    </div>
+
+                    <div class="report-hero mb-4">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-8">
+                                <div class="text-uppercase fw-bold small" style="opacity:0.85">Device Security Report</div>
+                                <h1 class="mb-1">${safeTitle}</h1>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <span class="badge bg-white text-dark">Org: ${safeOrg || '—'}</span>
+                                    <span class="badge bg-white text-dark">Device ID: ${safeDeviceId || '—'}</span>
+                                    <span class="badge bg-white text-dark">State: ${safeState || '—'}</span>
+                                    <span class="badge bg-white text-dark">Client: ${safeVersion || '—'}</span>
+                                </div>
+                                <div class="text-white-75">Generated (UTC): ${safeGenerated}</div>
+                                <div class="mt-3">
+                                    ${summaryPoints.map(p => `<div class="d-flex align-items-center gap-2"><span class="badge bg-white text-dark" style="width:10px;height:10px;border-radius:50%;"></span><span>${this.escapeHtml(p)}</span></div>`).join('')}
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <div class="kpi-card" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color:#fff;">
+                                    <div class="kpi-label" style="color: #dbe4ff;">Risk Score</div>
+                                    <div class="kpi-value">${safeRisk} / 100</div>
+                                    <div class="text-white-75" style="font-size: 12px;">Higher score = greater urgency</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-cards mb-3">
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Total CVEs</div>
+                                <div class="kpi-value">${this.escapeHtml(totalCves)}</div>
+                                <div class="text-muted">${crit + high} critical/high · ${med} medium · ${low} low</div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Known Exploits</div>
+                                <div class="kpi-value text-danger">${this.escapeHtml(knownExploitCount)}</div>
+                                <div class="text-muted">KEV / exploited in the wild</div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Exposure</div>
+                                <div class="kpi-value">${model?.network?.publicIpPresent ? 'Internet' : 'Private'}</div>
+                                <div class="text-muted">${model?.network?.apipaPresent ? 'APIPA detected' : 'Network healthy'}</div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Heartbeat / Telemetry</div>
+                                <div class="kpi-value">${this.escapeHtml(model?.telemetry?.lastHeartbeat || 'N/A')}</div>
+                                <div class="text-muted">Last telemetry: ${this.escapeHtml(model?.telemetry?.lastTelemetry || 'N/A')}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-deck row-cards mb-4">
+                        <div class="col-12 col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Risk gauge</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="report-risk-chart" class="report-chart"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">CVE severity mix</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="report-severity-chart" class="report-chart"></div>
+                                    <div class="mt-4">
+                                        <div class="d-flex justify-content-between"><span class="text-muted">Critical</span><span class="text-muted">${this.escapeHtml(crit)} (${pct(crit)}%)</span></div>
+                                        <div class="progress mb-2"><div class="progress-bar bg-danger" style="width:${pct(crit)}%"></div></div>
+                                        <div class="d-flex justify-content-between"><span class="text-muted">High</span><span class="text-muted">${this.escapeHtml(high)} (${pct(high)}%)</span></div>
+                                        <div class="progress mb-2"><div class="progress-bar bg-orange" style="width:${pct(high)}%"></div></div>
+                                        <div class="d-flex justify-content-between"><span class="text-muted">Medium</span><span class="text-muted">${this.escapeHtml(med)} (${pct(med)}%)</span></div>
+                                        <div class="progress mb-2"><div class="progress-bar bg-yellow" style="width:${pct(med)}%"></div></div>
+                                        <div class="d-flex justify-content-between"><span class="text-muted">Low</span><span class="text-muted">${this.escapeHtml(low)} (${pct(low)}%)</span></div>
+                                        <div class="progress"><div class="progress-bar bg-lime" style="width:${pct(low)}%"></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-cards mb-4">
+                        <div class="col-12 col-lg-6">
+                            <div class="card">
+                                <div class="card-header"><h3 class="card-title">Priority actions (do first)</h3></div>
+                                <div class="card-body">
+                                    ${recommendations.length ? `<ol class="mb-0">${recommendations.map(r => `<li>${this.escapeHtml(r)}</li>`).join('')}</ol>` : `<div class="text-muted">No explicit recommendations were generated. Focus on patching critical/high CVEs and internet-exposed software first.</div>`}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="card">
+                                <div class="card-header"><h3 class="card-title">Exposure & posture</h3></div>
+                                <div class="card-body">
+                                    <ul class="mb-0">
+                                        <li>${model?.network?.publicIpPresent ? '<span class="text-danger">Internet-exposed</span>' : 'Private network detected'}</li>
+                                        <li>${model?.network?.apipaPresent ? '<span class="text-danger">APIPA detected (DHCP issue)</span>' : 'No APIPA addresses observed'}</li>
+                                        <li>${model?.network?.mobile ? 'Roaming device (multiple networks observed)' : 'Stationary network profile'}</li>
+                                        <li>Client version: ${safeVersion || 'N/A'}</li>
+                                        <li>State: ${safeState || 'N/A'}</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-cards mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Top vulnerable software</h3>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-vcenter card-table">
+                                        <thead>
+                                            <tr><th>Application</th><th>CVEs</th><th>Worst severity</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            ${topApps.length ? topApps.map(a => `
+                                                <tr>
+                                                    <td>${this.escapeHtml(a.appName)}</td>
+                                                    <td>${this.escapeHtml(a.cveCount)}</td>
+                                                    <td><span class="badge bg-secondary-lt">${this.escapeHtml(a.worstSeverity)}</span></td>
+                                                </tr>
+                                            `).join('') : `
+                                                <tr><td colspan="3" class="text-muted">No vulnerable applications detected in current inventory.</td></tr>
+                                            `}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-cards mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Top CVEs</h3>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-vcenter card-table">
+                                        <thead>
+                                            <tr><th>CVE</th><th>Severity</th><th>Application</th><th>Patched</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            ${topCves.length ? topCves.map(cve => `
+                                                <tr>
+                                                    <td>${this.escapeHtml(cve.cveId || '')}</td>
+                                                    <td>${this.escapeHtml(cve.severity || '')}</td>
+                                                    <td>${this.escapeHtml(cve.appName || '')}</td>
+                                                    <td>${this.escapeHtml(cve.isPatched === true ? 'Yes' : 'No')}</td>
+                                                </tr>
+                                            `).join('') : `
+                                                <tr><td colspan="4" class="text-muted">No CVEs available.</td></tr>
+                                            `}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row row-cards mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header"><h3 class="card-title">Timeline (recent)</h3></div>
+                                <div class="card-body">
+                                    ${timeline.length ? `<ul class="mb-0">${timeline.map(ev => `<li><span class="text-muted">${this.escapeHtml(ev.timestampUtc || ev.timestamp || '')}</span> — ${this.escapeHtml(ev.title || ev.type || '')}</li>`).join('')}</ul>` : `<div class="text-muted">No timeline events available.</div>`}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <script id="report-model" type="application/json">${modelJsonForScript}</script>
+                    <script>
+                        (function () {
+                            const modelText = document.getElementById('report-model')?.textContent || '{}';
+                            let model = {};
+                            try { model = JSON.parse(modelText); } catch (e) { model = {}; }
+
+                            const risk = Number(model?.risk?.riskScore ?? 0);
+                            const c = model?.inventory?.cvesBySeverity || {};
+                            const crit = Number(c.CRITICAL ?? 0) || 0;
+                            const high = Number(c.HIGH ?? 0) || 0;
+                            const med = Number(c.MEDIUM ?? 0) || 0;
+                            const low = Number(c.LOW ?? 0) || 0;
+
+                            if (window.ApexCharts) {
+                                const riskChart = new window.ApexCharts(document.querySelector('#report-risk-chart'), {
+                                    chart: { type: 'radialBar', height: 260, sparkline: { enabled: true } },
+                                    series: [Math.max(0, Math.min(100, Number.isFinite(risk) ? risk : 0))],
+                                    labels: ['Risk'],
+                                    plotOptions: { radialBar: { hollow: { size: '70%' }, dataLabels: { name: { show: true }, value: { show: true } } } }
+                                });
+                                riskChart.render();
+
+                                const sevChart = new window.ApexCharts(document.querySelector('#report-severity-chart'), {
+                                    chart: { type: 'donut', height: 260 },
+                                    series: [crit, high, med, low],
+                                    labels: ['Critical', 'High', 'Medium', 'Low'],
+                                    legend: { position: 'bottom' },
+                                    dataLabels: { enabled: true }
+                                });
+                                sevChart.render();
+                            }
+                        })();
+                    </script>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+        }
+
+    downloadDeviceReport(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        const model = this.buildDeviceReportModel();
+        const html = this.generateDeviceReportHtml(model);
+
+        const deviceId = (model?.device?.deviceId || 'device').toString();
+        const safe = deviceId.replace(/[^a-zA-Z0-9._-]+/g, '_');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const fileName = `MagenSec-DeviceReport-${safe}-${timestamp}.html`;
+
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Best-effort revoke
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+
+    printDeviceReport(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        const model = this.buildDeviceReportModel();
+        const html = this.generateDeviceReportPrintableHtml(model);
+
+        const w = window.open('', '_blank');
+        if (!w) {
+            alert('Popup blocked. Please allow popups for this site to generate the PDF report.');
+            return;
+        }
+
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+
+        // Best-effort auto-open print dialog after a short delay.
+        // Browser security policies may ignore this; user can still click the button.
+        setTimeout(() => {
+            try { w.focus(); w.print(); } catch (err) { /* ignore */ }
+        }, 900);
+    }
+
     detectMobileDevice(telemetryHistory) {
         /**
          * INVENTORY USE CASE: Identify mobile vs stationary devices
@@ -959,7 +1609,6 @@ export class DeviceDetailPage extends window.Component {
                                 <div class="spinner-border spinner-border-lg" role="status">
                                     <span class="visually-hidden">Loading...</span>
                                 </div>
-                                <p class="text-muted mt-3">Loading device details...</p>
                             </div>
                         </div>
                     </div>
@@ -1109,6 +1758,10 @@ export class DeviceDetailPage extends window.Component {
                                 </div>
                                 <div class="col-auto">
                                     <div class="btn-list mb-2">
+                                        <button class="btn btn-outline-primary" title="Generate a device security report and save as PDF" onclick=${(e) => this.printDeviceReport(e)}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 17v-6" /><path d="M9.5 14.5l2.5 2.5l2.5 -2.5" /></svg>
+                                            Save as PDF
+                                        </button>
                                         <button class="btn btn-outline-secondary" title="Trigger Windows Update (coming soon)" onclick=${(e) => { e.preventDefault(); console.info('Windows Update trigger requested'); }}>
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5.5l7 -1.5v8l-7 .5z" /><path d="M20 4l-7 1.5v7.5l7 -.5z" /><path d="M4 15l7 .5v5l-7 -1.5z" /><path d="M20 13l-7 .5v6.5l7 -1.5z" /></svg>
                                             Trigger Windows Update
