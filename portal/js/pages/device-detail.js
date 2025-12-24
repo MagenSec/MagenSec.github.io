@@ -50,7 +50,7 @@ export class DeviceDetailPage extends window.Component {
             sessionExpanded: false,
             sessionLoading: false,
             sessionError: null,
-            sessionTab: 'version' // legacy tab flag, charts now split
+            sessionTab: 'specs' // default to specs when coverage opens
         };
     }
 
@@ -150,11 +150,9 @@ export class DeviceDetailPage extends window.Component {
         }
         if (sessionsChanged && this.state.sessionExpanded) {
             this.renderSessionChart();
-            this.renderPidSessionChart();
         }
         if ((sessionTabChanged || sessionExpandedChanged) && this.state.sessionExpanded) {
             this.renderSessionChart();
-            this.renderPidSessionChart();
         }
         if (perfTabEntered && !this.state.perfLoading && !this.state.perfData) {
             this.loadPerfData(this.state.perfBucket, this.state.perfRangeDays);
@@ -171,7 +169,6 @@ export class DeviceDetailPage extends window.Component {
         this.destroyDetailCharts();
         this.destroyPerfCharts();
         this.destroySessionChart();
-        this.destroyPidSessionChart();
     }
 
     // Load known exploits via shared KEV cache (local diag first, then GitHub)
@@ -240,6 +237,8 @@ export class DeviceDetailPage extends window.Component {
     getVersionSessions(summary) {
         if (!summary) return [];
         const candidates = [
+            summary.monitoringSessions,
+            summary.MonitoringSessions,
             summary.VersionSessions,
             summary.versionSessions,
             summary.Sessions,
@@ -247,6 +246,13 @@ export class DeviceDetailPage extends window.Component {
             summary.clientVersionSessions,
             summary.ClientVersionSessions
         ];
+        const picked = candidates.find((c) => Array.isArray(c) && c.length > 0);
+        return Array.isArray(picked) ? picked : [];
+    }
+
+    getMonitoringSessions(summary) {
+        if (!summary) return [];
+        const candidates = [summary.monitoringSessions, summary.MonitoringSessions];
         const picked = candidates.find((c) => Array.isArray(c) && c.length > 0);
         return Array.isArray(picked) ? picked : [];
     }
@@ -676,13 +682,87 @@ export class DeviceDetailPage extends window.Component {
         return this.state.cveInventory.filter(c => c.appName === appName);
     }
 
+    getSeverityStyles(severity) {
+        const styles = {
+            CRITICAL: { fill: 'bg-danger text-white', outline: 'btn-outline-danger' },
+            HIGH: { fill: 'bg-orange text-white', outline: 'btn-outline-orange' },
+            MEDIUM: { fill: 'bg-yellow text-dark', outline: 'btn-outline-yellow' },
+            LOW: { fill: 'bg-lime text-dark', outline: 'btn-outline-lime' },
+            CLEAN: { fill: 'bg-secondary text-white', outline: 'btn-outline-secondary' }
+        };
+
+        const key = severity?.toUpperCase?.() || 'CLEAN';
+        return styles[key] || styles.CLEAN;
+    }
+
     getSeverityColor(severity) {
-        switch (severity?.toUpperCase?.()) {
-            case 'CRITICAL': return 'bg-danger-lt';
-            case 'HIGH': return 'bg-warning-lt';
-            case 'MEDIUM': return 'bg-warning-lt';
-            case 'LOW': return 'bg-info-lt';
-            default: return 'bg-muted';
+        return this.getSeverityStyles(severity).fill;
+    }
+
+    getSeverityOutlineClass(severity) {
+        return this.getSeverityStyles(severity).outline;
+    }
+
+    classifyDetectionSource(cve) {
+        const source = (cve?.detectionMethod || cve?.howFound || cve?.source || cve?.detectedBy || '').toString().toLowerCase();
+        if (source.includes('ai') || source.includes('heur')) return 'ai';
+        return 'db';
+    }
+
+    getDetectionBuckets(cves = []) {
+        const buckets = { db: { count: 0, highest: null }, ai: { count: 0, highest: null } };
+        (cves || []).forEach((cve) => {
+            const key = this.classifyDetectionSource(cve);
+            const sev = (cve?.severity || '').toUpperCase();
+            const bucket = buckets[key] || buckets.db;
+            bucket.count += 1;
+            const currentWeight = this.severityWeight(bucket.highest);
+            if (this.severityWeight(sev) > currentWeight) {
+                bucket.highest = sev;
+            }
+            buckets[key] = bucket;
+        });
+        return buckets;
+    }
+
+    renderDetectionButtons(buckets, options = {}) {
+        const { html } = window;
+        const size = options.size === 'sm' ? 'sm' : 'md';
+        const onClick = options.onClick;
+        const showLabels = options.showLabels !== false;
+        const keys = ['db', 'ai'];
+
+        const iconFor = (key) => key === 'db'
+            ? html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.657 3.582 3 8 3s8 -1.343 8 -3v-6" /><path d="M4 12v6c0 1.657 3.582 3 8 3s8 -1.343 8 -3v-6" /></svg>`
+            : html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 9a3 3 0 0 1 6 0v1a3 3 0 0 1 0 6v1a3 3 0 0 1 -6 0v-1a3 3 0 0 1 0 -6z" /><path d="M9 12v1" /><path d="M12 7v1" /><path d="M15 12v1" /><path d="M12 17v1" /></svg>`;
+
+        const labelFor = (key) => key === 'db' ? 'Database matches' : 'AI heuristic matches';
+        const tooltipFor = (key) => key === 'db'
+            ? 'Database match: high confidence signatures from advisories'
+            : 'AI heuristic: behavior-based confidence';
+
+        return html`
+            <div class="d-flex flex-wrap gap-2">
+                ${keys.map(key => {
+                    const data = buckets?.[key] || { count: 0, highest: null };
+                    const outlineClass = this.getSeverityOutlineClass(data.highest);
+                    const badgeClass = this.getSeverityColor(data.highest);
+                    return html`
+                        <button class="btn ${outlineClass} ${size === 'sm' ? 'btn-sm' : ''} d-flex align-items-center gap-2" title=${tooltipFor(key)} onclick=${(e) => { e.preventDefault(); if (onClick) onClick(key); }}>
+                            ${iconFor(key)}
+                            ${showLabels ? html`<span>${labelFor(key)}</span>` : ''}
+                            <span class="badge ${badgeClass}">${data.count || 0}</span>
+                        </button>
+                    `;
+                })}
+            </div>
+        `;
+    }
+
+    scrollToCveTable() {
+        const el = document.getElementById('cve-table');
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
 
@@ -1016,29 +1096,22 @@ export class DeviceDetailPage extends window.Component {
         const networkRisk = this.analyzeNetworkRisk(ipList, this.state.telemetryDetail?.history);
         const recentChangeCount = this.state.telemetryDetail?.changes?.length || 0;
         const sessionSummary = this.state.deviceSessions;
-        const versionSessions = this.getVersionSessions(sessionSummary);
-        const pidSessionsRaw = this.getPidSessions(sessionSummary);
-        const pidSessions = Array.isArray(pidSessionsRaw)
-            ? pidSessionsRaw.filter(seg => seg && (seg.Pid || seg.pid || seg.Label || seg.label))
-            : [];
+        const monitoringSessions = this.getMonitoringSessions(sessionSummary);
+        const versionSessions = monitoringSessions.length > 0 ? monitoringSessions : this.getVersionSessions(sessionSummary);
         const sessionWindowText = sessionSummary
             ? `Window ${sessionSummary.startUtc || sessionSummary.StartUtc ? this.formatDate(sessionSummary.startUtc || sessionSummary.StartUtc) : 'N/A'} – ${sessionSummary.endUtc || sessionSummary.EndUtc ? this.formatDate(sessionSummary.endUtc || sessionSummary.EndUtc) : 'N/A'}`
-            : 'No client version history yet';
+            : 'No monitoring history yet';
         const hasVersionSessions = Array.isArray(versionSessions) && versionSessions.length > 0;
-        const hasPidSessions = Array.isArray(pidSessions) && pidSessions.length > 0;
         const sessionTabs = [
             { key: 'specs', label: 'Specs', hasData: true },
-            { key: 'version', label: 'Client versions', hasData: hasVersionSessions },
-            { key: 'pid', label: 'Coverage windows', hasData: hasPidSessions },
+            { key: 'version', label: 'Coverage', hasData: hasVersionSessions },
             { key: 'perf', label: 'Performance', hasData: !!this.state.perfData },
             { key: 'timeline', label: 'Timeline', hasData: this.state.timeline?.length > 0 }
         ];
         const sessionIcon = (key) => {
             switch (key) {
                 case 'version':
-                    return html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M13 5h-6a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-6" /><path d="M9 11l4 -4l4 4" /><path d="M14 7l0 8" /></svg>`;
-                case 'pid':
-                    return html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6" /><path d="M9 11h6" /><path d="M9 15h4" /></svg>`;
+                    return html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 4l7 3v6c0 3.5 -2.5 6.5 -7 9c-4.5 -2.5 -7 -5.5 -7 -9v-6z" /><path d="M9 12l2 2l4 -4" /></svg>`;
                 case 'perf':
                 default:
                     return html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /><path d="M4 12l3 -4l4 2l5 -6l4 4" /></svg>`;
@@ -1070,6 +1143,10 @@ export class DeviceDetailPage extends window.Component {
                                 </div>
                                 <div class="col-auto">
                                     <div class="btn-list mb-2">
+                                        <button class="btn btn-outline-secondary" title="Trigger Windows Update (coming soon)" onclick=${(e) => { e.preventDefault(); console.info('Windows Update trigger requested'); }}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5.5l7 -1.5v8l-7 .5z" /><path d="M20 4l-7 1.5v7.5l7 -.5z" /><path d="M4 15l7 .5v5l-7 -1.5z" /><path d="M20 13l-7 .5v6.5l7 -1.5z" /></svg>
+                                            Trigger Windows Update
+                                        </button>
                                         <button class="btn btn-primary" disabled title="Coming soon - Device action queue">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 9a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" /><path d="M7 14l-3 3l-1 -1" /><path d="M9 13l2 2l4 -4" /></svg>
                                             Update Client
@@ -1265,12 +1342,7 @@ export class DeviceDetailPage extends window.Component {
                                         <div class="text-muted small">Risk posture</div>
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div class="h3 mb-0">${riskScore}</div>
-                                            <span class="badge ${
-                                                worstSeverity === 'CRITICAL' ? 'bg-danger' :
-                                                worstSeverity === 'HIGH' ? 'bg-warning' :
-                                                worstSeverity === 'MEDIUM' ? 'bg-warning' :
-                                                'bg-success'
-                                            } text-white">${worstSeverity}</span>
+                                            <span class="badge ${this.getSeverityColor(worstSeverity)}">${worstSeverity}</span>
                                         </div>
                                         <div class="text-muted small mt-1">Baseline risk score (0–100, not a percentage). Worst severity across ${this.state.cveInventory.length} CVEs.</div>
                                     </div>
@@ -1321,7 +1393,7 @@ export class DeviceDetailPage extends window.Component {
                                 <div class="card">
                                     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                                         <div>
-                                            <div class="card-title mb-0">Coverage & client history</div>
+                                            <div class="card-title mb-0">Coverage timeline & specs</div>
                                             <div class="text-muted small">${sessionWindowText || 'No coverage history yet'}</div>
                                         </div>
                                         <button class="btn btn-sm btn-outline-primary" onclick=${(e) => { e.preventDefault(); this.toggleSessionCollapse(); }}>
@@ -1348,16 +1420,9 @@ export class DeviceDetailPage extends window.Component {
                                                 <div class="tab-content">
                                                     ${this.state.sessionTab === 'version' ? html`
                                                         <div class="tab-pane active show">
-                                                            <div class="text-muted small mb-1">Client versions</div>
+                                                            <div class="text-muted small mb-1">Coverage timeline</div>
                                                             <div ref=${(el) => { this.sessionChartEl = el; }} style="min-height: 240px;"></div>
-                                                            ${!hasVersionSessions ? html`<div class="text-muted small">No client version history in this window.</div>` : ''}
-                                                        </div>
-                                                    ` : ''}
-                                                    ${this.state.sessionTab === 'pid' ? html`
-                                                        <div class="tab-pane active show">
-                                                            <div class="text-muted small mb-1">Coverage windows (process/activity)</div>
-                                                            <div ref=${(el) => { this.pidSessionChartEl = el; }} style="min-height: 200px;"></div>
-                                                            ${!hasPidSessions ? html`<div class="text-muted small">No PID session history in this window.</div>` : ''}
+                                                            ${!hasVersionSessions ? html`<div class="text-muted small">No monitoring sessions in this window.</div>` : ''}
                                                         </div>
                                                     ` : ''}
                                                     ${this.state.sessionTab === 'perf' ? html`
@@ -1387,23 +1452,45 @@ export class DeviceDetailPage extends window.Component {
                         <!-- Tabs -->
                         <div class="card">
                             <div class="card-header border-bottom-0">
-                                <ul class="nav nav-tabs card-header-tabs" role="tablist">
-                                    <li class="nav-item">
-                                        <a class="nav-link ${activeTab === 'riskAssessment' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'riskAssessment' }); }} role="tab">
-                                            Risk Assessment
-                                        </a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link ${activeTab === 'inventory' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'inventory' }); }} role="tab">
-                                            Applications (${enrichedApps.length})
-                                        </a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link ${activeTab === 'risks' ? 'active' : ''}" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'risks' }); }} role="tab">
-                                            CVEs (${this.state.cveInventory.length})
-                                        </a>
-                                    </li>
-                                </ul>
+                                ${(() => {
+                                    const tabClass = (key) => {
+                                        const isActive = activeTab === key;
+                                        if (key === 'riskAssessment') return `nav-link rounded-pill fw-semibold ${isActive ? 'active bg-danger text-white shadow-sm' : 'border border-danger text-danger bg-transparent'}`;
+                                        if (key === 'inventory') return `nav-link rounded-pill fw-semibold ${isActive ? 'active bg-primary text-white shadow-sm' : 'border border-primary text-primary bg-transparent'}`;
+                                        return `nav-link rounded-pill fw-semibold ${isActive ? 'active bg-yellow text-dark shadow-sm' : 'border border-warning text-warning bg-transparent'}`;
+                                    };
+
+                                    return html`
+                                        <ul class="nav nav-pills nav-fill card-header-tabs" role="tablist">
+                                            <li class="nav-item">
+                                                <a class=${tabClass('riskAssessment')} href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'riskAssessment' }); }} role="tab">
+                                                    <span class="d-flex align-items-center justify-content-center gap-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 4l7 3v6c0 3.5 -2.5 6.5 -7 9c-4.5 -2.5 -7 -5.5 -7 -9v-6z" /><path d="M10 12l2 2l4 -4" /></svg>
+                                                        <span>Risk</span>
+                                                    </span>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class=${tabClass('inventory')} href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'inventory' }); }} role="tab">
+                                                    <span class="d-flex align-items-center justify-content-center gap-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>
+                                                        <span>Applications</span>
+                                                        <span class="badge bg-primary-lt text-primary">${enrichedApps.length}</span>
+                                                    </span>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class=${tabClass('risks')} href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'risks' }); }} role="tab">
+                                                    <span class="d-flex align-items-center justify-content-center gap-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M11 3l2 0l1 7l-4 0z" /><path d="M10 14l4 -2l4 2l-4 7z" /><path d="M5 14l4 -2l0 5l-4 2z" /></svg>
+                                                        <span>CVEs</span>
+                                                        <span class="badge ${this.getSeverityColor(worstSeverity)}">${this.state.cveInventory.length}</span>
+                                                    </span>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    `;
+                                })()}
                             </div>
                             <div class="card-body">
                                 <!-- Risk Assessment Tab -->
@@ -1702,6 +1789,8 @@ export class DeviceDetailPage extends window.Component {
     renderInventoryTab(enrichedApps, filteredApps) {
         const { html } = window;
         const { appViewMode } = this.state;
+        const detectionBuckets = this.getDetectionBuckets(this.state.cveInventory);
+        const goToCves = () => this.setState({ activeTab: 'risks' }, () => this.scrollToCveTable());
         
         return html`
             <div class="mb-3 d-flex justify-content-between align-items-center">
@@ -1754,6 +1843,16 @@ export class DeviceDetailPage extends window.Component {
                     </div>
                 </div>
             </div>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="text-muted small">Findings confidence</div>
+                        <span class="text-muted small">Opens CVE list</span>
+                    </div>
+                    ${this.renderDetectionButtons(detectionBuckets, { onClick: goToCves })}
+                    <div class="text-muted small mt-2">Database matches = high confidence signatures; AI matches = heuristic assessments.</div>
+                </div>
+            </div>
             ${appViewMode === 'vendor' ? this.renderVendorGroupedView(filteredApps) : this.renderFlatListView(filteredApps)}
         `;
     }
@@ -1769,7 +1868,9 @@ export class DeviceDetailPage extends window.Component {
                     const vendorApps = vendorGroups[vendorName];
                     const isExpanded = this.state.expandedVendors.has(vendorName);
                     const appGroups = this.groupAppVersions(vendorApps);
-                    const totalCves = vendorApps.reduce((sum, app) => sum + this.getCvesByApp(app.appName).length, 0);
+                    const vendorCves = vendorApps.reduce((sum, app) => sum.concat(this.getCvesByApp(app.appName)), []);
+                    const totalCves = vendorCves.length;
+                    const vendorDetection = this.getDetectionBuckets(vendorCves);
 
                     return html`
                         <div class="accordion-item">
@@ -1777,9 +1878,14 @@ export class DeviceDetailPage extends window.Component {
                                 <button class="accordion-button ${isExpanded ? '' : 'collapsed'}" type="button" onclick=${() => this.toggleVendor(vendorName)}>
                                     <div class="d-flex justify-content-between align-items-center w-100 pe-3">
                                         <span class="fw-bold">${vendorName}</span>
-                                        <div class="d-flex gap-3 align-items-center">
+                                        <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
                                             <span class="badge bg-secondary-lt">${vendorApps.length} apps</span>
-                                            ${totalCves > 0 ? html`<span class="badge bg-danger-lt">${totalCves} CVEs</span>` : ''}
+                                            ${totalCves > 0 ? html`<span class="badge ${this.getSeverityColor(this.severityLabelFromWeight(Math.max(...vendorCves.map(c => this.severityWeight(c.severity || '')), 0)))}">${totalCves} CVEs</span>` : ''}
+                                            ${this.renderDetectionButtons(vendorDetection, {
+                                                size: 'sm',
+                                                showLabels: false,
+                                                onClick: () => this.setState({ activeTab: 'risks', cveFilterApp: null }, () => this.scrollToCveTable())
+                                            })}
                                         </div>
                                     </div>
                                 </button>
@@ -1832,15 +1938,10 @@ export class DeviceDetailPage extends window.Component {
                                                     </div>
                                                     <div class="d-flex gap-2 align-items-center">
                                                         ${worstSeverity !== 'CLEAN' ? html`
-                                                            <span class="badge ${
-                                                              worstSeverity === 'CRITICAL' ? 'bg-danger' : 
-                                                              worstSeverity === 'HIGH' ? 'bg-warning' : 
-                                                              worstSeverity === 'MEDIUM' ? 'bg-secondary' : 
-                                                              'bg-info'
-                                                            } text-white">${worstSeverity}</span>
+                                                            <span class="badge ${this.getSeverityColor(worstSeverity)}">${worstSeverity}</span>
                                                         ` : ''}
                                                         ${cves.length > 0 ? html`
-                                                            <a href="#" class="badge bg-danger text-white" onclick=${(e) => { e.preventDefault(); e.stopPropagation(); this.setState({ cveFilterApp: appGroup.appName, activeTab: 'risks' }); }}>
+                                                            <a href="#" class="badge ${this.getSeverityColor(worstSeverity)}" onclick=${(e) => { e.preventDefault(); e.stopPropagation(); this.setState({ cveFilterApp: appGroup.appName, activeTab: 'risks' }, () => this.scrollToCveTable()); }}>
                                                                 ${cves.length} CVEs
                                                             </a>
                                                         ` : ''}
@@ -2042,15 +2143,16 @@ export class DeviceDetailPage extends window.Component {
         }
 
         const sessions = this.state.deviceSessions;
-        const versionSessions = this.getVersionSessions(sessions);
+        const monitoringSessions = this.getMonitoringSessions(sessions);
+        const versionSessions = monitoringSessions.length > 0 ? monitoringSessions : this.getVersionSessions(sessions);
 
         if (!window.ApexCharts) {
-            this.destroySessionChart('Client version history unavailable (charts not loaded).');
+            this.destroySessionChart('Monitoring sessions unavailable (charts not loaded).');
             return;
         }
 
         if (!Array.isArray(versionSessions) || versionSessions.length === 0) {
-            this.destroySessionChart('No client version history in this window.');
+            this.destroySessionChart('No monitoring sessions in this window.');
             return;
         }
 
@@ -2074,7 +2176,10 @@ export class DeviceDetailPage extends window.Component {
 
                 if (!Number.isFinite(safeEnd)) return null;
 
-                return { x: label, y: [startTs, safeEnd] };
+                const glitches = Array.isArray(seg.Glitches) ? seg.Glitches : Array.isArray(seg.glitches) ? seg.glitches : [];
+                const samples = seg.Samples ?? seg.samples ?? 0;
+
+                return { x: label, y: [startTs, safeEnd], glitches, samples };
             })
             .filter(seg => seg && Number.isFinite(seg.y?.[0]) && Number.isFinite(seg.y?.[1]))
             .sort((a, b) => a.y[0] - b.y[0]);
@@ -2084,12 +2189,12 @@ export class DeviceDetailPage extends window.Component {
         const hasInvalid = versionData.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
         if (hasInvalid) {
             console.warn('[DeviceDetail] Skipping version session chart due to invalid timestamps', { versionData });
-            this.destroySessionChart('Client session history unavailable (invalid timestamps).');
+            this.destroySessionChart('Monitoring session history unavailable (invalid timestamps).');
             return;
         }
 
         if (versionData.length === 0) {
-            this.destroySessionChart('No client version history in this window.');
+            this.destroySessionChart('No monitoring sessions in this window.');
             return;
         }
 
@@ -2114,7 +2219,7 @@ export class DeviceDetailPage extends window.Component {
                     barHeight: '70%'
                 }
             },
-            series: [{ name: 'Version', data: versionData }],
+            series: [{ name: 'Monitoring', data: versionData }],
             colors: ['#206bc4'],
             legend: { show: false },
             dataLabels: {
@@ -2138,10 +2243,17 @@ export class DeviceDetailPage extends window.Component {
                     const seg = series?.data?.[dataPointIndex];
                     if (!seg) return '';
                     const fmt = (v) => new Date(v).toLocaleString();
+                    const glitches = Array.isArray(seg.glitches) ? seg.glitches : [];
+                    const glitchCount = glitches.length;
+                    const samples = Number(seg.samples) || 0;
+                    const glitchDetails = glitchCount > 0 ? `<div class="text-muted small">Glitches: ${glitchCount}</div>` : '';
+                    const sampleDetails = `<div class="text-muted small">Samples: ${samples}</div>`;
                     return `
                         <div class="apex-tooltip p-2">
                             <div><strong>${seg.x || ''}</strong></div>
                             <div class="text-muted small">${fmt(seg.y[0])} – ${fmt(seg.y[1])}</div>
+                            ${sampleDetails}
+                            ${glitchDetails}
                         </div>`;
                 }
             }
@@ -2571,7 +2683,6 @@ export class DeviceDetailPage extends window.Component {
             this.setState({ sessionLoading: false }, () => {
                 if (this.state.sessionExpanded && this.state.deviceSessions) {
                     this.renderSessionChart();
-                    this.renderPidSessionChart();
                 }
             });
         }
@@ -2579,7 +2690,7 @@ export class DeviceDetailPage extends window.Component {
 
     toggleSessionCollapse() {
         const next = !this.state.sessionExpanded;
-        this.setState({ sessionExpanded: next }, () => {
+        this.setState({ sessionExpanded: next, sessionTab: next ? 'specs' : this.state.sessionTab }, () => {
             if (this.state.sessionExpanded) {
                 this.loadSessionTimeline();
             } else {
@@ -2648,25 +2759,27 @@ export class DeviceDetailPage extends window.Component {
                                           html`<span class="badge bg-success-lt">Current</span>`}
                                     </td>
                                     <td>
-                                                                                ${worstSeverity === 'CLEAN' ? '' : html`
-                                                                                        <span class="badge ${
-                                                                                            worstSeverity === 'CRITICAL' ? 'bg-danger' : 
-                                                                                            worstSeverity === 'HIGH' ? 'bg-warning' : 
-                                                                                            worstSeverity === 'MEDIUM' ? 'bg-warning' : 
-                                                                                            'bg-info'
-                                                                                        } text-white d-inline-flex align-items-center gap-2" title="${worstSeverity} severity${app.matchType === 'absolute' ? ' - Database match' : app.matchType === 'heuristic' ? ' - AI/heuristic match' : ''}">
-                                                                                                ${worstSeverity}
-                                                                                                ${app.matchType === 'absolute' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 L12 3 L21 12 Z"/></svg>` : ''}
-                                                                                                ${app.matchType === 'heuristic' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l3 4.5l-3 4.5h-6l-3 -4.5z"/><path d="M9 4v9"/><path d="M15 4v9"/></svg>` : ''}
-                                                                                        </span>
-                                                                                `}
+                                        ${worstSeverity === 'CLEAN' ? '' : html`
+                                            <span class="badge ${this.getSeverityColor(worstSeverity)} d-inline-flex align-items-center gap-2" title="${worstSeverity} severity${app.matchType === 'absolute' ? ' - Database match' : app.matchType === 'heuristic' ? ' - AI/heuristic match' : ''}">
+                                                ${worstSeverity}
+                                                ${app.matchType === 'absolute' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 L12 3 L21 12 Z"/></svg>` : ''}
+                                                ${app.matchType === 'heuristic' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l3 4.5l-3 4.5h-6l-3 -4.5z"/><path d="M9 4v9"/><path d="M15 4v9"/></svg>` : ''}
+                                            </span>
+                                        `}
+                                        ${cves.length > 0 ? html`
+                                            <div class="mt-1">
+                                                ${this.renderDetectionButtons(this.getDetectionBuckets(cves), {
+                                                    size: 'sm',
+                                                    showLabels: false,
+                                                    onClick: () => this.setState({ cveFilterApp: app.appName, activeTab: 'risks' }, () => this.scrollToCveTable())
+                                                })}
+                                            </div>
+                                        ` : ''}
                                     </td>
                                     <td>
                                         ${cves.length > 0 ? html`
-                                            <a href="#" class="text-reset text-decoration-none" onclick=${(e) => { e.preventDefault(); this.setState({ cveFilterApp: app.appName, activeTab: 'risks' }); }} title="Show CVEs for this application">
-                                                <span class="badge ${cves.some(c => c.severity === 'CRITICAL' || c.severity === 'Critical') ? 'bg-danger' : cves.some(c => c.severity === 'HIGH' || c.severity === 'High') ? 'bg-warning' : 'bg-secondary'} text-white">
-                                                    ${cves.length}
-                                                </span>
+                                            <a href="#" class="text-reset text-decoration-none" onclick=${(e) => { e.preventDefault(); this.setState({ cveFilterApp: app.appName, activeTab: 'risks' }, () => this.scrollToCveTable()); }} title="Show CVEs for this application">
+                                                <span class="badge ${this.getSeverityColor(worstSeverity)}">${cves.length}</span>
                                             </a>
                                         ` : html`<span class="text-muted">—</span>`}
                                     </td>
@@ -2726,7 +2839,7 @@ export class DeviceDetailPage extends window.Component {
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div class="text-muted small">Risk posture</div>
-                                <span class="badge ${this.getSeverityColor(worstSeverity)} text-white">${worstSeverity}</span>
+                                <span class="badge ${this.getSeverityColor(worstSeverity)}">${worstSeverity}</span>
                             </div>
                             <div class="display-5 fw-bold mb-2">${riskScoreValue}</div>
                             <div class="progress mb-2" style="height: 8px;">
@@ -2769,27 +2882,26 @@ export class DeviceDetailPage extends window.Component {
             <div class="row row-cards mt-3">
                 <div class="col-md-6">
                     <div class="card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <div class="card-title mb-0">What contributes to this risk</div>
-                            <span class="badge ${this.getSeverityColor(worstSeverity)} text-white">${worstSeverity}</span>
-                        </div>
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="card-title mb-0">What contributes to this risk</div>
+                            </div>
                         <div class="list-group list-group-flush">
                             <div class="list-group-item d-flex justify-content-between align-items-start">
                                 <div>
                                     <div class="text-sm fw-bold">Vulnerability severity</div>
                                     <div class="text-muted small">Highest CVE severity detected</div>
                                 </div>
-                                <span class="badge ${this.getSeverityColor(worstSeverity)} text-white">${worstSeverity}</span>
+                                <span class="badge ${this.getSeverityColor(worstSeverity)}">${worstSeverity}</span>
                             </div>
                             <div class="list-group-item d-flex justify-content-between align-items-start">
                                 <div>
                                     <div class="text-sm fw-bold">Total CVEs</div>
                                     <div class="text-muted small">Active, unpatched CVEs across installed apps</div>
                                     <div class="d-flex flex-wrap gap-1 mt-2">
-                                        <span class="badge bg-danger-lt text-white">${critical.length} Critical</span>
-                                        <span class="badge bg-warning-lt text-white">${high.length} High</span>
-                                        <span class="badge bg-warning-lt text-white">${medium.length} Medium</span>
-                                        <span class="badge bg-info-lt text-white">${low.length} Low</span>
+                                        <span class="badge ${this.getSeverityColor('CRITICAL')}">${critical.length} Critical</span>
+                                        <span class="badge ${this.getSeverityColor('HIGH')}">${high.length} High</span>
+                                        <span class="badge ${this.getSeverityColor('MEDIUM')}">${medium.length} Medium</span>
+                                        <span class="badge ${this.getSeverityColor('LOW')}">${low.length} Low</span>
                                     </div>
                                 </div>
                                 <span class="badge bg-secondary-lt text-white">${activeCves.length}</span>
@@ -2865,6 +2977,10 @@ export class DeviceDetailPage extends window.Component {
         const highCves = filteredCves.filter(c => c.severity === 'HIGH' || c.severity === 'High');
         const mediumCves = filteredCves.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium');
         const lowCves = filteredCves.filter(c => c.severity === 'LOW' || c.severity === 'Low');
+        const highestWeight = filteredCves.length > 0 ? Math.max(...filteredCves.map(c => this.severityWeight(c.severity || '')), 0) : 0;
+        const highestSeverity = filteredCves.length > 0 ? this.severityLabelFromWeight(highestWeight) : 'CLEAN';
+        const severityBtnClass = this.getSeverityOutlineClass(highestSeverity);
+        const severityBadgeClass = this.getSeverityColor(highestSeverity);
 
         return html`
             ${this.state.cveFilterApp ? html`
@@ -2873,42 +2989,15 @@ export class DeviceDetailPage extends window.Component {
                     <button class="btn-close" onclick=${() => this.setState({ cveFilterApp: null })} style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);"></button>
                 </div>
             ` : ''}
-            <div class="row row-cards mb-3">
-                <div class="col-md-3">
-                    <div class="card border-danger-lt">
-                        <div class="card-body text-center">
-                            <div class="text-muted small">Critical</div>
-                            <div class="h3 text-danger">${criticalCves.length}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-warning-lt">
-                        <div class="card-body text-center">
-                            <div class="text-muted small">High</div>
-                            <div class="h3 text-warning">${highCves.length}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-secondary-lt">
-                        <div class="card-body text-center">
-                            <div class="text-muted small">Medium</div>
-                            <div class="h3 text-secondary">${mediumCves.length}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-info-lt">
-                        <div class="card-body text-center">
-                            <div class="text-muted small">Low</div>
-                            <div class="h3 text-info">${lowCves.length}</div>
-                        </div>
-                    </div>
-                </div>
+            <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+                <button class=${`btn ${severityBtnClass} d-inline-flex align-items-center gap-2`} onclick=${(e) => { e.preventDefault(); this.scrollToCveTable(); }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 4l7 3v6c0 3.5 -2.5 6.5 -7 9c-4.5 -2.5 -7 -5.5 -7 -9v-6z" /><path d="M10 12l2 2l4 -4" /></svg>
+                    <span>${highestSeverity}</span>
+                    <span class=${`badge ${severityBadgeClass}`}>${filteredCves.length}</span>
+                </button>
             </div>
             <div class="table-responsive">
-                <table class="table table-sm table-hover">
+                <table class="table table-sm table-hover" id="cve-table">
                     <thead>
                         <tr>
                             <th>CVE ID</th>
@@ -2945,7 +3034,7 @@ export class DeviceDetailPage extends window.Component {
                                     </td>
                                     <td>${cve.vendor || '—'}</td>
                                     <td>
-                                        <span class="badge ${this.getSeverityColor(cve.severity)} text-white">
+                                        <span class="badge ${this.getSeverityColor(cve.severity)}">
                                             ${(cve.severity || 'Unknown').toUpperCase()}
                                         </span>
                                     </td>
