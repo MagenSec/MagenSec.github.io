@@ -1027,10 +1027,10 @@ export class DeviceDetailPage extends window.Component {
         const hasVersionSessions = Array.isArray(versionSessions) && versionSessions.length > 0;
         const hasPidSessions = Array.isArray(pidSessions) && pidSessions.length > 0;
         const sessionTabs = [
-            { key: 'version', label: 'Client versions', hasData: hasVersionSessions },
-            { key: 'pid', label: 'PID sessions', hasData: hasPidSessions },
-            { key: 'perf', label: 'Performance', hasData: !!this.state.perfData },
             { key: 'specs', label: 'Specs', hasData: true },
+            { key: 'version', label: 'Client versions', hasData: hasVersionSessions },
+            { key: 'pid', label: 'Coverage windows', hasData: hasPidSessions },
+            { key: 'perf', label: 'Performance', hasData: !!this.state.perfData },
             { key: 'timeline', label: 'Timeline', hasData: this.state.timeline?.length > 0 }
         ];
         const sessionIcon = (key) => {
@@ -1321,11 +1321,11 @@ export class DeviceDetailPage extends window.Component {
                                 <div class="card">
                                     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                                         <div>
-                                            <div class="card-title mb-0">Client version & PID history</div>
-                                            <div class="text-muted small">${sessionWindowText}</div>
+                                            <div class="card-title mb-0">Coverage & client history</div>
+                                            <div class="text-muted small">${sessionWindowText || 'No coverage history yet'}</div>
                                         </div>
                                         <button class="btn btn-sm btn-outline-primary" onclick=${(e) => { e.preventDefault(); this.toggleSessionCollapse(); }}>
-                                            ${this.state.sessionExpanded ? 'Hide timeline' : 'Show timeline'}
+                                            ${this.state.sessionExpanded ? 'Hide coverage' : 'Show coverage'}
                                         </button>
                                     </div>
                                     ${this.state.sessionExpanded ? html`
@@ -1355,7 +1355,7 @@ export class DeviceDetailPage extends window.Component {
                                                     ` : ''}
                                                     ${this.state.sessionTab === 'pid' ? html`
                                                         <div class="tab-pane active show">
-                                                            <div class="text-muted small mb-1">Process IDs</div>
+                                                            <div class="text-muted small mb-1">Coverage windows (process/activity)</div>
                                                             <div ref=${(el) => { this.pidSessionChartEl = el; }} style="min-height: 200px;"></div>
                                                             ${!hasPidSessions ? html`<div class="text-muted small">No PID session history in this window.</div>` : ''}
                                                         </div>
@@ -2691,7 +2691,7 @@ export class DeviceDetailPage extends window.Component {
     renderRiskAssessment() {
         const { html } = window;
 
-        const { activeCves } = this.getActiveAppsAndCves();
+        const { activeApps, activeCves } = this.getActiveAppsAndCves();
         const critical = activeCves.filter(c => (c.severity || '').toUpperCase() === 'CRITICAL');
         const high = activeCves.filter(c => (c.severity || '').toUpperCase() === 'HIGH');
         const medium = activeCves.filter(c => (c.severity || '').toUpperCase() === 'MEDIUM');
@@ -2704,41 +2704,135 @@ export class DeviceDetailPage extends window.Component {
             return Math.max(0, Math.min(100, Math.round(n)));
         })();
         const knownExploitCount = this.state.knownExploits ? activeCves.filter(c => this.state.knownExploits.has(c.cveId)).length : 0;
+        const vulnerableApps = (() => {
+            const set = new Set();
+            activeCves.forEach(c => { if (c.appName) set.add(c.appName); });
+            return set.size;
+        })();
+        const maxEpss = activeCves.reduce((max, c) => Math.max(max, Number(c.epss || 0)), 0);
+        const epssBadge = maxEpss >= 0.5 ? 'bg-danger-lt' : maxEpss >= 0.3 ? 'bg-warning-lt' : maxEpss > 0 ? 'bg-info-lt' : 'bg-secondary-lt';
+
+        const latestFields = this.state.telemetryDetail?.latest?.fields || {};
+        const ipRaw = latestFields.IPAddresses || latestFields.ipAddresses;
+        const ipList = Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : [];
+        const networkRisk = this.analyzeNetworkRisk(ipList, this.state.telemetryDetail?.history);
+
+        const progressClass = riskScoreValue >= 80 ? 'bg-danger' : riskScoreValue >= 60 ? 'bg-warning' : riskScoreValue >= 40 ? 'bg-warning' : 'bg-success';
 
         return html`
             <div class="row row-cards">
-                <div class="col-md-4">
-                    <div class="card">
+                <div class="col-md-5">
+                    <div class="card h-100">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div class="text-muted small">Risk posture</div>
                                 <span class="badge ${this.getSeverityColor(worstSeverity)} text-white">${worstSeverity}</span>
                             </div>
-                            <div class="display-5 fw-bold">${riskScoreValue}</div>
-                            <div class="text-muted small">Score is 0–100 baseline; severity badge reflects worst active issue.</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="text-muted small">Known exploits surfaced</div>
-                            <div class="display-6 fw-bold">${knownExploitCount}</div>
-                            <div class="text-muted small">Prioritized above other CVEs in the list.</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="text-muted small">Exposure mix</div>
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="badge bg-danger-lt text-white">Critical ${critical.length}</span>
-                                <span class="badge bg-warning-lt text-white">High ${high.length}</span>
-                                <span class="badge bg-warning-lt text-white">Medium ${medium.length}</span>
-                                <span class="badge bg-info-lt text-white">Low ${low.length}</span>
+                            <div class="display-5 fw-bold mb-2">${riskScoreValue}</div>
+                            <div class="progress mb-2" style="height: 8px;">
+                                <div class="progress-bar ${progressClass}" style="width: ${riskScoreValue}%"></div>
                             </div>
-                            <div class="text-muted small mt-2">Driven by installed apps and unpatched CVEs only.</div>
+                            <div class="text-muted small">Higher is worse (0 = safe, 100 = highest risk). Severity badge reflects the worst active issue.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex flex-wrap gap-3 align-items-center">
+                                <div>
+                                    <div class="text-muted small">Known exploits surfaced</div>
+                                    <div class="display-6 fw-bold">${knownExploitCount}</div>
+                                    <div class="text-muted small">Prioritized above other CVEs in the list.</div>
+                                </div>
+                                <div>
+                                    <div class="text-muted small">Exploit probability (max EPSS)</div>
+                                    <span class="badge ${epssBadge} text-white">${maxEpss > 0 ? `${(maxEpss * 100).toFixed(0)}%` : 'Unknown'}</span>
+                                </div>
+                                <div>
+                                    <div class="text-muted small">Vulnerable applications</div>
+                                    <span class="badge bg-warning-lt text-white">${vulnerableApps || '0'} apps</span>
+                                </div>
+                                <div>
+                                    <div class="text-muted small">Network exposure</div>
+                                    <span class="badge ${networkRisk?.publicIpPresent ? 'bg-danger-lt' : networkRisk?.apipaPresent ? 'bg-warning-lt' : 'bg-secondary-lt'} text-white">
+                                        ${networkRisk?.publicIpPresent ? 'Public IP seen' : networkRisk?.apipaPresent ? 'APIPA detected' : 'Limited signals'}
+                                    </span>
+                                    ${networkRisk?.riskFactors?.length ? html`<div class="text-muted small mt-1">${networkRisk.riskFactors.join(' • ')}</div>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row row-cards mt-3">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="card-title mb-0">What contributes to this risk</div>
+                            <span class="badge ${this.getSeverityColor(worstSeverity)} text-white">${worstSeverity}</span>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="text-sm fw-bold">Vulnerability severity</div>
+                                    <div class="text-muted small">Highest CVE severity detected</div>
+                                </div>
+                                <span class="badge ${this.getSeverityColor(worstSeverity)} text-white">${worstSeverity}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="text-sm fw-bold">Total CVEs</div>
+                                    <div class="text-muted small">Active, unpatched CVEs across installed apps</div>
+                                    <div class="d-flex flex-wrap gap-1 mt-2">
+                                        <span class="badge bg-danger-lt text-white">${critical.length} Critical</span>
+                                        <span class="badge bg-warning-lt text-white">${high.length} High</span>
+                                        <span class="badge bg-warning-lt text-white">${medium.length} Medium</span>
+                                        <span class="badge bg-info-lt text-white">${low.length} Low</span>
+                                    </div>
+                                </div>
+                                <span class="badge bg-secondary-lt text-white">${activeCves.length}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="text-sm fw-bold">Known exploits</div>
+                                    <div class="text-muted small">CVEs with public exploits detected</div>
+                                </div>
+                                ${knownExploitCount > 0 ? html`<span class="badge bg-danger-lt text-white">${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}</span>` : html`<span class="text-muted">None known</span>`}
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="text-sm fw-bold">Network exposure</div>
+                                    <div class="text-muted small">Public or APIPA signals from device IPs</div>
+                                </div>
+                                <span class="badge ${networkRisk?.publicIpPresent ? 'bg-danger-lt' : networkRisk?.apipaPresent ? 'bg-warning-lt' : 'bg-secondary-lt'} text-white">
+                                    ${networkRisk?.publicIpPresent ? 'Public IP seen' : networkRisk?.apipaPresent ? 'APIPA detected' : 'Limited signals'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="card-title mb-0">Next steps</div>
+                            <span class="badge bg-primary-lt text-primary">Guided actions</span>
+                        </div>
+                        <div class="card-body">
+                            <ol class="small mb-3">
+                                ${vulnerableApps > 0 ? html`<li class="mb-2">Patch ${vulnerableApps} vulnerable application${vulnerableApps > 1 ? 's' : ''} to reduce exposure fastest.</li>` : html`<li class="mb-2">Keep applications updated; no vulnerable apps detected.</li>`}
+                                ${(critical.length + high.length) > 0 ? html`<li class="mb-2">Prioritize the ${critical.length + high.length} Critical/High CVEs first.</li>` : html`<li class="mb-2">No Critical/High CVEs detected right now.</li>`}
+                                <li class="mb-2">Review network exposure (public/APIPA IPs) and ensure firewall/VPN coverage.</li>
+                            </ol>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-primary" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'inventory' }); }}>
+                                    Go to Applications
+                                </button>
+                                <button class="btn btn-outline-primary" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'risks' }); }}>
+                                    Go to CVEs
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
