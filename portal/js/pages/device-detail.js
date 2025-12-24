@@ -1175,130 +1175,6 @@ export class DeviceDetailPage extends window.Component {
 
                         <!-- Metrics Row -->
                         <div class="row row-cards mb-3">
-                            <div class="col-md-3">
-                                <div class="card">
-                                    <div class="card-body d-flex align-items-center gap-3">
-                                        <!-- Risk Gauge -->
-                                        <div style="flex-shrink: 0;">
-                                            ${(() => {
-                                                const summary = this.state.deviceSummary;
-                                                const score = riskScore;
-                                                const isEnriched = this.state.enrichedScore && Number(this.state.enrichedScore.score) !== Number(summary ? summary.score : this.calculateRiskScore(device));
-                                                const enriched = this.state.enrichedScore;
-                                                const gaugeColor = worstSeverity === 'CRITICAL' ? '#d63939' : worstSeverity === 'HIGH' ? '#f59f00' : worstSeverity === 'MEDIUM' ? '#fab005' : '#2fb344';
-                                                const angle = (score / 100) * 270;
-                                                const radian = (angle - 135) * (Math.PI / 180);
-                                                const cx = 25, cy = 25, r = 20;
-                                                const x = cx + r * Math.cos(radian);
-                                                const y = cy + r * Math.sin(radian);
-                                                
-                                                // Build tooltip text with constituents
-                                                let tooltipText = `Risk Score: ${score}`;
-                                                if (enriched && enriched.constituents) {
-                                                    const c = enriched.constituents;
-                                                    const e = enriched.enrichmentFactors;
-                                                    tooltipText = `Risk Score: ${score} (Enriched)\n` +
-                                                        `Baseline: ${summary ? summary.score : 0}\n` +
-                                                        `Max CVSS: ${(c.maxCvssNormalized * 10).toFixed(1)}\n` +
-                                                        `Max EPSS: ${(c.maxEpssStored * 100).toFixed(1)}%\n` +
-                                                        `CVE Count: ${c.cveCount}\n` +
-                                                        `Time Decay: ${(e.timeDecayFactor * 100).toFixed(1)}% (${e.daysSinceEpss} days)\n` +
-                                                        `Exploit Factor: ${e.hasKnownExploit ? '1.5\u00d7 (Known Exploit!)' : '1.0\u00d7'}`;
-                                                }
-                                                
-                                                return html`
-                                                    <div title="${tooltipText}" style="cursor: help; position: relative;">
-                                                        <svg width="50" height="50" viewBox="0 0 50 50">
-                                                            <circle cx="25" cy="25" r="20" fill="none" stroke="#e6e7e9" stroke-width="3"/>
-                                                            <path d="M 25 25 L 45 25 A 20 20 0 ${angle > 180 ? 1 : 0} 1 ${x} ${y}" fill="none" stroke="${gaugeColor}" stroke-width="3" stroke-linecap="round"/>
-                                                            <text x="25" y="28" text-anchor="middle" font-size="10" fill="#666">${Math.round(score)}</text>
-                                                        </svg>
-                                                        ${isEnriched ? html`
-                                                            <span style="position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; background: #2fb344; border-radius: 50%; border: 2px solid white; font-size: 8px; color: white; display: flex; align-items: center; justify-content: center;">✓</span>
-                                                        ` : ''}
-                                                    </div>
-                                                `;
-                                            })()}
-                                        </div>
-                                        <!-- Stacked Charts -->
-                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
-                                            <!-- App Vulnerability Pie -->
-                                            <div class="d-flex align-items-center gap-2">
-                                                ${(() => {
-                                                    const totalApps = enrichedApps.length || 0;
-                                                    const vulnerableApps = this.state.appInventory.filter(app => this.state.cveInventory.some(cve => cve.appName && app.appName && cve.appName.toLowerCase() === app.appName.toLowerCase())).length;
-                                                    const cleanApps = totalApps - vulnerableApps;
-                                                    const vulnAngle = totalApps > 0 ? (vulnerableApps / totalApps) * 360 : 0;
-                                                    const vulnRad = (vulnAngle - 90) * (Math.PI / 180);
-                                                    const vx = 20 + 16 * Math.cos(vulnRad);
-                                                    const vy = 20 + 16 * Math.sin(vulnRad);
-                                                    return html`
-                                                        <svg width="40" height="40" viewBox="0 0 40 40">
-                                                            <circle cx="20" cy="20" r="16" fill="${vulnerableApps > 0 ? '#d63939' : '#2fb344'}"/>
-                                                            ${cleanApps > 0 ? html`
-                                                                <path d="M 20 20 L 20 4 A 16 16 0 ${vulnAngle > 180 ? 1 : 0} 1 ${vx} ${vy} Z" fill="#2fb344"/>
-                                                            ` : ''}
-                                                        </svg>
-                                                        <div style="font-size: 11px;">
-                                                            <strong>${vulnerableApps}</strong>/${totalApps} apps vulnerable
-                                                        </div>
-                                                    `;
-                                                })()}
-                                            </div>
-                                            <!-- CVE Distribution Pie -->
-                                            <div class="d-flex align-items-center gap-2">
-                                                ${(() => {
-                                                    const totalCves = this.state.cveInventory.length;
-                                                    const critCount = criticalCves.length;
-                                                    const highCount = highCves.length;
-                                                    const mediumCount = this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length;
-                                                    const lowCount = this.state.cveInventory.filter(c => c.severity === 'LOW' || c.severity === 'Low').length;
-                                                    
-                                                    if (totalCves === 0) {
-                                                        return html`
-                                                            <svg width="40" height="40" viewBox="0 0 40 40">
-                                                                <circle cx="20" cy="20" r="16" fill="#2fb344"/>
-                                                            </svg>
-                                                            <div style="font-size: 11px;"><strong>0</strong> CVEs</div>
-                                                        `;
-                                                    }
-                                                    
-                                                    const addSlice = (startAngle, count, color) => {
-                                                        if (count === 0) return { path: '', endAngle: startAngle };
-                                                        const angle = (count / totalCves) * 360;
-                                                        const endAngle = startAngle + angle;
-                                                        const startRad = (startAngle - 90) * (Math.PI / 180);
-                                                        const endRad = (endAngle - 90) * (Math.PI / 180);
-                                                        const x1 = 20 + 16 * Math.cos(startRad);
-                                                        const y1 = 20 + 16 * Math.sin(startRad);
-                                                        const x2 = 20 + 16 * Math.cos(endRad);
-                                                        const y2 = 20 + 16 * Math.sin(endRad);
-                                                        const largeArc = angle > 180 ? 1 : 0;
-                                                        return {
-                                                            path: html`<path d="M 20 20 L ${x1} ${y1} A 16 16 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${color}"/>`,
-                                                            endAngle
-                                                        };
-                                                    };
-                                                    
-                                                    let currentAngle = 0;
-                                                    const slices = [];
-                                                    const slice1 = addSlice(currentAngle, critCount, '#d63939'); slices.push(slice1.path); currentAngle = slice1.endAngle;
-                                                    const slice2 = addSlice(currentAngle, highCount, '#f59f00'); slices.push(slice2.path); currentAngle = slice2.endAngle;
-                                                    const slice3 = addSlice(currentAngle, mediumCount, '#fab005'); slices.push(slice3.path); currentAngle = slice3.endAngle;
-                                                    const slice4 = addSlice(currentAngle, lowCount, '#74b816'); slices.push(slice4.path);
-                                                    
-                                                    return html`
-                                                        <svg width="40" height="40" viewBox="0 0 40 40">
-                                                            ${slices}
-                                                        </svg>
-                                                        <div style="font-size: 11px;"><strong>${totalCves}</strong> CVEs</div>
-                                                    `;
-                                                })()}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-body">
@@ -1332,6 +1208,111 @@ export class DeviceDetailPage extends window.Component {
                                                     ${networkRisk.apipaPresent ? html`<span class="badge bg-danger-lt">APIPA</span>` : ''}
                                                     ${mobileStatus.isMobile ? html`<span class="badge bg-info-lt">Mobile (${mobileStatus.uniqueIpCount})</span>` : ''}
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Donut row: apps, CVEs, client version -->
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="row g-3 align-items-center">
+                                            <div class="col-md-4">
+                                                ${(() => {
+                                                    const totalApps = enrichedApps.length || 0;
+                                                    const vulnerableApps = this.state.appInventory.filter(app => this.state.cveInventory.some(cve => cve.appName && app.appName && cve.appName.toLowerCase() === app.appName.toLowerCase())).length;
+                                                    const cleanApps = Math.max(0, totalApps - vulnerableApps);
+                                                    const radius = 34;
+                                                    const circumference = 2 * Math.PI * radius;
+                                                    const vulnPct = totalApps > 0 ? vulnerableApps / totalApps : 0;
+                                                    const vulnOffset = circumference * (1 - vulnPct);
+                                                    return html`
+                                                        <div class="d-flex align-items-center gap-3">
+                                                            <svg width="120" height="120" viewBox="0 0 120 120">
+                                                                <circle cx="60" cy="60" r="${radius}" fill="none" stroke="#e9ecef" stroke-width="14" />
+                                                                <circle cx="60" cy="60" r="${radius}" fill="none" stroke="#d63939" stroke-width="14" stroke-dasharray="${circumference} ${circumference}" stroke-dashoffset="${vulnOffset}" stroke-linecap="round" transform="rotate(-90 60 60)" />
+                                                                <text x="60" y="60" text-anchor="middle" dominant-baseline="middle" font-size="14" font-weight="700">${vulnerableApps}/${totalApps || 0}</text>
+                                                            </svg>
+                                                            <div>
+                                                                <div class="fw-semibold">Apps with CVEs</div>
+                                                                <div class="text-muted small">${vulnerableApps} vulnerable · ${cleanApps} clean</div>
+                                                            </div>
+                                                        </div>
+                                                    `;
+                                                })()}
+                                            </div>
+                                            <div class="col-md-4">
+                                                ${(() => {
+                                                    const totalCves = this.state.cveInventory.length;
+                                                    const counts = {
+                                                        crit: criticalCves.length,
+                                                        high: highCves.length,
+                                                        med: this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length,
+                                                        low: this.state.cveInventory.filter(c => c.severity === 'LOW' || c.severity === 'Low').length
+                                                    };
+                                                    const radius = 34;
+                                                    const circumference = 2 * Math.PI * radius;
+                                                    const slices = [];
+                                                    let offset = 0;
+                                                    const pushSlice = (count, color) => {
+                                                        if (!count || totalCves === 0) return;
+                                                        const pct = count / totalCves;
+                                                        const length = pct * circumference;
+                                                        slices.push({ length, color, offset });
+                                                        offset += length;
+                                                    };
+                                                    pushSlice(counts.crit, '#d63939');
+                                                    pushSlice(counts.high, '#f59f00');
+                                                    pushSlice(counts.med, '#fab005');
+                                                    pushSlice(counts.low, '#74b816');
+
+                                                    return html`
+                                                        <div class="d-flex align-items-center gap-3">
+                                                            <svg width="120" height="120" viewBox="0 0 120 120">
+                                                                <circle cx="60" cy="60" r="${radius}" fill="none" stroke="#e9ecef" stroke-width="14" />
+                                                                ${slices.map(s => html`<circle cx="60" cy="60" r="${radius}" fill="none" stroke="${s.color}" stroke-width="14" stroke-dasharray="${s.length} ${circumference}" stroke-dashoffset="${circumference - s.offset}" transform="rotate(-90 60 60)" />`)}
+                                                                <text x="60" y="60" text-anchor="middle" dominant-baseline="middle" font-size="14" font-weight="700">${totalCves || 0}</text>
+                                                            </svg>
+                                                            <div>
+                                                                <div class="fw-semibold">CVE mix</div>
+                                                                <div class="text-muted small">${counts.crit} critical · ${counts.high} high · ${counts.med} med · ${counts.low} low</div>
+                                                            </div>
+                                                        </div>
+                                                    `;
+                                                })()}
+                                            </div>
+                                            <div class="col-md-4">
+                                                ${(() => {
+                                                    const dv = device.ClientVersion || device.clientVersion || this.state.deviceSummary?.clientVersion;
+                                                    const latest = (this.state.installers?.ENGINE?.VERSION) || config.INSTALLERS.ENGINE.VERSION;
+                                                    const updateAvailable = dv ? this.isVersionOutdated(dv) : false;
+                                                    return html`
+                                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                                            <div>
+                                                                <div class="fw-semibold">Client version</div>
+                                                                <div class="d-flex align-items-center gap-2">
+                                                                    <span class="badge ${updateAvailable ? 'bg-warning-lt' : 'bg-success-lt'}">${dv ? `v${dv}` : 'Unknown'}</span>
+                                                                    ${updateAvailable ? html`<span class="badge bg-azure-lt">v${latest} available</span>` : ''}
+                                                                </div>
+                                                            </div>
+                                                            <div class="dropdown">
+                                                                <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                                                    Queue action
+                                                                    ${updateAvailable ? html`<span class="badge bg-warning text-dark ms-1">Update</span>` : ''}
+                                                                </button>
+                                                                <div class="dropdown-menu dropdown-menu-end">
+                                                                    <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); console.info('Queue: Update client to latest'); }}>
+                                                                        Queue client update to v${latest}
+                                                                    </a>
+                                                                    <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); console.info('Queue: Restart client'); }}>
+                                                                        Restart client service
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    `;
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
