@@ -68,7 +68,7 @@ export class DeviceDetailPage extends window.Component {
                 ${top.map(seg => html`
                     <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center gap-2">
                         <div>
-                            <div class="fw-semibold">${seg.Label || seg.label}</div>
+                            <div class="fw-semibold">${this.formatMonitoringLabel(seg)}</div>
                             <div class="text-muted small">${fmt(seg.StartUtc || seg.startUtc)} → ${fmt(seg.EndUtc || seg.endUtc)}${seg.IsOpen || seg.isOpen ? ' (open)' : ''}</div>
                         </div>
                         <span class="badge bg-light text-body border">${seg.Samples || seg.samples || 0} samples</span>
@@ -262,6 +262,11 @@ export class DeviceDetailPage extends window.Component {
         const candidates = [summary.pidSessions, summary.PidSessions, summary.sessionsPid, summary.SessionsPid];
         const picked = candidates.find((c) => Array.isArray(c) && c.length > 0);
         return Array.isArray(picked) ? picked : [];
+    }
+
+    formatMonitoringLabel(seg) {
+        const clientVersion = seg?.clientVersion || seg?.ClientVersion;
+        return clientVersion ? `v${clientVersion}` : 'Monitoring';
     }
 
     calculateRiskScore(device) {
@@ -2144,14 +2149,16 @@ export class DeviceDetailPage extends window.Component {
 
         const sessions = this.state.deviceSessions;
         const monitoringSessions = this.getMonitoringSessions(sessions);
-        const versionSessions = monitoringSessions.length > 0 ? monitoringSessions : this.getVersionSessions(sessions);
+        const combinedSessions = Array.isArray(monitoringSessions) && monitoringSessions.length > 0
+            ? monitoringSessions
+            : this.getVersionSessions(sessions);
 
         if (!window.ApexCharts) {
             this.destroySessionChart('Monitoring sessions unavailable (charts not loaded).');
             return;
         }
 
-        if (!Array.isArray(versionSessions) || versionSessions.length === 0) {
+        if (!Array.isArray(combinedSessions) || combinedSessions.length === 0) {
             this.destroySessionChart('No monitoring sessions in this window.');
             return;
         }
@@ -2162,41 +2169,66 @@ export class DeviceDetailPage extends window.Component {
         };
 
         const now = Date.now();
-        const mapSegments = (segments, labelResolver) => segments
-            .map(seg => {
-                const label = labelResolver(seg) || 'Unknown';
-                const startTs = toTimestamp(seg.StartUtc ?? seg.startUtc ?? seg.start);
-                const endCandidate = toTimestamp(seg.EndUtc ?? seg.endUtc ?? seg.end);
-                if (!Number.isFinite(startTs)) return null;
+        const normalizeSeg = (seg) => {
+            const startTs = toTimestamp(seg.StartUtc ?? seg.startUtc ?? seg.start);
+            const endCandidate = toTimestamp(seg.EndUtc ?? seg.endUtc ?? seg.end);
+            const sysStartTs = toTimestamp(seg.SystemStartUtc ?? seg.systemStartUtc);
+            if (!Number.isFinite(startTs)) return null;
 
-                const closedEnd = Number.isFinite(endCandidate) ? endCandidate : startTs;
-                const endTs = (seg.IsOpen || seg.isOpen) ? now : closedEnd;
-                const finalEnd = Number.isFinite(endTs) ? Math.max(startTs, endTs) : startTs;
-                const safeEnd = Number.isFinite(finalEnd) ? Math.max(startTs + 1, finalEnd) : startTs + 1;
+            const closedEnd = Number.isFinite(endCandidate) ? endCandidate : startTs;
+            const endTs = (seg.IsOpen || seg.isOpen) ? now : closedEnd;
+            const finalEnd = Number.isFinite(endTs) ? Math.max(startTs, endTs) : startTs;
+            const safeEnd = Number.isFinite(finalEnd) ? Math.max(startTs + 1, finalEnd) : startTs + 1;
+            if (!Number.isFinite(safeEnd)) return null;
 
-                if (!Number.isFinite(safeEnd)) return null;
+            const glitches = Array.isArray(seg.Glitches) ? seg.Glitches : Array.isArray(seg.glitches) ? seg.glitches : [];
+            const samples = seg.Samples ?? seg.samples ?? 0;
+            return {
+                label: this.formatMonitoringLabel(seg),
+                startTs,
+                endTs: safeEnd,
+                systemStartTs: Number.isFinite(sysStartTs) ? sysStartTs : null,
+                glitches,
+                samples
+            };
+        };
 
-                const glitches = Array.isArray(seg.Glitches) ? seg.Glitches : Array.isArray(seg.glitches) ? seg.glitches : [];
-                const samples = seg.Samples ?? seg.samples ?? 0;
+        const normalized = combinedSessions
+            .map(normalizeSeg)
+            .filter(Boolean)
+            .sort((a, b) => a.startTs - b.startTs);
 
-                return { x: label, y: [startTs, safeEnd], glitches, samples };
-            })
-            .filter(seg => seg && Number.isFinite(seg.y?.[0]) && Number.isFinite(seg.y?.[1]))
-            .sort((a, b) => a.y[0] - b.y[0]);
+        const monitoringData = normalized.map(seg => ({ x: 'Monitoring', y: [seg.startTs, seg.endTs], glitches: seg.glitches, samples: seg.samples, versionLabel: seg.label }));
 
-        const versionData = mapSegments(versionSessions, (seg) => seg.Label || seg.label || seg.Version || seg.version);
-
-        const hasInvalid = versionData.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
+        const hasInvalid = monitoringData.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
         if (hasInvalid) {
-            console.warn('[DeviceDetail] Skipping version session chart due to invalid timestamps', { versionData });
+            console.warn('[DeviceDetail] Skipping monitoring session chart due to invalid timestamps', { monitoringData });
             this.destroySessionChart('Monitoring session history unavailable (invalid timestamps).');
             return;
         }
 
-        if (versionData.length === 0) {
+        if (monitoringData.length === 0) {
             this.destroySessionChart('No monitoring sessions in this window.');
             return;
         }
+
+        const systemSeries = [];
+        const offlineSeries = [];
+        const noCoverageSeries = [];
+        normalized.forEach((seg, idx) => {
+            const sysStart = seg.systemStartTs ?? seg.startTs;
+            systemSeries.push({ x: 'System', y: [sysStart, seg.endTs] });
+
+            if (Number.isFinite(sysStart) && sysStart < seg.startTs) {
+                noCoverageSeries.push({ x: 'System', y: [sysStart, seg.startTs] });
+            }
+
+            const next = normalized[idx + 1];
+            const nextStart = next ? (next.systemStartTs ?? next.startTs) : null;
+            if (Number.isFinite(nextStart) && seg.endTs < nextStart) {
+                offlineSeries.push({ x: 'System', y: [seg.endTs, nextStart] });
+            }
+        });
 
         if (this.sessionChart) {
             this.sessionChart.destroy();
@@ -2216,18 +2248,28 @@ export class DeviceDetailPage extends window.Component {
             plotOptions: {
                 bar: {
                     horizontal: true,
-                    barHeight: '70%'
+                    barHeight: '70%',
+                    rangeBarGroupRows: true
                 }
             },
-            series: [{ name: 'Monitoring', data: versionData }],
-            colors: ['#206bc4'],
-            legend: { show: false },
+            series: [
+                ...(offlineSeries.length ? [{ name: 'Offline', data: offlineSeries, color: '#868e96' }] : []),
+                ...(systemSeries.length ? [{ name: 'System Up', data: systemSeries, color: '#1c7ed6' }] : []),
+                ...(noCoverageSeries.length ? [{ name: 'No Coverage', data: noCoverageSeries, color: '#f03e3e' }] : []),
+                { name: 'Monitoring', data: monitoringData, color: '#2f9e44' }
+            ],
+            colors: ['#868e96', '#1c7ed6', '#f03e3e', '#2f9e44'],
+            fill: { opacity: [0.65, 0.75, 0.85, 1] },
+            legend: { show: true, position: 'top' },
             dataLabels: {
                 enabled: true,
                 formatter: (_val, opts) => {
                     const series = opts.w?.config?.series?.[opts.seriesIndex];
                     const point = series?.data?.[opts.dataPointIndex];
-                    return point?.x || '';
+                    if (series?.name === 'Monitoring') {
+                        return point?.versionLabel || 'Monitoring';
+                    }
+                    return series?.name || '';
                 },
                 style: { colors: ['#fff'], fontSize: '11px' }
             },
@@ -2235,7 +2277,11 @@ export class DeviceDetailPage extends window.Component {
                 type: 'datetime',
                 labels: { datetimeFormatter: { hour: 'MMM dd HH:mm', day: 'MMM dd' } }
             },
-            yaxis: { labels: { style: { fontSize: '11px' } } },
+            yaxis: {
+                categories: ['Monitoring', 'System'],
+                reversed: true,
+                labels: { style: { fontSize: '11px' } }
+            },
             grid: { strokeDashArray: 4 },
             tooltip: {
                 custom: ({ seriesIndex, dataPointIndex, w }) => {
@@ -2246,14 +2292,18 @@ export class DeviceDetailPage extends window.Component {
                     const glitches = Array.isArray(seg.glitches) ? seg.glitches : [];
                     const glitchCount = glitches.length;
                     const samples = Number(seg.samples) || 0;
-                    const glitchDetails = glitchCount > 0 ? `<div class="text-muted small">Glitches: ${glitchCount}</div>` : '';
-                    const sampleDetails = `<div class="text-muted small">Samples: ${samples}</div>`;
+                    const glitchDetails = series?.name === 'Monitoring' && glitchCount > 0 ? `<div class="text-muted small">Glitches: ${glitchCount}</div>` : '';
+                    const sampleDetails = series?.name === 'Monitoring' ? `<div class="text-muted small">Samples: ${samples}</div>` : '';
+                    const offlineNote = series?.name === 'Offline' ? '<div class="text-muted small">System state unknown or powering off; monitoring not running.</div>' : '';
+                    const noCoverageNote = series?.name === 'No Coverage' ? '<div class="text-muted small">System up but monitoring inactive.</div>' : '';
                     return `
                         <div class="apex-tooltip p-2">
-                            <div><strong>${seg.x || ''}</strong></div>
+                            <div><strong>${series?.name || ''}</strong>${seg.versionLabel && series?.name === 'Monitoring' ? ` · ${seg.versionLabel}` : ''}</div>
                             <div class="text-muted small">${fmt(seg.y[0])} – ${fmt(seg.y[1])}</div>
                             ${sampleDetails}
                             ${glitchDetails}
+                            ${offlineNote}
+                            ${noCoverageNote}
                         </div>`;
                 }
             }
