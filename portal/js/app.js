@@ -17,6 +17,7 @@ import { ThreatIntelPage } from './pages/threatIntel.js';
 import { ResponseActionsPage } from './pages/responseActions.js';
 import { VulnerabilitiesPage } from './pages/vulnerabilities.js';
 import { InventoryPage, TrendsPage, OrgsPage, MembersPage, LicensesPage, AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, AlertsPage, PlatformInsightsPage } from './pages/placeholders.js';
+import { SettingsPage } from './pages/settings.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
@@ -83,6 +84,8 @@ function App() {
             return html`<${LicensesPage} />`;
         case 'account':
             return html`<${AccountPage} />`;
+        case 'settings':
+            return html`<${SettingsPage} />`;
         default:
             return html`<${LoginPage} />`;
     }

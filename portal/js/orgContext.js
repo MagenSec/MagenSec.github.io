@@ -252,6 +252,14 @@ class OrgContext {
                 logger.error('[OrgContext] Listener error:', error);
             }
         });
+
+        // Broadcast a global event for pages to react to org changes
+        try {
+            const evt = new CustomEvent('orgChanged', { detail: this.currentOrg });
+            window.dispatchEvent(evt);
+        } catch (error) {
+            logger.error('[OrgContext] Failed to dispatch orgChanged event:', error);
+        }
     }
 
     /**

@@ -163,7 +163,8 @@ export function initRouter(renderApp) {
         ['orgs', 'orgs'],
         ['members', 'members'],
         ['licenses', 'licenses'],
-        ['account', 'account']
+        ['account', 'account'],
+        ['settings', 'settings']
     ];
     protectedRoutes.forEach(([path, pageName]) => {
         page(`/${path}`, (ctx) => {
