@@ -9,6 +9,7 @@ import { orgContext } from '../orgContext.js';
 import { auth } from '../auth.js';
 import toast from '../toast.js';
 import { logger } from '../config.js';
+import { LicenseAdjustmentDialog } from '../components/LicenseAdjustmentDialog.js';
 
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
@@ -41,6 +42,7 @@ export function SettingsPage() {
     const [showTeamDropdown, setShowTeamDropdown] = useState(false);
     const [orgOwnerSearch, setOrgOwnerSearch] = useState('');
     const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
+    const [adjustingLicense, setAdjustingLicense] = useState(null);
 
     // Email validation helper
     const isValidEmail = (email) => {
@@ -50,6 +52,9 @@ export function SettingsPage() {
 
     // Load data on mount and reload when org changes
     useEffect(() => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) return;
+        
         loadSettings();
 
         const handler = () => {
@@ -63,7 +68,7 @@ export function SettingsPage() {
             unsubscribe?.();
             window.removeEventListener('orgChanged', handler);
         };
-    }, []);
+    }, [orgContext.getCurrentOrg()?.orgId]);
 
     const loadSettings = async () => {
         try {
@@ -85,10 +90,11 @@ export function SettingsPage() {
             const currentOrgDetails = orgContext.getCurrentOrg();
             if (currentOrgDetails) {
                 // Map context fields to org shape expected by UI
+                // Note: ownerEmail should come from API; fallback if missing
                 setOrg({
                     orgId: currentOrgDetails.orgId,
                     orgName: currentOrgDetails.name,
-                    ownerEmail: currentOrgDetails.ownerEmail || currentOrgDetails.ownerId || currentOrgDetails.orgId,
+                    ownerEmail: currentOrgDetails.ownerEmail || currentOrgDetails.ownerId || '(Owner email not set)',
                     totalCredits: currentOrgDetails.totalCredits ?? currentOrgDetails.totalSeats ?? 0,
                     remainingCredits: currentOrgDetails.remainingCredits ?? currentOrgDetails.totalCredits ?? currentOrgDetails.totalSeats ?? 0,
                     seats: currentOrgDetails.totalSeats ?? null,
@@ -200,42 +206,49 @@ export function SettingsPage() {
     };
 
     const fetchTelemetryConfigAdmin = async (orgId) => {
-        const token = auth.getToken();
-        const doFetch = async (id) => {
-            const res = await fetch(`/api/v1/admin/telemetry/config/orgs/${id}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+        // NOTE: This endpoint doesn't exist yet - fail gracefully
+        // When implemented, it should return org-specific telemetry configuration
+        try {
+            const token = auth.getToken();
+            const doFetch = async (id) => {
+                const res = await fetch(`/api/v1/admin/telemetry/config/orgs/${id}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    }
+                });
+
+                if (res.status === 404) {
+                    return { data: null, notFound: true };
                 }
-            });
 
-            if (res.status === 404) {
-                return { data: null, notFound: true };
+                const data = await res.json();
+                if (!res.ok || data?.success === false) {
+                    return { data: null, notFound: true };
+                }
+                return { data: data?.data || null, notFound: false };
+            };
+
+            // Try the provided orgId; if missing ORG* prefix and not found, retry with ORGB-
+            const primary = await doFetch(orgId);
+            if (!primary.notFound) return primary.data;
+
+            const normalized = (orgId?.startsWith('ORGB-') || orgId?.startsWith('ORGP-'))
+                ? null
+                : `ORGB-${orgId}`;
+
+            if (normalized) {
+                const secondary = await doFetch(normalized);
+                if (!secondary.notFound) return secondary.data;
             }
 
-            const data = await res.json();
-            if (!res.ok || data?.success === false) {
-                const message = data?.message || data?.error || 'Telemetry config fetch failed';
-                throw new Error(message);
-            }
-            return { data: data?.data || null, notFound: false };
-        };
-
-        // Try the provided orgId; if missing ORG* prefix and not found, retry with ORGB-
-        const primary = await doFetch(orgId);
-        if (!primary.notFound) return primary.data;
-
-        const normalized = (orgId?.startsWith('ORGB-') || orgId?.startsWith('ORGP-'))
-            ? null
-            : `ORGB-${orgId}`;
-
-        if (normalized) {
-            const secondary = await doFetch(normalized);
-            if (!secondary.notFound) return secondary.data;
+            return null; // fallback to global/defaults
+        } catch (err) {
+            // Endpoint not implemented yet - fail silently
+            logger.debug('[Settings] Telemetry config endpoint not available (expected for now)', err);
+            return null;
         }
-
-        return null; // fallback to global/defaults
     };
 
     const handleCreateOrg = async () => {
@@ -477,6 +490,8 @@ export function SettingsPage() {
                             onRotate=${handleRotateLicense}
                             onDisable=${handleDisableLicense}
                             onCopy=${copyToClipboard}
+                            onAdjust=${(license) => setAdjustingLicense(license)}
+                            isSiteAdmin=${isSiteAdmin}
                         />`)}
                     ${activeTab === 'team' && (isPersonalOrg
                         ? html`<${BusinessOnlyMessage} 
@@ -532,6 +547,14 @@ export function SettingsPage() {
                     />`}
                 </div>
             </div>
+            
+            ${adjustingLicense && html`<${LicenseAdjustmentDialog}
+                license=${adjustingLicense}
+                onClose=${() => setAdjustingLicense(null)}
+                onSuccess=${loadSettings}
+                api=${api}
+                showToast=${showToast}
+            />`}
         </div>
     `;
 }
@@ -633,7 +656,7 @@ function GeneralTab({ org, isPersonal }) {
 }
 
 // Licenses Tab
-function LicensesTab({ licenses, onRotate, onDisable, onCopy }) {
+function LicensesTab({ licenses, onRotate, onDisable, onCopy, onAdjust, isSiteAdmin }) {
     if (!licenses || licenses.length === 0) {
         return html`
             <div class="empty">
@@ -716,6 +739,15 @@ function LicensesTab({ licenses, onRotate, onDisable, onCopy }) {
                                             >
                                                 ${license.isDisabled ? 'Enable' : 'Disable'}
                                             </button>
+                                            ${isSiteAdmin && html`
+                                                <button 
+                                                    class="btn btn-sm btn-info"
+                                                    onClick=${() => onAdjust(license)}
+                                                    title="Adjust seats and credits"
+                                                >
+                                                    Adjust
+                                                </button>
+                                            `}
                                         </div>
                                     </td>
                                 </tr>
