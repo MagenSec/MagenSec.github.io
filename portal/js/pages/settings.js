@@ -86,37 +86,67 @@ export function SettingsPage() {
             const userType = user?.userType || 'Individual';
             setIsSiteAdmin(userType === 'SiteAdmin');
 
-            // Use org context data instead of Site Admin endpoint
-            const currentOrgDetails = orgContext.getCurrentOrg();
-            if (currentOrgDetails) {
-                // Map context fields to org shape expected by UI
-                // Note: ownerEmail should come from API; fallback if missing
-                setOrg({
-                    orgId: currentOrgDetails.orgId,
-                    orgName: currentOrgDetails.name,
-                    ownerEmail: currentOrgDetails.ownerEmail || currentOrgDetails.ownerId || '(Owner email not set)',
-                    totalCredits: currentOrgDetails.totalCredits ?? currentOrgDetails.totalSeats ?? 0,
-                    remainingCredits: currentOrgDetails.remainingCredits ?? currentOrgDetails.totalCredits ?? currentOrgDetails.totalSeats ?? 0,
-                    seats: currentOrgDetails.totalSeats ?? null,
-                    isDisabled: currentOrgDetails.isDisabled ?? false,
-                    isPersonal: currentOrgDetails.type === 'Personal'
-                });
-                setIsPersonalOrg(currentOrgDetails.type === 'Personal');
-                setUpdateOrgName(currentOrgDetails.name || '');
-                setUpdateOrgCredits(currentOrgDetails.totalCredits ?? currentOrgDetails.totalSeats ?? 0);
+            // Fetch full org details from API for complete data
+            let isPersonalType = false; // Default for fallback path
+            try {
+                const orgRes = await api.get(`/api/v1/orgs/${currentOrgId}`);
+                if (orgRes.success && orgRes.data) {
+                    const orgData = orgRes.data;
+                    isPersonalType = orgData.type === 'Personal' || orgData.orgType === 'Personal';
+                    setOrg({
+                        orgId: orgData.orgId,
+                        orgName: orgData.orgName || orgData.name,
+                        ownerEmail: orgData.ownerEmail || 'Unknown',
+                        totalCredits: orgData.totalCredits ?? 0,
+                        remainingCredits: orgData.remainingCredits ?? orgData.totalCredits ?? 0,
+                        seats: orgData.seats ?? orgData.totalSeats ?? null,
+                        isDisabled: orgData.isDisabled ?? false,
+                        isPersonal: isPersonalType
+                    });
+                    setIsPersonalOrg(isPersonalType);
+                    setUpdateOrgName(orgData.orgName || orgData.name || '');
+                    setUpdateOrgCredits(orgData.totalCredits ?? 0);
+                }
+            } catch (orgErr) {
+                logger.warn('[Settings] Failed to load org details, using context data as fallback', orgErr);
+                // Fallback to org context if API fails
+                const contextOrg = orgContext.getCurrentOrg();
+                if (contextOrg) {
+                    isPersonalType = contextOrg.type === 'Personal';
+                    setOrg({
+                        orgId: contextOrg.orgId,
+                        orgName: contextOrg.name,
+                        ownerEmail: contextOrg.ownerEmail || 'Unknown',
+                        totalCredits: contextOrg.totalCredits ?? 0,
+                        remainingCredits: contextOrg.remainingCredits ?? 0,
+                        seats: contextOrg.totalSeats ?? null,
+                        isDisabled: contextOrg.isDisabled ?? false,
+                        isPersonal: isPersonalType
+                    });
+                    setIsPersonalOrg(isPersonalType);
+                }
             }
 
-            // Load licenses
-            // Use portal-friendly alias for org licenses
-            const licensesRes = await api.get(`/api/v1/orgs/${currentOrgId}/licenses`);
-            if (licensesRes.success && licensesRes.data) {
-                setLicenses(licensesRes.data);
-            }
+            // Only load licenses and members for Business orgs
+            // Personal orgs don't have these features (use computed value, not state)
+            const isPersonal = isPersonalType;
+            if (!isPersonal) {
+                // Load licenses
+                // Use portal-friendly alias for org licenses
+                const licensesRes = await api.get(`/api/v1/orgs/${currentOrgId}/licenses`);
+                if (licensesRes.success && licensesRes.data) {
+                    setLicenses(licensesRes.data);
+                }
 
-            // Load team members
-            const membersRes = await api.get(`/api/v1/orgs/${currentOrgId}/members`);
-            if (membersRes.success && membersRes.data) {
-                setMembers(membersRes.data);
+                // Load team members
+                const membersRes = await api.get(`/api/v1/orgs/${currentOrgId}/members`);
+                if (membersRes.success && membersRes.data) {
+                    setMembers(membersRes.data);
+                }
+            } else {
+                // Clear licenses and members for personal orgs
+                setLicenses([]);
+                setMembers([]);
             }
 
             // Load all accounts for user search (Site Admin)
