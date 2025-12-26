@@ -69,7 +69,7 @@ export const logger = {
 
 // Resolved URLs (updated by buildDeployContainer.ps1 and Build-Installers.ps1)
 const RESOLVED_API_BASE = 'https://ms-central-api.wonderfulflower-8852e801.eastus.azurecontainerapps.io';
-const RESOLVED_MANIFEST_URL = 'https://msinstallers6w2f9s.blob.core.windows.net/latest/manifest.json?se=2026-12-05T18%3A27%3A55Z&sp=r&spr=https&sv=2022-11-02&sr=b&sig=jCYaRrMEBBseVuF%2BzLAiVE7HF6Ah488D0IlbB1kgwaY%3D';
+const RESOLVED_MANIFEST_URL = 'https://msinstallers6w2f9s.blob.core.windows.net/latest/manifest.json?se=2026-12-26T09%3A20%3A24Z&sp=r&spr=https&sv=2022-11-02&sr=b&sig=gPib7xgDbC%2BiGBO6fO3LeOBambQ0A79JNlxhZNvHF%2Bk%3D';
 
 // Import constants (will be available after module loading)
 // Note: Can't use import here due to load order, constants defined inline below
