@@ -298,6 +298,11 @@ export class ApiClient {
         return this.get('/api/v1/admin/accounts', params);
     }
 
+    // === ADMIN - EMAIL ===
+    async adminSendTestEmail(orgId) {
+        return this.post('/api/v1/admin/email/test', { orgId });
+    }
+
     // === ORGANIZATION MEMBERS ===
     async getMembers(orgId) {
         return this.get(`/api/v1/orgs/${orgId}/members`);

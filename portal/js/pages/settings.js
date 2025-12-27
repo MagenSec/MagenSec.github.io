@@ -43,6 +43,7 @@ export function SettingsPage() {
     const [adjustingLicense, setAdjustingLicense] = useState(null);
     const [creditHistory, setCreditHistory] = useState([]);
     const [projectedExhaustion, setProjectedExhaustion] = useState(null);
+    const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
     // Email validation helper
     const isValidEmail = (email) => {
@@ -442,6 +443,29 @@ export function SettingsPage() {
         }
     };
 
+    const handleSendTestEmail = async () => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) {
+            showToast('No organization selected', 'warning');
+            return;
+        }
+
+        try {
+            setSendingTestEmail(true);
+            const res = await api.adminSendTestEmail(currentOrg.orgId);
+            if (res.success) {
+                showToast('Sent test email to org owner', 'success');
+            } else {
+                showToast(res.message || 'Failed to send test email', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error sending test email', error);
+            showToast(error?.message || 'Failed to send test email', 'error');
+        } finally {
+            setSendingTestEmail(false);
+        }
+    };
+
     if (loading) {
         return html`
             <div class="container-xl">
@@ -579,6 +603,8 @@ export function SettingsPage() {
                         setOrgOwnerSearch=${setOrgOwnerSearch}
                         showOwnerDropdown=${showOwnerDropdown}
                         setShowOwnerDropdown=${setShowOwnerDropdown}
+                        onSendTestEmail=${handleSendTestEmail}
+                        sendingTestEmail=${sendingTestEmail}
                     />`}
                 </div>
             </div>
@@ -1037,7 +1063,8 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
     newOrgName, setNewOrgName, newOwnerEmail, setNewOwnerEmail, newOrgSeats, setNewOrgSeats,
     updateOrgName, setUpdateOrgName,
     advancedTab, setAdvancedTab, accounts, isValidEmail,
-    orgOwnerSearch, setOrgOwnerSearch, showOwnerDropdown, setShowOwnerDropdown }) {
+    orgOwnerSearch, setOrgOwnerSearch, showOwnerDropdown, setShowOwnerDropdown,
+    onSendTestEmail, sendingTestEmail }) {
     
     const filteredOwnerAccounts = orgOwnerSearch 
         ? accounts.filter(acc => acc.email?.toLowerCase().includes(orgOwnerSearch.toLowerCase()))
@@ -1236,6 +1263,23 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                             <span class=${`badge ${org.isDisabled ? 'bg-danger' : 'bg-success'}`}>
                                                 ${org.isDisabled ? 'Disabled' : 'Active'}
                                             </span>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="card border mt-3">
+                                            <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                                                <div>
+                                                    <div class="fw-bold">Test email delivery</div>
+                                                    <div class="text-muted small">Sends from magensec@gigabits.co.in to org owner (${org.ownerEmail || 'not set'}).</div>
+                                                </div>
+                                                <button 
+                                                    class="btn btn-outline-primary"
+                                                    onClick=${onSendTestEmail}
+                                                    disabled=${sendingTestEmail || !org?.orgId}
+                                                >
+                                                    ${sendingTestEmail ? 'Sending…' : 'Send test email'}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="col-12">
