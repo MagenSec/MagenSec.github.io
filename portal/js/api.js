@@ -280,11 +280,22 @@ export class ApiClient {
         return this.delete(`/api/v1/licenses/${licenseId}`);
     }
 
-    async adjustLicenseCredits(licenseId, credits, reason) {
-        return this.put(`/api/v1/admin/licenses/${licenseId}/credits`, { 
-            creditAdjustment: credits, 
-            reason 
+    async adjustLicense(licenseId, { seats, totalCredits, forceAdjust = false, reason }) {
+        return this.put(`/api/v1/admin/licenses/${licenseId}/adjustment`, {
+            seats,
+            totalCredits,
+            forceAdjust,
+            reason
         });
+    }
+
+    async adminGetStaleLicenses(params = {}) {
+        return this.get('/api/v1/admin/licenses/stale', params);
+    }
+
+    // === ADMIN - ACCOUNTS ===
+    async adminListAccounts(params = {}) {
+        return this.get('/api/v1/admin/accounts', params);
     }
 
     // === ORGANIZATION MEMBERS ===

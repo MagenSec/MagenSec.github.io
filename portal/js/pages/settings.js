@@ -29,9 +29,7 @@ export function SettingsPage() {
     const [newOrgName, setNewOrgName] = useState('');
     const [newOwnerEmail, setNewOwnerEmail] = useState('');
     const [newOrgSeats, setNewOrgSeats] = useState(20);
-    const [newOrgCredits, setNewOrgCredits] = useState(0);
     const [updateOrgName, setUpdateOrgName] = useState('');
-    const [updateOrgCredits, setUpdateOrgCredits] = useState(0);
     const [showCreateOrg, setShowCreateOrg] = useState(false);
     const [showUpdateOrg, setShowUpdateOrg] = useState(false);
     const [teamEmail, setTeamEmail] = useState('');
@@ -43,6 +41,8 @@ export function SettingsPage() {
     const [orgOwnerSearch, setOrgOwnerSearch] = useState('');
     const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
     const [adjustingLicense, setAdjustingLicense] = useState(null);
+    const [creditHistory, setCreditHistory] = useState([]);
+    const [projectedExhaustion, setProjectedExhaustion] = useState(null);
 
     // Email validation helper
     const isValidEmail = (email) => {
@@ -105,7 +105,6 @@ export function SettingsPage() {
                     });
                     setIsPersonalOrg(isPersonalType);
                     setUpdateOrgName(orgData.orgName || orgData.name || '');
-                    setUpdateOrgCredits(orgData.totalCredits ?? 0);
                 }
             } catch (orgErr) {
                 logger.warn('[Settings] Failed to load org details, using context data as fallback', orgErr);
@@ -152,7 +151,7 @@ export function SettingsPage() {
             // Load all accounts for user search (Site Admin)
             if (userType === 'SiteAdmin') {
                 try {
-                    const accountsRes = await api.get('/api/v1/admin/accounts');
+                    const accountsRes = await api.adminListAccounts();
                     if (accountsRes.success && accountsRes.data) {
                         const accountsData = accountsRes.data.accounts ?? accountsRes.data ?? [];
                         setAccounts(Array.isArray(accountsData) ? accountsData : []);
@@ -173,6 +172,19 @@ export function SettingsPage() {
                     setTelemetryConfig(null);
                     logger.warn('[Settings] Telemetry config not found or inaccessible for org', currentOrgId);
                 }
+            }
+
+            // Credit history for charts (all org types)
+            try {
+                const creditRes = await api.get('/api/v1/dashboard/credits/history', { orgId: currentOrgId });
+                if (creditRes.success && creditRes.data) {
+                    setCreditHistory(creditRes.data.history || []);
+                    setProjectedExhaustion(creditRes.data.projectedExhaustionDate || null);
+                }
+            } catch (creditErr) {
+                logger.debug('[Settings] Credit history not available', creditErr);
+                setCreditHistory([]);
+                setProjectedExhaustion(null);
             }
 
         } catch (error) {
@@ -290,7 +302,6 @@ export function SettingsPage() {
         const payload = {
             orgName: newOrgName,
             ownerEmail: newOwnerEmail,
-            totalCredits: newOrgCredits ? Number(newOrgCredits) : 0,
             seats: newOrgSeats ? Number(newOrgSeats) : 0
         };
 
@@ -300,7 +311,6 @@ export function SettingsPage() {
             setNewOrgName('');
             setNewOwnerEmail('');
             setNewOrgSeats(20);
-            setNewOrgCredits(0);
             await orgContext.initialize();
             await loadSettings();
         } else {
@@ -419,8 +429,7 @@ export function SettingsPage() {
         }
 
         const payload = {
-            orgName: updateOrgName,
-            totalCredits: Number(updateOrgCredits) || 0
+            orgName: updateOrgName
         };
 
         const res = await api.put(`/api/v1/admin/orgs/${currentOrg.orgId}`, payload);
@@ -509,7 +518,7 @@ export function SettingsPage() {
                 </div>
 
                 <div class="card-body">
-                    ${activeTab === 'general' && html`<${GeneralTab} org=${org} isPersonal=${isPersonalOrg} />`}
+                    ${activeTab === 'general' && html`<${GeneralTab} org=${org} isPersonal=${isPersonalOrg} creditHistory=${creditHistory} projectedExhaustion=${projectedExhaustion} />`}
                     ${activeTab === 'licenses' && (isPersonalOrg
                         ? html`<${BusinessOnlyMessage} 
                             title=${'License Management (Business Only)'}
@@ -560,12 +569,8 @@ export function SettingsPage() {
                         setNewOwnerEmail=${setNewOwnerEmail}
                         newOrgSeats=${newOrgSeats}
                         setNewOrgSeats=${setNewOrgSeats}
-                        newOrgCredits=${newOrgCredits}
-                        setNewOrgCredits=${setNewOrgCredits}
                         updateOrgName=${updateOrgName}
                         setUpdateOrgName=${setUpdateOrgName}
-                        updateOrgCredits=${updateOrgCredits}
-                        setUpdateOrgCredits=${setUpdateOrgCredits}
                         advancedTab=${advancedTab}
                         setAdvancedTab=${setAdvancedTab}
                         accounts=${accounts}
@@ -590,7 +595,7 @@ export function SettingsPage() {
 }
 
 // General Tab - Org info and credits
-function GeneralTab({ org, isPersonal }) {
+function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion }) {
     if (!org) return html`<div class="text-muted">No organization data</div>`;
 
     return html`
@@ -652,6 +657,9 @@ function GeneralTab({ org, isPersonal }) {
                         <div class="text-muted small mt-2">
                             ${org.totalCredits > 0 ? Math.round((org.remainingCredits / org.totalCredits) * 100) : 0}% remaining
                         </div>
+                        <div class="mt-3">
+                            <CreditsChart history=${creditHistory} projectedExhaustion=${projectedExhaustion} />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -682,6 +690,60 @@ function GeneralTab({ org, isPersonal }) {
                 </div>
             </div>
         ` : ''}
+    `;
+}
+
+function CreditsChart({ history, projectedExhaustion }) {
+    if (!history || history.length === 0) {
+        return html`<div class="text-muted small">No recent credit activity yet.</div>`;
+    }
+
+    const points = history.map(h => ({
+        x: new Date(h.date).getTime(),
+        y: h.remainingCredits ?? 0,
+        seats: h.seats ?? null
+    }));
+
+    const minY = Math.min(...points.map(p => p.y), 0);
+    const maxY = Math.max(...points.map(p => p.y), 1);
+    const minX = Math.min(...points.map(p => p.x));
+    const maxX = Math.max(...points.map(p => p.x));
+
+    const normalize = (val, min, max) => max === min ? 0 : (val - min) / (max - min);
+
+    const width = 340;
+    const height = 120;
+
+    const polyline = points.map(p => {
+        const x = normalize(p.x, minX, maxX) * width;
+        const y = height - (normalize(p.y, minY, maxY) * height);
+        return `${x},${y}`;
+    }).join(' ');
+
+    const last = history[history.length - 1];
+    const exhaustionText = projectedExhaustion
+        ? `Projected to reach zero on ${new Date(projectedExhaustion).toLocaleDateString()}`
+        : 'Projection not available yet';
+
+    return html`
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="text-muted small">Credits trend</div>
+                <div class="text-muted small">Remaining: <strong>${last?.remainingCredits ?? 0}</strong></div>
+            </div>
+            <svg width="100%" height="${height}" viewBox=${`0 0 ${width} ${height}`} preserveAspectRatio="none">
+                <polyline
+                    fill="none"
+                    stroke="var(--tblr-primary)"
+                    stroke-width="3"
+                    points=${polyline}
+                    stroke-linejoin="round"
+                    stroke-linecap="round"
+                />
+                <line x1="0" y1="${height - (normalize(0, minY, maxY) * height)}" x2="${width}" y2="${height - (normalize(0, minY, maxY) * height)}" stroke="#dee2e6" stroke-dasharray="4" />
+            </svg>
+            <div class="text-muted small mt-1">${exhaustionText}</div>
+        </div>
     `;
 }
 
@@ -809,7 +871,7 @@ function LicensesTab({ licenses, onRotate, onDisable, onCopy, onAdjust, isSiteAd
 // Team Tab
 function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpdateRole, teamEmail, setTeamEmail, teamRole, setTeamRole, accounts, isValidEmail, setTeamSearch, teamSearch, showTeamDropdown, setShowTeamDropdown }) {
     const filteredAccounts = teamSearch 
-        ? accounts.filter(acc => acc.email?.toLowerCase().includes(teamSearch.toLowerCase()))
+        ? accounts.filter(acc => acc.email?.toLowerCase().includes(teamSearch.toLowerCase()) || acc.name?.toLowerCase().includes(teamSearch.toLowerCase()))
         : accounts;
     
     const handleSelectUser = (email) => {
@@ -860,14 +922,14 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                                     </div>
                                 `}
                                 ${showTeamDropdown && filteredAccounts.length > 0 && html`
-                                    <div class="dropdown-menu show position-absolute w-100" style="top: 100%; z-index: 1000; display: block;\">
+                                    <div class="dropdown-menu show position-absolute w-100" style="top: 100%; z-index: 1000; display: block;">
                                         ${filteredAccounts.slice(0, 10).map(acc => html`
                                             <button 
                                                 type="button"
                                                 class="dropdown-item"
                                                 onClick=${() => handleSelectUser(acc.email)}
                                             >
-                                                <small>${acc.email}</small>
+                                                <small><strong>${acc.name || acc.email}</strong> · ${acc.email}</small>
                                             </button>
                                         `)}
                                     </div>
@@ -881,8 +943,8 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                                 value=${teamRole}
                                 onChange=${(e) => setTeamRole(e.target.value)}
                             >
-                                <option value="ReadWrite\">ReadWrite</option>
-                                <option value="ReadOnly\">ReadOnly</option>
+                                <option value="ReadWrite">ReadWrite</option>
+                                <option value="ReadOnly">ReadOnly</option>
                             </select>
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
@@ -929,8 +991,11 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            <span class="avatar avatar-sm me-2">${member.userEmail?.substring(0, 2).toUpperCase()}</span>
-                                            ${member.userId || 'Unknown'}
+                                            <span class="avatar avatar-sm me-2">${(member.displayName || member.userEmail || '').substring(0, 2).toUpperCase()}</span>
+                                            <div class="d-flex flex-column">
+                                                <strong>${member.displayName || member.userId || 'Unknown'}</strong>
+                                                <small class="text-muted">${member.userId || member.userEmail}</small>
+                                            </div>
                                         </div>
                                     </td>
                                     <td>${member.userEmail}</td>
@@ -969,8 +1034,8 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
 
 // Advanced Tab (Site Admin only)
 function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg, onDisableOrg, onDeleteOrg, 
-    newOrgName, setNewOrgName, newOwnerEmail, setNewOwnerEmail, newOrgSeats, setNewOrgSeats, newOrgCredits, setNewOrgCredits,
-    updateOrgName, setUpdateOrgName, updateOrgCredits, setUpdateOrgCredits,
+    newOrgName, setNewOrgName, newOwnerEmail, setNewOwnerEmail, newOrgSeats, setNewOrgSeats,
+    updateOrgName, setUpdateOrgName,
     advancedTab, setAdvancedTab, accounts, isValidEmail,
     orgOwnerSearch, setOrgOwnerSearch, showOwnerDropdown, setShowOwnerDropdown }) {
     
@@ -979,12 +1044,20 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
         : accounts;
 
     const [showDangerZone, setShowDangerZone] = useState(false);
+    const [accountsSearch, setAccountsSearch] = useState('');
     
     const handleSelectOwner = (email) => {
         setNewOwnerEmail(email);
         setOrgOwnerSearch('');
         setShowOwnerDropdown(false);
     };
+
+    const filteredAccounts = accountsSearch
+        ? (accounts || []).filter(acc =>
+            acc.email?.toLowerCase().includes(accountsSearch.toLowerCase()) ||
+            acc.userType?.toLowerCase().includes(accountsSearch.toLowerCase())
+        )
+        : (accounts || []);
 
     return html`
         <div>
@@ -1058,6 +1131,16 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                 Update Organization
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a 
+                                class=${`nav-link ${advancedTab === 'accounts' ? 'active' : ''}`}
+                                href="#"
+                                onClick=${(e) => { e.preventDefault(); setAdvancedTab('accounts'); }}
+                            >
+                                <i class="ti ti-users me-2"></i>
+                                Accounts
+                            </a>
+                        </li>
                     </ul>
                 </div>
 
@@ -1114,10 +1197,6 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                     <label class="form-label">Seats</label>
                                     <input type="number" class="form-control" placeholder="20" value=${newOrgSeats} onInput=${(e) => setNewOrgSeats(e.target.value)} />
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Total Credits</label>
-                                    <input type="number" class="form-control" placeholder="7300" value=${newOrgCredits} onInput=${(e) => setNewOrgCredits(e.target.value)} />
-                                </div>
                                 <div class="col-12">
                                     <button 
                                         class="btn btn-primary" 
@@ -1145,10 +1224,6 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                     <div class="col-md-6">
                                         <label class="form-label">Organization Name</label>
                                         <input class="form-control" value=${updateOrgName} onInput=${(e) => setUpdateOrgName(e.target.value)} />
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Total Credits</label>
-                                        <input type="number" class="form-control" value=${updateOrgCredits} onInput=${(e) => setUpdateOrgCredits(e.target.value)} />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Owner Email</label>
@@ -1205,6 +1280,67 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                             `}
                                         </div>
                                     </div>
+                                </div>
+                            `}
+                        </div>
+                    `}
+
+                    ${advancedTab === 'accounts' && html`
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h4 class="card-title mb-1">Accounts Directory</h4>
+                                    <div class="text-muted small">Site Admin view of all accounts for quick lookup and assignments.</div>
+                                </div>
+                                <button class="btn btn-outline-secondary" onClick=${onReload}>
+                                    <i class="ti ti-refresh me-1"></i>
+                                    Refresh
+                                </button>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <input 
+                                        type="text" 
+                                        class="form-control"
+                                        placeholder="Filter by email or role"
+                                        value=${accountsSearch}
+                                        onInput=${(e) => setAccountsSearch(e.target.value)}
+                                    />
+                                </div>
+                                <div class="col-md-6 text-end text-muted align-self-center">
+                                    <small>${filteredAccounts.length} of ${(accounts || []).length} accounts</small>
+                                </div>
+                            </div>
+
+                            ${(!accounts || accounts.length === 0) ? html`
+                                <div class="empty">
+                                    <div class="empty-icon"><i class="ti ti-users"></i></div>
+                                    <p class="empty-title">No accounts found</p>
+                                    <p class="empty-subtitle text-muted">Accounts will appear here once users sign in.</p>
+                                </div>
+                            ` : html`
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Email</th>
+                                                <th>User Type</th>
+                                                <th>Created</th>
+                                                <th>Last Login</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${filteredAccounts.map(acc => html`
+                                                <tr>
+                                                    <td><span class="fw-semibold">${acc.email}</span></td>
+                                                    <td><span class="badge bg-primary-lt text-uppercase">${acc.userType || 'Individual'}</span></td>
+                                                    <td class="text-muted">${acc.createdAt ? new Date(acc.createdAt).toLocaleString() : 'N/A'}</td>
+                                                    <td class="text-muted">${acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString() : 'Never'}</td>
+                                                </tr>
+                                            `)}
+                                        </tbody>
+                                    </table>
                                 </div>
                             `}
                         </div>

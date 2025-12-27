@@ -82,7 +82,7 @@ export class MembersPage extends Component {
         }
     }
 
-    async updateMemberRole(userId, currentRole) {
+    async updateMemberRole(userEmail, currentRole) {
         const newRole = currentRole === 'ReadWrite' ? 'ReadOnly' : 'ReadWrite';
         
         if (!confirm(`Change this member's role to ${newRole}?`)) return;
@@ -92,7 +92,7 @@ export class MembersPage extends Component {
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.put(`/api/v1/orgs/${orgId}/members/${userId}`, { role: newRole });
+            const response = await api.put(`/api/v1/orgs/${orgId}/members/${userEmail}`, { role: newRole });
             
             if (response.success) {
                 this.loadMembers();
@@ -106,7 +106,7 @@ export class MembersPage extends Component {
         }
     }
 
-    async removeMember(userId, userEmail) {
+    async removeMember(userEmail) {
         if (!confirm(`Remove ${userEmail} from the organization?`)) return;
         
         try {
@@ -114,7 +114,7 @@ export class MembersPage extends Component {
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.delete(`/api/v1/orgs/${orgId}/members/${userId}`);
+            const response = await api.delete(`/api/v1/orgs/${orgId}/members/${userEmail}`);
             
             if (response.success) {
                 this.loadMembers();
@@ -205,12 +205,12 @@ export class MembersPage extends Component {
                                                 <td>
                                                     <div class="btn-group" role="group">
                                                         <button class="btn btn-sm btn-secondary" 
-                                                            onClick=${() => this.updateMemberRole(member.userId, member.role)}
+                                                            onClick=${() => this.updateMemberRole(member.userEmail, member.role)}
                                                             title="Toggle Role">
                                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 11l3 3l8 -8" /><path d="M20 12v6a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h9" /></svg>
                                                         </button>
                                                         <button class="btn btn-sm btn-danger" 
-                                                            onClick=${() => this.removeMember(member.userId, member.userEmail)}
+                                                            onClick=${() => this.removeMember(member.userEmail)}
                                                             title="Remove">
                                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
                                                         </button>

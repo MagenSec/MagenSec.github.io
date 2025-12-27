@@ -80,22 +80,19 @@ export function LicenseAdjustmentDialog({
         setLoading(true);
 
         try {
-            const res = await api.put(
-                `/api/v1/admin/licenses/${license.licenseId}/adjustment`,
-                {
-                    seats,
-                    totalCredits,
-                    forceAdjust,
-                    reason
-                }
-            );
+            const res = await api.adjustLicense(license.licenseId || license.rowKey, {
+                seats,
+                totalCredits,
+                forceAdjust,
+                reason: reason.trim()
+            });
 
             if (res.success) {
                 showToast('License adjusted successfully', 'success');
                 onSuccess();
                 onClose();
             } else {
-                showToast(res.message || 'Failed to adjust license', 'error');
+                showToast(res.message || res.error || 'Failed to adjust license', 'error');
             }
         } catch (error) {
             console.error('License adjustment error:', error);
