@@ -44,6 +44,8 @@ export function SettingsPage() {
     const [creditHistory, setCreditHistory] = useState([]);
     const [projectedExhaustion, setProjectedExhaustion] = useState(null);
     const [sendingTestEmail, setSendingTestEmail] = useState(false);
+    const [emailPreferences, setEmailPreferences] = useState(null);
+    const [savingPreferences, setSavingPreferences] = useState(false);
 
     // Email validation helper
     const isValidEmail = (email) => {
@@ -186,6 +188,19 @@ export function SettingsPage() {
                 logger.debug('[Settings] Credit history not available', creditErr);
                 setCreditHistory([]);
                 setProjectedExhaustion(null);
+            }
+
+            // Load email preferences for Business orgs
+            if (!isPersonalType) {
+                try {
+                    const prefsRes = await api.get(`/api/v1/email-preferences/orgs/${currentOrgId}`);
+                    if (prefsRes.success && prefsRes.data) {
+                        setEmailPreferences(prefsRes.data);
+                    }
+                } catch (error) {
+                    logger.error('[Settings] Error loading email preferences:', error);
+                    // Non-critical, continue
+                }
             }
 
         } catch (error) {
@@ -466,6 +481,30 @@ export function SettingsPage() {
         }
     };
 
+    const handleSaveEmailPreferences = async (preferences) => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) {
+            showToast('No organization selected', 'warning');
+            return;
+        }
+
+        try {
+            setSavingPreferences(true);
+            const res = await api.put(`/api/v1/email-preferences/orgs/${currentOrg.orgId}`, preferences);
+            if (res.success) {
+                showToast('Email preferences saved', 'success');
+                setEmailPreferences(preferences);
+            } else {
+                showToast(res.message || 'Failed to save preferences', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error saving email preferences', error);
+            showToast(error?.message || 'Failed to save preferences', 'error');
+        } finally {
+            setSavingPreferences(false);
+        }
+    };
+
     if (loading) {
         return html`
             <div class="container-xl">
@@ -526,6 +565,18 @@ export function SettingsPage() {
                                 Team
                             </a>
                         </li>
+                        ${!isPersonalOrg && html`
+                            <li class="nav-item">
+                                <a 
+                                    class=${`nav-link ${activeTab === 'notifications' ? 'active' : ''}`}
+                                    href="#"
+                                    onClick=${(e) => { e.preventDefault(); setActiveTab('notifications'); }}
+                                >
+                                    <i class="ti ti-bell me-2"></i>
+                                    Email Notifications
+                                </a>
+                            </li>
+                        `}
                         ${isSiteAdmin && html`
                             <li class="nav-item">
                                 <a 
@@ -579,6 +630,13 @@ export function SettingsPage() {
                             showTeamDropdown=${showTeamDropdown}
                             setShowTeamDropdown=${setShowTeamDropdown}
                         />`)}
+                    ${activeTab === 'notifications' && !isPersonalOrg && html`<${EmailNotificationsTab} 
+                        orgId=${org?.orgId}
+                        emailPreferences=${emailPreferences}
+                        setEmailPreferences=${setEmailPreferences}
+                        savingPreferences=${savingPreferences}
+                        onSavePreferences=${handleSaveEmailPreferences}
+                    />`}
                     ${activeTab === 'advanced' && isSiteAdmin && html`<${AdvancedTab} 
                         org=${org} 
                         telemetryConfig=${telemetryConfig}
@@ -1390,6 +1448,241 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                         </div>
                     `}
                 </div>
+            </div>
+        </div>
+    `;
+}
+
+// Email Notifications Tab - Manage email notification preferences
+function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, savingPreferences, onSavePreferences }) {
+    const [localPrefs, setLocalPrefs] = useState(null);
+
+    useEffect(() => {
+        if (emailPreferences) {
+            setLocalPrefs({ ...emailPreferences });
+        } else {
+            // Initialize with defaults
+            setLocalPrefs({
+                orgId: orgId,
+                sendToAllTeamMembers: false,
+                creditsLowThresholdDays: 7,
+                licenseExpiringSoonDays: 30,
+                deviceRegistered: true,
+                deviceBlocked: true,
+                deviceDeleted: true,
+                deviceDisabled: true,
+                licenseCreated: true,
+                licenseRotated: true,
+                licenseExpired: true,
+                creditsLow: true,
+                licenseExpiringSoon: true,
+                welcomePersonal: true,
+                welcomeBusiness: true,
+                orgMemberAdded: true,
+                orgMemberRemoved: true,
+                roleChanged: true,
+                unauthorizedAccess: true,
+                highTelemetryFailures: true,
+                seatLimitReached: true,
+                multiDeviceThreshold: false,
+                configurationChanged: false,
+                weeklyDeviceSummary: false,
+                monthlyUsageReport: false
+            });
+        }
+    }, [emailPreferences, orgId]);
+
+    if (!localPrefs) {
+        return html`<div class="text-muted">Loading preferences...</div>`;
+    }
+
+    const handleToggle = (key) => {
+        setLocalPrefs({ ...localPrefs, [key]: !localPrefs[key] });
+    };
+
+    const handleThresholdChange = (key, value) => {
+        const numValue = parseInt(value, 10);
+        if (!isNaN(numValue) && numValue > 0) {
+            setLocalPrefs({ ...localPrefs, [key]: numValue });
+        }
+    };
+
+    const handleSave = async () => {
+        await onSavePreferences(localPrefs);
+    };
+
+    const EventToggle = ({ eventKey, title, alwaysEnabled = false, badge = null }) => html`
+        <div class="form-check form-switch mb-2">
+            <input 
+                class="form-check-input" 
+                type="checkbox" 
+                id=${eventKey}
+                checked=${localPrefs[eventKey]}
+                onChange=${() => handleToggle(eventKey)}
+                disabled=${alwaysEnabled || savingPreferences}
+            />
+            <label class="form-check-label d-flex align-items-center" for=${eventKey}>
+                ${title}
+                ${badge && html`<span class="badge bg-info ms-2">${badge}</span>`}
+            </label>
+        </div>
+    `;
+
+    return html`
+        <div>
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <h3 class="card-title mb-1">Email Notifications</h3>
+                    <div class="text-muted small">Configure email notification preferences for this organization</div>
+                </div>
+                <button 
+                    class="btn btn-primary"
+                    onClick=${handleSave}
+                    disabled=${savingPreferences}
+                >
+                    ${savingPreferences ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-device-floppy me-2"></i>`}
+                    Save Preferences
+                </button>
+            </div>
+
+            <!-- Global Settings -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">Global Settings</h4>
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input 
+                            class="form-check-input" 
+                            type="checkbox" 
+                            id="sendToAllTeamMembers"
+                            checked=${localPrefs.sendToAllTeamMembers}
+                            onChange=${() => handleToggle('sendToAllTeamMembers')}
+                            disabled=${savingPreferences}
+                        />
+                        <label class="form-check-label" for="sendToAllTeamMembers">
+                            <strong>Send to All Team Members</strong>
+                            <div class="small text-muted">When enabled, send notifications to all team members in addition to the organization owner</div>
+                        </label>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Credits Low Threshold (Days)</label>
+                            <input 
+                                type="number" 
+                                class="form-control"
+                                value=${localPrefs.creditsLowThresholdDays}
+                                onInput=${(e) => handleThresholdChange('creditsLowThresholdDays', e.target.value)}
+                                min="1"
+                                max="30"
+                                disabled=${savingPreferences}
+                            />
+                            <div class="form-text">Alert when credits remaining ≤ this many days</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">License Expiring Soon (Days)</label>
+                            <input 
+                                type="number" 
+                                class="form-control"
+                                value=${localPrefs.licenseExpiringSoonDays}
+                                onInput=${(e) => handleThresholdChange('licenseExpiringSoonDays', e.target.value)}
+                                min="1"
+                                max="90"
+                                disabled=${savingPreferences}
+                            />
+                            <div class="form-text">Alert when expiration is within this many days</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Device Lifecycle Events -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">Device Lifecycle</h4>
+                </div>
+                <div class="card-body">
+                    <${EventToggle} eventKey="deviceRegistered" title="Device Registered" badge="Always Enabled" alwaysEnabled=${true} />
+                    <${EventToggle} eventKey="deviceBlocked" title="Device Blocked" badge="Always Enabled" alwaysEnabled=${true} />
+                    <${EventToggle} eventKey="deviceDeleted" title="Device Deleted" badge="Always Enabled" alwaysEnabled=${true} />
+                    <${EventToggle} eventKey="deviceDisabled" title="Device Disabled" />
+                </div>
+            </div>
+
+            <!-- License Lifecycle Events -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">License Lifecycle</h4>
+                </div>
+                <div class="card-body">
+                    <${EventToggle} eventKey="licenseCreated" title="License Created" />
+                    <${EventToggle} eventKey="licenseRotated" title="License Rotated" badge="Always Enabled" alwaysEnabled=${true} />
+                    <${EventToggle} eventKey="licenseExpired" title="License Expired" badge="Always Enabled" alwaysEnabled=${true} />
+                </div>
+            </div>
+
+            <!-- Credit Monitoring -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">Credit Monitoring</h4>
+                </div>
+                <div class="card-body">
+                    <${EventToggle} eventKey="creditsLow" title="Credits Low Warning" badge="Always Enabled" alwaysEnabled=${true} />
+                    <${EventToggle} eventKey="licenseExpiringSoon" title="License Expiring Soon" badge="Always Enabled" alwaysEnabled=${true} />
+                </div>
+            </div>
+
+            <!-- Org Membership Events -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">Organization Membership</h4>
+                </div>
+                <div class="card-body">
+                    <${EventToggle} eventKey="orgMemberAdded" title="Member Added" />
+                    <${EventToggle} eventKey="orgMemberRemoved" title="Member Removed" />
+                    <${EventToggle} eventKey="roleChanged" title="Role Changed" />
+                </div>
+            </div>
+
+            <!-- Security & Monitoring -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">Security & Monitoring</h4>
+                </div>
+                <div class="card-body">
+                    <${EventToggle} eventKey="unauthorizedAccess" title="Unauthorized Access Attempts" badge="Always Enabled" alwaysEnabled=${true} />
+                    <${EventToggle} eventKey="highTelemetryFailures" title="High Telemetry Failure Rate" />
+                    <${EventToggle} eventKey="seatLimitReached" title="Seat Limit Reached" />
+                    <${EventToggle} eventKey="multiDeviceThreshold" title="Multi-Device Threshold Exceeded" />
+                    <${EventToggle} eventKey="configurationChanged" title="Configuration Changed" />
+                </div>
+            </div>
+
+            <!-- Periodic Reports -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">Periodic Reports</h4>
+                </div>
+                <div class="card-body">
+                    <${EventToggle} eventKey="weeklyDeviceSummary" title="Weekly Device Summary" />
+                    <${EventToggle} eventKey="monthlyUsageReport" title="Monthly Usage Report" />
+                    <div class="alert alert-info mt-3">
+                        <i class="ti ti-info-circle me-2"></i>
+                        Reports are generated automatically and include device activity, credit consumption, and usage trends.
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-end mt-4">
+                <button 
+                    class="btn btn-primary"
+                    onClick=${handleSave}
+                    disabled=${savingPreferences}
+                >
+                    ${savingPreferences ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-device-floppy me-2"></i>`}
+                    Save Preferences
+                </button>
             </div>
         </div>
     `;

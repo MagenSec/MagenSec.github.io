@@ -18,6 +18,7 @@ import { ResponseActionsPage } from './pages/responseActions.js';
 import { VulnerabilitiesPage } from './pages/vulnerabilities.js';
 import { InventoryPage, TrendsPage, OrgsPage, MembersPage, LicensesPage, AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, AlertsPage, PlatformInsightsPage } from './pages/placeholders.js';
 import { SettingsPage } from './pages/settings.js';
+import { AuditPage } from './pages/audit.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
@@ -86,6 +87,8 @@ function App() {
             return html`<${AccountPage} />`;
         case 'settings':
             return html`<${SettingsPage} />`;
+        case 'audit':
+            return html`<${AuditPage} />`;
         default:
             return html`<${LoginPage} />`;
     }
