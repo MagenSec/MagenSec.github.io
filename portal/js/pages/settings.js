@@ -191,15 +191,38 @@ export function SettingsPage() {
             }
 
             // Load email preferences for Business orgs
+            // NOTE: Email preferences feature is optional and should not block page load
+            // Use direct fetch to avoid api.js auto-logout on permission errors
             if (!isPersonalType) {
                 try {
-                    const prefsRes = await api.get(`/api/v1/email-preferences/orgs/${currentOrgId}`);
-                    if (prefsRes.success && prefsRes.data) {
-                        setEmailPreferences(prefsRes.data);
+                    const token = auth.getToken();
+                    const response = await fetch(`/api/v1/email-preferences/orgs/${currentOrgId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const prefsRes = await response.json();
+                        if (prefsRes && prefsRes.success && prefsRes.data) {
+                            setEmailPreferences(prefsRes.data);
+                            logger.debug('[Settings] Email preferences loaded');
+                        }
+                    } else if (response.status === 404) {
+                        // Endpoint not implemented yet - expected, skip silently
+                        logger.debug('[Settings] Email preferences endpoint not available (404)');
+                    } else if (response.status === 403 || response.status === 401) {
+                        // Permission denied or not authorized - this is expected for some users
+                        // Email preferences feature is admin-only, skip silently
+                        logger.debug('[Settings] Email preferences not available (admin feature)');
+                    } else {
+                        logger.warn('[Settings] Email preferences endpoint returned:', response.status);
                     }
                 } catch (error) {
+                    // Network error or other issue - log but don't fail page load
                     logger.error('[Settings] Error loading email preferences:', error);
-                    // Non-critical, continue
                 }
             }
 
@@ -278,6 +301,7 @@ export function SettingsPage() {
                 });
 
                 if (res.status === 404) {
+                    // Endpoint not implemented yet - expected
                     return { data: null, notFound: true };
                 }
 
@@ -490,10 +514,25 @@ export function SettingsPage() {
 
         try {
             setSavingPreferences(true);
-            const res = await api.put(`/api/v1/email-preferences/orgs/${currentOrg.orgId}`, preferences);
-            if (res.success) {
+            
+            // Use direct fetch to avoid auto-logout on permission errors
+            const token = auth.getToken();
+            const response = await fetch(`/api/v1/email-preferences/orgs/${currentOrg.orgId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify(preferences)
+            });
+            
+            const res = await response.json();
+            
+            if (response.ok && res.success) {
                 showToast('Email preferences saved', 'success');
                 setEmailPreferences(preferences);
+            } else if (response.status === 403 || response.status === 401) {
+                showToast('You do not have permission to modify email preferences', 'warning');
             } else {
                 showToast(res.message || 'Failed to save preferences', 'error');
             }

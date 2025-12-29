@@ -11,10 +11,16 @@ import { logger } from '../config.js';
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
 
+// Chart instance at module level to persist across component renders
+let auditChartInstance = null;
+
 export function AuditPage() {
+    logger.debug('[Audit] Component rendering...');
+    
     const [loading, setLoading] = useState(true);
     const [events, setEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
+    const [creditJobEvents, setCreditJobEvents] = useState([]);
     const [filters, setFilters] = useState({
         eventType: 'all',
         search: '',
@@ -24,6 +30,7 @@ export function AuditPage() {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
     const eventsPerPage = 50;
+    const currentOrgId = orgContext.getCurrentOrg()?.orgId;
 
     useEffect(() => {
         loadEvents();
@@ -39,28 +46,185 @@ export function AuditPage() {
             unsubscribe?.();
             window.removeEventListener('orgChanged', handler);
         };
-    }, [orgContext.getCurrentOrg()?.orgId]);
+    }, [currentOrgId]);
 
     useEffect(() => {
         applyFilters();
-    }, [events, filters]);
+        extractCreditJobEvents();
+    }, [events, filters.eventType, filters.search, filters.dateFrom, filters.dateTo]);
+
+    const extractCreditJobEvents = () => {
+        // Filter to SYSTEM org credit consumption events
+        const jobEvents = events.filter(e => 
+            e.orgId === 'SYSTEM' && 
+            e.eventType && 
+            e.eventType.startsWith('CreditConsumption')
+        ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        setCreditJobEvents(jobEvents);
+        
+        // Render chart if we have events
+        if (jobEvents.length > 0) {
+            setTimeout(() => renderCreditJobChart(jobEvents), 100);
+        }
+    };
+
+    const renderCreditJobChart = (jobEvents) => {
+        // Check if Chart.js is loaded
+        if (typeof window.Chart === 'undefined') {
+            logger.warn('[Audit] Chart.js not loaded, skipping credit job chart');
+            return;
+        }
+        
+        const canvas = document.getElementById('creditJobChart');
+        if (!canvas) {
+            logger.warn('[Audit] creditJobChart canvas not found');
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        
+        // Destroy existing chart
+        if (auditChartInstance) {
+            auditChartInstance.destroy();
+            auditChartInstance = null;
+        }
+
+        // Prepare data
+        const labels = jobEvents.map(e => {
+            const date = new Date(e.timestamp);
+            return date.toLocaleString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        });
+
+        const data = jobEvents.map(e => {
+            // Map event types to Y values for visualization
+            if (e.eventType === 'CreditConsumptionJobStarted') return 1;
+            if (e.eventType === 'CreditConsumptionJobCompleted') return 2;
+            if (e.eventType === 'CreditConsumptionJobFailed') return 0;
+            return 1;
+        });
+
+        const colors = jobEvents.map(e => {
+            if (e.eventType === 'CreditConsumptionJobCompleted') return 'rgba(40, 167, 69, 0.8)';
+            if (e.eventType === 'CreditConsumptionJobFailed') return 'rgba(220, 53, 69, 0.8)';
+            return 'rgba(23, 162, 184, 0.8)';
+        });
+
+        // Create chart
+        auditChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Job Status',
+                    data: data,
+                    borderColor: 'rgba(32, 107, 196, 1)',
+                    backgroundColor: colors,
+                    borderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    pointBackgroundColor: colors,
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const event = jobEvents[context.dataIndex];
+                                const lines = [event.eventType];
+                                if (event.metadata) {
+                                    if (event.metadata.processedCount !== undefined) {
+                                        lines.push(`Processed: ${event.metadata.processedCount} licenses`);
+                                    }
+                                    if (event.metadata.failedCount !== undefined && event.metadata.failedCount > 0) {
+                                        lines.push(`Failed: ${event.metadata.failedCount}`);
+                                    }
+                                    if (event.metadata.totalCreditsDeducted !== undefined) {
+                                        lines.push(`Credits deducted: ${event.metadata.totalCreditsDeducted}`);
+                                    }
+                                    if (event.metadata.durationSeconds !== undefined) {
+                                        lines.push(`Duration: ${event.metadata.durationSeconds.toFixed(2)}s`);
+                                    }
+                                    if (event.metadata.error) {
+                                        lines.push(`Error: ${event.metadata.error}`);
+                                    }
+                                }
+                                return lines;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 2.5,
+                        ticks: {
+                            stepSize: 1,
+                            callback: function(value) {
+                                if (value === 0) return 'Failed';
+                                if (value === 1) return 'Started';
+                                if (value === 2) return 'Completed';
+                                return '';
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    }
+                }
+            }
+        });
+    };
 
     const loadEvents = async () => {
         try {
+            logger.debug('[Audit] loadEvents called');
             setLoading(true);
             const currentOrg = orgContext.getCurrentOrg();
             
+            logger.debug('[Audit] Current org:', currentOrg);
+            
             if (!currentOrg?.orgId) {
+                logger.warn('[Audit] No org selected');
                 toast.show('Please select an organization', 'warning');
+                setLoading(false);
                 return;
             }
 
             // Fetch audit events from API
+            logger.debug('[Audit] Fetching events for org:', currentOrg.orgId);
             const res = await api.get(`/api/v1/orgs/${currentOrg.orgId}/audit`);
+            logger.debug('[Audit] API response:', res);
+            
             if (res.success && res.data) {
                 setEvents(res.data.events || []);
                 setHasMore(res.data.hasMore || false);
+                logger.debug('[Audit] Events loaded:', res.data.events?.length || 0);
             } else {
+                logger.error('[Audit] API returned error:', res.message);
                 toast.show(res.message || 'Failed to load audit events', 'error');
             }
         } catch (error) {
@@ -112,6 +276,9 @@ export function AuditPage() {
     const getEventIcon = (eventType) => {
         const iconMap = {
             'CreditConsumption': 'ti-coins',
+            'CreditConsumptionJobStarted': 'ti-player-play',
+            'CreditConsumptionJobCompleted': 'ti-check',
+            'CreditConsumptionJobFailed': 'ti-x',
             'EmailSent': 'ti-mail',
             'EmailFailed': 'ti-mail-x',
             'DeviceRegistered': 'ti-device-desktop-plus',
@@ -133,6 +300,9 @@ export function AuditPage() {
 
     const getEventColor = (eventType) => {
         const colorMap = {
+            'CreditConsumptionJobStarted': 'info',
+            'CreditConsumptionJobCompleted': 'success',
+            'CreditConsumptionJobFailed': 'danger',
             'EmailSent': 'success',
             'EmailFailed': 'danger',
             'DeviceBlocked': 'warning',
@@ -169,19 +339,20 @@ export function AuditPage() {
     const paginatedEvents = filteredEvents.slice((page - 1) * eventsPerPage, page * eventsPerPage);
     const totalPages = Math.ceil(filteredEvents.length / eventsPerPage);
 
-    if (loading) {
-        return html`
-            <div class="container-xl">
-                <div class="page-header d-print-none">
-                    <h2 class="page-title">Audit Events</h2>
+    try {
+        if (loading) {
+            return html`
+                <div class="container-xl">
+                    <div class="page-header d-print-none">
+                        <h2 class="page-title">Audit Events</h2>
+                    </div>
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted mt-2">Loading audit events...</p>
+                    </div>
                 </div>
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="text-muted mt-2">Loading audit events...</p>
-                </div>
-            </div>
-        `;
-    }
+            `;
+        }
 
     return html`
         <div class="container-xl">
@@ -201,6 +372,79 @@ export function AuditPage() {
                     </div>
                 </div>
             </div>
+
+            <!-- Credit Consumption Job Heartbeat -->
+            ${creditJobEvents.length > 0 && html`
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="ti ti-heartbeat me-2"></i>
+                            Credit Consumption Job Heartbeat
+                        </h3>
+                        <div class="card-actions">
+                            <span class="badge bg-info-lt">
+                                ${creditJobEvents.length} job events
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <div class="d-flex align-items-center">
+                                    <span class="avatar avatar-sm bg-info-lt me-2">
+                                        <i class="ti ti-player-play"></i>
+                                    </span>
+                                    <div>
+                                        <div class="text-muted small">Started</div>
+                                        <strong>${creditJobEvents.filter(e => e.eventType === 'CreditConsumptionJobStarted').length}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="d-flex align-items-center">
+                                    <span class="avatar avatar-sm bg-success-lt me-2">
+                                        <i class="ti ti-check"></i>
+                                    </span>
+                                    <div>
+                                        <div class="text-muted small">Completed</div>
+                                        <strong>${creditJobEvents.filter(e => e.eventType === 'CreditConsumptionJobCompleted').length}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="d-flex align-items-center">
+                                    <span class="avatar avatar-sm bg-danger-lt me-2">
+                                        <i class="ti ti-x"></i>
+                                    </span>
+                                    <div>
+                                        <div class="text-muted small">Failed</div>
+                                        <strong>${creditJobEvents.filter(e => e.eventType === 'CreditConsumptionJobFailed').length}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="d-flex align-items-center">
+                                    <span class="avatar avatar-sm bg-azure-lt me-2">
+                                        <i class="ti ti-clock"></i>
+                                    </span>
+                                    <div>
+                                        <div class="text-muted small">Last Run</div>
+                                        <strong class="small">${creditJobEvents.length > 0 ? formatTimestamp(creditJobEvents[creditJobEvents.length - 1].timestamp) : 'N/A'}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="height: 250px; position: relative;">
+                            <canvas id="creditJobChart"></canvas>
+                        </div>
+                        <div class="mt-3 text-muted small">
+                            <i class="ti ti-info-circle me-1"></i>
+                            This chart shows the credit consumption job execution timeline. Expected interval: once per 24 hours.
+                            Alert if gap exceeds 25 hours.
+                        </div>
+                    </div>
+                </div>
+            `}
 
             <!-- Filters -->
             <div class="card mb-3">
@@ -376,4 +620,18 @@ export function AuditPage() {
             `}
         </div>
     `;
+    } catch (error) {
+        logger.error('[Audit] Rendering error:', error);
+        return html`
+            <div class="container-xl">
+                <div class="alert alert-danger">
+                    <h4>Error rendering audit page</h4>
+                    <p>${error.message}</p>
+                    <button class="btn btn-primary mt-2" onClick=${() => window.location.reload()}>
+                        Reload Page
+                    </button>
+                </div>
+            </div>
+        `;
+    }
 }

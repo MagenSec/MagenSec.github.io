@@ -160,6 +160,7 @@ export function initRouter(renderApp) {
     const protectedRoutes = [
         ['inventory', 'inventory'],
         ['trends', 'trends'],
+        ['audit', 'audit'],
         ['orgs', 'orgs'],
         ['members', 'members'],
         ['licenses', 'licenses'],
