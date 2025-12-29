@@ -62,11 +62,12 @@ class OrgContext {
                 await this.loadOrgsFromAPI();
             } catch (apiErr) {
                 logger.warn('[OrgContext] Falling back to session-only org due to API error');
+                const isPersonal = session.orgId === user.email;
                 this.availableOrgs = [{
                     orgId: session.orgId,
-                    name: session.orgId === user.email ? `${user.name || user.email}'s Organization` : session.orgId,
-                    type: user.userType === 'Individual' ? 'Personal' : 'Business',
-                    role: user.userType === 'SiteAdmin' ? 'SiteAdmin' : (user.userType === 'BusinessAdmin' ? 'Owner' : 'ReadOnly'),
+                    name: isPersonal ? `${user.name || user.email}'s Organization` : session.orgId,
+                    type: isPersonal ? 'Personal' : 'Business',
+                    role: user.userType === 'SiteAdmin' ? 'SiteAdmin' : 'Owner',
                     deviceCount: 0,
                     totalSeats: user.maxDevices || 5
                 }];
@@ -117,7 +118,7 @@ class OrgContext {
             const { user, orgs } = response.data;
             
             // Map API response to availableOrgs format
-            this.availableOrgs = orgs.map(org => ({
+            const mappedOrgs = orgs.map(org => ({
                 orgId: org.orgId,
                 name: org.name,
                 type: org.type,
@@ -126,13 +127,24 @@ class OrgContext {
                 totalSeats: org.totalSeats
             }));
 
+            // De-duplicate by orgId to avoid duplicate personal org entries
+            const deduped = new Map();
+            for (const org of mappedOrgs) {
+                if (!deduped.has(org.orgId)) {
+                    deduped.set(org.orgId, org);
+                }
+            }
+
+            this.availableOrgs = Array.from(deduped.values());
+
             // If API returns no orgs for some reason, create a personal fallback from user
             if (this.availableOrgs.length === 0 && user?.defaultOrgId) {
+                const isPersonalFallback = user.defaultOrgId === user.email;
                 this.availableOrgs = [{
                     orgId: user.defaultOrgId,
                     name: user.displayName ? `${user.displayName}'s Organization` : user.defaultOrgId,
-                    type: user.userType === 'Individual' ? 'Personal' : 'Business',
-                    role: user.userType === 'SiteAdmin' ? 'SiteAdmin' : (user.userType === 'BusinessAdmin' ? 'Owner' : 'ReadOnly'),
+                    type: isPersonalFallback ? 'Personal' : 'Business',
+                    role: user.userType === 'SiteAdmin' ? 'SiteAdmin' : 'Owner',
                     deviceCount: 0,
                     totalSeats: 0
                 }];
@@ -151,11 +163,26 @@ class OrgContext {
 
     /**
      * Select an organization
+     * @param {string} orgId - Organization ID to select
+     * @param {Object} options - Options for selection
+     * @param {boolean} options.reload - If true, perform full page reload. Default: false (component-level refresh via orgChanged event)
+     * 
+     * Pages should listen to the 'orgChanged' event to reload their data:
+     *   window.addEventListener('orgChanged', (e) => {
+     *       const org = e.detail;
+     *       // Reload your component data here
+     *       loadPageData(org.orgId);
+     *   });
      */
-    selectOrg(orgId) {
+    selectOrg(orgId, { reload = false } = {}) {
         const org = this.availableOrgs.find(o => o.orgId === orgId);
         if (!org) {
             logger.error('[OrgContext] Org not found:', orgId);
+            return;
+        }
+
+        // Avoid unnecessary work when selecting the current org
+        if (this.currentOrg?.orgId === org.orgId) {
             return;
         }
 
@@ -164,7 +191,22 @@ class OrgContext {
         
         logger.info('[OrgContext] Org selected:', org);
         
-        // Notify listeners
+        // Notify listeners (triggers component-level refresh)
+        this.notifyListeners();
+
+        // Optional full page reload; default is component-level refresh via listeners
+        if (reload) {
+            window.location.reload();
+        }
+    }
+
+    /**
+     * Trigger component refresh (data reload without page reload)
+     * Call this when you need to refresh data for the current org
+     * All listeners subscribed via onChange() and orgChanged event will be notified
+     */
+    refresh() {
+        logger.info('[OrgContext] Triggering component refresh for:', this.currentOrg?.orgId);
         this.notifyListeners();
     }
 
@@ -201,14 +243,6 @@ class OrgContext {
      */
     isIndividualUser() {
         return this.currentOrg?.type === 'Personal' || this.currentOrg?.type === 'Individual';
-    }
-
-    /**
-     * Check if user is Business Admin
-     */
-    isBusinessAdmin() {
-        return this.currentOrg?.type === 'Business' && 
-               (this.currentOrg?.role === 'Owner' || this.currentOrg?.role === 'ReadWrite');
     }
 
     /**

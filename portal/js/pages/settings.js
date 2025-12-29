@@ -63,23 +63,15 @@ export function SettingsPage() {
 
     // Load data on mount and reload when org changes
     useEffect(() => {
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg?.orgId) return;
-        
-        loadSettings();
-
-        const handler = () => {
+        const unsubscribe = orgContext.onChange(() => {
             setActiveTab('general');
             loadSettings();
-        };
-        const unsubscribe = orgContext.onChange(handler);
-        window.addEventListener('orgChanged', handler);
-
-        return () => {
-            unsubscribe?.();
-            window.removeEventListener('orgChanged', handler);
-        };
-    }, [orgContext.getCurrentOrg()?.orgId]);
+        });
+        
+        loadSettings();
+        
+        return unsubscribe;
+    }, []);
 
     const loadSettings = async () => {
         try {
@@ -160,7 +152,7 @@ export function SettingsPage() {
             }
 
             // Load all accounts for user search (Site Admin)
-            if (userType === 'SiteAdmin') {
+            if (userType === 'SiteAdmin' && currentOrg && currentOrg.type !== 'Personal') {
                 try {
                     const accountsRes = await api.adminListAccounts();
                     if (accountsRes.success && accountsRes.data) {
@@ -198,20 +190,27 @@ export function SettingsPage() {
                 setProjectedExhaustion(null);
             }
 
-            // Load email preferences for Business orgs
+            // Load email preferences for Business orgs (owner or SiteAdmin only)
             // NOTE: Email preferences feature is optional and should not block page load
             // Use direct fetch to avoid api.js auto-logout on permission errors
-            if (!isPersonalType) {
+            const canManageEmailPrefs = (userType === 'SiteAdmin') || currentOrg?.role === 'Owner';
+            if (!isPersonalType && canManageEmailPrefs) {
                 try {
                     const token = auth.getToken();
-                    const response = await fetch(`/api/v1/email-preferences/orgs/${currentOrgId}`, {
+                    const doFetch = async (id) => fetch(`/api/v1/email-preferences/orgs/${id}`, {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json',
                             ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                         }
                     });
-                    
+
+                    let response = await doFetch(currentOrgId);
+                    if (response.status === 404 && (currentOrgId?.startsWith('ORGB-') || currentOrgId?.startsWith('ORGP-'))) {
+                        const trimmed = currentOrgId.replace(/^ORG[B|P]-/i, '');
+                        response = await doFetch(trimmed);
+                    }
+
                     if (response.ok) {
                         const prefsRes = await response.json();
                         if (prefsRes && prefsRes.success && prefsRes.data) {
@@ -320,15 +319,17 @@ export function SettingsPage() {
                 return { data: data?.data || null, notFound: false };
             };
 
-            // Try the provided orgId; if missing ORG* prefix and not found, retry with ORGB-
+            // Try the provided orgId
             const primary = await doFetch(orgId);
             if (!primary.notFound) return primary.data;
 
-            const normalized = (orgId?.startsWith('ORGB-') || orgId?.startsWith('ORGP-'))
-                ? null
-                : `ORGB-${orgId}`;
-
-            if (normalized) {
+            // If prefixed, try without prefix; if not prefixed, try adding ORGB-
+            if (orgId?.startsWith('ORGB-') || orgId?.startsWith('ORGP-')) {
+                const trimmed = orgId.replace(/^ORG[B|P]-/i, '');
+                const retry = await doFetch(trimmed);
+                if (!retry.notFound) return retry.data;
+            } else {
+                const normalized = `ORGB-${orgId}`;
                 const secondary = await doFetch(normalized);
                 if (!secondary.notFound) return secondary.data;
             }

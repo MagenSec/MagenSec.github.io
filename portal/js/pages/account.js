@@ -65,10 +65,13 @@ class AccountPage extends Component {
                   <tr>
                     <td><strong>Role</strong></td>
                     <td>
-                      <span class="badge ${user.userType === 'SiteAdmin' ? 'bg-danger' : 
-                        user.userType === 'BusinessAdmin' ? 'bg-primary' : 'bg-info'}">
-                        ${user.userType}
-                      </span>
+                      ${(() => {
+                        const currentRole = orgContext.currentOrg?.role;
+                        const roleLabel = currentRole || user.userType || 'Individual';
+                        const badgeClass = roleLabel === 'SiteAdmin' ? 'bg-danger'
+                            : (roleLabel === 'Owner' || roleLabel === 'ReadWrite' ? 'bg-primary' : 'bg-info');
+                        return html`<span class="badge ${badgeClass}">${roleLabel}</span>`;
+                      })()}
                     </td>
                   </tr>
                   <tr>

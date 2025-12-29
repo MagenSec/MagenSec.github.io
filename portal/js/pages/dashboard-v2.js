@@ -10,7 +10,7 @@ import { SearchableOrgSwitcher } from '../components/SearchableOrgSwitcher.js';
 
 const { html, Component } = window;
 
-export class DashboardPage extends Component {
+class DashboardPage extends Component {
     constructor(props) {
         super(props);
         this.state = {
@@ -18,9 +18,6 @@ export class DashboardPage extends Component {
             data: null,
             error: null
         };
-        
-        // Subscribe to org changes
-        this.unsubscribeOrg = null;
     }
 
     componentDidMount() {
@@ -488,3 +485,5 @@ export class DashboardPage extends Component {
         `;
     }
 }
+
+export default DashboardPage;

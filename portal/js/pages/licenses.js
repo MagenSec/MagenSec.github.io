@@ -10,7 +10,7 @@ import { config } from '../config.js';
 
 const { html, Component } = window;
 
-export class LicensesPage extends Component {
+class LicensesPage extends Component {
     constructor(props) {
         super(props);
         this.state = {
@@ -27,12 +27,11 @@ export class LicensesPage extends Component {
     }
 
     componentDidMount() {
-        this.orgUnsubscribe = orgContext.onChange(() => this.loadLicenses());
         this.loadLicenses();
     }
 
     componentWillUnmount() {
-        if (this.orgUnsubscribe) this.orgUnsubscribe();
+        // No cleanup needed - HOC handles listener
     }
 
     async loadLicenses() {
@@ -342,6 +341,8 @@ export class LicensesPage extends Component {
         `;
     }
 }
+
+export default LicensesPage;
 
 // Initialize page
 if (document.getElementById('page-root')) {

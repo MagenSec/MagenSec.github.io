@@ -9,7 +9,7 @@ import { initRouter } from './router.js';
 import { logger } from './config.js';
 import { LoginPage } from './pages/login.js';
 import { UnifiedDashboardPage } from './pages/unifiedDashboard.js';
-import { DevicesPage } from './pages/devices.js';
+import DevicesPage from './pages/devices.js';
 import { DeviceDetailPage } from './pages/device-detail.js';
 import { AnalystPage } from './pages/analyst.js';
 import { PosturePage } from './pages/posture.js';

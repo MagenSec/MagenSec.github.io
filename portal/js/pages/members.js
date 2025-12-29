@@ -9,7 +9,7 @@ import { orgContext } from '../orgContext.js';
 
 const { html, Component } = window;
 
-export class MembersPage extends Component {
+class MembersPage extends Component {
     constructor(props) {
         super(props);
         this.state = {
@@ -23,12 +23,11 @@ export class MembersPage extends Component {
     }
 
     componentDidMount() {
-        this.orgUnsubscribe = orgContext.onChange(() => this.loadMembers());
         this.loadMembers();
     }
 
     componentWillUnmount() {
-        if (this.orgUnsubscribe) this.orgUnsubscribe();
+        // No cleanup needed - HOC handles listener
     }
 
     async loadMembers() {
@@ -135,8 +134,8 @@ export class MembersPage extends Component {
 
     render() {
         const { loading, members, error, showInviteModal, inviteForm } = this.state;
-        const user = auth.getUser();
-        const isBusinessAdmin = user?.userType === 'BusinessAdmin' || user?.userType === 'SiteAdmin';
+        const currentRole = orgContext.currentOrg?.role;
+        const canManageMembers = currentRole === 'Owner' || currentRole === 'ReadWrite' || currentRole === 'SiteAdmin';
 
         if (loading) {
             return html`<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>`;
@@ -150,7 +149,7 @@ export class MembersPage extends Component {
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Organization Members</h3>
-                    ${isBusinessAdmin && html`
+                    ${canManageMembers && html`
                         <button class="btn btn-primary" onClick=${() => this.setState({ showInviteModal: true })}>
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                             Invite Member
@@ -175,7 +174,7 @@ export class MembersPage extends Component {
                                         <th>Role</th>
                                         <th>Added</th>
                                         <th>Added By</th>
-                                        ${isBusinessAdmin && html`<th>Actions</th>`}
+                                        ${canManageMembers && html`<th>Actions</th>`}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -201,7 +200,7 @@ export class MembersPage extends Component {
                                             </td>
                                             <td><small class="text-muted">${new Date(member.addedAt).toLocaleDateString()}</small></td>
                                             <td><small class="text-muted">${member.addedBy || 'System'}</small></td>
-                                            ${isBusinessAdmin && html`
+                                            ${canManageMembers && html`
                                                 <td>
                                                     <div class="btn-group" role="group">
                                                         <button class="btn btn-sm btn-secondary" 
@@ -273,6 +272,8 @@ export class MembersPage extends Component {
         `;
     }
 }
+
+export default MembersPage;
 
 // Initialize page
 if (document.getElementById('page-root')) {

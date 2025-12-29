@@ -10,7 +10,7 @@ import { PiiDecryption } from '../utils/piiDecryption.js';
 import { getInstallerConfig, clearManifestCache, getCacheStatus } from '../utils/manifestCache.js';
 import { getKevSet } from '../utils/kevCache.js';
 
-export class DevicesPage extends window.Component {
+class DevicesPage extends window.Component {
     constructor(props) {
         super(props);
         this.state = {
@@ -65,6 +65,7 @@ export class DevicesPage extends window.Component {
     }
 
     componentDidMount() {
+        this.orgChangeUnsubscribe = orgContext.onChange(() => this.loadDevices(true));
         this.loadInstallerConfig();
         this.loadDevices();
         this.loadKnownExploitsAsync();
@@ -94,6 +95,7 @@ export class DevicesPage extends window.Component {
     }
 
     componentWillUnmount() {
+        if (this.orgChangeUnsubscribe) this.orgChangeUnsubscribe();
         this.destroyApexCharts();
         this.destroyTableApexCharts();
     }
@@ -2210,3 +2212,5 @@ export class DevicesPage extends window.Component {
         `;
     }
 }
+
+export default DevicesPage;

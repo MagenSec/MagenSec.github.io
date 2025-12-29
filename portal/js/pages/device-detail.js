@@ -543,6 +543,72 @@ export class DeviceDetailPage extends window.Component {
         }
     }
 
+    // Normalize backend perf aggregation payload into a stable, camelCase structure the charts expect
+    normalizePerfAggregation(raw) {
+        const toNumber = (val, fallback = null) => {
+            const n = Number(val);
+            return Number.isFinite(n) ? n : fallback;
+        };
+
+        const toIso = (val) => {
+            if (val === null || val === undefined) return null;
+            if (typeof val === 'number' && Number.isFinite(val)) return new Date(val).toISOString();
+            const d = new Date(val);
+            return Number.isFinite(d.getTime()) ? d.toISOString() : null;
+        };
+
+        const norm = {
+            orgId: raw?.orgId || raw?.OrgId || null,
+            deviceId: raw?.deviceId || raw?.DeviceId || null,
+            bucketMinutes: toNumber(raw?.bucketMinutes ?? raw?.BucketMinutes, 360),
+            startUtc: toIso(raw?.startUtc || raw?.StartUtc),
+            endUtc: toIso(raw?.endUtc || raw?.EndUtc),
+            computedUtc: toIso(raw?.computedUtc || raw?.ComputedUtc),
+            sampleCount: toNumber(raw?.sampleCount ?? raw?.SampleCount, 0),
+            status: raw?.status || raw?.Status || null,
+            fromCache: Boolean(raw?.fromCache ?? raw?.FromCache),
+            isFresh: Boolean(raw?.isFresh ?? raw?.IsFresh),
+            points: []
+        };
+
+        const rawPoints = Array.isArray(raw?.points)
+            ? raw.points
+            : Array.isArray(raw?.Points)
+                ? raw.Points
+                : [];
+
+        norm.points = rawPoints
+            .map((p) => {
+                const bucket = p.bucketStartUtc || p.BucketStartUtc || p.timestamp || p.Timestamp || p.startUtc || p.StartUtc;
+                const bucketIso = toIso(bucket);
+                return {
+                    bucketStartUtc: bucketIso,
+                    bucketUtc: bucketIso,
+                    startUtc: bucketIso,
+                    samples: toNumber(p.samples ?? p.Samples ?? p.sampleCount ?? p.SampleCount, 0),
+                    cpuAvg: toNumber(p.cpuAvg ?? p.CpuAvg),
+                    memoryAvg: toNumber(p.memoryAvg ?? p.MemoryAvg),
+                    memoryAvgMb: toNumber(p.memoryAvgMb ?? p.MemoryAvgMb),
+                    diskTotalMbAvg: toNumber(p.diskTotalMbAvg ?? p.diskAvg ?? p.DiskAvg ?? p.DiskTotalMbAvg),
+                    diskAppMbAvg: toNumber(p.diskAppMbAvg ?? p.DiskAppMbAvg),
+                    diskIntelMbAvg: toNumber(p.diskIntelMbAvg ?? p.DiskIntelMbAvg),
+                    networkMbpsAvg: toNumber(p.networkMbpsAvg ?? p.networkAvg ?? p.NetworkAvg ?? p.networkMbps ?? p.NetworkMbps),
+                    networkBytesSent: toNumber(p.networkBytesSent ?? p.NetworkBytesSent),
+                    networkBytesReceived: toNumber(p.networkBytesReceived ?? p.NetworkBytesReceived),
+                    networkRequests: toNumber(p.networkRequests ?? p.NetworkRequests),
+                    networkFailures: toNumber(p.networkFailures ?? p.NetworkFailures)
+                };
+            })
+            .filter((p) => p.bucketStartUtc)
+            .sort((a, b) => new Date(a.bucketStartUtc).getTime() - new Date(b.bucketStartUtc).getTime());
+
+        if (!norm.sampleCount) {
+            norm.sampleCount = norm.points.reduce((sum, p) => sum + (toNumber(p.samples, 0) || 0), 0);
+        }
+
+        return norm;
+    }
+
     buildTimeline(telemetryData) {
         if (!telemetryData || !telemetryData.history) return [];
         

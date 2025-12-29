@@ -157,11 +157,9 @@ export class UnifiedDashboardPage extends Component {
     }
 
     getUserRole() {
-        const { user } = this.state;
-        if (!user) return 'Individual';
-        
-        if (user.userType === 'SiteAdmin') return 'SiteAdmin';
-        if (user.userType === 'BusinessAdmin') return 'BusinessAdmin';
+        const currentOrg = orgContext.currentOrg;
+        if (currentOrg?.role === 'SiteAdmin') return 'SiteAdmin';
+        if (currentOrg?.role === 'Owner' || currentOrg?.role === 'ReadWrite') return 'Business';
         return 'Individual';
     }
 
