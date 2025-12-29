@@ -132,11 +132,15 @@ export class ApiClient {
 
             const data = await response.json();
             
-            const isUnauthorizedEnvelope = data && data.success === false && (data.error === 'UNAUTHORIZED' || data.error === 'INVALID_SESSION' || data.error === 'SESSION_EXPIRED');
+            // Distinguish between session auth errors (logout) vs permission errors (toast)
+            // Session errors: token expired, invalid, or missing → logout
+            // Permission errors: user not found, forbidden, etc. → show toast, don't logout
+            const isSessionError = data && data.success === false && 
+                (data.error === 'SESSION_EXPIRED' || data.error === 'INVALID_SESSION');
 
-            if (!response.ok || isUnauthorizedEnvelope) {
-                // Handle expired/invalid session uniformly
-                if (response.status === 401 || isUnauthorizedEnvelope) {
+            if (!response.ok) {
+                // Handle session expiration (logout)
+                if (response.status === 401 || isSessionError) {
                     auth.clearSession();
                     window.location.href = '/portal/?expired=1';
                     // Throw to halt downstream handlers
@@ -146,7 +150,18 @@ export class ApiClient {
                     throw error;
                 }
 
+                // Other HTTP errors (4xx/5xx) - let caller handle as regular error (will show toast)
                 const error = new Error(data.message || data.error || `HTTP ${response.status}: ${response.statusText}`);
+                error.status = response.status;
+                error.statusText = response.statusText;
+                error.response = data;
+                throw error;
+            }
+
+            // If success=false but 200 OK (envelope pattern), don't logout regardless of error type
+            // Let caller decide how to handle UNAUTHORIZED, FORBIDDEN, etc. via toast
+            if (data && data.success === false) {
+                const error = new Error(data.message || data.error || 'Request failed');
                 error.status = response.status;
                 error.statusText = response.statusText;
                 error.response = data;

@@ -27,6 +27,7 @@ export function AuditPage() {
         dateFrom: '',
         dateTo: ''
     });
+    const [rangeDays, setRangeDays] = useState(90);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
     const eventsPerPage = 50;
@@ -46,7 +47,7 @@ export function AuditPage() {
             unsubscribe?.();
             window.removeEventListener('orgChanged', handler);
         };
-    }, [currentOrgId]);
+    }, [currentOrgId, rangeDays]);
 
     useEffect(() => {
         applyFilters();
@@ -216,11 +217,20 @@ export function AuditPage() {
 
             // Fetch audit events from API
             logger.debug('[Audit] Fetching events for org:', currentOrg.orgId);
-            const res = await api.get(`/api/v1/orgs/${currentOrg.orgId}/audit`);
+
+            const query = new URLSearchParams({
+                maxResults: '500',
+                days: String(rangeDays)
+            });
+
+            const res = await api.get(`/api/v1/orgs/${currentOrg.orgId}/audit?${query.toString()}`);
             logger.debug('[Audit] API response:', res);
             
             if (res.success && res.data) {
-                setEvents(res.data.events || []);
+                const eventsData = res.data.events || [];
+                logger.debug('[Audit] Events loaded:', eventsData.length);
+                logger.debug('[Audit] Sample event with metadata:', eventsData.find(e => e.metadata));
+                setEvents(eventsData);
                 setHasMore(res.data.hasMore || false);
                 logger.debug('[Audit] Events loaded:', res.data.events?.length || 0);
             } else {
@@ -332,7 +342,11 @@ export function AuditPage() {
     };
 
     const getUniqueEventTypes = () => {
-        const types = new Set(events.map(e => e.eventType));
+        const types = new Set(
+            events
+                .map(e => e.eventType)
+                .filter(type => type != null && type !== '')
+        );
         return Array.from(types).sort();
     };
 
@@ -463,6 +477,20 @@ export function AuditPage() {
                                 `)}
                             </select>
                         </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Time Range</label>
+                            <select
+                                class="form-select"
+                                value=${rangeDays}
+                                onChange=${(e) => setRangeDays(Number(e.target.value) || 90)}
+                            >
+                                <option value="7">Last 7 days</option>
+                                <option value="30">Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                                <option value="180">Last 180 days</option>
+                                <option value="365">Last 365 days</option>
+                            </select>
+                        </div>
                         <div class="col-md-3">
                             <label class="form-label">Search</label>
                             <input 
@@ -473,7 +501,7 @@ export function AuditPage() {
                                 onInput=${(e) => handleFilterChange('search', e.target.value)}
                             />
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label class="form-label">From Date</label>
                             <input 
                                 type="date"
@@ -482,7 +510,7 @@ export function AuditPage() {
                                 onChange=${(e) => handleFilterChange('dateFrom', e.target.value)}
                             />
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label class="form-label">To Date</label>
                             <input 
                                 type="date"

@@ -14,6 +14,13 @@ import { LicenseAdjustmentDialog } from '../components/LicenseAdjustmentDialog.j
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
 
+const ORG_DURATION_OPTIONS = [
+    { label: '6 months (180 days)', value: 180 },
+    { label: '1 year (365 days)', value: 365 },
+    { label: '2 years (730 days)', value: 730 },
+    { label: '3 years (1095 days)', value: 1095 }
+];
+
 // Local helper to keep existing showToast signature while using default export
 const showToast = (message, type) => toast.show(message, type);
 
@@ -29,6 +36,7 @@ export function SettingsPage() {
     const [newOrgName, setNewOrgName] = useState('');
     const [newOwnerEmail, setNewOwnerEmail] = useState('');
     const [newOrgSeats, setNewOrgSeats] = useState(20);
+    const [newOrgDuration, setNewOrgDuration] = useState('365');
     const [updateOrgName, setUpdateOrgName] = useState('');
     const [showCreateOrg, setShowCreateOrg] = useState(false);
     const [showUpdateOrg, setShowUpdateOrg] = useState(false);
@@ -342,7 +350,8 @@ export function SettingsPage() {
         const payload = {
             orgName: newOrgName,
             ownerEmail: newOwnerEmail,
-            seats: newOrgSeats ? Number(newOrgSeats) : 0
+            seats: newOrgSeats ? Number(newOrgSeats) : 0,
+            durationDays: newOrgDuration ? Number(newOrgDuration) : 365
         };
 
         const res = await api.post('/api/v1/admin/orgs', payload);
@@ -351,6 +360,7 @@ export function SettingsPage() {
             setNewOrgName('');
             setNewOwnerEmail('');
             setNewOrgSeats(20);
+            setNewOrgDuration('365');
             await orgContext.initialize();
             await loadSettings();
         } else {
@@ -690,6 +700,8 @@ export function SettingsPage() {
                         setNewOwnerEmail=${setNewOwnerEmail}
                         newOrgSeats=${newOrgSeats}
                         setNewOrgSeats=${setNewOrgSeats}
+                        newOrgDuration=${newOrgDuration}
+                        setNewOrgDuration=${setNewOrgDuration}
                         updateOrgName=${updateOrgName}
                         setUpdateOrgName=${setUpdateOrgName}
                         advancedTab=${advancedTab}
@@ -1157,7 +1169,7 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
 
 // Advanced Tab (Site Admin only)
 function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg, onDisableOrg, onDeleteOrg, 
-    newOrgName, setNewOrgName, newOwnerEmail, setNewOwnerEmail, newOrgSeats, setNewOrgSeats,
+    newOrgName, setNewOrgName, newOwnerEmail, setNewOwnerEmail, newOrgSeats, setNewOrgSeats, newOrgDuration, setNewOrgDuration,
     updateOrgName, setUpdateOrgName,
     advancedTab, setAdvancedTab, accounts, isValidEmail,
     orgOwnerSearch, setOrgOwnerSearch, showOwnerDropdown, setShowOwnerDropdown,
@@ -1320,6 +1332,18 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                 <div class="col-md-6">
                                     <label class="form-label">Seats</label>
                                     <input type="number" class="form-control" placeholder="20" value=${newOrgSeats} onInput=${(e) => setNewOrgSeats(e.target.value)} />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">License Duration</label>
+                                    <select 
+                                        class="form-select" 
+                                        value=${newOrgDuration}
+                                        onChange=${(e) => setNewOrgDuration(e.target.value)}
+                                    >
+                                        ${ORG_DURATION_OPTIONS.map(opt => html`
+                                            <option value=${opt.value}>${opt.label}</option>
+                                        `)}
+                                    </select>
                                 </div>
                                 <div class="col-12">
                                     <button 
