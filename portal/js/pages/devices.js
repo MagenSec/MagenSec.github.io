@@ -446,11 +446,12 @@ class DevicesPage extends window.Component {
         const numericEnriched = Number(enrichedScore);
         const safeScore = Number.isFinite(numericEnriched) ? numericEnriched : 0;
         const displayScore = Math.max(0, Math.min(100, Math.round(safeScore)));
+        const safeRadialSeries = [Number.isFinite(displayScore) ? displayScore : 0];
         const gradientStart = '#2fb344';
         const gradientEnd = '#d63939';
         const scoreColor = displayScore >= 80 ? gradientEnd : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : gradientStart;
 
-        if (this.riskChartEl) {
+        if (this.riskChartEl && this.riskChartEl.getBoundingClientRect().width > 0) {
             if (this.riskChart) this.riskChart.destroy();
 
                 const riskOptions = {
@@ -473,7 +474,7 @@ class DevicesPage extends window.Component {
                             ]
                         }
                     },
-                    series: [displayScore],
+                    series: safeRadialSeries,
                     plotOptions: {
                         radialBar: {
                             startAngle: -130,
@@ -509,7 +510,7 @@ class DevicesPage extends window.Component {
         const appsColors = totalApps > 0 ? ['#d63939', '#2fb344'] : ['#e9ecef'];
         const appsTotalLabel = totalApps > 0 ? `${vulnApps}/${totalApps}` : '0/0';
 
-        if (this.appsChartEl) {
+        if (this.appsChartEl && this.appsChartEl.getBoundingClientRect().width > 0) {
             if (this.appsChart) this.appsChart.destroy();
 
             const appsOptions = {
@@ -542,7 +543,7 @@ class DevicesPage extends window.Component {
         const cveLabels = totalCves > 0 ? ['Critical', 'High', 'Medium', 'Low'] : ['No CVEs'];
         const cveColors = totalCves > 0 ? ['#d63939', '#f59f00', '#fab005', '#74b816'] : ['#e9ecef'];
 
-        if (this.cvesChartEl) {
+        if (this.cvesChartEl && this.cvesChartEl.getBoundingClientRect().width > 0) {
             if (this.cvesChart) this.cvesChart.destroy();
 
             const cveOptions = {
@@ -599,14 +600,17 @@ class DevicesPage extends window.Component {
             const scoreColor = clampedScore >= 80 ? '#d63939' : clampedScore >= 60 ? '#f59f00' : clampedScore >= 40 ? '#fab005' : '#2fb344';
 
             const riskEl = this.tableRiskEls.get(device.id);
-            if (riskEl) {
+            const bounds = riskEl?.getBoundingClientRect();
+            if (riskEl && bounds && bounds.width > 0 && bounds.height > 0) {
                 if (this.tableRiskCharts.has(device.id)) {
                     this.tableRiskCharts.get(device.id).destroy();
                 }
                 const gradientStart = '#2fb344';
                 const gradientEnd = '#d63939';
+                const safeSeries = [Number.isFinite(clampedScore) ? clampedScore : 0];
                     const riskOptions = {
-                        chart: { type: 'radialBar', height: 100, sparkline: { enabled: true } },                    colors: [gradientStart],
+                        chart: { type: 'radialBar', height: 100, width: 100, sparkline: { enabled: true } },
+                    colors: [gradientStart],
                     fill: {
                         type: 'gradient',
                         gradient: {
@@ -620,7 +624,7 @@ class DevicesPage extends window.Component {
                             ]
                         }
                     },
-                    series: [clampedScore],
+                    series: safeSeries,
                     plotOptions: {
                         radialBar: {
                             startAngle: -90,
@@ -975,17 +979,17 @@ class DevicesPage extends window.Component {
                 
                 const t = device.telemetry || device.Telemetry || {};
                 // Robust device name extraction with multiple fallbacks
-                const encryptedName = (device.deviceName && device.deviceName.trim()) 
-                    ? device.deviceName 
-                    : (device.DeviceName && device.DeviceName.trim()) 
-                    ? device.DeviceName 
+                const rawName = (device.deviceName && device.deviceName.trim())
+                    ? device.deviceName
+                    : (device.DeviceName && device.DeviceName.trim())
+                    ? device.DeviceName
                     : (t.hostname && String(t.hostname).trim())
                     ? t.hostname
                     : (t.Hostname && String(t.Hostname).trim())
                     ? t.Hostname
                     : device.deviceId;
-                // Decrypt PII field
-                const deviceName = PiiDecryption.decrypt(encryptedName);
+                // Use the plain text name; backend now returns friendly names directly.
+                const deviceName = (rawName && rawName.trim()) || device.deviceId;
                 const mapped = {
                     id: device.DeviceId || device.deviceId,
                     name: deviceName,

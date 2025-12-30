@@ -67,10 +67,9 @@ export class ResponseActionsPage extends Component {
     }
 
     async loadCommands() {
-        const { auth, orgContext } = window;
         const user = auth.getUser();
-        const currentOrg = orgContext.getOrg();
-        const orgId = currentOrg || user.email;
+        const currentOrg = orgContext.getCurrentOrg();
+        const orgId = currentOrg?.orgId || user.email;
 
         try {
             const response = await window.api.get(`/api/v1/response/${orgId}/commands`);

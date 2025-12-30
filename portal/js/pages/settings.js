@@ -54,6 +54,13 @@ export function SettingsPage() {
     const [sendingTestEmail, setSendingTestEmail] = useState(false);
     const [emailPreferences, setEmailPreferences] = useState(null);
     const [savingPreferences, setSavingPreferences] = useState(false);
+    const [showChangeUserType, setShowChangeUserType] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [newUserType, setNewUserType] = useState('');
+    const [changingUserType, setChangingUserType] = useState(false);
+    const [showTransferOwner, setShowTransferOwner] = useState(false);
+    const [transferringOwner, setTransferringOwner] = useState(false);
+    const [newTransferOwner, setNewTransferOwner] = useState('');
 
     // Email validation helper
     const isValidEmail = (email) => {
@@ -493,6 +500,78 @@ export function SettingsPage() {
         }
     };
 
+    const handleChangeUserType = async () => {
+        if (!selectedUser || !newUserType) {
+            showToast('Please select a user and user type', 'warning');
+            return;
+        }
+
+        if (!confirm(`Change ${selectedUser.email} from ${selectedUser.userType} to ${newUserType}?`)) {
+            return;
+        }
+
+        try {
+            setChangingUserType(true);
+            const res = await api.put(`/api/v1/admin/users/${selectedUser.userId}/change-type`, {
+                newUserType: newUserType
+            });
+
+            if (res.success) {
+                showToast(`User type changed to ${newUserType}`, 'success');
+                setShowChangeUserType(false);
+                setSelectedUser(null);
+                setNewUserType('');
+                await loadSettings(); // Reload accounts
+            } else {
+                showToast(res.message || 'Failed to change user type', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error changing user type:', error);
+            showToast('Failed to change user type', 'error');
+        } finally {
+            setChangingUserType(false);
+        }
+    };
+
+    const handleTransferOwnership = async () => {
+        if (!newTransferOwner) {
+            showToast('Please enter new owner email', 'warning');
+            return;
+        }
+
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) {
+            showToast('No organization selected', 'warning');
+            return;
+        }
+
+        if (!confirm(`Transfer ownership of ${org.orgName} to ${newTransferOwner}?`)) {
+            return;
+        }
+
+        try {
+            setTransferringOwner(true);
+            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/owner`, {
+                newOwnerEmail: newTransferOwner
+            });
+
+            if (res.success) {
+                showToast('Ownership transferred successfully', 'success');
+                setShowTransferOwner(false);
+                setNewTransferOwner('');
+                await orgContext.initialize();
+                await loadSettings();
+            } else {
+                showToast(res.message || 'Failed to transfer ownership', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error transferring ownership:', error);
+            showToast('Failed to transfer ownership', 'error');
+        } finally {
+            setTransferringOwner(false);
+        }
+    };
+
     const handleSendTestEmail = async () => {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg?.orgId) {
@@ -715,6 +794,20 @@ export function SettingsPage() {
                         setShowOwnerDropdown=${setShowOwnerDropdown}
                         onSendTestEmail=${handleSendTestEmail}
                         sendingTestEmail=${sendingTestEmail}
+                        showChangeUserType=${showChangeUserType}
+                        setShowChangeUserType=${setShowChangeUserType}
+                        selectedUser=${selectedUser}
+                        setSelectedUser=${setSelectedUser}
+                        newUserType=${newUserType}
+                        setNewUserType=${setNewUserType}
+                        onChangeUserType=${handleChangeUserType}
+                        changingUserType=${changingUserType}
+                        showTransferOwner=${showTransferOwner}
+                        setShowTransferOwner=${setShowTransferOwner}
+                        newTransferOwner=${newTransferOwner}
+                        setNewTransferOwner=${setNewTransferOwner}
+                        onTransferOwnership=${handleTransferOwnership}
+                        transferringOwner=${transferringOwner}
                     />`}
                 </div>
             </div>
@@ -1174,7 +1267,9 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
     updateOrgName, setUpdateOrgName,
     advancedTab, setAdvancedTab, accounts, isValidEmail,
     orgOwnerSearch, setOrgOwnerSearch, showOwnerDropdown, setShowOwnerDropdown,
-    onSendTestEmail, sendingTestEmail }) {
+    onSendTestEmail, sendingTestEmail,
+    showChangeUserType, setShowChangeUserType, selectedUser, setSelectedUser, newUserType, setNewUserType, onChangeUserType, changingUserType,
+    showTransferOwner, setShowTransferOwner, newTransferOwner, setNewTransferOwner, onTransferOwnership, transferringOwner }) {
     
     const filteredOwnerAccounts = orgOwnerSearch 
         ? accounts.filter(acc => acc.email?.toLowerCase().includes(orgOwnerSearch.toLowerCase()))
@@ -1376,8 +1471,20 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Owner Email</label>
-                                        <input type="email" class="form-control" value=${org.ownerEmail} disabled />
-                                        <small class="text-muted">Owner cannot be changed via UI</small>
+                                        <div class="input-group">
+                                            <input type="email" class="form-control" value=${org.ownerEmail} disabled />
+                                            <button 
+                                                class="btn btn-outline-primary"
+                                                onClick=${() => {
+                                                    setNewTransferOwner(org.ownerEmail);
+                                                    setShowTransferOwner(true);
+                                                }}
+                                            >
+                                                <i class="ti ti-arrows-exchange me-1"></i>
+                                                Transfer
+                                            </button>
+                                        </div>
+                                        <small class="text-muted">Current owner or Site Admin can transfer ownership</small>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Current Status</label>
@@ -1494,6 +1601,7 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                                 <th>User Type</th>
                                                 <th>Created</th>
                                                 <th>Last Login</th>
+                                                <th class="text-center">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1503,6 +1611,19 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                                                     <td><span class="badge bg-primary-lt text-uppercase">${acc.userType || 'Individual'}</span></td>
                                                     <td class="text-muted">${acc.createdAt ? new Date(acc.createdAt).toLocaleString() : 'N/A'}</td>
                                                     <td class="text-muted">${acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString() : 'Never'}</td>
+                                                    <td class="text-center">
+                                                        <button 
+                                                            class="btn btn-sm btn-outline-primary"
+                                                            onClick=${() => {
+                                                                setSelectedUser(acc);
+                                                                setNewUserType(acc.userType === 'SiteAdmin' ? 'Individual' : 'SiteAdmin');
+                                                                setShowChangeUserType(true);
+                                                            }}
+                                                        >
+                                                            <i class="ti ti-switch-horizontal me-1"></i>
+                                                            Change Type
+                                                        </button>
+                                                    </td>
                                                 </tr>
                                             `)}
                                         </tbody>
@@ -1513,6 +1634,113 @@ function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg,
                     `}
                 </div>
             </div>
+
+            <!-- Change User Type Modal -->
+            ${showChangeUserType && selectedUser && html`
+                <div class="modal modal-blur fade show" style="display: block;" onClick=${() => setShowChangeUserType(false)}>
+                    <div class="modal-dialog modal-dialog-centered" onClick=${(e) => e.stopPropagation()}>
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Change User Type</h5>
+                                <button type="button" class="btn-close" onClick=${() => setShowChangeUserType(false)}></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">User</label>
+                                    <input type="text" class="form-control" value=${selectedUser.email} disabled />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Current Type</label>
+                                    <input type="text" class="form-control" value=${selectedUser.userType || 'Individual'} disabled />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">New Type</label>
+                                    <select 
+                                        class="form-select" 
+                                        value=${newUserType}
+                                        onChange=${(e) => setNewUserType(e.target.value)}
+                                    >
+                                        <option value="Individual">Individual</option>
+                                        <option value="SiteAdmin">SiteAdmin</option>
+                                    </select>
+                                </div>
+                                <div class="alert alert-warning">
+                                    <i class="ti ti-alert-triangle me-2"></i>
+                                    <strong>Warning:</strong> Changing user type affects their permissions across the entire system.
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" onClick=${() => setShowChangeUserType(false)}>
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="button" 
+                                    class="btn btn-primary" 
+                                    onClick=${onChangeUserType}
+                                    disabled=${changingUserType || !newUserType}
+                                >
+                                    ${changingUserType ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : ''}
+                                    Change Type
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `}
+
+            <!-- Transfer Ownership Modal -->
+            ${showTransferOwner && org && html`
+                <div class="modal modal-blur fade show" style="display: block;" onClick=${() => setShowTransferOwner(false)}>
+                    <div class="modal-dialog modal-dialog-centered" onClick=${(e) => e.stopPropagation()}>
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Transfer Ownership</h5>
+                                <button type="button" class="btn-close" onClick=${() => setShowTransferOwner(false)}></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Organization</label>
+                                    <input type="text" class="form-control" value=${org.orgName} disabled />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Current Owner</label>
+                                    <input type="text" class="form-control" value=${org.ownerEmail} disabled />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">New Owner Email</label>
+                                    <input 
+                                        type="email" 
+                                        class="form-control" 
+                                        placeholder="newowner@example.com"
+                                        value=${newTransferOwner}
+                                        onInput=${(e) => setNewTransferOwner(e.target.value)}
+                                        disabled=${transferringOwner}
+                                    />
+                                    <small class="text-muted">New owner must be an existing org member</small>
+                                </div>
+                                <div class="alert alert-danger">
+                                    <i class="ti ti-alert-circle me-2"></i>
+                                    <strong>Caution:</strong> Transferring ownership gives full control to the new owner. This action cannot be undone.
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" onClick=${() => setShowTransferOwner(false)}>
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="button" 
+                                    class="btn btn-danger" 
+                                    onClick=${onTransferOwnership}
+                                    disabled=${transferringOwner || !newTransferOwner || !isValidEmail(newTransferOwner)}
+                                >
+                                    ${transferringOwner ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : ''}
+                                    Transfer Ownership
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `}
         </div>
     `;
 }

@@ -17,28 +17,39 @@ let auditChartInstance = null;
 export function AuditPage() {
     logger.debug('[Audit] Component rendering...');
     
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' or 'timeline'
     const [events, setEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [creditJobEvents, setCreditJobEvents] = useState([]);
+    const [analytics, setAnalytics] = useState(null);
+    const [loadingAnalytics, setLoadingAnalytics] = useState(false);
     const [filters, setFilters] = useState({
         eventType: 'all',
         search: '',
         dateFrom: '',
         dateTo: ''
     });
-    const [rangeDays, setRangeDays] = useState(90);
+    const [rangeDays, setRangeDays] = useState(7); // Default to 7 days
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
     const eventsPerPage = 50;
     const currentOrgId = orgContext.getCurrentOrg()?.orgId;
 
     useEffect(() => {
-        loadEvents();
+        if (activeTab === 'analytics') {
+            loadAnalytics();
+        } else {
+            loadEvents();
+        }
 
         const handler = () => {
             setPage(1);
-            loadEvents();
+            if (activeTab === 'analytics') {
+                loadAnalytics();
+            } else {
+                loadEvents();
+            }
         };
         const unsubscribe = orgContext.onChange(handler);
         window.addEventListener('orgChanged', handler);
@@ -47,7 +58,7 @@ export function AuditPage() {
             unsubscribe?.();
             window.removeEventListener('orgChanged', handler);
         };
-    }, [currentOrgId, rangeDays]);
+    }, [currentOrgId, rangeDays, activeTab]);
 
     useEffect(() => {
         applyFilters();
@@ -200,13 +211,46 @@ export function AuditPage() {
         });
     };
 
+    const loadAnalytics = async () => {
+        try {
+            logger.debug('[Audit] loadAnalytics called');
+            setLoadingAnalytics(true);
+            setLoading(false);
+            const currentOrg = orgContext.getCurrentOrg();
+            
+            if (!currentOrg?.orgId) {
+                logger.warn('[Audit] No org selected');
+                setLoadingAnalytics(false);
+                return;
+            }
+
+            const query = new URLSearchParams({ days: String(rangeDays) });
+            const res = await api.get(`/api/v1/orgs/${currentOrg.orgId}/audit/analytics?${query.toString()}`);
+            
+            if (res.success && res.data) {
+                logger.debug('[Audit] Analytics loaded:', res.data);
+                setAnalytics(res.data);
+                
+                // Render charts after analytics data is set
+                setTimeout(() => renderAllCharts(res.data), 100);
+            } else {
+                logger.error('[Audit] API returned error:', res.message);
+                toast.show(res.message || 'Failed to load analytics', 'error');
+            }
+        } catch (error) {
+            logger.error('[Audit] Error loading analytics:', error);
+            toast.show('Failed to load analytics', 'error');
+        } finally {
+            setLoadingAnalytics(false);
+            setLoading(false);
+        }
+    };
+
     const loadEvents = async () => {
         try {
             logger.debug('[Audit] loadEvents called');
             setLoading(true);
             const currentOrg = orgContext.getCurrentOrg();
-            
-            logger.debug('[Audit] Current org:', currentOrg);
             
             if (!currentOrg?.orgId) {
                 logger.warn('[Audit] No org selected');
@@ -214,9 +258,6 @@ export function AuditPage() {
                 setLoading(false);
                 return;
             }
-
-            // Fetch audit events from API
-            logger.debug('[Audit] Fetching events for org:', currentOrg.orgId);
 
             const query = new URLSearchParams({
                 maxResults: '500',
@@ -229,10 +270,8 @@ export function AuditPage() {
             if (res.success && res.data) {
                 const eventsData = res.data.events || [];
                 logger.debug('[Audit] Events loaded:', eventsData.length);
-                logger.debug('[Audit] Sample event with metadata:', eventsData.find(e => e.metadata));
                 setEvents(eventsData);
                 setHasMore(res.data.hasMore || false);
-                logger.debug('[Audit] Events loaded:', res.data.events?.length || 0);
             } else {
                 logger.error('[Audit] API returned error:', res.message);
                 toast.show(res.message || 'Failed to load audit events', 'error');
@@ -243,6 +282,238 @@ export function AuditPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const renderAllCharts = (analyticsData) => {
+        if (typeof window.Chart === 'undefined') {
+            logger.warn('[Audit] Chart.js not loaded');
+            return;
+        }
+
+        setTimeout(() => {
+            renderCreditConsumptionChart(analyticsData.creditConsumption);
+            renderEmailNotificationsChart(analyticsData.emailNotifications);
+            renderLoginTimelineChart(analyticsData.loginTimeline);
+            renderLifecycleChart(analyticsData.lifecycleEvents);
+        }, 100);
+    };
+
+    const renderCreditConsumptionChart = (data) => {
+        const canvas = document.getElementById('creditConsumptionChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) existingChart.destroy();
+
+        const points = data.dataPoints || [];
+        if (points.length === 0) {
+            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No credit consumption data available</p>';
+            return;
+        }
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: points.map(p => new Date(p.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                datasets: [
+                    {
+                        label: 'Remaining Credits',
+                        data: points.map(p => p.remaining),
+                        borderColor: '#206bc4',
+                        backgroundColor: 'rgba(32, 107, 196, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Credits Consumed',
+                        data: points.map(p => p.consumed),
+                        borderColor: '#d63939',
+                        backgroundColor: 'rgba(214, 57, 57, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const point = points[context.dataIndex];
+                                return [
+                                    `${context.dataset.label}: ${context.parsed.y}`,
+                                    `Event: ${point.eventType}`
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Credits' } },
+                    x: { title: { display: true, text: 'Date' } }
+                }
+            }
+        });
+    };
+
+    const renderEmailNotificationsChart = (data) => {
+        const canvas = document.getElementById('emailNotificationsChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) existingChart.destroy();
+
+        const counts = data.emailCounts || [];
+        if (counts.length === 0) {
+            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No email notification data available</p>';
+            return;
+        }
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: counts.map(c => c.emailType),
+                datasets: [{
+                    label: 'Email Count',
+                    data: counts.map(c => c.count),
+                    backgroundColor: [
+                        'rgba(32, 107, 196, 0.8)',
+                        'rgba(40, 167, 69, 0.8)',
+                        'rgba(214, 57, 57, 0.8)',
+                        'rgba(245, 159, 0, 0.8)',
+                        'rgba(23, 162, 184, 0.8)'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => `Count: ${ctx.parsed.y}` } }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Count' } },
+                    x: { title: { display: true, text: 'Email Type' } }
+                }
+            }
+        });
+    };
+
+    const renderLoginTimelineChart = (data) => {
+        const canvas = document.getElementById('loginTimelineChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) existingChart.destroy();
+
+        const timeline = data.timeline || [];
+        if (timeline.length === 0) {
+            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No login activity data available</p>';
+            return;
+        }
+
+        // Group by hour for visualization
+        const hourlyData = {};
+        timeline.forEach(item => {
+            const date = new Date(item.timestamp);
+            const hourKey = `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${date.getHours()}:00`;
+            hourlyData[hourKey] = (hourlyData[hourKey] || 0) + 1;
+        });
+
+        const labels = Object.keys(hourlyData).sort();
+        const values = labels.map(k => hourlyData[k]);
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Login Events',
+                    data: values,
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => `Events: ${ctx.parsed.y}` } }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Events' } },
+                    x: { title: { display: true, text: 'Time' }, ticks: { maxRotation: 45, minRotation: 45 } }
+                }
+            }
+        });
+    };
+
+    const renderLifecycleChart = (data) => {
+        const canvas = document.getElementById('lifecycleChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) existingChart.destroy();
+
+        const events = data.events || [];
+        if (events.length === 0) {
+            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No lifecycle event data available</p>';
+            return;
+        }
+
+        // Group by date and event type
+        const eventTypes = [...new Set(events.map(e => e.eventType))];
+        const dates = [...new Set(events.map(e => new Date(e.date).toLocaleDateString()))].sort();
+
+        const datasets = eventTypes.map((type, idx) => ({
+            label: type,
+            data: dates.map(date => {
+                const match = events.find(e => new Date(e.date).toLocaleDateString() === date && e.eventType === type);
+                return match ? match.count : 0;
+            }),
+            backgroundColor: [
+                'rgba(32, 107, 196, 0.6)',
+                'rgba(40, 167, 69, 0.6)',
+                'rgba(214, 57, 57, 0.6)',
+                'rgba(245, 159, 0, 0.6)',
+                'rgba(23, 162, 184, 0.6)',
+                'rgba(156, 39, 176, 0.6)'
+            ][idx % 6],
+            borderWidth: 0
+        }));
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: { labels: dates, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { stacked: true, title: { display: true, text: 'Date' } },
+                    y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Events' } }
+                }
+            }
+        });
     };
 
     const applyFilters = () => {
@@ -353,41 +624,101 @@ export function AuditPage() {
     const paginatedEvents = filteredEvents.slice((page - 1) * eventsPerPage, page * eventsPerPage);
     const totalPages = Math.ceil(filteredEvents.length / eventsPerPage);
 
-    try {
-        if (loading) {
-            return html`
-                <div class="container-xl">
-                    <div class="page-header d-print-none">
-                        <h2 class="page-title">Audit Events</h2>
-                    </div>
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="text-muted mt-2">Loading audit events...</p>
-                    </div>
-                </div>
-            `;
-        }
-
-    return html`
-        <div class="container-xl">
-            <div class="page-header d-print-none">
-                <div class="row align-items-center">
-                    <div class="col">
-                        <h2 class="page-title">Audit Events</h2>
-                        <div class="text-muted mt-1">
-                            ${filteredEvents.length} ${filteredEvents.length === 1 ? 'event' : 'events'}
-                            ${filters.eventType !== 'all' || filters.search || filters.dateFrom || filters.dateTo ? '(filtered)' : ''}
-                        </div>
-                    </div>
-                    <div class="col-auto">
-                        <button class="btn btn-icon" onClick=${loadEvents} title="Refresh">
-                            <i class="ti ti-refresh"></i>
-                        </button>
-                    </div>
+    const renderAnalyticsTab = () => {
+        return html`
+            <!-- Analytics Dashboard -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">Time Range</label>
+                    <select
+                        class="form-select"
+                        value=${rangeDays}
+                        onChange=${(e) => setRangeDays(Number(e.target.value) || 7)}
+                    >
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="180">Last 180 days</option>
+                        <option value="365">Last 365 days</option>
+                    </select>
                 </div>
             </div>
 
-            <!-- Credit Consumption Job Heartbeat -->
+            ${loadingAnalytics ? html`
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="mt-2">Loading analytics...</div>
+                </div>
+            ` : analytics ? html`
+                <div class="row row-cards mb-3">
+                    <!-- Credit Consumption Chart -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="ti ti-coins me-2"></i>Credit Consumption</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="height: 300px; position: relative;">
+                                    <canvas id="creditConsumptionChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Email Notifications Chart -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="ti ti-mail me-2"></i>Email Notifications</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="height: 300px; position: relative;">
+                                    <canvas id="emailNotificationsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Login Timeline Chart -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="ti ti-login me-2"></i>Login Timeline</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="height: 300px; position: relative;">
+                                    <canvas id="loginTimelineChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Device/Org Lifecycle Chart -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="ti ti-timeline me-2"></i>Device & Org Lifecycle</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="height: 300px; position: relative;">
+                                    <canvas id="lifecycleChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ` : html`
+                <div class="empty">
+                    <div class="empty-icon"><i class="ti ti-chart-line"></i></div>
+                    <p class="empty-title">No analytics data available</p>
+                </div>
+            `}
+        `;
+    };
+
+    const renderTimelineTab = () => {
+        return html`
+            <!-- Timeline View -->
             ${creditJobEvents.length > 0 && html`
                 <div class="card mb-3">
                     <div class="card-header">
@@ -548,10 +879,9 @@ export function AuditPage() {
             ` : html`
                 <div class="card">
                     <div class="list-group list-group-flush">
-                        ${paginatedEvents.map((event, idx) => {
+                        ${paginatedEvents.map((event) => {
                             const color = getEventColor(event.eventType);
                             const icon = getEventIcon(event.eventType);
-                            
                             return html`
                                 <div class="list-group-item">
                                     <div class="row align-items-center">
@@ -583,7 +913,7 @@ export function AuditPage() {
                                                                 <i class="ti ti-info-circle me-1"></i>
                                                                 View metadata
                                                             </summary>
-                                                            <pre class="mt-2 p-2 bg-light rounded small">${JSON.stringify(event.metadata, null, 2)}</pre>
+                                                            <pre class="json-metadata mt-2 p-2 rounded small">${JSON.stringify(event.metadata, null, 2)}</pre>
                                                         </details>
                                                     `}
                                                 </div>
@@ -646,6 +976,75 @@ export function AuditPage() {
                     </div>
                 `}
             `}
+        `;
+    };
+
+    try {
+        if (loading) {
+            return html`
+                <div class="container-xl">
+                    <div class="page-header d-print-none">
+                        <h2 class="page-title">Audit Events</h2>
+                    </div>
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted mt-2">Loading audit events...</p>
+                    </div>
+                </div>
+            `;
+        }
+
+    return html`
+        <div class="container-xl">
+            <div class="page-header d-print-none">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h2 class="page-title">Audit Events</h2>
+                        <div class="text-muted mt-1">
+                            ${activeTab === 'analytics' ? 'Analytics Dashboard' : `${filteredEvents.length} ${filteredEvents.length === 1 ? 'event' : 'events'}`}
+                            ${activeTab === 'timeline' && (filters.eventType !== 'all' || filters.search || filters.dateFrom || filters.dateTo) ? '(filtered)' : ''}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-icon" onClick=${() => activeTab === 'analytics' ? loadAnalytics() : loadEvents()} title="Refresh">
+                            <i class="ti ti-refresh"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'analytics' ? 'active' : ''}"
+                                href="#"
+                                role="tab"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('analytics'); }}
+                            >
+                                <i class="ti ti-chart-line me-2"></i>
+                                Analytics
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'timeline' ? 'active' : ''}"
+                                href="#"
+                                role="tab"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('timeline'); }}
+                            >
+                                <i class="ti ti-history me-2"></i>
+                                Timeline
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            ${activeTab === 'analytics' ? renderAnalyticsTab() : renderTimelineTab()}
         </div>
     `;
     } catch (error) {
@@ -655,7 +1054,7 @@ export function AuditPage() {
                 <div class="alert alert-danger">
                     <h4>Error rendering audit page</h4>
                     <p>${error.message}</p>
-                    <button class="btn btn-primary mt-2" onClick=${() => window.location.reload()}>
+                    <button class="btn btn-primary mt-2" onClick=${() => window.location.reload()} >
                         Reload Page
                     </button>
                 </div>
