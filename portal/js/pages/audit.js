@@ -37,19 +37,11 @@ export function AuditPage() {
     const currentOrgId = orgContext.getCurrentOrg()?.orgId;
 
     useEffect(() => {
-        if (activeTab === 'analytics') {
-            loadAnalytics();
-        } else {
-            loadEvents();
-        }
+        loadEvents();
 
         const handler = () => {
             setPage(1);
-            if (activeTab === 'analytics') {
-                loadAnalytics();
-            } else {
-                loadEvents();
-            }
+            loadEvents();
         };
         const unsubscribe = orgContext.onChange(handler);
         window.addEventListener('orgChanged', handler);
@@ -58,7 +50,13 @@ export function AuditPage() {
             unsubscribe?.();
             window.removeEventListener('orgChanged', handler);
         };
-    }, [currentOrgId, rangeDays, activeTab]);
+    }, [currentOrgId, rangeDays]);
+
+    useEffect(() => {
+        if (activeTab === 'analytics' && analytics) {
+            renderAllCharts(analytics);
+        }
+    }, [analytics, activeTab]);
 
     useEffect(() => {
         applyFilters();
@@ -211,76 +209,179 @@ export function AuditPage() {
         });
     };
 
-    const loadAnalytics = async () => {
-        try {
-            logger.debug('[Audit] loadAnalytics called');
-            setLoadingAnalytics(true);
-            setLoading(false);
-            const currentOrg = orgContext.getCurrentOrg();
-            
-            if (!currentOrg?.orgId) {
-                logger.warn('[Audit] No org selected');
-                setLoadingAnalytics(false);
-                return;
-            }
-
-            const query = new URLSearchParams({ days: String(rangeDays) });
-            const res = await api.get(`/api/v1/orgs/${currentOrg.orgId}/audit/analytics?${query.toString()}`);
-            
-            if (res.success && res.data) {
-                logger.debug('[Audit] Analytics loaded:', res.data);
-                setAnalytics(res.data);
-                
-                // Render charts after analytics data is set
-                setTimeout(() => renderAllCharts(res.data), 100);
-            } else {
-                logger.error('[Audit] API returned error:', res.message);
-                toast.show(res.message || 'Failed to load analytics', 'error');
-            }
-        } catch (error) {
-            logger.error('[Audit] Error loading analytics:', error);
-            toast.show('Failed to load analytics', 'error');
-        } finally {
-            setLoadingAnalytics(false);
-            setLoading(false);
+    const toNumber = (value) => {
+        if (value === null || value === undefined) return 0;
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string') {
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) ? parsed : 0;
         }
+        if (typeof value === 'object') {
+            if (value.value !== undefined) {
+                const parsed = parseFloat(value.value);
+                return Number.isFinite(parsed) ? parsed : 0;
+            }
+            if (value.Value !== undefined) {
+                const parsed = parseFloat(value.Value);
+                return Number.isFinite(parsed) ? parsed : 0;
+            }
+        }
+        return 0;
+    };
+
+    const groupByDayAndType = (events = []) => {
+        const map = {};
+        const types = new Set();
+
+        events.forEach(evt => {
+            if (!evt.eventType) return;
+            const dayKey = new Date(evt.timestamp).toISOString().split('T')[0];
+            const type = evt.eventType;
+            types.add(type);
+            const perDay = map[dayKey] ?? {};
+            perDay[type] = (perDay[type] ?? 0) + 1;
+            map[dayKey] = perDay;
+        });
+
+        const dates = Object.keys(map).sort();
+        const typeList = Array.from(types).sort();
+        const palette = [
+            'rgba(32, 107, 196, 0.8)',
+            'rgba(40, 167, 69, 0.8)',
+            'rgba(214, 57, 57, 0.8)',
+            'rgba(245, 159, 0, 0.8)',
+            'rgba(23, 162, 184, 0.8)',
+            'rgba(156, 39, 176, 0.8)',
+            'rgba(0, 123, 255, 0.8)',
+            'rgba(255, 193, 7, 0.8)'
+        ];
+
+        const series = typeList.map((type, idx) => ({
+            label: type,
+            data: dates.map(d => map[d]?.[type] ?? 0),
+            backgroundColor: palette[idx % palette.length]
+        }));
+
+        return { dates, series, types: typeList };
+    };
+
+    const computeAnalytics = (allEvents = []) => {
+        const creditEvents = allEvents
+            .filter(e => {
+                if (!e.eventType) return false;
+                return e.eventType.includes('Credit') ||
+                    e.eventType === 'LicenseCreated' ||
+                    e.eventType === 'LicenseCreditsAdded' ||
+                    e.eventType === 'CreditConsumptionCalculated';
+            })
+            .slice()
+            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        const creditDataPoints = creditEvents.map(evt => {
+            const meta = evt.metadata || {};
+            return {
+                timestamp: evt.timestamp,
+                eventType: evt.eventType,
+                remaining: toNumber(meta.RemainingCredits ?? meta.remainingCredits),
+                consumed: toNumber(meta.CreditsConsumed ?? meta.creditsConsumed ?? meta.totalCreditsDeducted),
+                added: toNumber(meta.CreditsAdded ?? meta.creditsAdded)
+            };
+        });
+
+        const emailEvents = allEvents
+            .filter(e => e.eventType && (e.eventType.includes('Email') || e.eventType.includes('Notification')))
+            .map(e => {
+                const meta = e.metadata || {};
+                const metaType = meta.eventType || meta.EventType || meta.emailType || meta.EmailType || meta.type || meta.Type;
+                return { ...e, eventType: metaType || e.eventType };
+            });
+        const loginEvents = allEvents.filter(e => e.eventType === 'UserLogin' || e.eventType === 'UserLogout' || e.eventType === 'SessionCreated' || e.eventType === 'SessionExpired');
+        const lifecycleEventsRaw = allEvents.filter(e => {
+            if (!e.eventType) return false;
+            return e.eventType.includes('Device') ||
+                e.eventType.includes('Org') ||
+                e.eventType.includes('License') ||
+                e.eventType === 'OrgCreated' ||
+                e.eventType === 'OrgDisabled' ||
+                e.eventType === 'DeviceRegistered' ||
+                e.eventType === 'DeviceDisabled' ||
+                e.eventType === 'DeviceBlocked' ||
+                e.eventType === 'DeviceDeleted';
+        });
+
+        const emailNotifications = groupByDayAndType(emailEvents);
+        const loginTimeline = groupByDayAndType(loginEvents);
+        const lifecycleEvents = groupByDayAndType(lifecycleEventsRaw);
+
+        return {
+            creditConsumption: { dataPoints: creditDataPoints },
+            emailNotifications,
+            loginTimeline,
+            lifecycleEvents
+        };
     };
 
     const loadEvents = async () => {
         try {
             logger.debug('[Audit] loadEvents called');
             setLoading(true);
+            setLoadingAnalytics(true);
             const currentOrg = orgContext.getCurrentOrg();
             
             if (!currentOrg?.orgId) {
                 logger.warn('[Audit] No org selected');
                 toast.show('Please select an organization', 'warning');
                 setLoading(false);
+                setLoadingAnalytics(false);
                 return;
             }
 
-            const query = new URLSearchParams({
-                maxResults: '500',
+            const baseQuery = new URLSearchParams({
+                pageSize: '500',
                 days: String(rangeDays)
             });
 
-            const res = await api.get(`/api/v1/orgs/${currentOrg.orgId}/audit?${query.toString()}`);
-            logger.debug('[Audit] API response:', res);
-            
-            if (res.success && res.data) {
-                const eventsData = res.data.events || [];
-                logger.debug('[Audit] Events loaded:', eventsData.length);
-                setEvents(eventsData);
-                setHasMore(res.data.hasMore || false);
-            } else {
-                logger.error('[Audit] API returned error:', res.message);
-                toast.show(res.message || 'Failed to load audit events', 'error');
-            }
+            const allEvents = [];
+            let continuationToken = null;
+            let pageFetches = 0;
+            const maxPages = 50; // safety guard
+
+            do {
+                const query = new URLSearchParams(baseQuery);
+                if (continuationToken) {
+                    query.set('pageToken', continuationToken);
+                }
+
+                const res = await api.get(`/api/v1/orgs/${currentOrg.orgId}/audit?${query.toString()}`);
+                logger.debug('[Audit] API response:', res);
+
+                if (res.success && res.data) {
+                    const eventsData = res.data.events || [];
+                    logger.debug('[Audit] Events loaded (page):', eventsData.length);
+                    allEvents.push(...eventsData);
+                    continuationToken = res.data.continuationToken;
+                    pageFetches += 1;
+
+                    if (!continuationToken || pageFetches >= maxPages) {
+                        break;
+                    }
+                } else {
+                    logger.error('[Audit] API returned error:', res.message);
+                    toast.show(res.message || 'Failed to load audit events', 'error');
+                    break;
+                }
+            } while (true);
+
+            setEvents(allEvents);
+            setHasMore(Boolean(continuationToken));
+            const analyticsData = computeAnalytics(allEvents);
+            setAnalytics(analyticsData);
         } catch (error) {
             logger.error('[Audit] Error loading events:', error);
             toast.show('Failed to load audit events', 'error');
         } finally {
             setLoading(false);
+            setLoadingAnalytics(false);
         }
     };
 
@@ -370,8 +471,9 @@ export function AuditPage() {
         const existingChart = Chart.getChart(canvas);
         if (existingChart) existingChart.destroy();
 
-        const counts = data.emailCounts || [];
-        if (counts.length === 0) {
+        const dates = data.dates || [];
+        const series = data.series || [];
+        if (dates.length === 0 || series.length === 0) {
             canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No email notification data available</p>';
             return;
         }
@@ -379,30 +481,23 @@ export function AuditPage() {
         new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: counts.map(c => c.emailType),
-                datasets: [{
-                    label: 'Email Count',
-                    data: counts.map(c => c.count),
-                    backgroundColor: [
-                        'rgba(32, 107, 196, 0.8)',
-                        'rgba(40, 167, 69, 0.8)',
-                        'rgba(214, 57, 57, 0.8)',
-                        'rgba(245, 159, 0, 0.8)',
-                        'rgba(23, 162, 184, 0.8)'
-                    ],
-                    borderWidth: 0
-                }]
+                labels: dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                datasets: series
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: (ctx) => `Count: ${ctx.parsed.y}` } }
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`
+                        }
+                    }
                 },
                 scales: {
-                    y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Count' } },
-                    x: { title: { display: true, text: 'Email Type' } }
+                    y: { beginAtZero: true, stacked: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Count' } },
+                    x: { stacked: true, title: { display: true, text: 'Date' } }
                 }
             }
         });
@@ -416,48 +511,33 @@ export function AuditPage() {
         const existingChart = Chart.getChart(canvas);
         if (existingChart) existingChart.destroy();
 
-        const timeline = data.timeline || [];
-        if (timeline.length === 0) {
+        const dates = data.dates || [];
+        const series = data.series || [];
+        if (dates.length === 0 || series.length === 0) {
             canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No login activity data available</p>';
             return;
         }
 
-        // Group by hour for visualization
-        const hourlyData = {};
-        timeline.forEach(item => {
-            const date = new Date(item.timestamp);
-            const hourKey = `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${date.getHours()}:00`;
-            hourlyData[hourKey] = (hourlyData[hourKey] || 0) + 1;
-        });
-
-        const labels = Object.keys(hourlyData).sort();
-        const values = labels.map(k => hourlyData[k]);
-
         new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Login Events',
-                    data: values,
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 4
-                }]
+                labels: dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                datasets: series
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: (ctx) => `Events: ${ctx.parsed.y}` } }
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`
+                        }
+                    }
                 },
                 scales: {
-                    y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Events' } },
-                    x: { title: { display: true, text: 'Time' }, ticks: { maxRotation: 45, minRotation: 45 } }
+                    y: { beginAtZero: true, stacked: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Events' } },
+                    x: { stacked: true, title: { display: true, text: 'Date' }, ticks: { maxRotation: 45, minRotation: 45 } }
                 }
             }
         });
@@ -471,36 +551,19 @@ export function AuditPage() {
         const existingChart = Chart.getChart(canvas);
         if (existingChart) existingChart.destroy();
 
-        const events = data.events || [];
-        if (events.length === 0) {
+        const dates = data.dates || [];
+        const series = data.series || [];
+        if (dates.length === 0 || series.length === 0) {
             canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No lifecycle event data available</p>';
             return;
         }
 
-        // Group by date and event type
-        const eventTypes = [...new Set(events.map(e => e.eventType))];
-        const dates = [...new Set(events.map(e => new Date(e.date).toLocaleDateString()))].sort();
-
-        const datasets = eventTypes.map((type, idx) => ({
-            label: type,
-            data: dates.map(date => {
-                const match = events.find(e => new Date(e.date).toLocaleDateString() === date && e.eventType === type);
-                return match ? match.count : 0;
-            }),
-            backgroundColor: [
-                'rgba(32, 107, 196, 0.6)',
-                'rgba(40, 167, 69, 0.6)',
-                'rgba(214, 57, 57, 0.6)',
-                'rgba(245, 159, 0, 0.6)',
-                'rgba(23, 162, 184, 0.6)',
-                'rgba(156, 39, 176, 0.6)'
-            ][idx % 6],
-            borderWidth: 0
-        }));
-
         new Chart(ctx, {
             type: 'bar',
-            data: { labels: dates, datasets },
+            data: {
+                labels: dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                datasets: series
+            },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
