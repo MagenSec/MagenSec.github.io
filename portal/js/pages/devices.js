@@ -988,8 +988,15 @@ class DevicesPage extends window.Component {
                     : (t.Hostname && String(t.Hostname).trim())
                     ? t.Hostname
                     : device.deviceId;
-                // Use the plain text name; backend now returns friendly names directly.
-                const deviceName = (rawName && rawName.trim()) || device.deviceId;
+                // Prefer Devices table name; if absent, use telemetry hostname (decoded if needed), else deviceId.
+                // Try to decode if stored name is still encrypted (base64/PII); fall back to raw.
+                const nameFromDeviceRaw = rawName && rawName.trim();
+                const nameFromDevice = nameFromDeviceRaw ? (PiiDecryption.decryptIfEncrypted(nameFromDeviceRaw) || nameFromDeviceRaw) : null;
+                const telemetryHostRaw = (t.hostname ?? t.Hostname ?? '').toString().trim();
+                const telemetryHost = telemetryHostRaw || null;
+                const telemetryDecoded = telemetryHost ? PiiDecryption.decryptIfEncrypted(telemetryHost) : null;
+                const telemetryName = (telemetryDecoded && telemetryDecoded.trim()) || telemetryHost;
+                const deviceName = nameFromDevice || telemetryName || device.deviceId;
                 const mapped = {
                     id: device.DeviceId || device.deviceId,
                     name: deviceName,
