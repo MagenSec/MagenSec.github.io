@@ -95,10 +95,10 @@ function App() {
 }
 
 // Login overlay management
-function renderLoginOverlay() {
+function renderLoginOverlay(authenticating = false) {
     const overlay = document.getElementById('login-overlay');
     if (overlay) {
-        render(html`<${LoginPage} />`, overlay);
+        render(html`<${LoginPage} authenticating=${authenticating} />`, overlay);
     }
 }
 
@@ -197,7 +197,7 @@ async function init() {
     // Handle OAuth callback
     if (window.location.search.includes('code=')) {
         setAuthenticationState(false); // Show loading in overlay
-        renderLoginOverlay();
+        renderLoginOverlay(true);
         try {
             await auth.handleCallback();
             logger.info('[App] OAuth callback successful');

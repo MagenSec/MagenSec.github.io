@@ -137,12 +137,15 @@ export class ApiClient {
             // Permission errors: user not found, forbidden, etc. → show toast, don't logout
             const isSessionError = data && data.success === false && 
                 (data.error === 'SESSION_EXPIRED' || data.error === 'INVALID_SESSION');
+            const handleSessionExpiry = () => {
+                auth.clearSession();
+                window.location.href = '/portal/?expired=1';
+            };
 
             if (!response.ok) {
                 // Handle session expiration (logout)
                 if (response.status === 401 || isSessionError) {
-                    auth.clearSession();
-                    window.location.href = '/portal/?expired=1';
+                    handleSessionExpiry();
                     // Throw to halt downstream handlers
                     const error = new Error('Session expired');
                     error.status = 401;
@@ -158,9 +161,16 @@ export class ApiClient {
                 throw error;
             }
 
-            // If success=false but 200 OK (envelope pattern), don't logout regardless of error type
-            // Let caller decide how to handle UNAUTHORIZED, FORBIDDEN, etc. via toast
+            // If success=false but 200 OK (envelope pattern)
+            // Handle session expiry explicitly, otherwise let caller decide (toast)
             if (data && data.success === false) {
+                if (isSessionError) {
+                    handleSessionExpiry();
+                    const error = new Error('Session expired');
+                    error.status = 401;
+                    error.response = data;
+                    throw error;
+                }
                 const error = new Error(data.message || data.error || 'Request failed');
                 error.status = response.status;
                 error.statusText = response.statusText;

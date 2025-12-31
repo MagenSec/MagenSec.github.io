@@ -14,6 +14,46 @@ const { useState, useEffect } = window.preactHooks;
 // Chart instance at module level to persist across component renders
 let auditChartInstance = null;
 
+const getBaseType = (evtOrType) => {
+    if (!evtOrType) return 'Unknown';
+    const raw = typeof evtOrType === 'string' ? evtOrType : evtOrType.eventType;
+    if (!raw) return 'Unknown';
+    return raw.split(':')[0];
+};
+
+const getEventName = (evt) => evt?.eventType || evt?.metadata?.eventType || evt?.metadata?.EventType || '';
+
+const isNotificationEvent = (evt) => {
+    const nameLower = getEventName(evt).toLowerCase();
+    const metaLower = (evt?.metadata?.emailType || evt?.metadata?.EmailType || evt?.metadata?.type || evt?.metadata?.Type || '').toLowerCase();
+    const haystack = `${nameLower} ${metaLower}`;
+    return [
+        'email',
+        'notification',
+        'welcome',
+        'creditslow',
+        'creditlow',
+        'credits low',
+        'licenseexpired',
+        'license expired',
+        'licenseexpiringsoon',
+        'expiry',
+        'expiring'
+    ].some(k => haystack.includes(k));
+};
+
+const getTypeKey = (evt) => {
+    const base = evt?.eventType || 'Unknown';
+    const sub = evt?.subType || evt?.metadata?.subType || evt?.metadata?.SubType;
+    return sub ? `${base}:${sub}` : base;
+};
+
+const getTypeLabel = (evt) => {
+    const base = evt?.eventType || 'Unknown';
+    const sub = evt?.subType || evt?.metadata?.subType || evt?.metadata?.SubType;
+    return sub ? `${base} • ${sub}` : base;
+};
+
 export function AuditPage() {
     logger.debug('[Audit] Component rendering...');
     
@@ -229,6 +269,15 @@ export function AuditPage() {
         return 0;
     };
 
+    const humanize = (value) => {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/_/g, ' ')
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
     const groupByDayAndType = (events = []) => {
         const map = {};
         const types = new Set();
@@ -236,7 +285,7 @@ export function AuditPage() {
         events.forEach(evt => {
             if (!evt.eventType) return;
             const dayKey = new Date(evt.timestamp).toISOString().split('T')[0];
-            const type = evt.eventType;
+            const type = getTypeKey(evt);
             types.add(type);
             const perDay = map[dayKey] ?? {};
             perDay[type] = (perDay[type] ?? 0) + 1;
@@ -257,7 +306,7 @@ export function AuditPage() {
         ];
 
         const series = typeList.map((type, idx) => ({
-            label: type,
+            label: type.replace(':', ' • '),
             data: dates.map(d => map[d]?.[type] ?? 0),
             backgroundColor: palette[idx % palette.length]
         }));
@@ -265,15 +314,120 @@ export function AuditPage() {
         return { dates, series, types: typeList };
     };
 
-    const computeAnalytics = (allEvents = []) => {
-        const creditEvents = allEvents
-            .filter(e => {
-                if (!e.eventType) return false;
-                return e.eventType.includes('Credit') ||
-                    e.eventType === 'LicenseCreated' ||
-                    e.eventType === 'LicenseCreditsAdded' ||
-                    e.eventType === 'CreditConsumptionCalculated';
+    const groupByDayCustom = (events = [], keySelector, labelSelector) => {
+        const map = {};
+        const types = new Set();
+        const labels = {};
+
+        events.forEach(evt => {
+            const dayKey = new Date(evt.timestamp).toISOString().split('T')[0];
+            const type = keySelector(evt);
+            if (!type) return;
+            const label = labelSelector(evt) || type;
+            labels[type] = label;
+            types.add(type);
+            const perDay = map[dayKey] ?? {};
+            perDay[type] = (perDay[type] ?? 0) + 1;
+            map[dayKey] = perDay;
+        });
+
+        const dates = Object.keys(map).sort();
+        const typeList = Array.from(types).sort();
+        const palette = [
+            'rgba(32, 107, 196, 0.8)',
+            'rgba(40, 167, 69, 0.8)',
+            'rgba(214, 57, 57, 0.8)',
+            'rgba(245, 159, 0, 0.8)',
+            'rgba(23, 162, 184, 0.8)',
+            'rgba(156, 39, 176, 0.8)',
+            'rgba(0, 123, 255, 0.8)',
+            'rgba(255, 193, 7, 0.8)'
+        ];
+
+        const series = typeList.map((type, idx) => ({
+            label: labels[type]?.replace(':', ' • ') ?? type.replace(':', ' • '),
+            data: dates.map(d => map[d]?.[type] ?? 0),
+            backgroundColor: palette[idx % palette.length]
+        }));
+
+        return { dates, series, types: typeList };
+    };
+
+    const classifyLifecycleCategory = (evt) => {
+        const raw = getEventName(evt).toLowerCase();
+        const target = (evt?.targetType || '').toLowerCase();
+        if (isNotificationEvent(evt)) return null;
+        if (raw.includes('device') || target === 'device') return 'Device';
+        if (raw.startsWith('org') || raw.startsWith('personalorg')) return 'Org';
+        if (raw.startsWith('orgmember') || raw.includes('memberadded') || raw.includes('memberremoved') || raw.includes('memberrole')) return 'Org';
+        if ((target === 'org' || target === 'organization') && raw.includes('org')) return 'Org';
+        // Exclude license from lifecycle chart (credit events go to credit consumption chart)
+        // Config changes are system events, not lifecycle
+        // ResponseCommand events are operational, not lifecycle
+        return null;
+    };
+
+    const deriveLifecycleSubType = (evt, category) => {
+        const metaSub = evt?.subType || evt?.metadata?.subType || evt?.metadata?.SubType;
+        if (metaSub) return humanize(metaSub);
+
+        const raw = getEventName(evt);
+        if (category && raw.toLowerCase().startsWith(category.toLowerCase())) {
+            const remainder = raw.substring(category.length).replace(/^[:\.\-_\s]+/, '');
+            return humanize(remainder || 'Event');
+        }
+
+        const metaType = evt?.metadata?.eventType || evt?.metadata?.EventType;
+        if (metaType) return humanize(metaType);
+
+        return '';
+    };
+
+    const groupLifecycleEvents = (events = []) => {
+        const scoped = events
+            .map(evt => {
+                const category = classifyLifecycleCategory(evt);
+                if (!category) return null;
+                const sub = deriveLifecycleSubType(evt, category);
+                const key = sub ? `${category}:${sub}` : category;
+                const label = sub ? `${category} • ${sub}` : category;
+                return { ...evt, __groupKey: key, __groupLabel: label };
             })
+            .filter(Boolean);
+
+        return groupByDayCustom(
+            scoped,
+            (e) => e.__groupKey,
+            (e) => e.__groupLabel
+        );
+    };
+
+    const groupLoginEvents = (events = []) => {
+        const scoped = events.map(evt => {
+            const rawType = (evt?.eventType || '').toLowerCase();
+            const rawSub = (evt?.subType || evt?.metadata?.subType || evt?.metadata?.SubType || '').toLowerCase();
+            const isFailure = rawType.includes('fail') || rawSub.includes('fail');
+            const outcome = isFailure ? 'Failure' : humanize(evt?.subType || evt?.metadata?.subType || evt?.metadata?.SubType || 'Success');
+            const key = `Login:${outcome}`;
+            const label = `Login • ${outcome}`;
+            return { ...evt, __groupKey: key, __groupLabel: label };
+        });
+
+        return groupByDayCustom(
+            scoped,
+            (e) => e.__groupKey,
+            (e) => e.__groupLabel
+        );
+    };
+
+    const computeAnalytics = (allEvents = []) => {
+        const includesAny = (evt, keys = []) => {
+            const combo = `${evt.eventType ?? ''} ${evt.subType ?? ''}`.toLowerCase();
+            return keys.some(k => combo.includes(k.toLowerCase()));
+        };
+
+        const creditEvents = allEvents
+            .filter(e => includesAny(e, ['credit', 'licensecreated', 'licensecreditsadded', 'creditconsumptioncalculated', 'licenseexpired', 'licensecreditslow', 'licenseexpiringsoon']))
             .slice()
             .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
@@ -281,7 +435,7 @@ export function AuditPage() {
             const meta = evt.metadata || {};
             return {
                 timestamp: evt.timestamp,
-                eventType: evt.eventType,
+                eventType: getTypeLabel(evt),
                 remaining: toNumber(meta.RemainingCredits ?? meta.remainingCredits),
                 consumed: toNumber(meta.CreditsConsumed ?? meta.creditsConsumed ?? meta.totalCreditsDeducted),
                 added: toNumber(meta.CreditsAdded ?? meta.creditsAdded)
@@ -289,29 +443,18 @@ export function AuditPage() {
         });
 
         const emailEvents = allEvents
-            .filter(e => e.eventType && (e.eventType.includes('Email') || e.eventType.includes('Notification')))
+            .filter(e => includesAny(e, ['email', 'notification']))
             .map(e => {
                 const meta = e.metadata || {};
                 const metaType = meta.eventType || meta.EventType || meta.emailType || meta.EmailType || meta.type || meta.Type;
-                return { ...e, eventType: metaType || e.eventType };
+                return { ...e, eventType: metaType || getTypeKey(e) };
             });
-        const loginEvents = allEvents.filter(e => e.eventType === 'UserLogin' || e.eventType === 'UserLogout' || e.eventType === 'SessionCreated' || e.eventType === 'SessionExpired');
-        const lifecycleEventsRaw = allEvents.filter(e => {
-            if (!e.eventType) return false;
-            return e.eventType.includes('Device') ||
-                e.eventType.includes('Org') ||
-                e.eventType.includes('License') ||
-                e.eventType === 'OrgCreated' ||
-                e.eventType === 'OrgDisabled' ||
-                e.eventType === 'DeviceRegistered' ||
-                e.eventType === 'DeviceDisabled' ||
-                e.eventType === 'DeviceBlocked' ||
-                e.eventType === 'DeviceDeleted';
-        });
+            const loginEvents = allEvents.filter(e => includesAny(e, ['login', 'session']));
+            const lifecycleEventsRaw = allEvents.filter(e => classifyLifecycleCategory(e));
 
         const emailNotifications = groupByDayAndType(emailEvents);
-        const loginTimeline = groupByDayAndType(loginEvents);
-        const lifecycleEvents = groupByDayAndType(lifecycleEventsRaw);
+            const loginTimeline = groupLoginEvents(loginEvents);
+            const lifecycleEvents = groupLifecycleEvents(lifecycleEventsRaw);
 
         return {
             creditConsumption: { dataPoints: creditDataPoints },
@@ -584,7 +727,7 @@ export function AuditPage() {
 
         // Event type filter
         if (filters.eventType !== 'all') {
-            filtered = filtered.filter(e => e.eventType === filters.eventType);
+            filtered = filtered.filter(e => getTypeKey(e) === filters.eventType);
         }
 
         // Search filter (searches description, performedBy, targetId)
@@ -594,7 +737,8 @@ export function AuditPage() {
                 e.description?.toLowerCase().includes(searchLower) ||
                 e.performedBy?.toLowerCase().includes(searchLower) ||
                 e.targetId?.toLowerCase().includes(searchLower) ||
-                e.eventType?.toLowerCase().includes(searchLower)
+                e.eventType?.toLowerCase().includes(searchLower) ||
+                (e.subType && e.subType.toLowerCase().includes(searchLower))
             );
         }
 
@@ -617,47 +761,77 @@ export function AuditPage() {
         setPage(1);
     };
 
-    const getEventIcon = (eventType) => {
+    const getEventIcon = (evt) => {
+        const base = getBaseType(evt);
         const iconMap = {
+            'Credit': 'ti-coins',
             'CreditConsumption': 'ti-coins',
+            'Email': 'ti-mail',
+            'Login': 'ti-login',
+            'Device': 'ti-device-desktop',
+            'License': 'ti-key',
+            'Org': 'ti-building',
+            'PersonalOrg': 'ti-building',
+            'OrgMember': 'ti-users',
+            'Member': 'ti-users',
+            'Session': 'ti-clock',
+            'Config': 'ti-settings',
+            'Configuration': 'ti-settings',
+            'ResponseCommand': 'ti-terminal',
+            'Default': 'ti-circle'
+        };
+        // Keep specific legacy icons where helpful
+        const specificMap = {
             'CreditConsumptionJobStarted': 'ti-player-play',
             'CreditConsumptionJobCompleted': 'ti-check',
             'CreditConsumptionJobFailed': 'ti-x',
-            'EmailSent': 'ti-mail',
-            'EmailFailed': 'ti-mail-x',
-            'DeviceRegistered': 'ti-device-desktop-plus',
             'DeviceBlocked': 'ti-ban',
             'DeviceDeleted': 'ti-trash',
             'DeviceDisabled': 'ti-device-desktop-off',
-            'LicenseCreated': 'ti-key-plus',
-            'LicenseRotated': 'ti-refresh',
-            'LicenseDisabled': 'ti-key-off',
-            'OrgCreated': 'ti-building-plus',
-            'OrgUpdated': 'ti-building-pencil',
-            'OrgDisabled': 'ti-building-off',
-            'MemberAdded': 'ti-user-plus',
-            'MemberRemoved': 'ti-user-minus',
-            'RoleChanged': 'ti-user-cog'
+            'DeviceRegistered': 'ti-device-desktop-plus'
         };
-        return iconMap[eventType] || 'ti-circle';
+        const key = typeof evt === 'string' ? evt : evt?.eventType;
+        if (key && specificMap[key]) return specificMap[key];
+        return iconMap[base] || iconMap['Default'];
     };
 
-    const getEventColor = (eventType) => {
+    const getEventColor = (evt) => {
+        const base = getBaseType(evt);
+        const key = typeof evt === 'string' ? evt : evt?.eventType;
         const colorMap = {
             'CreditConsumptionJobStarted': 'info',
             'CreditConsumptionJobCompleted': 'success',
             'CreditConsumptionJobFailed': 'danger',
+            'Email': 'info',
             'EmailSent': 'success',
             'EmailFailed': 'danger',
+            'Device': 'secondary',
             'DeviceBlocked': 'warning',
             'DeviceDeleted': 'danger',
             'DeviceDisabled': 'warning',
+            'DeviceEnabled': 'info',
+            'License': 'secondary',
             'LicenseDisabled': 'warning',
+            'LicenseExpired': 'danger',
+            'LicenseCreditsLow': 'warning',
+            'LicenseExpiringSoon': 'warning',
             'OrgDisabled': 'danger',
-            'MemberRemoved': 'warning',
+            'Org': 'secondary',
+            'PersonalOrg': 'secondary',
+            'PersonalOrgCreated': 'success',
+            'PersonalOrgUpdated': 'info',
+            'OrgMember': 'secondary',
+            'OrgMemberAdded': 'success',
+            'OrgMemberRemoved': 'warning',
+            'OrgMemberRoleUpdated': 'info',
+            'Config': 'info',
+            'Configuration': 'info',
+            'ResponseCommand': 'info',
+            'ResponseCommandQueued': 'info',
+            'Login': key && key.toLowerCase().includes('failure') ? 'danger' : 'success',
             'CreditConsumption': 'info'
         };
-        return colorMap[eventType] || 'secondary';
+        return colorMap[key] || colorMap[base] || 'secondary';
     };
 
     const formatTimestamp = (timestamp) => {
@@ -676,12 +850,16 @@ export function AuditPage() {
     };
 
     const getUniqueEventTypes = () => {
-        const types = new Set(
-            events
-                .map(e => e.eventType)
-                .filter(type => type != null && type !== '')
-        );
-        return Array.from(types).sort();
+        const types = new Map();
+        events.forEach(e => {
+            const key = getTypeKey(e);
+            if (!key) return;
+            const label = getTypeLabel(e);
+            types.set(key, label);
+        });
+        return Array.from(types.entries())
+            .map(([value, label]) => ({ value, label }))
+            .sort((a, b) => a.label.localeCompare(b.label));
     };
 
     const paginatedEvents = filteredEvents.slice((page - 1) * eventsPerPage, page * eventsPerPage);
@@ -867,7 +1045,7 @@ export function AuditPage() {
                             >
                                 <option value="all">All Events</option>
                                 ${getUniqueEventTypes().map(type => html`
-                                    <option value=${type}>${type}</option>
+                                    <option value=${type.value}>${type.label}</option>
                                 `)}
                             </select>
                         </div>
@@ -956,7 +1134,7 @@ export function AuditPage() {
                                         <div class="col">
                                             <div class="d-flex justify-content-between align-items-start">
                                                 <div>
-                                                    <strong>${event.eventType}</strong>
+                                                    <strong>${getTypeLabel(event)}</strong>
                                                     <div class="text-muted small">${event.description || 'No description'}</div>
                                                     ${event.performedBy && html`
                                                         <div class="text-muted small mt-1">
