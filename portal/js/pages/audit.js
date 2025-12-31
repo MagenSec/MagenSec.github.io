@@ -7,6 +7,7 @@ import { orgContext } from '../orgContext.js';
 import { auth } from '../auth.js';
 import toast from '../toast.js';
 import { logger } from '../config.js';
+import { ApiAuditPage } from './apiAudit.js';
 
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
@@ -57,8 +58,11 @@ const getTypeLabel = (evt) => {
 export function AuditPage() {
     logger.debug('[Audit] Component rendering...');
     
+    const currentUser = auth.getUser();
+    const isSiteAdmin = currentUser?.userType === 'SiteAdmin';
+    
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' or 'timeline'
+    const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'timeline', or 'api-calls'
     const [events, setEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [creditJobEvents, setCreditJobEvents] = useState([]);
@@ -1280,12 +1284,25 @@ export function AuditPage() {
                                 Timeline
                             </a>
                         </li>
+                        ${isSiteAdmin ? html`
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'api-calls' ? 'active' : ''}"
+                                href="#"
+                                role="tab"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('api-calls'); }}
+                            >
+                                <i class="ti ti-api me-2"></i>
+                                API Calls
+                            </a>
+                        </li>
+                        ` : null}
                     </ul>
                 </div>
             </div>
 
             <!-- Tab Content -->
-            ${activeTab === 'analytics' ? renderAnalyticsTab() : renderTimelineTab()}
+            ${activeTab === 'analytics' ? renderAnalyticsTab() : activeTab === 'timeline' ? renderTimelineTab() : (isSiteAdmin && activeTab === 'api-calls') ? html`<${ApiAuditPage} />` : renderAnalyticsTab()}
         </div>
     `;
     } catch (error) {
