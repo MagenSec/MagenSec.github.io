@@ -8,6 +8,7 @@ import { auth } from '../auth.js';
 import toast from '../toast.js';
 import { logger } from '../config.js';
 import { ApiAuditPage } from './apiAudit.js';
+import { DeviceActivityPage } from './deviceActivity.js';
 
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
@@ -62,7 +63,7 @@ export function AuditPage() {
     const isSiteAdmin = currentUser?.userType === 'SiteAdmin';
     
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'timeline', or 'api-calls'
+    const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'timeline', 'user-activity', or 'device-activity'
     const [events, setEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [creditJobEvents, setCreditJobEvents] = useState([]);
@@ -424,6 +425,67 @@ export function AuditPage() {
         );
     };
 
+    const computeUserSessions = (allEvents = []) => {
+        // Group events by user (performedBy)
+        const eventsByUser = {};
+        allEvents.forEach(evt => {
+            const user = evt.performedBy || 'System';
+            if (!eventsByUser[user]) {
+                eventsByUser[user] = [];
+            }
+            eventsByUser[user].push(evt);
+        });
+
+        // For each user, group consecutive events within 10 minutes into sessions
+        const sessionsByUser = {};
+        const TEN_MINUTES = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+        Object.entries(eventsByUser).forEach(([user, events]) => {
+            const sorted = events.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            const sessions = [];
+            let currentSession = null;
+
+            sorted.forEach(evt => {
+                const timestamp = new Date(evt.timestamp);
+                if (!currentSession) {
+                    currentSession = {
+                        user,
+                        startTime: timestamp,
+                        endTime: timestamp,
+                        eventCount: 1,
+                        events: [evt]
+                    };
+                } else {
+                    const timeSinceLastEvent = timestamp - currentSession.endTime;
+                    if (timeSinceLastEvent <= TEN_MINUTES) {
+                        // Same session: extend end time
+                        currentSession.endTime = timestamp;
+                        currentSession.eventCount += 1;
+                        currentSession.events.push(evt);
+                    } else {
+                        // New session
+                        sessions.push(currentSession);
+                        currentSession = {
+                            user,
+                            startTime: timestamp,
+                            endTime: timestamp,
+                            eventCount: 1,
+                            events: [evt]
+                        };
+                    }
+                }
+            });
+
+            if (currentSession) {
+                sessions.push(currentSession);
+            }
+
+            sessionsByUser[user] = sessions;
+        });
+
+        return sessionsByUser;
+    };
+
     const computeAnalytics = (allEvents = []) => {
         const includesAny = (evt, keys = []) => {
             const combo = `${evt.eventType ?? ''} ${evt.subType ?? ''}`.toLowerCase();
@@ -455,6 +517,7 @@ export function AuditPage() {
             });
             const loginEvents = allEvents.filter(e => includesAny(e, ['login', 'session']));
             const lifecycleEventsRaw = allEvents.filter(e => classifyLifecycleCategory(e));
+            const userSessionsRaw = computeUserSessions(allEvents);
 
         const emailNotifications = groupByDayAndType(emailEvents);
             const loginTimeline = groupLoginEvents(loginEvents);
@@ -464,8 +527,14 @@ export function AuditPage() {
             creditConsumption: { dataPoints: creditDataPoints },
             emailNotifications,
             loginTimeline,
-            lifecycleEvents
+            lifecycleEvents,
+            userSessions: userSessionsRaw
         };
+    };
+
+    const loadAnalytics = async () => {
+        // Reload analytics data (same as loadEvents for now)
+        await loadEvents();
     };
 
     const loadEvents = async () => {
@@ -543,6 +612,7 @@ export function AuditPage() {
             renderEmailNotificationsChart(analyticsData.emailNotifications);
             renderLoginTimelineChart(analyticsData.loginTimeline);
             renderLifecycleChart(analyticsData.lifecycleEvents);
+            renderUserActivityChart(analyticsData.userSessions);
         }, 100);
     };
 
@@ -721,6 +791,90 @@ export function AuditPage() {
                 scales: {
                     x: { stacked: true, title: { display: true, text: 'Date' } },
                     y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Events' } }
+                }
+            }
+        });
+    };
+
+    const renderUserActivityChart = (userSessionsData) => {
+        const canvas = document.getElementById('userActivityChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) existingChart.destroy();
+
+        // Convert sessions to chart data
+        const users = Object.keys(userSessionsData).sort();
+        if (users.length === 0) {
+            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No user activity data available</p>';
+            return;
+        }
+
+        const datasets = users.map((user, idx) => {
+            const sessions = userSessionsData[user];
+            const palette = [
+                '#206bc4', '#28a745', '#d63939', '#f59f00', '#17a2b8',
+                '#9c27b0', '#007bff', '#ffc107', '#20c997', '#fd7e14'
+            ];
+            const color = palette[idx % palette.length];
+
+            return {
+                label: user,
+                data: sessions.map(session => ({
+                    x: [session.startTime.getTime(), session.endTime.getTime()],
+                    y: user,
+                    events: session.eventCount,
+                    tooltip: `${session.eventCount} event${session.eventCount !== 1 ? 's' : ''} (${session.startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}-${session.endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`
+                })),
+                backgroundColor: color,
+                borderColor: color,
+                borderWidth: 1,
+                barThickness: 20
+            };
+        });
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: users,
+                datasets
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: () => 'Active Session',
+                            label: (context) => {
+                                const data = context.raw;
+                                return [
+                                    `User: ${context.label}`,
+                                    `Duration: ${new Date(data.x[0]).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} - ${new Date(data.x[1]).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`,
+                                    `Events: ${data.events}`
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        title: { display: true, text: 'Time' },
+                        ticks: {
+                            callback: function(value) {
+                                const date = new Date(value);
+                                return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                            }
+                        }
+                    },
+                    y: {
+                        title: { display: true, text: 'User' }
+                    }
                 }
             }
         });
@@ -947,6 +1101,20 @@ export function AuditPage() {
                             <div class="card-body">
                                 <div style="height: 300px; position: relative;">
                                     <canvas id="lifecycleChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User Activity Sessions Chart -->
+                    <div class="col-lg-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="ti ti-user-check me-2"></i>User Activity Sessions (10-minute groups)</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="height: 400px; position: relative;">
+                                    <canvas id="userActivityChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -1287,13 +1455,24 @@ export function AuditPage() {
                         ${isSiteAdmin ? html`
                         <li class="nav-item">
                             <a 
-                                class="nav-link ${activeTab === 'api-calls' ? 'active' : ''}"
+                                class="nav-link ${activeTab === 'user-activity' ? 'active' : ''}"
                                 href="#"
                                 role="tab"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('api-calls'); }}
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('user-activity'); }}
                             >
-                                <i class="ti ti-api me-2"></i>
-                                API Calls
+                                <i class="ti ti-user-check me-2"></i>
+                                User Activity
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'device-activity' ? 'active' : ''}"
+                                href="#"
+                                role="tab"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('device-activity'); }}
+                            >
+                                <i class="ti ti-device-mobile me-2"></i>
+                                Device Activity
                             </a>
                         </li>
                         ` : null}
@@ -1302,7 +1481,7 @@ export function AuditPage() {
             </div>
 
             <!-- Tab Content -->
-            ${activeTab === 'analytics' ? renderAnalyticsTab() : activeTab === 'timeline' ? renderTimelineTab() : (isSiteAdmin && activeTab === 'api-calls') ? html`<${ApiAuditPage} />` : renderAnalyticsTab()}
+            ${activeTab === 'analytics' ? renderAnalyticsTab() : activeTab === 'timeline' ? renderTimelineTab() : (isSiteAdmin && activeTab === 'user-activity') ? html`<${ApiAuditPage} />` : (isSiteAdmin && activeTab === 'device-activity') ? html`<${DeviceActivityPage} />` : renderAnalyticsTab()}
         </div>
     `;
     } catch (error) {
