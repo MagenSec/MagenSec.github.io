@@ -130,7 +130,34 @@ export class ApiClient {
                 headers
             });
 
-            const data = await response.json();
+            let data = null;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    // JSON content type but invalid JSON body
+                    data = { success: false, message: 'Invalid JSON response from server' };
+                }
+            } else {
+                // Non-JSON response (e.g. 404 HTML, or empty body)
+                try {
+                    const text = await response.text();
+                    // Try to parse as JSON anyway just in case content-type was wrong
+                    if (text && (text.startsWith('{') || text.startsWith('['))) {
+                        data = JSON.parse(text);
+                    } else {
+                        // It's not JSON. If it's an error status, we might want the text.
+                        // If it's success, maybe it's just empty.
+                        data = { 
+                            success: response.ok, 
+                            message: response.ok ? 'Success' : (text || response.statusText) 
+                        };
+                    }
+                } catch (e) {
+                    data = { success: response.ok, message: response.statusText };
+                }
+            }
             
             // Distinguish between session auth errors (logout) vs permission errors (toast)
             // Session errors: token expired, invalid, or missing → logout
@@ -252,7 +279,11 @@ export class ApiClient {
 
     // === DASHBOARD ===
     async getDashboardData(orgId) {
-        return this.get('/api/v1/dashboard', { orgId });
+        return this.get(`/api/v1/orgs/${orgId}/dashboard`);
+    }
+
+    async getUnifiedDashboard(orgId) {
+        return this.get(`/api/v1/orgs/${orgId}/dashboard`);
     }
 
     // === DEVICES ===
@@ -482,10 +513,6 @@ export class ApiClient {
     }
 
     // === ANALYTICS & TRENDS ===
-    async getTrends(params) {
-        return this.get('/api/v1/trends', params);
-    }
-
     async getAnalytics(params) {
         return this.get('/api/v1/analytics', params);
     }
@@ -496,6 +523,10 @@ export class ApiClient {
 
     async getAssets(params) {
         return this.get('/api/v1/assets', params);
+    }
+
+    async getSoftwareInventory(orgId) {
+        return this.get(`/api/v1/orgs/${orgId}/apps`);
     }
 
     async getCompliance(params) {
@@ -539,6 +570,49 @@ export class ApiClient {
     // === HEALTH ===
     async getHealth() {
         return this.get('/health');
+    }
+
+    // === ADMIN ===
+    async getAdminOrgs() {
+        return this.get('/api/v1/admin/orgs');
+    }
+
+    async createOrg(data) {
+        return this.post('/api/v1/admin/orgs', data);
+    }
+
+    async updateOrg(orgId, data) {
+        return this.put(`/api/v1/admin/orgs/${orgId}`, data);
+    }
+
+    async deleteOrg(orgId) {
+        return this.delete(`/api/v1/admin/orgs/${orgId}`);
+    }
+
+    async getAdminUsers() {
+        return this.get('/api/v1/admin/users');
+    }
+
+    async elevateUser(userId, data) {
+        return this.post(`/api/v1/admin/users/${userId}/elevate`, data);
+    }
+
+    async downgradeUser(userId) {
+        return this.post(`/api/v1/admin/users/${userId}/downgrade`);
+    }
+
+    // === SECURITY & TELEMETRY ===
+    async getSecurityDetections(orgId, params = {}) {
+        return this.get(`/api/v1/security/${orgId}/detections`, params);
+    }
+
+    // === RESPONSE ACTIONS ===
+    async executeCommand(data) {
+        return this.post('/api/v1/response/commands', data);
+    }
+
+    async getCommandHistory(orgId) {
+        return this.get(`/api/v1/response/${orgId}/commands`);
     }
 }
 

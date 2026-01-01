@@ -64,6 +64,7 @@ export class DeviceDetailPage extends window.Component {
         const appsChanged = prevState.appInventory !== this.state.appInventory;
         const cvesChanged = prevState.cveInventory !== this.state.cveInventory;
         const summaryChanged = prevState.deviceSummary !== this.state.deviceSummary || prevState.enrichedScore !== this.state.enrichedScore;
+        const activeTabChanged = prevState.activeTab !== this.state.activeTab;
         const perfChanged = prevState.perfData !== this.state.perfData;
         const perfFilterChanged = prevState.perfBucket !== this.state.perfBucket || prevState.perfRangeDays !== this.state.perfRangeDays;
         const sessionsChanged = prevState.deviceSessions !== this.state.deviceSessions;
@@ -71,7 +72,7 @@ export class DeviceDetailPage extends window.Component {
         const sessionExpandedChanged = prevState.sessionExpanded !== this.state.sessionExpanded;
         const perfTabActive = this.state.sessionExpanded && this.state.sessionTab === 'perf';
         const perfTabEntered = perfTabActive && (!prevState.sessionExpanded || prevState.sessionTab !== 'perf');
-        if (deviceChanged || appsChanged || cvesChanged || summaryChanged) {
+        if (deviceChanged || appsChanged || cvesChanged || summaryChanged || activeTabChanged) {
             this.renderDetailCharts();
         }
         if (sessionsChanged && this.state.sessionExpanded) {
@@ -1919,12 +1920,7 @@ export class DeviceDetailPage extends window.Component {
                                                     const vulnOffset = circumference * (1 - vulnPct);
                                                     return html`
                                                         <div class="d-flex align-items-center gap-3" style="cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'inventory' }, () => this.scrollToAppsTable && this.scrollToAppsTable()); }} title="View applications with CVEs">
-                                                            <svg width="120" height="120" viewBox="0 0 120 120">
-                                                                <circle cx="60" cy="60" r="${radius}" fill="none" stroke="#e9ecef" stroke-width="14" />
-                                                                <circle cx="60" cy="60" r="${radius}" fill="none" stroke="#d63939" stroke-width="14" stroke-dasharray="${circumference} ${circumference}" stroke-dashoffset="${vulnOffset}" stroke-linecap="round" transform="rotate(-90 60 60)" />
-                                                                <circle cx="60" cy="60" r="${radius - 14}" fill="white" />
-                                                                <text x="60" y="60" text-anchor="middle" dominant-baseline="middle" font-size="14" font-weight="700">${vulnerableApps}/${totalApps || 0}</text>
-                                                            </svg>
+                                                            <div ref=${(el) => { this.detailAppsChartEl = el; }} style="min-height: 120px; width: 120px;"></div>
                                                             <div>
                                                                 <div class="fw-semibold">Apps With CVEs</div>
                                                                 <div class="text-muted small">${vulnerableApps} vulnerable · ${cleanApps} clean</div>
@@ -1960,12 +1956,7 @@ export class DeviceDetailPage extends window.Component {
 
                                                     return html`
                                                         <div class="d-flex align-items-center gap-3" style="cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'risks', cveFilterApp: null }, () => this.scrollToCveTable && this.scrollToCveTable()); }} title="View CVEs">
-                                                            <svg width="120" height="120" viewBox="0 0 120 120">
-                                                                <circle cx="60" cy="60" r="${radius}" fill="none" stroke="#e9ecef" stroke-width="14" />
-                                                                ${slices.map(s => html`<circle cx="60" cy="60" r="${radius}" fill="none" stroke="${s.color}" stroke-width="14" stroke-dasharray="${s.length} ${circumference}" stroke-dashoffset="${circumference - s.offset}" transform="rotate(-90 60 60)" />`)}
-                                                                <circle cx="60" cy="60" r="${radius - 14}" fill="white" />
-                                                                <text x="60" y="60" text-anchor="middle" dominant-baseline="middle" font-size="14" font-weight="700">${totalCves || 0}</text>
-                                                            </svg>
+                                                            <div ref=${(el) => { this.detailCvesChartEl = el; }} style="min-height: 120px; width: 120px;"></div>
                                                             <div>
                                                                 <div class="fw-semibold">CVE Mix</div>
                                                                 <div class="text-muted small">${counts.crit} critical · ${counts.high} high · ${counts.med} med · ${counts.low} low</div>
@@ -3596,9 +3587,7 @@ export class DeviceDetailPage extends window.Component {
                                 <div class="display-4 fw-bold mb-0">${Math.round(postureScore)}</div>
                                 <div class="small text-muted">Exposure-adjusted resilience: EPSS + known exploits + network exposure + severity + time decay.</div>
                             </div>
-                            <div class="progress mb-2" style="height: 8px;">
-                                <div class="progress-bar ${progressClass}" style="width: ${Math.min(100, Math.max(0, postureScore))}%"></div>
-                            </div>
+                            <div ref=${(el) => { this.detailRiskChartEl = el; }} style="min-height: 120px;"></div>
                             <div class="text-muted small">${postureCopy}</div>
                         </div>
                     </div>

@@ -31,7 +31,8 @@ class DevicesPage extends window.Component {
             enrichedScores: {},
             deviceSummaries: {},
             knownExploits: new Set(),
-            deviceFilters: { license: 'all', connection: 'all', spec: 'all' },
+            deviceFilters: { license: 'active', connection: 'all', spec: 'all' },
+            viewMode: 'tiles',
             installers: { X64: {}, ARM64: {}, ENGINE: {} },
             manifestError: null,
             refreshingManifest: false,
@@ -1513,7 +1514,13 @@ class DevicesPage extends window.Component {
         const worstSeverity = (summary.highestRiskBucket || '').toUpperCase() ||
             (critical > 0 ? 'CRITICAL' : high > 0 ? 'HIGH' : medium > 0 ? 'MEDIUM' : low > 0 ? 'LOW' : 'LOW');
         const derivedWeight = this.severityWeight(worstSeverity);
-        const baseScore = summary.riskScore ?? (cveCount * 2 + derivedWeight * 10);
+        
+        // Use provided risk score if available, otherwise calculate heuristic
+        let baseScore = summary.riskScore;
+        if (baseScore === undefined || baseScore === null) {
+             baseScore = (cveCount * 2) + (derivedWeight * 10);
+        }
+
         const baseConstituents = summary.riskScoreConstituents || {};
         let cveIds = (summary.cveIds || summary.topCveIds || summary.recentCveIds || []).filter(Boolean);
         if ((!cveIds || cveIds.length === 0) && Array.isArray(summary.cves)) {
@@ -1522,6 +1529,18 @@ class DevicesPage extends window.Component {
                 .filter(id => typeof id === 'string' && id.length > 0);
         }
         const maxCvssNormalized = summary.maxCvssNormalized ?? summary.maxCvss ?? summary.highestCvssNormalized ?? summary.highestCvss ?? baseConstituents.maxCvssNormalized ?? baseConstituents.maxCvss;
+        
+        // Fallback: If score is 0 but we have vulnerable apps/CVEs, calculate a heuristic score
+        let finalScore = Math.min(100, Math.max(0, Math.round(baseScore ?? 0)));
+        
+        // Force a minimum score if there are vulnerabilities or high severity
+        if (finalScore === 0) {
+            if (vulnerableApps > 0 || cveCount > 0 || derivedWeight > 0) {
+                const heuristicScore = (cveCount * 2) + (derivedWeight * 10) + (vulnerableApps * 5);
+                finalScore = Math.min(100, Math.max(10, heuristicScore)); // Ensure at least 10 if vuln exists
+            }
+        }
+
         return {
             apps: summary.appCount ?? summary.apps ?? null,
             cves: cveCount ?? null,
@@ -1531,7 +1550,7 @@ class DevicesPage extends window.Component {
             mediumCves: medium,
             lowCves: low,
             worstSeverity,
-            score: Math.min(100, Math.max(0, Math.round(baseScore ?? 0))),
+            score: finalScore,
             constituents: {
                 ...baseConstituents,
                 knownExploitCount,
@@ -1729,113 +1748,303 @@ class DevicesPage extends window.Component {
         }
     }
 
+    computeSecurityStats(devices) {
+        const stats = {
+            avgRisk: 0,
+            criticalRiskCount: 0,
+            highRiskCount: 0,
+            vulnerableApps: 0,
+            criticalCves: 0,
+            online: 0,
+            total: devices.length
+        };
+
+        let totalRisk = 0;
+        let riskCount = 0;
+
+        for (const d of devices) {
+            const summary = this.state.deviceSummaries[d.id] || {};
+            const enriched = this.state.enrichedScores[d.id];
+            const score = enriched?.score !== undefined ? enriched.score : summary.score || 0;
+            
+            if (score > 0) {
+                totalRisk += score;
+                riskCount++;
+            }
+            
+            if (score >= 80) stats.criticalRiskCount++;
+            else if (score >= 60) stats.highRiskCount++;
+
+            stats.vulnerableApps += (summary.vulnerableApps || 0);
+            stats.criticalCves += (summary.criticalCves || 0);
+            
+            if (!this.isDeviceInactive(d)) stats.online++;
+        }
+
+        stats.avgRisk = riskCount > 0 ? Math.round(totalRisk / riskCount) : 0;
+        return stats;
+    }
+
+    renderSecurityDashboard(stats) {
+        const { html } = window;
+        return html`
+            <div class="row row-cards mb-3">
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card card-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <span class="bg-primary text-white avatar">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /></svg>
+                                    </span>
+                                </div>
+                                <div class="col">
+                                    <div class="font-weight-medium">
+                                        ${stats.total} Managed Devices
+                                    </div>
+                                    <div class="text-muted">
+                                        ${stats.online} Online
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card card-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <span class="bg-${stats.avgRisk >= 60 ? 'red' : stats.avgRisk >= 40 ? 'yellow' : 'green'} text-white avatar">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                                    </span>
+                                </div>
+                                <div class="col">
+                                    <div class="font-weight-medium">
+                                        ${stats.avgRisk}/100 Avg Risk
+                                    </div>
+                                    <div class="text-muted">
+                                        Security Score
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card card-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <span class="bg-red text-white avatar">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>
+                                    </span>
+                                </div>
+                                <div class="col">
+                                    <div class="font-weight-medium">
+                                        ${stats.criticalRiskCount} Critical Devices
+                                    </div>
+                                    <div class="text-muted">
+                                        Require Attention
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card card-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <span class="bg-orange text-white avatar">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12c2 -2.96 0 -7 -1 -8c0 3.038 -1.773 4.741 -3 6c-1.226 1.26 -2 3.24 -2 5a6 6 0 1 0 12 0c0 -1.532 -1.056 -3.94 -2 -5c-1.786 3 -2.791 3 -4 2z" /></svg>
+                                    </span>
+                                </div>
+                                <div class="col">
+                                    <div class="font-weight-medium">
+                                        ${stats.criticalCves} Critical CVEs
+                                    </div>
+                                    <div class="text-muted">
+                                        Across ${stats.vulnerableApps} Apps
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderTiles(filteredDevices) {
+        const { html } = window;
+        if (!filteredDevices || filteredDevices.length === 0) return null;
+
+        return html`
+            <div class="row row-cards">
+                ${filteredDevices.map(device => {
+                    const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
+                    const enriched = this.state.enrichedScores[device.id];
+                    const displayScore = enriched?.score !== undefined ? enriched.score : summary.score || 0;
+                    const scoreSeverity = displayScore >= 80 ? 'CRITICAL' : displayScore >= 60 ? 'HIGH' : displayScore >= 40 ? 'MEDIUM' : 'LOW';
+                    const severityBadge = displayScore >= 80 ? 'bg-danger' : displayScore >= 60 ? 'bg-warning' : displayScore >= 40 ? 'bg-warning' : 'bg-success';
+                    
+                    return html`
+                        <div class="col-sm-6 col-lg-4">
+                            <div class="card h-100">
+                                <div class="card-body d-flex flex-column">
+                                    <!-- Header: Name & Menu -->
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div class="text-truncate pe-2">
+                                            <h3 class="card-title mb-1 text-truncate">
+                                                <a href="#!/devices/${device.id}" class="text-reset" title="${device.name || device.id}">${device.name || device.id}</a>
+                                            </h3>
+                                            <div class="text-muted small text-truncate" title="${device.telemetry?.osEdition || 'Unknown OS'}">
+                                                ${device.telemetry?.osEdition || 'Unknown OS'}
+                                            </div>
+                                        </div>
+                                        <div class="dropdown">
+                                            <a href="#" class="btn-action" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /><circle cx="12" cy="5" r="1" /></svg>
+                                            </a>
+                                            <div class="dropdown-menu dropdown-menu-end">
+                                                <button type="button" class="dropdown-item" onclick=${() => { window.location.hash = `#!/devices/${device.id}`; }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>
+                                                    View Device
+                                                </button>
+                                                <div class="dropdown-divider"></div>
+                                                <button type="button" class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'On-demand scan')}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
+                                                    Trigger Scan
+                                                </button>
+                                                <button type="button" class="dropdown-item ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? 'bg-warning-lt' : ''}" onclick=${() => this.queueDeviceAction(device, 'Force update')}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                                                    Trigger Update
+                                                    ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? html`<span class="badge bg-danger ms-2">Update</span>` : ''}
+                                                </button>
+                                                <button type="button" class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'Send message')}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 8l9 4l9 -4l-9 -4z" /><path d="M3 8l0 8l9 4l9 -4l0 -8" /><path d="M3 16l9 4l9 -4" /><path d="M12 12l9 -4" /></svg>
+                                                    Send Message
+                                                </button>
+                                                <div class="dropdown-divider"></div>
+                                                ${this.canEnableDevice(device.state) ? html`
+                                                    <button type="button" class="dropdown-item text-success" onclick=${() => this.enableDevice(device.id)}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
+                                                        Enable Device
+                                                    </button>
+                                                ` : ''}
+                                                ${this.canBlockDevice(device.state) ? html`
+                                                    <button type="button" class="dropdown-item text-warning" onclick=${() => this.blockDevice(device.id, false)} title="Block device, keep telemetry data for analysis">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                                                        Block (Retain Data)
+                                                    </button>
+                                                    <button type="button" class="dropdown-item text-orange" onclick=${() => this.blockDevice(device.id, true)} title="Block device and permanently delete all telemetry data">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="9" y1="12" x2="15" y2="12" /></svg>
+                                                        Block (Purge Data)
+                                                    </button>
+                                                ` : ''}
+                                                <button type="button" class="dropdown-item text-danger" title="Delete device and purge all associated data" onclick=${() => this.deleteDevice(device.id)}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
+                                                    Delete Device
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Center: Risk Score & Status -->
+                                    <div class="text-center mb-4 flex-grow-1 d-flex flex-column justify-content-center">
+                                        <div class="mb-2 mx-auto" style="width: 80px; height: 80px; cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }}>
+                                            <div style="width: 80px; height: 80px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <span class="badge ${severityBadge} text-white">${scoreSeverity} RISK</span>
+                                        </div>
+                                        <div>
+                                            <span class="badge ${this.getStateBadgeClass(device.state)} text-white">${device.state}</span>
+                                            ${this.isDeviceInactive(device) ? html`<span class="badge bg-secondary-lt ms-1">Offline</span>` : html`<span class="badge bg-success-lt ms-1">Online</span>`}
+                                        </div>
+                                    </div>
+
+                                    <!-- Footer: Metrics -->
+                                    <div class="row g-0 text-center border-top pt-3 mt-auto">
+                                        <div class="col border-end">
+                                            <div class="fs-3 fw-bold">${summary.apps || 0}</div>
+                                            <div class="text-muted small">Apps</div>
+                                        </div>
+                                        <div class="col border-end">
+                                            <div class="fs-3 fw-bold ${summary.vulnerableApps > 0 ? 'text-warning' : ''}">${summary.vulnerableApps || 0}</div>
+                                            <div class="text-muted small">Vuln Apps</div>
+                                        </div>
+                                        <div class="col">
+                                            <div class="fs-3 fw-bold ${(summary.criticalCves + summary.highCves) > 0 ? 'text-danger' : ''}">${(summary.criticalCves || 0) + (summary.highCves || 0)}</div>
+                                            <div class="text-muted small">Crit/High CVEs</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                })}
+            </div>
+        `;
+    }
+
     render() {
         const { html } = window;
         const { loading, devices, error, manifestError } = this.state;
 
         const filteredDevices = (this.state.filteredDevices && this.state.filteredDevices.length > 0) ? this.state.filteredDevices : this.getFilteredDevices();
         const stats = this.computeDeviceStats(filteredDevices);
+        const securityStats = this.computeSecurityStats(filteredDevices);
 
         return html`
             ${manifestError ? html`<div class="alert alert-danger mt-2">${manifestError}</div>` : null}
-            <!-- Installer Download Tiles -->
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="mb-0">Client Installers</h3>
-                                <button 
-                                    class="btn btn-sm btn-outline-primary ${this.state.refreshingManifest ? 'disabled' : ''}" 
-                                    onclick=${() => this.reloadPageData()}
-                                    disabled=${this.state.refreshingManifest}>
-                                    ${this.state.refreshingManifest ? 
-                                        window.html`<span class="spinner-border spinner-border-sm me-2"></span>Reloading...` : 
-                                        window.html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
-                                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
-                                        </svg>
-                                        Reload`
-                                    }
-                                </button>
-                            </div>
-                            <div class="row row-cards mb-3">
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <div class="row align-items-center">
-                                                <div class="col-auto">
-                                                    <span class="avatar avatar-lg bg-primary-lt">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                            <rect x="4" y="4" width="6" height="6" rx="1" />
-                                                            <rect x="14" y="4" width="6" height="6" rx="1" />
-                                                            <rect x="4" y="14" width="6" height="6" rx="1" />
-                                                            <rect x="14" y="14" width="6" height="6" rx="1" />
-                                                        </svg>
-                                                    </span>
-                                                </div>
-                                                <div class="col">
-                                                    <h3 class="card-title mb-1">${this.state.installers.X64.DISPLAY_NAME}</h3>
-                                                    <div class="text-muted small">${this.state.installers.X64.DESCRIPTION}</div>
-                                                    <div class="mt-2">
-                                                        <span class="badge bg-blue-lt me-2">v${this.state.installers.X64.VERSION}</span>
-                                                        <span class="badge bg-secondary-lt">${this.state.installers.X64.FILE_SIZE_MB} MB</span>
-                                                    </div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <button class="btn btn-primary" onclick=${() => this.openDownloadModal('x64')}>
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
-                                                            <polyline points="7 11 12 16 17 11" />
-                                                            <line x1="12" y1="4" x2="12" y2="16" />
-                                                        </svg>
-                                                        Download
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <div class="row align-items-center">
-                                                <div class="col-auto">
-                                                    <span class="avatar avatar-lg bg-cyan-lt">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                            <rect x="4" y="4" width="6" height="6" rx="1" />
-                                                            <rect x="14" y="4" width="6" height="6" rx="1" />
-                                                            <rect x="4" y="14" width="6" height="6" rx="1" />
-                                                            <rect x="14" y="14" width="6" height="6" rx="1" />
-                                                        </svg>
-                                                    </span>
-                                                </div>
-                                                <div class="col">
-                                                    <h3 class="card-title mb-1">${this.state.installers.ARM64.DISPLAY_NAME}</h3>
-                                                    <div class="text-muted small">${this.state.installers.ARM64.DESCRIPTION}</div>
-                                                    <div class="mt-2">
-                                                        <span class="badge bg-blue-lt me-2">v${this.state.installers.ARM64.VERSION}</span>
-                                                        <span class="badge bg-secondary-lt">${this.state.installers.ARM64.FILE_SIZE_MB} MB</span>
-                                                    </div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <button class="btn btn-primary" onclick=${() => this.openDownloadModal('arm64')}>
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
-                                                            <polyline points="7 11 12 16 17 11" />
-                                                            <line x1="12" y1="4" x2="12" y2="16" />
-                                                        </svg>
-                                                        Download
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+            
+            <!-- Header & Actions -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="mb-0">Security Overview</h3>
+                <div class="d-flex gap-2">
+                    <div class="btn-group">
+                        <button class="btn btn-sm ${this.state.viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ viewMode: 'list' })} title="List View">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="9" y1="6" x2="20" y2="6" /><line x1="9" y1="12" x2="20" y2="12" /><line x1="9" y1="18" x2="20" y2="18" /><line x1="5" y1="6" x2="5" y2="6.01" /><line x1="5" y1="12" x2="5" y2="12.01" /><line x1="5" y1="18" x2="5" y2="18.01" /></svg>
+                        </button>
+                        <button class="btn btn-sm ${this.state.viewMode === 'tiles' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ viewMode: 'tiles' })} title="Tile View">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>
+                        </button>
+                    </div>
+                    <button 
+                        class="btn btn-sm btn-outline-primary ${this.state.refreshingManifest ? 'disabled' : ''}" 
+                        onclick=${() => this.reloadPageData()}
+                        disabled=${this.state.refreshingManifest}>
+                        ${this.state.refreshingManifest ? 
+                            window.html`<span class="spinner-border spinner-border-sm me-2"></span>Reloading...` : 
+                            window.html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Reload`
+                        }
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><polyline points="7 11 12 16 17 11" /><line x1="12" y1="4" x2="12" y2="16" /></svg>
+                            Download Agent
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.openDownloadModal('x64'); }}>
+                                Windows x64 Installer
+                                <span class="badge bg-blue-lt ms-auto">v${this.state.installers.X64.VERSION}</span>
+                            </a>
+                            <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.openDownloadModal('arm64'); }}>
+                                Windows ARM64 Installer
+                                <span class="badge bg-blue-lt ms-auto">v${this.state.installers.ARM64.VERSION}</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                            <!-- Devices List -->
+            <!-- Security Dashboard -->
+            ${this.renderSecurityDashboard(securityStats)}
+
+            <!-- Devices List -->
                             <div class="card mb-3">
                                 <div class="card-body">
                                     <div class="row g-3 align-items-start">
@@ -1947,7 +2156,7 @@ class DevicesPage extends window.Component {
                                         </div>
                                     </div>
                                 </div>
-                            ` : html`
+                            ` : this.state.viewMode === 'tiles' ? this.renderTiles(filteredDevices) : html`
                                 <div class="card">
                                     <div class="table-responsive">
                                         <table class="table table-vcenter card-table">
@@ -1973,8 +2182,8 @@ class DevicesPage extends window.Component {
                                                             ` : ''}
                                                         </div>
                                                     </th>
-                                                    <th>Connection</th>
-                                                    <th>Specs</th>
+                                                    <th>Security</th>
+                                                    <th>Status</th>
                                                     <th class="w-1"></th>
                                                 </tr>
                                             </thead>
@@ -2052,56 +2261,44 @@ class DevicesPage extends window.Component {
                                                                     </span>
                                                                 </div>
                                                             </td>
+
+                                                            <!-- Security Column -->
+                                                            <td>
+                                                                <div class="d-flex flex-column gap-1">
+                                                                    ${summary.vulnerableApps > 0 ? html`
+                                                                        <div class="d-flex align-items-center gap-2">
+                                                                            <span class="badge bg-warning-lt">${summary.vulnerableApps} Vuln Apps</span>
+                                                                        </div>
+                                                                    ` : html`<span class="text-muted small">No vulnerable apps</span>`}
+                                                                    
+                                                                    ${(summary.criticalCves + summary.highCves) > 0 ? html`
+                                                                        <div class="d-flex align-items-center gap-1 small">
+                                                                            ${summary.criticalCves > 0 ? html`<span class="text-danger fw-bold">${summary.criticalCves} Critical</span>` : ''}
+                                                                            ${summary.highCves > 0 ? html`<span class="text-warning fw-bold">${summary.highCves} High</span>` : ''}
+                                                                            <span class="text-muted">CVEs</span>
+                                                                        </div>
+                                                                    ` : ''}
+                                                                </div>
+                                                            </td>
+
+                                                            <!-- Status Column -->
+                                                            <td>
+                                                                <div class="d-flex flex-column gap-1">
+                                                                    <div class="d-flex align-items-center gap-2">
+                                                                        ${this.isDeviceInactive(device) ? html`<span class="badge bg-secondary-lt">Offline</span>` : html`<span class="badge bg-success-lt">Online</span>`}
+                                                                        <span class="text-muted small">${device.telemetry?.osEdition || 'Unknown OS'}</span>
+                                                                    </div>
+                                                                    <div class="text-muted small">
+                                                                        ${device.telemetry?.connectionType || 'Unknown Network'} 
+                                                                        ${device.telemetry?.networkSpeedMbps ? `(${this.formatNetworkSpeed(device.telemetry.networkSpeedMbps)})` : ''}
+                                                                    </div>
+                                                                    <div class="text-muted small">
+                                                                        Last seen ${this.formatLastSeen(device.lastHeartbeat)}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
                                                             `;
                                                         })()}
-                                                        <td>
-                                                            <div class="d-flex flex-column gap-1">
-                                                                ${device.telemetry ? html`
-                                                                    <div class="d-flex align-items-center gap-2">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                            <path d="M5 13a10 10 0 0 1 14 0" />
-                                                                            <path d="M8.5 16.5a5 5 0 0 1 7 0" />
-                                                                            <circle cx="12" cy="20" r="1" />
-                                                                        </svg>
-                                                                        <span class="text-muted small">${device.telemetry.connectionType || 'Connected'}</span>
-                                                                        ${device.telemetry.networkSpeedMbps ? html`<span class="text-muted small">${this.formatNetworkSpeed(device.telemetry.networkSpeedMbps)}</span>` : ''}
-                                                                    </div>
-                                                                ` : html`<div class="text-muted small">No telemetry yet</div>`}
-
-                                                                <div class="d-flex align-items-center gap-2">
-                                                                    ${this.isDeviceInactive(device) ? html`<span class="badge bg-danger-lt">Offline</span>` : html`<span class="badge bg-success-lt">Online</span>`}
-                                                                    <span class="text-muted small">Last seen ${this.formatLastSeen(device.lastHeartbeat)}</span>
-                                                                </div>
-
-                                                                ${device.firstHeartbeat ? html`
-                                                                    <div class="text-muted small">Registered ${this.formatAbsolute(device.firstHeartbeat)}</div>
-                                                                ` : ''}
-
-                                                            </div>
-                                                        </td>
-                                                        <td>
-                                                            ${device.telemetry ? html`
-                                                                <div class="text-muted small d-flex flex-column gap-1">
-                                                                    <div class="d-flex align-items-center gap-1">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17.8 20l-12 -1.5c-1 -.1 -1.8 -.9 -1.8 -1.9v-9.2c0 -1 .8 -1.8 1.8 -1.9l12 -1.5c1.2 -.1 2.2 .8 2.2 1.9v12.1c0 1.2 -1.1 2.1 -2.2 1.9z" /><path d="M12 5l0 14" /><path d="M4 12l16 0" /></svg>
-                                                                        <span>${(device.telemetry.osEdition || '').trim()} ${(device.telemetry.osVersion || '').trim()}</span>
-                                                                    </div>
-                                                                    <div class="d-flex align-items-center gap-1">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 5m0 1a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1z"/><path d="M9 9h6v6h-6z"/><path d="M3 10h2"/><path d="M3 14h2"/><path d="M10 3v2"/><path d="M14 3v2"/><path d="M21 10h-2"/><path d="M21 14h-2"/><path d="M14 21v-2"/><path d="M10 21v-2"/></svg>
-                                                                        <span>${(device.telemetry.cpuName || '').trim()} ${device.telemetry.cpuCores ? `(${device.telemetry.cpuCores} cores)` : ''}</span>
-                                                                    </div>
-                                                                    <div class="d-flex align-items-center gap-1">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 20h.01" /><path d="M4 20h.01" /><path d="M8 20h.01" /><path d="M12 20h.01" /><path d="M16 20h.01" /><path d="M20 4h.01" /><path d="M4 4h.01" /><path d="M8 4h.01" /><path d="M12 4h.01" /><path d="M16 4l0 .01" /><path d="M4 8m0 1a1 1 0 0 1 1 -1h14a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-14a1 1 0 0 1 -1 -1z"/></svg>
-                                                                        <span>${device.telemetry.totalRamMb ? `${Math.round(device.telemetry.totalRamMb / 1024)} GB RAM` : 'RAM —'}</span>
-                                                                    </div>
-                                                                    <div class="d-flex align-items-center gap-1">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M16 3.937a9 9 0 1 0 5 8.063"/><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M20 4m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M20 4l-3.5 10l-2.5 2"/></svg>
-                                                                        <span>${device.telemetry.totalDiskGb ? `${device.telemetry.totalDiskGb} GB ${device.telemetry.systemDiskMediaType || ''}` : 'Disk —'}</span>
-                                                                    </div>
-                                                                </div>
-                                                            ` : html`<span class="text-muted small">No telemetry yet</span>`}
-                                                        </td>
                                                         <td>
                                                             <div class="dropdown">
                                                                 <button class="btn btn-sm btn-secondary dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown">

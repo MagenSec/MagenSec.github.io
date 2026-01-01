@@ -26,7 +26,8 @@ export class AnalystPage extends Component {
             error: null,
             reportId: null,
             feedback: { rating: null, comment: '' },
-            showFeedbackModal: false
+            showFeedbackModal: false,
+            history: []
         };
         this.orgUnsubscribe = null;
         this.pollInterval = null;
@@ -35,10 +36,43 @@ export class AnalystPage extends Component {
     }
 
     componentDidMount() {
+        // Load history
+        try {
+            const savedHistory = localStorage.getItem('magensec_analyst_history');
+            if (savedHistory) {
+                this.setState({ history: JSON.parse(savedHistory) });
+            }
+        } catch (e) {
+            console.warn('[AnalystPage] Failed to load history', e);
+        }
+
+        // Check for query parameter from dashboard
+        const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+        const query = urlParams.get('q');
+        
+        if (query) {
+            const decodedQuery = decodeURIComponent(query);
+            const currentOrg = orgContext.getCurrentOrg();
+            
+            if (currentOrg?.orgId) {
+                this.setState({ prompt: decodedQuery }, () => {
+                    this.handleSubmit({ preventDefault: () => {} });
+                });
+            } else {
+                this.setState({ prompt: decodedQuery, autoSubmitPending: true });
+            }
+        }
+
         this.orgUnsubscribe = orgContext.onChange(() => {
+            const orgId = orgContext.getCurrentOrg()?.orgId || '';
             this.setState({
-                selectedOrgId: orgContext.getCurrentOrg()?.orgId || '',
+                selectedOrgId: orgId,
                 availableOrgs: orgContext.getAvailableOrgs()
+            }, () => {
+                if (this.state.autoSubmitPending && this.state.selectedOrgId) {
+                    this.setState({ autoSubmitPending: false });
+                    this.handleSubmit({ preventDefault: () => {} });
+                }
             });
         });
 
@@ -83,6 +117,27 @@ export class AnalystPage extends Component {
         return `${trimmed}\n\nTargetOrg: ${orgId}`;
     }
 
+    addToHistory(query) {
+        try {
+            const { history } = this.state;
+            // Remove duplicates and add to top
+            const newHistory = [
+                { query, timestamp: Date.now() },
+                ...history.filter(h => h.query !== query)
+            ].slice(0, 10); // Keep last 10
+
+            this.setState({ history: newHistory });
+            localStorage.setItem('magensec_analyst_history', JSON.stringify(newHistory));
+        } catch (e) {
+            console.warn('[AnalystPage] Failed to save history', e);
+        }
+    }
+
+    clearHistory() {
+        this.setState({ history: [] });
+        localStorage.removeItem('magensec_analyst_history');
+    }
+
     async handleSubmit(event) {
         event.preventDefault();
         const { prompt, forceRecompute, selectedOrgId } = this.state;
@@ -104,6 +159,9 @@ export class AnalystPage extends Component {
             this.setState({ error: 'Please select an organization.' });
             return;
         }
+
+        // Save to history
+        this.addToHistory(sanitizedPrompt);
 
         const payload = {
             prompt: this.buildPrompt(prompt, selectedOrgId),
@@ -389,7 +447,7 @@ export class AnalystPage extends Component {
                             return html`<div key=${idx} class="list-group-item">
                                 <div class="row align-items-start">
                                     <div class="col-auto">
-                                        <span class="badge bg-primary">${idx + 1}</span>
+                                        <span class="badge bg-primary-lt">${idx + 1}</span>
                                     </div>
                                     <div class="col">
                                         <div class="d-flex justify-content-between">
@@ -409,7 +467,7 @@ export class AnalystPage extends Component {
                                                 `}
                                             </div>
                                             ${priority && html`
-                                                <span class="badge bg-${priority === 'Critical' || priority === 'High' ? 'danger' : priority === 'Medium' ? 'warning' : 'info'} ms-2">
+                                                <span class="badge bg-${priority === 'Critical' || priority === 'High' ? 'danger' : priority === 'Medium' ? 'warning' : 'info'}-lt ms-2">
                                                     ${priority}
                                                 </span>
                                             `}
@@ -439,14 +497,14 @@ export class AnalystPage extends Component {
                                         </td>
                                         <td>
                                             ${!isStringDevice && dev.RiskScore !== undefined ? html`
-                                                <span class="badge ${dev.RiskScore >= 80 ? 'bg-danger' : dev.RiskScore >= 50 ? 'bg-warning' : 'bg-info'}">
+                                                <span class="badge ${dev.RiskScore >= 80 ? 'bg-danger-lt' : dev.RiskScore >= 50 ? 'bg-warning-lt' : 'bg-info-lt'}">
                                                     ${dev.RiskScore.toFixed(1)}
                                                 </span>
                                             ` : html`<span class="text-muted">-</span>`}
                                         </td>
-                                        <td>${!isStringDevice && dev.CriticalCount !== undefined ? html`<span class="badge bg-danger">${dev.CriticalCount}</span>` : '-'}</td>
-                                        <td>${!isStringDevice && dev.HighCount !== undefined ? html`<span class="badge bg-warning">${dev.HighCount}</span>` : '-'}</td>
-                                        <td>${!isStringDevice && dev.MediumCount !== undefined ? html`<span class="badge bg-info">${dev.MediumCount}</span>` : '-'}</td>
+                                        <td>${!isStringDevice && dev.CriticalCount !== undefined ? html`<span class="badge bg-danger-lt">${dev.CriticalCount}</span>` : '-'}</td>
+                                        <td>${!isStringDevice && dev.HighCount !== undefined ? html`<span class="badge bg-warning-lt">${dev.HighCount}</span>` : '-'}</td>
+                                        <td>${!isStringDevice && dev.MediumCount !== undefined ? html`<span class="badge bg-info-lt">${dev.MediumCount}</span>` : '-'}</td>
                                     </tr>`;
                                 })}
                             </tbody>
@@ -489,32 +547,62 @@ export class AnalystPage extends Component {
         </div>`;
     }
 
+    renderHistory() {
+        const { history } = this.state;
+        if (!history || history.length === 0) return null;
+
+        return html`<div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title">Recent Investigations</h3>
+                <button class="btn btn-sm btn-ghost-danger" onClick=${() => this.clearHistory()}>Clear History</button>
+            </div>
+            <div class="list-group list-group-flush">
+                ${history.map((item, idx) => html`
+                    <a href="#" class="list-group-item list-group-item-action" 
+                       onClick=${(e) => { e.preventDefault(); this.handlePromptSelect(item.query); }}>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="text-truncate me-3" title=${item.query}>${item.query}</div>
+                            <small class="text-muted">${new Date(item.timestamp).toLocaleDateString()}</small>
+                        </div>
+                    </a>
+                `)}
+            </div>
+        </div>`;
+    }
+
     renderForm() {
         const { prompt, /*forceRecompute,*/ loading, polling, selectedOrgId, availableOrgs } = this.state;
 
         return html`<div>
-            <${PromptSuggestions} onSelectPrompt=${(p) => this.handlePromptSelect(p)} />
-
-            <form id="analyst-form" onSubmit=${(e) => this.handleSubmit(e)} class="card mb-4">
-                <div class="card-header"><h3 class="card-title">Run Analysis</h3></div>
-                <div class="card-body">
-                    <!-- Organization is selected via navbar switcher -->
-                    <div class="mb-3">
-                        <label class="form-label">Your Question</label>
-                        <textarea class="form-control" rows="5" value=${prompt} 
-                            onInput=${(e) => this.setState({ prompt: e.target.value })} 
-                            placeholder="e.g., What are the critical vulnerabilities I should patch first?"></textarea>
-                        <div class="form-text">Describe what you want investigated. Use suggestions above for inspiration.</div>
-                    </div>
+            <div class="row">
+                <div class="col-md-8">
+                    <${PromptSuggestions} onSelectPrompt=${(p) => this.handlePromptSelect(p)} />
                     
-                    <div class="d-flex justify-content-end">
-                        <button type="submit" class="btn btn-primary" disabled=${loading || polling}>
-                            ${loading || polling ? html`<span><span class="spinner-border spinner-border-sm me-2"></span>
-                                ${polling ? 'Generating...' : 'Submitting...'}</span>` : 'Run Analysis'}
-                        </button>
-                    </div>
+                    <form id="analyst-form" onSubmit=${(e) => this.handleSubmit(e)} class="card mb-4">
+                        <div class="card-header"><h3 class="card-title">Run Analysis</h3></div>
+                        <div class="card-body">
+                            <!-- Organization is selected via navbar switcher -->
+                            <div class="mb-3">
+                                <label class="form-label">Your Question</label>
+                                <textarea class="form-control" rows="5" value=${prompt} 
+                                    onInput=${(e) => this.setState({ prompt: e.target.value })} 
+                                    placeholder="e.g., What are the critical vulnerabilities I should patch first?"></textarea>
+                                <div class="form-text">Describe what you want investigated. Use suggestions above for inspiration.</div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary" disabled=${loading || polling}>
+                                    ${loading || polling ? html`<span><span class="spinner-border spinner-border-sm me-2"></span>
+                                        ${polling ? 'Generating...' : 'Submitting...'}</span>` : 'Run Analysis'}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
-            </form>
+                <div class="col-md-4">
+                    ${this.renderHistory()}
+                </div>
+            </div>
         </div>`;
     }
 

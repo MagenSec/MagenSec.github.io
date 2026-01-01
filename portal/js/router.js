@@ -159,9 +159,8 @@ export function initRouter(renderApp) {
     // Other placeholder routes (protected)
     const protectedRoutes = [
         ['inventory', 'inventory'],
-        ['trends', 'trends'],
+        ['site-admin', 'site-admin'],
         ['audit', 'audit'],
-        ['orgs', 'orgs'],
         ['members', 'members'],
         ['licenses', 'licenses'],
         ['account', 'account'],

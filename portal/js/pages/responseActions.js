@@ -72,10 +72,8 @@ export class ResponseActionsPage extends Component {
         const orgId = currentOrg?.orgId || user.email;
 
         try {
-            const response = await window.api.get(`/api/v1/response/${orgId}/commands`);
-            if (response.success) {
-                this.setState({ commands: response.data || [] });
-            }
+            const commands = await api.getCommandHistory(orgId);
+            this.setState({ commands: commands || [] });
         } catch (error) {
             console.error('[ResponseActions] Load commands failed:', error);
         }
@@ -121,9 +119,9 @@ export class ResponseActionsPage extends Component {
                 parameters: commandParams
             };
 
-            const response = await window.api.post('/api/v1/response/commands', payload);
+            const result = await api.executeCommand(payload);
             
-            if (response.success) {
+            if (result) {
                 this.setState({ 
                     executing: false, 
                     selectedDevices: [],
@@ -133,8 +131,6 @@ export class ResponseActionsPage extends Component {
                 await this.loadCommands();
                 
                 alert(`Command queued for ${selectedDevices.length} device(s)`);
-            } else {
-                throw new Error(response.message || 'Failed to queue command');
             }
         } catch (error) {
             console.error('[ResponseActions] Execute failed:', error);

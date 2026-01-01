@@ -25,27 +25,9 @@ export class InventoryPage extends Component {
   }
 }
 
-export class TrendsPage extends Component {
-  render() {
-    return html`<div class="card"><div class="card-body">Trends: Coming soon</div></div>`;
-  }
-}
-
 export class OrgsPage extends Component {
   render() {
     return html`<div class="card"><div class="card-body">Organizations: Coming soon</div></div>`;
-  }
-}
-
-export class MembersPage extends Component {
-  render() {
-    return html`<div class="card"><div class="card-body">Members: Coming soon</div></div>`;
-  }
-}
-
-export class LicensesPage extends Component {
-  render() {
-    return html`<div class="card"><div class="card-body">Licenses: Coming soon</div></div>`;
   }
 }
 
@@ -69,7 +51,7 @@ export class SoftwareInventoryPage extends Component {
     try {
       const result = await api.get(`/api/v1/assets/${orgId}/software`);
       if (result.success) {
-        this.setState({ software: result.data.software, loading: false });
+        this.setState({ software: result.data, loading: false });
       } else {
         this.setState({ error: result.message, loading: false });
       }
@@ -108,18 +90,18 @@ export class SoftwareInventoryPage extends Component {
                       <th>Application</th>
                       <th>Version</th>
                       <th>Vendor</th>
-                      <th>Device</th>
+                      <th>Installations</th>
                       <th>Risk</th>
                     </tr>
                   </thead>
                   <tbody>
                     ${software.map(app => html`
                       <tr>
-                        <td>${app.appName}</td>
+                        <td>${app.name}</td>
                         <td>${app.version}</td>
                         <td>${app.vendor}</td>
-                        <td>${app.deviceId}</td>
-                        <td><span class="badge bg-${app.riskScore === 'High' ? 'danger' : app.riskScore === 'Medium' ? 'warning' : 'success'}">${app.riskScore}</span></td>
+                        <td>${app.deviceCount}</td>
+                        <td><span class="badge bg-${app.riskScore === 'High' ? 'danger' : app.riskScore === 'Medium' ? 'warning' : 'success'}">${app.riskScore || 'Low'}</span></td>
                       </tr>
                     `)}
                   </tbody>
@@ -147,7 +129,7 @@ export class HardwareInventoryPage extends Component {
     try {
       const result = await api.get(`/api/v1/assets/${orgId}/hardware`);
       if (result.success) {
-        this.setState({ hardware: result.data.hardware, loading: false });
+        this.setState({ hardware: result.data, loading: false });
       } else {
         this.setState({ error: result.message, loading: false });
       }

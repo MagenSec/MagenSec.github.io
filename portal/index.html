@@ -82,6 +82,33 @@
         body.unauthenticated > .page {
             display: none;
         }
+
+        /* AI Analyst Menu Item Highlight */
+        .nav-item-ai-analyst {
+            margin-left: auto; /* Push to right */
+            margin-right: 1rem;
+        }
+        .nav-item-ai-analyst .nav-link {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: #ffffff !important;
+            border-radius: 4px;
+            padding: 0.5rem 1rem !important;
+            font-weight: 500;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.2s ease-in-out;
+        }
+        .nav-item-ai-analyst .nav-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            filter: brightness(1.1);
+        }
+        .nav-item-ai-analyst .nav-link-icon svg {
+            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .8; transform: scale(1.1); }
+        }
     </style>
 </head>
 <body class="unauthenticated">
@@ -139,7 +166,7 @@
             <div class="collapse navbar-collapse" id="navbar-menu">
                 <div class="navbar navbar-light">
                     <div class="container-xl">
-                        <ul class="navbar-nav">
+                        <ul class="navbar-nav w-100">
                             <li class="nav-item">
                                 <a class="nav-link" href="#!/dashboard">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
@@ -157,19 +184,19 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="#!/analyst">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">AI Analyst</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
                                 <a class="nav-link" href="#!/devices">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="7" y="4" width="10" height="16" rx="1" /><line x1="11" y1="5" x2="13" y2="5" /><line x1="12" y1="17" x2="12" y2="17.01" /></svg>
                                     </span>
                                     <span class="nav-link-title">Devices</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#!/inventory">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 3l6 0" /><path d="M12 3l0 18" /><path d="M12 15l4 0" /><path d="M12 9l-4 0" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">App Inventory</span>
                                 </a>
                             </li>
                             <li class="nav-item dropdown">
@@ -184,16 +211,21 @@
                                         <span class="me-2">⚙️</span>Settings
                                     </a>
                                     <a class="dropdown-item" href="#!/audit">
-                                        <span class="me-2">📋</span>Audit Events
+                                        <span class="me-2">📋</span>Audit
                                     </a>
                                     <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item" href="#!/inventory">Inventory</a>
-                                    <a class="dropdown-item" href="#!/trends">Trends</a>
-                                    <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item" href="#!/orgs">Organizations</a>
-                                    <a class="dropdown-item" href="#!/members">Members</a>
-                                    <a class="dropdown-item" href="#!/licenses">Licenses</a>
+                                    <a class="dropdown-item site-admin-only" href="#!/site-admin" style="display:none">
+                                        <span class="me-2">🛡️</span>Site Admin
+                                    </a>
                                 </div>
+                            </li>
+                            <li class="nav-item nav-item-ai-analyst">
+                                <a class="nav-link" href="#!/analyst">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">AI Analyst</span>
+                                </a>
                             </li>
                         </ul>
                     </div>

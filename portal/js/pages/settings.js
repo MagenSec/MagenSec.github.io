@@ -30,37 +30,22 @@ export function SettingsPage() {
     const [org, setOrg] = useState(null);
     const [licenses, setLicenses] = useState([]);
     const [members, setMembers] = useState([]);
-    const [telemetryConfig, setTelemetryConfig] = useState(null);
+
     const [isSiteAdmin, setIsSiteAdmin] = useState(false);
     const [isPersonalOrg, setIsPersonalOrg] = useState(false);
-    const [newOrgName, setNewOrgName] = useState('');
-    const [newOwnerEmail, setNewOwnerEmail] = useState('');
-    const [newOrgSeats, setNewOrgSeats] = useState(20);
-    const [newOrgDuration, setNewOrgDuration] = useState('365');
-    const [updateOrgName, setUpdateOrgName] = useState('');
-    const [showCreateOrg, setShowCreateOrg] = useState(false);
-    const [showUpdateOrg, setShowUpdateOrg] = useState(false);
+
     const [teamEmail, setTeamEmail] = useState('');
     const [teamRole, setTeamRole] = useState('ReadWrite');
-    const [advancedTab, setAdvancedTab] = useState('create');
-    const [accounts, setAccounts] = useState([]);
+
     const [teamSearch, setTeamSearch] = useState('');
     const [showTeamDropdown, setShowTeamDropdown] = useState(false);
-    const [orgOwnerSearch, setOrgOwnerSearch] = useState('');
-    const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
+
     const [adjustingLicense, setAdjustingLicense] = useState(null);
     const [creditHistory, setCreditHistory] = useState([]);
     const [projectedExhaustion, setProjectedExhaustion] = useState(null);
     const [sendingTestEmail, setSendingTestEmail] = useState(false);
     const [emailPreferences, setEmailPreferences] = useState(null);
     const [savingPreferences, setSavingPreferences] = useState(false);
-    const [showChangeUserType, setShowChangeUserType] = useState(false);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [newUserType, setNewUserType] = useState('');
-    const [changingUserType, setChangingUserType] = useState(false);
-    const [showTransferOwner, setShowTransferOwner] = useState(false);
-    const [transferringOwner, setTransferringOwner] = useState(false);
-    const [newTransferOwner, setNewTransferOwner] = useState('');
 
     // Email validation helper
     const isValidEmail = (email) => {
@@ -142,7 +127,7 @@ export function SettingsPage() {
             if (!isPersonal) {
                 // Load licenses
                 // Use portal-friendly alias for org licenses
-                const licensesRes = await api.get(`/api/v1/orgs/${currentOrgId}/licenses`);
+                const licensesRes = await api.get(`/api/v1/licenses/org/${currentOrgId}`);
                 if (licensesRes.success && licensesRes.data) {
                     setLicenses(licensesRes.data);
                 }
@@ -159,34 +144,11 @@ export function SettingsPage() {
             }
 
             // Load all accounts for user search (Site Admin)
-            if (userType === 'SiteAdmin' && currentOrg && currentOrg.type !== 'Personal') {
-                try {
-                    const accountsRes = await api.adminListAccounts();
-                    if (accountsRes.success && accountsRes.data) {
-                        const accountsData = accountsRes.data.accounts ?? accountsRes.data ?? [];
-                        setAccounts(Array.isArray(accountsData) ? accountsData : []);
-                    }
-                } catch (err) {
-                    // Endpoint may not exist yet; gracefully degrade to manual email entry
-                    setAccounts([]);
-                    logger.debug('[Settings] Accounts endpoint not available; manual email entry will work fine', err);
-                }
-            }
 
-            // Load telemetry config (Site Admin path)
-            if (userType === 'SiteAdmin') {
-                try {
-                    const cfg = await fetchTelemetryConfigAdmin(currentOrgId);
-                    setTelemetryConfig(cfg);
-                } catch (err) {
-                    setTelemetryConfig(null);
-                    logger.warn('[Settings] Telemetry config not found or inaccessible for org', currentOrgId);
-                }
-            }
 
             // Credit history for charts (all org types)
             try {
-                const creditRes = await api.get('/api/v1/dashboard/credits/history', { orgId: currentOrgId });
+                const creditRes = await api.get(`/api/v1/orgs/${currentOrgId}/credits/history`);
                 if (creditRes.success && creditRes.data) {
                     setCreditHistory(creditRes.data.history || []);
                     setProjectedExhaustion(creditRes.data.projectedExhaustionDate || null);
@@ -255,7 +217,7 @@ export function SettingsPage() {
 
         try {
             const currentOrg = orgContext.getCurrentOrg();
-            const res = await api.post(`/api/licenses/${licenseId}/rotate`, { orgId: currentOrg?.orgId });
+            const res = await api.put(`/api/v1/licenses/${licenseId}/rotate`, { orgId: currentOrg?.orgId });
             
             if (res.success) {
                 showToast('License rotated successfully', 'success');
@@ -269,29 +231,6 @@ export function SettingsPage() {
         }
     };
 
-    const handleDisableLicense = async (licenseId, currentlyDisabled) => {
-        const action = currentlyDisabled ? 'enable' : 'disable';
-        if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} license?`)) {
-            return;
-        }
-
-        try {
-            const currentOrg = orgContext.getCurrentOrg();
-            const endpoint = currentlyDisabled ? 'enable' : 'disable';
-            const res = await api.put(`/api/licenses/${licenseId}/${endpoint}`, { orgId: currentOrg?.orgId });
-            
-            if (res.success) {
-                showToast(`License ${action}d successfully`, 'success');
-                await loadSettings();
-            } else {
-                showToast(res.message || `Failed to ${action} license`, 'error');
-            }
-        } catch (error) {
-            logger.error(`[Settings] Error ${action}ing license:`, error);
-            showToast(`Failed to ${action} license`, 'error');
-        }
-    };
-
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text).then(() => {
             showToast('Copied to clipboard', 'success');
@@ -300,118 +239,11 @@ export function SettingsPage() {
         });
     };
 
-    const fetchTelemetryConfigAdmin = async (orgId) => {
-        // NOTE: This endpoint doesn't exist yet - fail gracefully
-        // When implemented, it should return org-specific telemetry configuration
-        try {
-            const token = auth.getToken();
-            const doFetch = async (id) => {
-                const res = await fetch(`/api/v1/admin/telemetry/config/orgs/${id}`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(token ? { Authorization: `Bearer ${token}` } : {})
-                    }
-                });
 
-                if (res.status === 404) {
-                    // Endpoint not implemented yet - expected
-                    return { data: null, notFound: true };
-                }
 
-                const data = await res.json();
-                if (!res.ok || data?.success === false) {
-                    return { data: null, notFound: true };
-                }
-                return { data: data?.data || null, notFound: false };
-            };
 
-            // Try the provided orgId
-            const primary = await doFetch(orgId);
-            if (!primary.notFound) return primary.data;
 
-            // If prefixed, try without prefix; if not prefixed, try adding ORGB-
-            if (orgId?.startsWith('ORGB-') || orgId?.startsWith('ORGP-')) {
-                const trimmed = orgId.replace(/^ORG[B|P]-/i, '');
-                const retry = await doFetch(trimmed);
-                if (!retry.notFound) return retry.data;
-            } else {
-                const normalized = `ORGB-${orgId}`;
-                const secondary = await doFetch(normalized);
-                if (!secondary.notFound) return secondary.data;
-            }
 
-            return null; // fallback to global/defaults
-        } catch (err) {
-            // Endpoint not implemented yet - fail silently
-            logger.debug('[Settings] Telemetry config endpoint not available (expected for now)', err);
-            return null;
-        }
-    };
-
-    const handleCreateOrg = async () => {
-        if (!newOrgName || !newOwnerEmail) {
-            showToast('Org name and owner email are required', 'warning');
-            return;
-        }
-
-        const payload = {
-            orgName: newOrgName,
-            ownerEmail: newOwnerEmail,
-            seats: newOrgSeats ? Number(newOrgSeats) : 0,
-            durationDays: newOrgDuration ? Number(newOrgDuration) : 365
-        };
-
-        const res = await api.post('/api/v1/admin/orgs', payload);
-        if (res.success) {
-            showToast('Organization created', 'success');
-            setNewOrgName('');
-            setNewOwnerEmail('');
-            setNewOrgSeats(20);
-            setNewOrgDuration('365');
-            await orgContext.initialize();
-            await loadSettings();
-        } else {
-            showToast(res.message || 'Failed to create org', 'error');
-        }
-    };
-
-    const handleDisableOrg = async () => {
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg?.orgId) {
-            showToast('No organization selected', 'warning');
-            return;
-        }
-
-        const res = await api.put(`/api/v1/admin/orgs/${currentOrg.orgId}/disable`);
-        if (res.success) {
-            showToast('Organization disabled', 'success');
-            await loadSettings();
-        } else {
-            showToast(res.message || 'Failed to disable org', 'error');
-        }
-    };
-
-    const handleDeleteOrg = async () => {
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg?.orgId) {
-            showToast('No organization selected', 'warning');
-            return;
-        }
-
-        if (!confirm('Delete this organization? This will cascade delete licenses and devices.')) {
-            return;
-        }
-
-        const res = await api.delete(`/api/v1/admin/orgs/${currentOrg.orgId}`);
-        if (res.success) {
-            showToast('Organization deleted', 'success');
-            await orgContext.initialize();
-            await loadSettings();
-        } else {
-            showToast(res.message || 'Failed to delete org', 'error');
-        }
-    };
 
     const handleAddTeamMember = async () => {
         if (!teamEmail) {
@@ -479,121 +311,13 @@ export function SettingsPage() {
         }
     };
 
-    const handleUpdateOrg = async () => {
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg?.orgId) {
-            showToast('No organization selected', 'warning');
-            return;
-        }
 
-        const payload = {
-            orgName: updateOrgName
-        };
 
-        const res = await api.put(`/api/v1/admin/orgs/${currentOrg.orgId}`, payload);
-        if (res.success) {
-            showToast('Organization updated', 'success');
-            await orgContext.initialize();
-            await loadSettings();
-        } else {
-            showToast(res.message || 'Failed to update org', 'error');
-        }
-    };
 
-    const handleChangeUserType = async () => {
-        if (!selectedUser || !newUserType) {
-            showToast('Please select a user and user type', 'warning');
-            return;
-        }
 
-        if (!confirm(`Change ${selectedUser.email} from ${selectedUser.userType} to ${newUserType}?`)) {
-            return;
-        }
 
-        try {
-            setChangingUserType(true);
-            const res = await api.put(`/api/v1/admin/users/${selectedUser.userId}/change-type`, {
-                newUserType: newUserType
-            });
 
-            if (res.success) {
-                showToast(`User type changed to ${newUserType}`, 'success');
-                setShowChangeUserType(false);
-                setSelectedUser(null);
-                setNewUserType('');
-                await loadSettings(); // Reload accounts
-            } else {
-                showToast(res.message || 'Failed to change user type', 'error');
-            }
-        } catch (error) {
-            logger.error('[Settings] Error changing user type:', error);
-            showToast('Failed to change user type', 'error');
-        } finally {
-            setChangingUserType(false);
-        }
-    };
 
-    const handleTransferOwnership = async () => {
-        if (!newTransferOwner) {
-            showToast('Please enter new owner email', 'warning');
-            return;
-        }
-
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg?.orgId) {
-            showToast('No organization selected', 'warning');
-            return;
-        }
-
-        if (!confirm(`Transfer ownership of ${org.orgName} to ${newTransferOwner}?`)) {
-            return;
-        }
-
-        try {
-            setTransferringOwner(true);
-            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/owner`, {
-                newOwnerEmail: newTransferOwner
-            });
-
-            if (res.success) {
-                showToast('Ownership transferred successfully', 'success');
-                setShowTransferOwner(false);
-                setNewTransferOwner('');
-                await orgContext.initialize();
-                await loadSettings();
-            } else {
-                showToast(res.message || 'Failed to transfer ownership', 'error');
-            }
-        } catch (error) {
-            logger.error('[Settings] Error transferring ownership:', error);
-            showToast('Failed to transfer ownership', 'error');
-        } finally {
-            setTransferringOwner(false);
-        }
-    };
-
-    const handleSendTestEmail = async () => {
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg?.orgId) {
-            showToast('No organization selected', 'warning');
-            return;
-        }
-
-        try {
-            setSendingTestEmail(true);
-            const res = await api.adminSendTestEmail(currentOrg.orgId);
-            if (res.success) {
-                showToast('Sent test email to org owner', 'success');
-            } else {
-                showToast(res.message || 'Failed to send test email', 'error');
-            }
-        } catch (error) {
-            logger.error('[Settings] Error sending test email', error);
-            showToast(error?.message || 'Failed to send test email', 'error');
-        } finally {
-            setSendingTestEmail(false);
-        }
-    };
 
     const handleSaveEmailPreferences = async (preferences) => {
         const currentOrg = orgContext.getCurrentOrg();
@@ -706,18 +430,7 @@ export function SettingsPage() {
                                 </a>
                             </li>
                         `}
-                        ${isSiteAdmin && html`
-                            <li class="nav-item">
-                                <a 
-                                    class=${`nav-link ${activeTab === 'advanced' ? 'active' : ''}`}
-                                    href="#"
-                                    onClick=${(e) => { e.preventDefault(); setActiveTab('advanced'); }}
-                                >
-                                    <i class="ti ti-shield-lock me-2"></i>
-                                    Advanced
-                                </a>
-                            </li>
-                        `}
+
                     </ul>
                 </div>
 
@@ -731,9 +444,7 @@ export function SettingsPage() {
                         : html`<${LicensesTab} 
                             licenses=${licenses} 
                             onRotate=${handleRotateLicense}
-                            onDisable=${handleDisableLicense}
                             onCopy=${copyToClipboard}
-                            onAdjust=${(license) => setAdjustingLicense(license)}
                             isSiteAdmin=${isSiteAdmin}
                         />`)}
                     ${activeTab === 'team' && (isPersonalOrg
@@ -752,7 +463,6 @@ export function SettingsPage() {
                             setTeamEmail=${setTeamEmail}
                             teamRole=${teamRole}
                             setTeamRole=${setTeamRole}
-                            accounts=${accounts}
                             isValidEmail=${isValidEmail}
                             setTeamSearch=${setTeamSearch}
                             teamSearch=${teamSearch}
@@ -766,49 +476,7 @@ export function SettingsPage() {
                         savingPreferences=${savingPreferences}
                         onSavePreferences=${handleSaveEmailPreferences}
                     />`}
-                    ${activeTab === 'advanced' && isSiteAdmin && html`<${AdvancedTab} 
-                        org=${org} 
-                        telemetryConfig=${telemetryConfig}
-                        onReload=${loadSettings}
-                        onCreateOrg=${handleCreateOrg}
-                        onUpdateOrg=${handleUpdateOrg}
-                        onDisableOrg=${handleDisableOrg}
-                        onDeleteOrg=${handleDeleteOrg}
-                        newOrgName=${newOrgName}
-                        setNewOrgName=${setNewOrgName}
-                        newOwnerEmail=${newOwnerEmail}
-                        setNewOwnerEmail=${setNewOwnerEmail}
-                        newOrgSeats=${newOrgSeats}
-                        setNewOrgSeats=${setNewOrgSeats}
-                        newOrgDuration=${newOrgDuration}
-                        setNewOrgDuration=${setNewOrgDuration}
-                        updateOrgName=${updateOrgName}
-                        setUpdateOrgName=${setUpdateOrgName}
-                        advancedTab=${advancedTab}
-                        setAdvancedTab=${setAdvancedTab}
-                        accounts=${accounts}
-                        isValidEmail=${isValidEmail}
-                        orgOwnerSearch=${orgOwnerSearch}
-                        setOrgOwnerSearch=${setOrgOwnerSearch}
-                        showOwnerDropdown=${showOwnerDropdown}
-                        setShowOwnerDropdown=${setShowOwnerDropdown}
-                        onSendTestEmail=${handleSendTestEmail}
-                        sendingTestEmail=${sendingTestEmail}
-                        showChangeUserType=${showChangeUserType}
-                        setShowChangeUserType=${setShowChangeUserType}
-                        selectedUser=${selectedUser}
-                        setSelectedUser=${setSelectedUser}
-                        newUserType=${newUserType}
-                        setNewUserType=${setNewUserType}
-                        onChangeUserType=${handleChangeUserType}
-                        changingUserType=${changingUserType}
-                        showTransferOwner=${showTransferOwner}
-                        setShowTransferOwner=${setShowTransferOwner}
-                        newTransferOwner=${newTransferOwner}
-                        setNewTransferOwner=${setNewTransferOwner}
-                        onTransferOwnership=${handleTransferOwnership}
-                        transferringOwner=${transferringOwner}
-                    />`}
+
                 </div>
             </div>
             
@@ -977,106 +645,109 @@ function CreditsChart({ history, projectedExhaustion }) {
 }
 
 // Licenses Tab
-function LicensesTab({ licenses, onRotate, onDisable, onCopy, onAdjust, isSiteAdmin }) {
-    if (!licenses || licenses.length === 0) {
-        return html`
-            <div class="empty">
-                <div class="empty-icon">
-                    <i class="ti ti-key icon"></i>
-                </div>
-                <p class="empty-title">No licenses found</p>
-                <p class="empty-subtitle text-muted">Contact your administrator to add a license</p>
-            </div>
-        `;
-    }
+function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
+    const [visibleKeys, setVisibleKeys] = useState({});
+
+    const toggleKey = (id) => {
+        setVisibleKeys(prev => ({ ...prev, [id]: !prev[id] }));
+    };
 
     return html`
         <div>
-            <h3 class="card-title mb-3">License Management</h3>
-            <div class="table-responsive">
-                <table class="table table-vcenter">
-                    <thead>
-                        <tr>
-                            <th>Serial Key</th>
-                            <th>Type</th>
-                            <th>Seats</th>
-                            <th>Credits</th>
-                            <th>Status</th>
-                            <th>Rotated</th>
-                            <th class="w-1"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${licenses.map(license => {
-                            const serialKey = license.serialKey || 'N/A';
-                            const maskedKey = serialKey.length > 8 ? `${serialKey.substring(0, 4)}-****-****` : serialKey;
-                            
-                            return html`
-                                <tr>
-                                    <td>
-                                        <code class="me-2">${maskedKey}</code>
-                                        <button 
-                                            class="btn btn-sm btn-ghost-secondary"
-                                            onClick=${() => onCopy(serialKey)}
-                                            title="Copy full key"
-                                        >
-                                            <i class="ti ti-copy"></i>
-                                        </button>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-blue-lt">${license.licenseType || 'Business'}</span>
-                                    </td>
-                                    <td>${license.seats || 'N/A'}</td>
-                                    <td>
-                                        <span class="text-muted">${license.remainingCredits || 0}</span>
-                                        / ${license.totalCredits || 0}
-                                    </td>
-                                    <td>
-                                        ${license.isDisabled && html`
-                                            <span class="badge bg-warning">Disabled</span>
-                                        `}
-                                        ${!license.isActive && !license.isDisabled && html`
-                                            <span class="badge bg-danger">Inactive</span>
-                                        `}
-                                        ${license.isActive && !license.isDisabled && html`
-                                            <span class="badge bg-success">Active</span>
-                                        `}
-                                    </td>
-                                    <td class="text-muted">
-                                        ${license.rotatedAt ? new Date(license.rotatedAt).toLocaleDateString() : 'Never'}
-                                    </td>
-                                    <td>
-                                        <div class="btn-group">
-                                            <button 
-                                                class="btn btn-sm btn-primary"
-                                                onClick=${() => onRotate(license.licenseId || license.rowKey)}
-                                                disabled=${!license.isActive}
-                                            >
-                                                Rotate
-                                            </button>
-                                            <button 
-                                                class="btn btn-sm ${license.isDisabled ? 'btn-success' : 'btn-warning'}"
-                                                onClick=${() => onDisable(license.licenseId || license.rowKey, license.isDisabled)}
-                                            >
-                                                ${license.isDisabled ? 'Enable' : 'Disable'}
-                                            </button>
-                                            ${isSiteAdmin && html`
-                                                <button 
-                                                    class="btn btn-sm btn-info"
-                                                    onClick=${() => onAdjust(license)}
-                                                    title="Adjust seats and credits"
-                                                >
-                                                    Adjust
-                                                </button>
-                                            `}
-                                        </div>
-                                    </td>
-                                </tr>
-                            `;
-                        })}
-                    </tbody>
-                </table>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="card-title mb-0">License Management</h3>
             </div>
+            
+            ${(!licenses || licenses.length === 0) ? html`
+                <div class="empty">
+                    <div class="empty-icon">
+                        <i class="ti ti-key icon"></i>
+                    </div>
+                    <p class="empty-title">No licenses found</p>
+                    <p class="empty-subtitle text-muted">Contact your administrator to create a license</p>
+                </div>
+            ` : html`
+                <div class="table-responsive">
+                    <table class="table table-vcenter">
+                        <thead>
+                            <tr>
+                                <th>Serial Key</th>
+                                <th>Type</th>
+                                <th>Seats</th>
+                                <th>Credits</th>
+                                <th>Status</th>
+                                <th>Rotated</th>
+                                <th class="w-1"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${licenses.map(license => {
+                                const id = license.licenseId || license.rowKey;
+                                const serialKey = license.serialKey || 'N/A';
+                                const isVisible = visibleKeys[id];
+                                const displayKey = isVisible ? serialKey : (serialKey.length > 8 ? `${serialKey.substring(0, 4)}-****-****` : serialKey);
+                                
+                                return html`
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <code class="me-2">${displayKey}</code>
+                                                <button 
+                                                    class="btn btn-sm btn-icon btn-ghost-secondary me-1"
+                                                    onClick=${() => toggleKey(id)}
+                                                    title=${isVisible ? "Hide key" : "Show key"}
+                                                >
+                                                    <i class=${`ti ti-eye${isVisible ? '-off' : ''}`}></i>
+                                                </button>
+                                                <button 
+                                                    class="btn btn-sm btn-icon btn-ghost-secondary"
+                                                    onClick=${() => onCopy(serialKey)}
+                                                    title="Copy full key"
+                                                >
+                                                    <i class="ti ti-copy"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">${license.licenseType || 'Business'}</span>
+                                        </td>
+                                        <td>${license.seats || 'N/A'}</td>
+                                        <td>
+                                            <span class="text-muted">${license.remainingCredits || 0}</span>
+                                            / ${license.totalCredits || 0}
+                                        </td>
+                                        <td>
+                                            ${license.isDisabled && html`
+                                                <span class="badge bg-warning">Disabled</span>
+                                            `}
+                                            ${!license.isActive && !license.isDisabled && html`
+                                                <span class="badge bg-danger">Inactive</span>
+                                            `}
+                                            ${license.isActive && !license.isDisabled && html`
+                                                <span class="badge bg-success">Active</span>
+                                            `}
+                                        </td>
+                                        <td class="text-muted">
+                                            ${license.rotatedAt ? new Date(license.rotatedAt).toLocaleDateString() : 'Never'}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group">
+                                                <button 
+                                                    class="btn btn-sm btn-primary"
+                                                    onClick=${() => onRotate(id)}
+                                                    disabled=${!license.isActive}
+                                                >
+                                                    Rotate
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            `}
             
             <div class="alert alert-info mt-3">
                 <div class="d-flex">
@@ -1098,10 +769,10 @@ function LicensesTab({ licenses, onRotate, onDisable, onCopy, onAdjust, isSiteAd
 }
 
 // Team Tab
-function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpdateRole, teamEmail, setTeamEmail, teamRole, setTeamRole, accounts, isValidEmail, setTeamSearch, teamSearch, showTeamDropdown, setShowTeamDropdown }) {
-    const filteredAccounts = teamSearch 
+function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpdateRole, teamEmail, setTeamEmail, teamRole, setTeamRole, accounts = [], isValidEmail, setTeamSearch, teamSearch, showTeamDropdown, setShowTeamDropdown }) {
+    const filteredAccounts = (accounts && accounts.length > 0 && teamSearch)
         ? accounts.filter(acc => acc.email?.toLowerCase().includes(teamSearch.toLowerCase()) || acc.name?.toLowerCase().includes(teamSearch.toLowerCase()))
-        : accounts;
+        : (accounts || []);
     
     const handleSelectUser = (email) => {
         setTeamEmail(email);
@@ -1261,489 +932,6 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
     `;
 }
 
-// Advanced Tab (Site Admin only)
-function AdvancedTab({ org, telemetryConfig, onReload, onCreateOrg, onUpdateOrg, onDisableOrg, onDeleteOrg, 
-    newOrgName, setNewOrgName, newOwnerEmail, setNewOwnerEmail, newOrgSeats, setNewOrgSeats, newOrgDuration, setNewOrgDuration,
-    updateOrgName, setUpdateOrgName,
-    advancedTab, setAdvancedTab, accounts, isValidEmail,
-    orgOwnerSearch, setOrgOwnerSearch, showOwnerDropdown, setShowOwnerDropdown,
-    onSendTestEmail, sendingTestEmail,
-    showChangeUserType, setShowChangeUserType, selectedUser, setSelectedUser, newUserType, setNewUserType, onChangeUserType, changingUserType,
-    showTransferOwner, setShowTransferOwner, newTransferOwner, setNewTransferOwner, onTransferOwnership, transferringOwner }) {
-    
-    const filteredOwnerAccounts = orgOwnerSearch 
-        ? accounts.filter(acc => acc.email?.toLowerCase().includes(orgOwnerSearch.toLowerCase()))
-        : accounts;
-
-    const [showDangerZone, setShowDangerZone] = useState(false);
-    const [accountsSearch, setAccountsSearch] = useState('');
-    
-    const handleSelectOwner = (email) => {
-        setNewOwnerEmail(email);
-        setOrgOwnerSearch('');
-        setShowOwnerDropdown(false);
-    };
-
-    const filteredAccounts = accountsSearch
-        ? (accounts || []).filter(acc =>
-            acc.email?.toLowerCase().includes(accountsSearch.toLowerCase()) ||
-            acc.userType?.toLowerCase().includes(accountsSearch.toLowerCase())
-        )
-        : (accounts || []);
-
-    return html`
-        <div>
-            <h3 class="card-title mb-3">Advanced Configuration (Site Admin)</h3>
-            
-            <div class="alert alert-warning">
-                <div class="d-flex">
-                    <div>
-                        <i class="ti ti-shield-lock icon alert-icon"></i>
-                    </div>
-                    <div>
-                        <h4 class="alert-title">Site Admin Access</h4>
-                        <p class="mb-0">These settings affect telemetry, SAS tokens, and org-level configuration.</p>
-                    </div>
-                </div>
-            </div>
-
-            ${telemetryConfig && html`
-                <div class="card bg-light mb-3">
-                    <div class="card-body">
-                        <h4>Telemetry Configuration</h4>
-                        <table class="table table-sm">
-                            <tbody>
-                                <tr>
-                                    <td>SAS Lifetime</td>
-                                    <td><code>${telemetryConfig.sasLifetimeHours || 6} hours</code></td>
-                                </tr>
-                                <tr>
-                                    <td>Ingest Mode</td>
-                                    <td><code>${telemetryConfig.ingestMode || 'DirectToTable'}</code></td>
-                                </tr>
-                                <tr>
-                                    <td>SAS Scope</td>
-                                    <td><code>${telemetryConfig.sasScope || 'PerOrg'}</code></td>
-                                </tr>
-                                <tr>
-                                    <td>Telemetry Enabled</td>
-                                    <td>
-                                        <span class=${`badge ${telemetryConfig.telemetryEnabled ? 'bg-success' : 'bg-danger'}`}>
-                                            ${telemetryConfig.telemetryEnabled ? 'Yes' : 'No'}
-                                        </span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `}
-
-            <!-- Org Management Tabs -->
-            <div class="card">
-                <div class="card-header">
-                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
-                        <li class="nav-item">
-                            <a 
-                                class=${`nav-link ${advancedTab === 'create' ? 'active' : ''}`}
-                                href="#"
-                                onClick=${(e) => { e.preventDefault(); setAdvancedTab('create'); }}
-                            >
-                                <i class="ti ti-plus me-2"></i>
-                                Create Organization
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a 
-                                class=${`nav-link ${advancedTab === 'update' ? 'active' : ''}`}
-                                href="#"
-                                onClick=${(e) => { e.preventDefault(); setAdvancedTab('update'); }}
-                            >
-                                <i class="ti ti-edit me-2"></i>
-                                Update Organization
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a 
-                                class=${`nav-link ${advancedTab === 'accounts' ? 'active' : ''}`}
-                                href="#"
-                                onClick=${(e) => { e.preventDefault(); setAdvancedTab('accounts'); }}
-                            >
-                                <i class="ti ti-users me-2"></i>
-                                Accounts
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-
-                <div class="card-body">
-                    ${advancedTab === 'create' && html`
-                        <div>
-                            <h4 class="card-title mb-4">Create New Organization</h4>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">Organization Name <span class="text-danger">*</span></label>
-                                    <input 
-                                        class="form-control" 
-                                        placeholder="Acme Corp" 
-                                        value=${newOrgName} 
-                                        onInput=${(e) => setNewOrgName(e.target.value)} 
-                                    />
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Owner Email <span class="text-danger">*</span></label>
-                                    <div class="position-relative">
-                                        <input 
-                                            type="text" 
-                                            class=${`form-control ${newOwnerEmail && !isValidEmail(newOwnerEmail) ? 'is-invalid' : ''}`}
-                                            placeholder="admin@example.com" 
-                                            value=${newOwnerEmail} 
-                                            onInput=${(e) => {
-                                                setNewOwnerEmail(e.target.value);
-                                                setOrgOwnerSearch(e.target.value);
-                                                setShowOwnerDropdown(true);
-                                            }}
-                                            onFocus=${() => setShowOwnerDropdown(true)}
-                                        />
-                                        ${newOwnerEmail && !isValidEmail(newOwnerEmail) && html`
-                                            <div class="invalid-feedback d-block mt-1">
-                                                <small><i class="ti ti-alert-circle me-1"></i>Please enter a valid email address</small>
-                                            </div>
-                                        `}
-                                        ${showOwnerDropdown && filteredOwnerAccounts.length > 0 && html`
-                                            <div class="dropdown-menu show position-absolute w-100" style="top: 100%; z-index: 1000; display: block;">
-                                                ${filteredOwnerAccounts.slice(0, 10).map(acc => html`
-                                                    <button 
-                                                        type="button"
-                                                        class="dropdown-item"
-                                                        onClick=${() => handleSelectOwner(acc.email)}
-                                                    >
-                                                        <small>${acc.email}</small>
-                                                    </button>
-                                                `)}
-                                            </div>
-                                        `}
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Seats</label>
-                                    <input type="number" class="form-control" placeholder="20" value=${newOrgSeats} onInput=${(e) => setNewOrgSeats(e.target.value)} />
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">License Duration</label>
-                                    <select 
-                                        class="form-select" 
-                                        value=${newOrgDuration}
-                                        onChange=${(e) => setNewOrgDuration(e.target.value)}
-                                    >
-                                        ${ORG_DURATION_OPTIONS.map(opt => html`
-                                            <option value=${opt.value}>${opt.label}</option>
-                                        `)}
-                                    </select>
-                                </div>
-                                <div class="col-12">
-                                    <button 
-                                        class="btn btn-primary" 
-                                        onClick=${onCreateOrg}
-                                        disabled=${!newOrgName || !newOwnerEmail || !isValidEmail(newOwnerEmail)}
-                                    >
-                                        <i class="ti ti-plus me-2"></i>
-                                        Create Organization
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    `}
-
-                    ${advancedTab === 'update' && html`
-                        <div>
-                            <h4 class="card-title mb-4">Update Current Organization</h4>
-                            ${!org?.orgId ? html`
-                                <div class="alert alert-info">
-                                    <i class="ti ti-info-circle me-2"></i>
-                                    Select an organization from the dropdown to update settings.
-                                </div>
-                            ` : html`
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Organization Name</label>
-                                        <input class="form-control" value=${updateOrgName} onInput=${(e) => setUpdateOrgName(e.target.value)} />
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Owner Email</label>
-                                        <div class="input-group">
-                                            <input type="email" class="form-control" value=${org.ownerEmail} disabled />
-                                            <button 
-                                                class="btn btn-outline-primary"
-                                                onClick=${() => {
-                                                    setNewTransferOwner(org.ownerEmail);
-                                                    setShowTransferOwner(true);
-                                                }}
-                                            >
-                                                <i class="ti ti-arrows-exchange me-1"></i>
-                                                Transfer
-                                            </button>
-                                        </div>
-                                        <small class="text-muted">Current owner or Site Admin can transfer ownership</small>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Current Status</label>
-                                        <div>
-                                            <span class=${`badge ${org.isDisabled ? 'bg-danger' : 'bg-success'}`}>
-                                                ${org.isDisabled ? 'Disabled' : 'Active'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div class="col-12">
-                                        <div class="card border mt-3">
-                                            <div class="card-body d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-                                                <div>
-                                                    <div class="fw-bold">Test email delivery</div>
-                                                    <div class="text-muted small">Sends from magensec@gigabits.co.in to org owner (${org.ownerEmail || 'not set'}).</div>
-                                                </div>
-                                                <button 
-                                                    class="btn btn-outline-primary"
-                                                    onClick=${onSendTestEmail}
-                                                    disabled=${sendingTestEmail || !org?.orgId}
-                                                >
-                                                    ${sendingTestEmail ? 'Sending…' : 'Send test email'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-12">
-                                        <hr />
-                                        <div class="d-flex gap-2">
-                                            <button class="btn btn-primary" onClick=${onUpdateOrg}>
-                                                <i class="ti ti-device-floppy me-2"></i>
-                                                Update Organization
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="col-12 mt-3">
-                                        <div class="card border border-danger">
-                                            <div class="card-header d-flex justify-content-between align-items-center">
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <span class="badge bg-danger">Danger</span>
-                                                    <span class="fw-bold">Danger Zone</span>
-                                                </div>
-                                                <button 
-                                                    class="btn btn-sm btn-outline-danger"
-                                                    onClick=${() => setShowDangerZone(!showDangerZone)}
-                                                >
-                                                    ${showDangerZone ? 'Hide' : 'Show'}
-                                                </button>
-                                            </div>
-                                            ${showDangerZone && html`
-                                                <div class="card-body">
-                                                    <p class="text-muted mb-3">
-                                                        Actions below are destructive or impact availability. Proceed with caution.
-                                                    </p>
-                                                    <div class="d-flex flex-wrap gap-2">
-                                                        <button class="btn btn-warning" onClick=${onDisableOrg}>
-                                                            <i class="ti ti-ban me-2"></i>
-                                                            ${org.isDisabled ? 'Enable Organization' : 'Disable Organization'}
-                                                        </button>
-                                                        <button class="btn btn-danger" onClick=${onDeleteOrg}>
-                                                            <i class="ti ti-trash me-2"></i>
-                                                            Delete Organization
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            `}
-                                        </div>
-                                    </div>
-                                </div>
-                            `}
-                        </div>
-                    `}
-
-                    ${advancedTab === 'accounts' && html`
-                        <div>
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div>
-                                    <h4 class="card-title mb-1">Accounts Directory</h4>
-                                    <div class="text-muted small">Site Admin view of all accounts for quick lookup and assignments.</div>
-                                </div>
-                                <button class="btn btn-outline-secondary" onClick=${onReload}>
-                                    <i class="ti ti-refresh me-1"></i>
-                                    Refresh
-                                </button>
-                            </div>
-
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-6">
-                                    <input 
-                                        type="text" 
-                                        class="form-control"
-                                        placeholder="Filter by email or role"
-                                        value=${accountsSearch}
-                                        onInput=${(e) => setAccountsSearch(e.target.value)}
-                                    />
-                                </div>
-                                <div class="col-md-6 text-end text-muted align-self-center">
-                                    <small>${filteredAccounts.length} of ${(accounts || []).length} accounts</small>
-                                </div>
-                            </div>
-
-                            ${(!accounts || accounts.length === 0) ? html`
-                                <div class="empty">
-                                    <div class="empty-icon"><i class="ti ti-users"></i></div>
-                                    <p class="empty-title">No accounts found</p>
-                                    <p class="empty-subtitle text-muted">Accounts will appear here once users sign in.</p>
-                                </div>
-                            ` : html`
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Email</th>
-                                                <th>User Type</th>
-                                                <th>Created</th>
-                                                <th>Last Login</th>
-                                                <th class="text-center">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${filteredAccounts.map(acc => html`
-                                                <tr>
-                                                    <td><span class="fw-semibold">${acc.email}</span></td>
-                                                    <td><span class="badge bg-primary-lt text-uppercase">${acc.userType || 'Individual'}</span></td>
-                                                    <td class="text-muted">${acc.createdAt ? new Date(acc.createdAt).toLocaleString() : 'N/A'}</td>
-                                                    <td class="text-muted">${acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString() : 'Never'}</td>
-                                                    <td class="text-center">
-                                                        <button 
-                                                            class="btn btn-sm btn-outline-primary"
-                                                            onClick=${() => {
-                                                                setSelectedUser(acc);
-                                                                setNewUserType(acc.userType === 'SiteAdmin' ? 'Individual' : 'SiteAdmin');
-                                                                setShowChangeUserType(true);
-                                                            }}
-                                                        >
-                                                            <i class="ti ti-switch-horizontal me-1"></i>
-                                                            Change Type
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            `)}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            `}
-                        </div>
-                    `}
-                </div>
-            </div>
-
-            <!-- Change User Type Modal -->
-            ${showChangeUserType && selectedUser && html`
-                <div class="modal modal-blur fade show" style="display: block;" onClick=${() => setShowChangeUserType(false)}>
-                    <div class="modal-dialog modal-dialog-centered" onClick=${(e) => e.stopPropagation()}>
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Change User Type</h5>
-                                <button type="button" class="btn-close" onClick=${() => setShowChangeUserType(false)}></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label class="form-label">User</label>
-                                    <input type="text" class="form-control" value=${selectedUser.email} disabled />
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Current Type</label>
-                                    <input type="text" class="form-control" value=${selectedUser.userType || 'Individual'} disabled />
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">New Type</label>
-                                    <select 
-                                        class="form-select" 
-                                        value=${newUserType}
-                                        onChange=${(e) => setNewUserType(e.target.value)}
-                                    >
-                                        <option value="Individual">Individual</option>
-                                        <option value="SiteAdmin">SiteAdmin</option>
-                                    </select>
-                                </div>
-                                <div class="alert alert-warning">
-                                    <i class="ti ti-alert-triangle me-2"></i>
-                                    <strong>Warning:</strong> Changing user type affects their permissions across the entire system.
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" onClick=${() => setShowChangeUserType(false)}>
-                                    Cancel
-                                </button>
-                                <button 
-                                    type="button" 
-                                    class="btn btn-primary" 
-                                    onClick=${onChangeUserType}
-                                    disabled=${changingUserType || !newUserType}
-                                >
-                                    ${changingUserType ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : ''}
-                                    Change Type
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `}
-
-            <!-- Transfer Ownership Modal -->
-            ${showTransferOwner && org && html`
-                <div class="modal modal-blur fade show" style="display: block;" onClick=${() => setShowTransferOwner(false)}>
-                    <div class="modal-dialog modal-dialog-centered" onClick=${(e) => e.stopPropagation()}>
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Transfer Ownership</h5>
-                                <button type="button" class="btn-close" onClick=${() => setShowTransferOwner(false)}></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label class="form-label">Organization</label>
-                                    <input type="text" class="form-control" value=${org.orgName} disabled />
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Current Owner</label>
-                                    <input type="text" class="form-control" value=${org.ownerEmail} disabled />
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">New Owner Email</label>
-                                    <input 
-                                        type="email" 
-                                        class="form-control" 
-                                        placeholder="newowner@example.com"
-                                        value=${newTransferOwner}
-                                        onInput=${(e) => setNewTransferOwner(e.target.value)}
-                                        disabled=${transferringOwner}
-                                    />
-                                    <small class="text-muted">New owner must be an existing org member</small>
-                                </div>
-                                <div class="alert alert-danger">
-                                    <i class="ti ti-alert-circle me-2"></i>
-                                    <strong>Caution:</strong> Transferring ownership gives full control to the new owner. This action cannot be undone.
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" onClick=${() => setShowTransferOwner(false)}>
-                                    Cancel
-                                </button>
-                                <button 
-                                    type="button" 
-                                    class="btn btn-danger" 
-                                    onClick=${onTransferOwnership}
-                                    disabled=${transferringOwner || !newTransferOwner || !isValidEmail(newTransferOwner)}
-                                >
-                                    ${transferringOwner ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : ''}
-                                    Transfer Ownership
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `}
-        </div>
-    `;
-}
 
 // Email Notifications Tab - Manage email notification preferences
 function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, savingPreferences, onSavePreferences }) {

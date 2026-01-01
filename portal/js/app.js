@@ -16,9 +16,12 @@ import { PosturePage } from './pages/posture.js';
 import { ThreatIntelPage } from './pages/threatIntel.js';
 import { ResponseActionsPage } from './pages/responseActions.js';
 import { VulnerabilitiesPage } from './pages/vulnerabilities.js';
-import { InventoryPage, TrendsPage, OrgsPage, MembersPage, LicensesPage, AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, AlertsPage, PlatformInsightsPage } from './pages/placeholders.js';
+import { AlertsPage } from './pages/alerts.js';
+import { AssetsPage } from './pages/assets.js';
+import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
 import { SettingsPage } from './pages/settings.js';
 import { AuditPage } from './pages/audit.js';
+import { SiteAdminPage } from './pages/siteAdmin.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
@@ -74,15 +77,9 @@ function App() {
         case 'platform-insights':
             return html`<${PlatformInsightsPage} />`;
         case 'inventory':
-            return html`<${InventoryPage} />`;
-        case 'trends':
-            return html`<${TrendsPage} />`;
-        case 'orgs':
-            return html`<${OrgsPage} />`;
-        case 'members':
-            return html`<${MembersPage} />`;
-        case 'licenses':
-            return html`<${LicensesPage} />`;
+            return html`<${AssetsPage} />`;
+        case 'site-admin':
+            return html`<${SiteAdminPage} />`;
         case 'account':
             return html`<${AccountPage} />`;
         case 'settings':
@@ -133,6 +130,14 @@ function setAuthenticationState(isAuthenticated) {
                     fallback.textContent = initials;
                     fallback.style.display = 'flex';
                 }
+            }
+
+            // Toggle Site Admin links
+            const siteAdminElements = document.querySelectorAll('.site-admin-only');
+            if (user?.userType === 'SiteAdmin') {
+                siteAdminElements.forEach(el => el.style.display = '');
+            } else {
+                siteAdminElements.forEach(el => el.style.display = 'none');
             }
         } catch {}
         

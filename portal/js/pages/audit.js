@@ -7,8 +7,6 @@ import { orgContext } from '../orgContext.js';
 import { auth } from '../auth.js';
 import toast from '../toast.js';
 import { logger } from '../config.js';
-import { ApiAuditPage } from './apiAudit.js';
-import { DeviceActivityPage } from './deviceActivity.js';
 
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
@@ -1397,7 +1395,7 @@ export function AuditPage() {
             return html`
                 <div class="container-xl">
                     <div class="page-header d-print-none">
-                        <h2 class="page-title">Audit Events</h2>
+                        <h2 class="page-title">Audit</h2>
                     </div>
                     <div class="text-center py-5">
                         <div class="spinner-border text-primary" role="status"></div>
@@ -1412,7 +1410,7 @@ export function AuditPage() {
             <div class="page-header d-print-none">
                 <div class="row align-items-center">
                     <div class="col">
-                        <h2 class="page-title">Audit Events</h2>
+                        <h2 class="page-title">Audit</h2>
                         <div class="text-muted mt-1">
                             ${activeTab === 'analytics' ? 'Analytics Dashboard' : `${filteredEvents.length} ${filteredEvents.length === 1 ? 'event' : 'events'}`}
                             ${activeTab === 'timeline' && (filters.eventType !== 'all' || filters.search || filters.dateFrom || filters.dateTo) ? '(filtered)' : ''}
@@ -1452,36 +1450,12 @@ export function AuditPage() {
                                 Timeline
                             </a>
                         </li>
-                        ${isSiteAdmin ? html`
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'user-activity' ? 'active' : ''}"
-                                href="#"
-                                role="tab"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('user-activity'); }}
-                            >
-                                <i class="ti ti-user-check me-2"></i>
-                                User Activity
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'device-activity' ? 'active' : ''}"
-                                href="#"
-                                role="tab"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('device-activity'); }}
-                            >
-                                <i class="ti ti-device-mobile me-2"></i>
-                                Device Activity
-                            </a>
-                        </li>
-                        ` : null}
                     </ul>
                 </div>
             </div>
 
             <!-- Tab Content -->
-            ${activeTab === 'analytics' ? renderAnalyticsTab() : activeTab === 'timeline' ? renderTimelineTab() : (isSiteAdmin && activeTab === 'user-activity') ? html`<${ApiAuditPage} />` : (isSiteAdmin && activeTab === 'device-activity') ? html`<${DeviceActivityPage} />` : renderAnalyticsTab()}
+            ${activeTab === 'analytics' ? renderAnalyticsTab() : renderTimelineTab()}
         </div>
     `;
     } catch (error) {

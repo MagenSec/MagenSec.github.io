@@ -42,7 +42,7 @@ class LicensesPage extends Component {
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId || user.email;
             
-            const response = await api.get(`/api/v1/orgs/${orgId}/licenses`);
+            const response = await api.get(`/api/v1/licenses/org/${orgId}`);
             
             if (response.success) {
                 this.setState({ licenses: response.data || [], loading: false });
@@ -188,12 +188,18 @@ class LicensesPage extends Component {
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Licenses</h3>
-                    ${isSiteAdmin && html`
-                        <button class="btn btn-primary" onClick=${() => this.setState({ showCreateModal: true })}>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                            Create License
+                    <div class="btn-list">
+                        <button class="btn btn-secondary" onClick=${() => this.loadLicenses()} title="Refresh Licenses">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                            Refresh
                         </button>
-                    `}
+                        ${isSiteAdmin && html`
+                            <button class="btn btn-primary" onClick=${() => this.setState({ showCreateModal: true })}>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                Create License
+                            </button>
+                        `}
+                    </div>
                 </div>
                 <div class="card-body">
                     ${licenses.length === 0 ? html`
@@ -342,7 +348,7 @@ class LicensesPage extends Component {
     }
 }
 
-export default LicensesPage;
+export { LicensesPage };
 
 // Initialize page
 if (document.getElementById('page-root')) {
