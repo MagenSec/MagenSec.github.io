@@ -4,6 +4,7 @@ import toast from '../toast.js';
 import { logger } from '../config.js';
 import { ApiAuditPage } from './apiAudit.js';
 import { DeviceActivityPage } from './deviceActivity.js';
+import { AiReportsAnalysisPage } from './aiReportsAnalysis.js';
 import { LicenseAdjustmentDialog } from '../components/LicenseAdjustmentDialog.js';
 
 const { html } = window;
@@ -430,6 +431,16 @@ export function SiteAdminPage() {
                             >
                                 <i class="ti ti-device-desktop me-2"></i>
                                 Device Activity
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'ai-reports' ? 'active' : ''}"
+                                href="#"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('ai-reports'); }}
+                            >
+                                <i class="ti ti-brain me-2"></i>
+                                AI Reports
                             </a>
                         </li>
                     </ul>
@@ -881,6 +892,7 @@ export function SiteAdminPage() {
 
                     ${activeTab === 'user-activity' && html`<${ApiAuditPage} />`}
                     ${activeTab === 'device-activity' && html`<${DeviceActivityPage} />`}
+                    ${activeTab === 'ai-reports' && html`<${AiReportsAnalysisPage} />`}
                 </div>
             </div>
 

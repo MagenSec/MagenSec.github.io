@@ -53,11 +53,20 @@ export class PosturePage extends Component {
         this.setState({ loading: true, error: null });
 
         try {
-            const data = await api.get(`/api/v1/analyst/reports/${orgId}/historical/${date}`);
+            // Use the new AI endpoint
+            const data = await api.get(`/api/v1/orgs/${orgId}/ai/reports/${date}`);
 
-            // Handle 404 - no report exists for this date (check both error field and success flag)
+            // Handle 404 - no report exists for this date
             if (!data || data.error === 'NOT_FOUND' || data.error?.includes('No dashboard report found') || data.success === false) {
-                // Show generate button instead of auto-generating
+                // Auto-generate report if none exists for today
+                const isToday = date === new Date().toISOString().slice(0,10).replace(/-/g,'');
+                if (isToday) {
+                    logger.info(`[Posture] No report found for today, auto-generating...`);
+                    await this.generateDashboard();
+                    return;
+                }
+                
+                // For historical dates, show generate button
                 this.setState({
                     loading: false,
                     error: null,
@@ -78,11 +87,11 @@ export class PosturePage extends Component {
 
             this.setState({
                 loading: false,
-                report: data.report || data.data || null,
-                reportId: data.reportId || data.data?.reportId || null,
+                report: data.report,
+                reportId: `REPORT-${date}`,
                 generatedAt: data.generatedAt ? new Date(data.generatedAt) : null,
-                nextRefreshAt: data.nextRefreshAt ? new Date(data.nextRefreshAt) : null,
-                canRefreshNow: data.canRefreshNow !== false,
+                nextRefreshAt: null, // Not supported in new endpoint yet
+                canRefreshNow: true,
                 selectedDate: date,
                 showGenerateButton: false
             });
@@ -121,34 +130,52 @@ export class PosturePage extends Component {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg) return;
 
+        const selectedModel = this.state.selectedModel || 'heuristic';
+        const user = auth.getUser();
+        
+        // Check if report already exists for today (skip if not forcing regeneration)
+        const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        if (this.state.selectedDate === today && this.state.report && user?.userType !== 'SiteAdmin') {
+            logger.info('[Posture] Report already exists for today, skipping generation');
+            return;
+        }
+
         this.setState({ refreshing: true, error: null, showGenerateButton: false });
 
         try {
-            // Trigger new dashboard generation with !dashboard prompt including orgId
-            const data = await api.post('/api/v1/analyst/run', {
-                prompt: `!dashboard\nOrgId: ${currentOrg.orgId}`,
-                waitSeconds: 5 // Short timeout, expect 202
-            });
+            // Trigger new dashboard generation via the new AI endpoint
+            const payload = user?.userType === 'SiteAdmin' && selectedModel !== 'heuristic' 
+                ? { model: selectedModel } 
+                : {};
+                
+            const data = await api.post(`/api/v1/orgs/${currentOrg.orgId}/ai/reports/generate`, payload);
 
             if (!data.success) {
                 throw new Error(data.message || data.error || 'Failed to refresh dashboard');
             }
 
-            // If completed inline (unlikely for dashboard), reload
+            // The new endpoint returns the report content directly with the date it was stored
             if (data.report) {
+                const generatedDate = data.generatedDate || new Date().toISOString().slice(0,10).replace(/-/g,'');
+                const reportId = data.reportId || `REPORT-${generatedDate}`;
+                
                 this.setState({
                     refreshing: false,
                     report: data.report,
-                    reportId: data.reportId,
+                    reportId: reportId,
                     generatedAt: new Date(),
-                    canRefreshNow: false
+                    canRefreshNow: false,
+                    showGenerateButton: false,
+                    selectedDate: generatedDate
                 });
+                logger.info(`[Posture] Report generated with model ${selectedModel}: ${reportId}`);
                 return;
             }
 
-            // Otherwise poll for completion
-            const reportId = data.reportId;
-            await this.pollForCompletion(reportId);
+            // Fallback for async behavior (if implemented later)
+            if (data.reportId) {
+                await this.pollForCompletion(data.reportId);
+            }
         } catch (err) {
             this.setState({ 
                 error: err.message || 'Failed to refresh dashboard', 
@@ -249,6 +276,21 @@ export class PosturePage extends Component {
                         </div>
                         <div class="col-auto ms-auto d-print-none">
                             <div class="btn-list">
+                                ${user?.userType === 'SiteAdmin' && html`
+                                    <select 
+                                        class="form-select d-inline-block w-auto me-2" 
+                                        value=${this.state.selectedModel || 'heuristic'}
+                                        onChange=${(e) => this.setState({ selectedModel: e.target.value })}
+                                        title="AI Model Selection (SiteAdmin only)"
+                                    >
+                                        <option value="heuristic">Heuristic (Fast)</option>
+                                        <option value="mistral-7b-instruct">Mistral-7B-Instruct-GGUF</option>
+                                        <option value="tinyllama-1.1b">TinyLlama-1.1B</option>
+                                        <option value="qwen2.5-0.5b">Qwen2.5-0.5B-Instruct</option>
+                                        <option value="phi3-mini">Phi-3-Mini-4K-Instruct</option>
+                                        <option value="llama-3.1-8b">Meta-Llama-3.1-8B-Instruct-GPTQ-INT4</option>
+                                    </select>
+                                `}
                                 <input 
                                     type="date" 
                                     class="form-control d-inline-block w-auto" 
@@ -304,9 +346,9 @@ export class PosturePage extends Component {
                                 </svg>
                             </div>
                             <div class="flex-fill">
-                                <h4 class="alert-title">No Security Report Available</h4>
+                                <h4 class="alert-title">📊 Premium Security Posture Report</h4>
                                 <div class="text-secondary mb-3">
-                                    No security posture report has been generated for ${this.formatDateDisplay(selectedDate)} yet.
+                                    Generate your comprehensive security assessment for ${this.formatDateDisplay(selectedDate)} with detailed vulnerability analysis, compliance metrics, and actionable recommendations.
                                 </div>
                                 <button 
                                     class="btn btn-primary"
@@ -372,17 +414,37 @@ export class PosturePage extends Component {
                         ${generatedAt && html`
                             <div class="col-12">
                                 <div class="card">
-                                    <div class="card-body">
+                                    <div class="card-body d-flex justify-content-between align-items-center">
                                         <div class="text-secondary">
-                                            <small>Generated: ${generatedAt.toLocaleString()}</small>
-                                            ${reportId && html` | <small>Report ID: <code>${reportId}</code></small>`}
+                                            <small>📅 Generated: ${generatedAt.toLocaleString()}</small>
+                                            ${reportId && html` | <small>📋 Report ID: <code>${reportId}</code></small>`}
+                                        </div>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-primary" title="Print or save as PDF" onClick=${() => window.print()}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17 17h2a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h2"/><rect x="6" y="9" width="12" height="9" rx="2" ry="2"/></svg>
+                                                Print
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-primary" title="Download as HTML file" onClick=${() => this.downloadReportHTML(report)}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><polyline points="7 11 12 16 17 11" /><line x1="12" y1="4" x2="12" y2="15" /></svg>
+                                                Download
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         `}
 
-                        ${report.ExecutiveSummary && html`
+                        ${typeof report === 'string' && html`
+                            <div class="col-12">
+                                <div class="card report-card">
+                                    <div class="card-body markdown report-content">
+                                        <div dangerouslySetInnerHTML=${{ __html: this.renderMarkdown(report) }}></div>
+                                    </div>
+                                </div>
+                            </div>
+                        `}
+
+                        ${typeof report === 'object' && report.ExecutiveSummary && html`
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-header">
@@ -655,14 +717,173 @@ export class PosturePage extends Component {
         
         try {
             const rawHtml = window.marked.parse(text);
-            return window.DOMPurify.sanitize(rawHtml, {
-                ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'a', 'blockquote'],
-                ALLOWED_ATTR: ['href', 'title'],
+            const sanitized = window.DOMPurify.sanitize(rawHtml, {
+                ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'a', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img', 'div', 'svg', 'g', 'path', 'circle', 'rect', 'line', 'text', 'polyline', 'polygon'],
+                ALLOWED_ATTR: ['href', 'title', 'src', 'alt', 'class', 'd', 'cx', 'cy', 'r', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points', 'fill', 'stroke', 'stroke-width', 'viewBox', 'data-id'],
                 ALLOW_DATA_ATTR: false
             });
+            
+            // Handle Mermaid diagram blocks
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = sanitized;
+            
+            // Find all mermaid code blocks and mark them for rendering
+            tempDiv.querySelectorAll('code.language-mermaid').forEach(block => {
+                const pre = block.parentElement;
+                if (pre && pre.tagName === 'PRE') {
+                    const div = document.createElement('div');
+                    div.className = 'mermaid';
+                    div.textContent = block.textContent;
+                    pre.replaceWith(div);
+                }
+            });
+            
+            return tempDiv.innerHTML;
         } catch (err) {
             logger.error('[PosturePage] Markdown parsing failed:', err);
             return '';
         }
+    }
+
+    downloadReportHTML(report) {
+        const currentOrg = orgContext.getCurrentOrg();
+        const now = new Date();
+        const filename = `${currentOrg?.name || 'Security'}-Report-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.html`;
+        
+        const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Posture Report - ${currentOrg?.name || 'Organization'}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: white;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header {
+            border-bottom: 3px solid #0066cc;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+        }
+        h1, h2, h3, h4, h5, h6 { 
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            color: #0066cc;
+        }
+        h1 { font-size: 2em; }
+        h2 { font-size: 1.5em; }
+        h3 { font-size: 1.2em; }
+        p { margin-bottom: 1em; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5em;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            color: #0066cc;
+        }
+        tr:nth-child(even) { background-color: #fafafa; }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            background: #fafafa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 1em;
+        }
+        ul, ol { margin-left: 2em; margin-bottom: 1em; }
+        li { margin-bottom: 0.5em; }
+        strong { color: #0066cc; }
+        .alert {
+            border-left: 4px solid #0066cc;
+            padding: 15px;
+            margin-bottom: 1.5em;
+            background-color: #f0f7ff;
+            border-radius: 4px;
+        }
+        .footer {
+            border-top: 1px solid #ddd;
+            margin-top: 50px;
+            padding-top: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        @media print {
+            body { background: white; padding: 0; }
+            .no-print { display: none !important; }
+            a { text-decoration: none; color: #0066cc; }
+            h1, h2, h3 { page-break-after: avoid; }
+            table, .mermaid { page-break-inside: avoid; }
+            h2 { page-break-before: always; margin-top: 0; }
+            h2:first-of-type { page-break-before: avoid; }
+        }
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"><\/script>
+    <script>
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+    <\/script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Security Posture Report</h1>
+            <p><strong>${currentOrg?.name || 'Organization'}</strong></p>
+            <p><small>Generated: ${now.toLocaleString()}</small></p>
+        </div>
+        <div class="content">
+            ${this.renderMarkdown(report)}
+        </div>
+        <div class="footer">
+            <p><strong>MagenSec Security Platform</strong></p>
+            <p>Continuous Endpoint Security & Compliance</p>
+            <p style="margin-top: 10px; color: #999; font-size: 0.85em;">This report is confidential and intended for authorized recipients only.</p>
+        </div>
+    </div>
+    <script>
+        // Render Mermaid diagrams after page load
+        window.addEventListener('load', function() {
+            mermaid.contentLoaded();
+        });
+    <\/script>
+</body>
+</html>`;
+
+        const blob = new Blob([htmlContent], { type: 'text/html; charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
     }
 }
