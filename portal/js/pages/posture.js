@@ -22,12 +22,39 @@ export class PosturePage extends Component {
             canRefreshNow: false,
             refreshing: false,
             selectedDate: this.formatDate(new Date()),
-            showGenerateButton: false
+            showGenerateButton: false,
+            availableModels: [],  // Fetched from API
+            modelsLoading: true
         };
     }
 
     componentDidMount() {
+        this.loadAvailableModels();
         this.loadDashboard();
+    }
+
+    async loadAvailableModels() {
+        try {
+            const response = await api.get('/api/v1/ai/models');
+            if (response.success && response.data) {
+                this.setState({ 
+                    availableModels: response.data,
+                    modelsLoading: false
+                });
+            } else {
+                // Fallback to heuristic only
+                this.setState({ 
+                    availableModels: [{ modelId: 'heuristic', name: 'Heuristic (Fast)', requiresAdmin: false }],
+                    modelsLoading: false
+                });
+            }
+        } catch (err) {
+            logger.error('[Posture] Failed to load available models:', err);
+            this.setState({ 
+                availableModels: [{ modelId: 'heuristic', name: 'Heuristic (Fast)', requiresAdmin: false }],
+                modelsLoading: false
+            });
+        }
     }
 
     formatDate(date) {
@@ -148,13 +175,16 @@ export class PosturePage extends Component {
                 ? { model: selectedModel } 
                 : {};
                 
-            const data = await api.post(`/api/v1/orgs/${currentOrg.orgId}/ai/reports/generate`, payload);
+            const response = await api.post(`/api/v1/orgs/${currentOrg.orgId}/ai/reports/generate`, payload);
 
-            if (!data.success) {
-                throw new Error(data.message || data.error || 'Failed to refresh dashboard');
+            if (!response.success) {
+                throw new Error(response.message || response.error || 'Failed to refresh dashboard');
             }
 
-            // The new endpoint returns the report content directly with the date it was stored
+            // Extract data from ApiResponse envelope
+            const data = response.data || response;
+            
+            // The endpoint returns the report content with the date it was stored
             if (data.report) {
                 const generatedDate = data.generatedDate || new Date().toISOString().slice(0,10).replace(/-/g,'');
                 const reportId = data.reportId || `REPORT-${generatedDate}`;
@@ -169,6 +199,11 @@ export class PosturePage extends Component {
                     selectedDate: generatedDate
                 });
                 logger.info(`[Posture] Report generated with model ${selectedModel}: ${reportId}`);
+                
+                // Auto-refresh dashboard
+                setTimeout(() => {
+                    this.loadDashboard();
+                }, 500);
                 return;
             }
 
@@ -276,19 +311,16 @@ export class PosturePage extends Component {
                         </div>
                         <div class="col-auto ms-auto d-print-none">
                             <div class="btn-list">
-                                ${user?.userType === 'SiteAdmin' && html`
+                                ${user?.userType === 'SiteAdmin' && this.state.availableModels.length > 0 && html`
                                     <select 
                                         class="form-select d-inline-block w-auto me-2" 
                                         value=${this.state.selectedModel || 'heuristic'}
                                         onChange=${(e) => this.setState({ selectedModel: e.target.value })}
                                         title="AI Model Selection (SiteAdmin only)"
                                     >
-                                        <option value="heuristic">Heuristic (Fast)</option>
-                                        <option value="mistral-7b-instruct">Mistral-7B-Instruct-GGUF</option>
-                                        <option value="tinyllama-1.1b">TinyLlama-1.1B</option>
-                                        <option value="qwen2.5-0.5b">Qwen2.5-0.5B-Instruct</option>
-                                        <option value="phi3-mini">Phi-3-Mini-4K-Instruct</option>
-                                        <option value="llama-3.1-8b">Meta-Llama-3.1-8B-Instruct-GPTQ-INT4</option>
+                                        ${this.state.availableModels.map(model => html`
+                                            <option value="${model.modelId}">${model.name}</option>
+                                        `)}
                                     </select>
                                 `}
                                 <input 

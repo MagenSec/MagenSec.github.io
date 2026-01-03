@@ -11,7 +11,9 @@ export class AssetsPage extends Component {
             loading: true,
             error: null,
             searchTerm: '',
-            riskFilter: 'all'
+            riskFilter: 'all',
+            sortColumn: 'riskScore',
+            sortDirection: 'desc'
         };
     }
 
@@ -39,8 +41,8 @@ export class AssetsPage extends Component {
             const response = await api.getSoftwareInventory(orgId);
             
             if (response.success) {
-                // The API returns { software: [...] } inside data
-                const assets = response.data?.software || [];
+                // The API returns array directly in data
+                const assets = Array.isArray(response.data) ? response.data : [];
                 this.setState({ 
                     assets: assets, 
                     loading: false 
@@ -67,10 +69,29 @@ export class AssetsPage extends Component {
         }
     }
 
-    render() {
-        const { assets, loading, error, searchTerm, riskFilter } = this.state;
+    handleSort(column) {
+        const { sortColumn, sortDirection } = this.state;
+        if (sortColumn === column) {
+            this.setState({ sortDirection: sortDirection === 'asc' ? 'desc' : 'asc' });
+        } else {
+            this.setState({ sortColumn: column, sortDirection: 'desc' });
+        }
+    }
 
-        const filteredAssets = assets.filter(asset => {
+    getRiskValue(riskScore) {
+        switch (riskScore?.toLowerCase()) {
+            case 'critical': return 4;
+            case 'high': return 3;
+            case 'medium': return 2;
+            case 'low': return 1;
+            default: return 0;
+        }
+    }
+
+    render() {
+        const { assets, loading, error, searchTerm, riskFilter, sortColumn, sortDirection } = this.state;
+
+        let filteredAssets = assets.filter(asset => {
             const matchesSearch = !searchTerm || 
                 asset.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 asset.vendor?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -78,6 +99,34 @@ export class AssetsPage extends Component {
             const matchesRisk = riskFilter === 'all' || asset.riskScore?.toLowerCase() === riskFilter.toLowerCase();
             
             return matchesSearch && matchesRisk;
+        });
+
+        // Sort filtered assets
+        filteredAssets = filteredAssets.sort((a, b) => {
+            let aVal, bVal;
+            
+            switch (sortColumn) {
+                case 'deviceCount':
+                    aVal = a.deviceCount || 0;
+                    bVal = b.deviceCount || 0;
+                    break;
+                case 'cveCount':
+                    aVal = a.cveCount || 0;
+                    bVal = b.cveCount || 0;
+                    break;
+                case 'riskScore':
+                    aVal = this.getRiskValue(a.riskScore);
+                    bVal = this.getRiskValue(b.riskScore);
+                    break;
+                default:
+                    return 0;
+            }
+            
+            if (sortDirection === 'asc') {
+                return aVal - bVal;
+            } else {
+                return bVal - aVal;
+            }
         });
 
         if (loading) {
@@ -158,9 +207,24 @@ export class AssetsPage extends Component {
                                 <th>Application</th>
                                 <th>Vendor</th>
                                 <th>Version</th>
-                                <th class="text-center">Installations</th>
-                                <th class="text-center">Vulnerabilities</th>
-                                <th class="text-center">Risk Score</th>
+                                <th class="text-center cursor-pointer" onClick=${() => this.handleSort('deviceCount')}>
+                                    Installations
+                                    ${sortColumn === 'deviceCount' ? html`
+                                        <i class=${`ti ti-arrow-${sortDirection === 'asc' ? 'up' : 'down'} ms-1`}></i>
+                                    ` : ''}
+                                </th>
+                                <th class="text-center cursor-pointer" onClick=${() => this.handleSort('cveCount')}>
+                                    Vulnerabilities
+                                    ${sortColumn === 'cveCount' ? html`
+                                        <i class=${`ti ti-arrow-${sortDirection === 'asc' ? 'up' : 'down'} ms-1`}></i>
+                                    ` : ''}
+                                </th>
+                                <th class="text-center cursor-pointer" onClick=${() => this.handleSort('riskScore')}>
+                                    Risk Score
+                                    ${sortColumn === 'riskScore' ? html`
+                                        <i class=${`ti ti-arrow-${sortDirection === 'asc' ? 'up' : 'down'} ms-1`}></i>
+                                    ` : ''}
+                                </th>
                             </tr>
                         </thead>
                         <tbody>

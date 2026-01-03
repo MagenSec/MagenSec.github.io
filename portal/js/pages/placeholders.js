@@ -49,7 +49,7 @@ export class SoftwareInventoryPage extends Component {
     if (!orgId) return;
 
     try {
-      const result = await api.get(`/api/v1/assets/${orgId}/software`);
+      const result = await api.getSoftwareInventory(orgId);
       if (result.success) {
         this.setState({ software: result.data, loading: false });
       } else {
@@ -127,7 +127,7 @@ export class HardwareInventoryPage extends Component {
     if (!orgId) return;
 
     try {
-      const result = await api.get(`/api/v1/assets/${orgId}/hardware`);
+      const result = await api.getHardwareInventory(orgId);
       if (result.success) {
         this.setState({ hardware: result.data, loading: false });
       } else {

@@ -110,7 +110,7 @@ class DashboardPage extends Component {
                 <div class="subheader">License</div>
               </div>
               <div class="h1 mb-0">
-                ${licenseStatus === 'ACTIVE' ? html`<span class="badge bg-success">Active</span>` : 
+                ${licenseStatus === 'ACTIVE' ? html`<span class="badge bg-green-lt">Active</span>` : 
                   licenseStatus === 'DISABLED' ? html`<span class="badge bg-warning">Disabled</span>` :
                   html`<span class="badge bg-secondary">${licenseStatus}</span>`}
               </div>

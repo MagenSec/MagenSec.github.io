@@ -24,7 +24,7 @@ class InventoryPage extends Component {
       const user = auth.getUser();
       const orgId = currentOrg?.orgId || user.email;
       
-      const response = await window.api.get(`/api/v1/assets/${orgId}/software`);
+      const response = await window.api.getSoftwareInventory(orgId);
       
       if (response.success && response.data) {
         this.setState({ inventory: response.data, loading: false });
@@ -114,7 +114,7 @@ class InventoryPage extends Component {
                       ${item.riskScore === 'Critical' ? html`<span class="badge bg-danger">Critical</span>` : ''}
                       ${item.riskScore === 'High' ? html`<span class="badge bg-warning">High</span>` : ''}
                       ${item.riskScore === 'Medium' ? html`<span class="badge bg-info">Medium</span>` : ''}
-                      ${item.riskScore === 'Low' ? html`<span class="badge bg-success">Low</span>` : ''}
+                      ${item.riskScore === 'Low' ? html`<span class="badge bg-green-lt">Low</span>` : ''}
                       ${!item.riskScore || item.riskScore === 'None' ? html`<span class="badge bg-secondary">None</span>` : ''}
                     </td>
                   </tr>

@@ -39,6 +39,7 @@ export function SettingsPage() {
 
     const [teamSearch, setTeamSearch] = useState('');
     const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+    const [accounts, setAccounts] = useState([]);
 
     const [adjustingLicense, setAdjustingLicense] = useState(null);
     const [creditHistory, setCreditHistory] = useState([]);
@@ -85,21 +86,28 @@ export function SettingsPage() {
             let isPersonalType = false; // Default for fallback path
             try {
                 const orgRes = await api.get(`/api/v1/orgs/${currentOrgId}`);
+                logger.info('[Settings] Org API response', { success: orgRes.success, hasData: !!orgRes.data, orgRes });
                 if (orgRes.success && orgRes.data) {
                     const orgData = orgRes.data;
+                    logger.info('[Settings] Setting org state from API', { 
+                        ownerEmail: orgData.ownerEmail, 
+                        totalCredits: orgData.totalCredits,
+                        remainingCredits: orgData.remainingCredits 
+                    });
                     isPersonalType = orgData.type === 'Personal' || orgData.orgType === 'Personal';
                     setOrg({
                         orgId: orgData.orgId,
                         orgName: orgData.orgName || orgData.name,
                         ownerEmail: orgData.ownerEmail || 'Unknown',
                         totalCredits: orgData.totalCredits ?? 0,
-                        remainingCredits: orgData.remainingCredits ?? orgData.totalCredits ?? 0,
+                        remainingCredits: orgData.remainingCredits ?? 0,
                         seats: orgData.seats ?? orgData.totalSeats ?? null,
                         isDisabled: orgData.isDisabled ?? false,
                         isPersonal: isPersonalType
                     });
                     setIsPersonalOrg(isPersonalType);
-                    setUpdateOrgName(orgData.orgName || orgData.name || '');
+                } else {
+                    logger.warn('[Settings] Org API response not successful', orgRes);
                 }
             } catch (orgErr) {
                 logger.warn('[Settings] Failed to load org details, using context data as fallback', orgErr);
@@ -144,7 +152,17 @@ export function SettingsPage() {
             }
 
             // Load all accounts for user search (Site Admin)
-
+            if (isSiteAdmin) {
+                try {
+                    const accountsRes = await api.get('/api/v1/admin/accounts');
+                    if (accountsRes.success && accountsRes.data) {
+                        setAccounts(accountsRes.data);
+                    }
+                } catch (accErr) {
+                    logger.debug('[Settings] Could not load accounts list', accErr);
+                    setAccounts([]);
+                }
+            }
 
             // Credit history for charts (all org types)
             try {
@@ -165,36 +183,20 @@ export function SettingsPage() {
             const canManageEmailPrefs = (userType === 'SiteAdmin') || currentOrg?.role === 'Owner';
             if (!isPersonalType && canManageEmailPrefs) {
                 try {
-                    const token = auth.getToken();
-                    const doFetch = async (id) => fetch(`/api/v1/email-preferences/orgs/${id}`, {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                        }
-                    });
+                    const response = await api.get(`/api/v1/orgs/${currentOrgId}/email-preferences`);
 
-                    let response = await doFetch(currentOrgId);
-                    if (response.status === 404 && (currentOrgId?.startsWith('ORGB-') || currentOrgId?.startsWith('ORGP-'))) {
-                        const trimmed = currentOrgId.replace(/^ORG[B|P]-/i, '');
-                        response = await doFetch(trimmed);
-                    }
-
-                    if (response.ok) {
-                        const prefsRes = await response.json();
-                        if (prefsRes && prefsRes.success && prefsRes.data) {
-                            setEmailPreferences(prefsRes.data);
-                            logger.debug('[Settings] Email preferences loaded');
-                        }
-                    } else if (response.status === 404) {
+                    if (response.success && response.data) {
+                        setEmailPreferences(response.data);
+                        logger.debug('[Settings] Email preferences loaded');
+                    } else if (response.error === 'NOT_FOUND') {
                         // Endpoint not implemented yet - expected, skip silently
-                        logger.debug('[Settings] Email preferences endpoint not available (404)');
-                    } else if (response.status === 403 || response.status === 401) {
+                        logger.debug('[Settings] Email preferences endpoint not available');
+                    } else if (response.error === 'FORBIDDEN' || response.error === 'UNAUTHORIZED') {
                         // Permission denied or not authorized - this is expected for some users
                         // Email preferences feature is admin-only, skip silently
                         logger.debug('[Settings] Email preferences not available (admin feature)');
-                    } else {
-                        logger.warn('[Settings] Email preferences endpoint returned:', response.status);
+                    } else if (response.error) {
+                        logger.warn('[Settings] Email preferences error:', response.error);
                     }
                 } catch (error) {
                     // Network error or other issue - log but don't fail page load
@@ -329,23 +331,12 @@ export function SettingsPage() {
         try {
             setSavingPreferences(true);
             
-            // Use direct fetch to avoid auto-logout on permission errors
-            const token = auth.getToken();
-            const response = await fetch(`/api/v1/email-preferences/orgs/${currentOrg.orgId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify(preferences)
-            });
+            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/email-preferences`, preferences);
             
-            const res = await response.json();
-            
-            if (response.ok && res.success) {
+            if (res.success) {
                 showToast('Email preferences saved', 'success');
                 setEmailPreferences(preferences);
-            } else if (response.status === 403 || response.status === 401) {
+            } else if (res.error === 'FORBIDDEN' || res.error === 'UNAUTHORIZED') {
                 showToast('You do not have permission to modify email preferences', 'warning');
             } else {
                 showToast(res.message || 'Failed to save preferences', 'error');
@@ -463,6 +454,7 @@ export function SettingsPage() {
                             setTeamEmail=${setTeamEmail}
                             teamRole=${teamRole}
                             setTeamRole=${setTeamRole}
+                            accounts=${accounts}
                             isValidEmail=${isValidEmail}
                             setTeamSearch=${setTeamSearch}
                             teamSearch=${teamSearch}
@@ -595,18 +587,28 @@ function CreditsChart({ history, projectedExhaustion }) {
         return html`<div class="text-muted small">No recent credit activity yet.</div>`;
     }
 
-    const points = history.map(h => ({
-        x: new Date(h.date).getTime(),
-        y: h.remainingCredits ?? 0,
-        seats: h.seats ?? null
-    }));
+    const points = history
+        .map(h => ({
+            x: new Date(h.date).getTime(),
+            y: h.remainingCredits ?? 0,
+            seats: h.seats ?? null
+        }))
+        .filter(p => !isNaN(p.x) && !isNaN(p.y) && p.x !== null && p.y !== null && isFinite(p.x) && isFinite(p.y));
+
+    if (points.length === 0) {
+        return html`<div class="text-muted small">Invalid credit history data.</div>`;
+    }
 
     const minY = Math.min(...points.map(p => p.y), 0);
     const maxY = Math.max(...points.map(p => p.y), 1);
     const minX = Math.min(...points.map(p => p.x));
     const maxX = Math.max(...points.map(p => p.x));
 
-    const normalize = (val, min, max) => max === min ? 0 : (val - min) / (max - min);
+    const normalize = (val, min, max) => {
+        if (!isFinite(val) || !isFinite(min) || !isFinite(max) || max === min) return 0;
+        const result = (val - min) / (max - min);
+        return isFinite(result) ? result : 0;
+    };
 
     const width = 340;
     const height = 120;
@@ -614,8 +616,10 @@ function CreditsChart({ history, projectedExhaustion }) {
     const polyline = points.map(p => {
         const x = normalize(p.x, minX, maxX) * width;
         const y = height - (normalize(p.y, minY, maxY) * height);
-        return `${x},${y}`;
-    }).join(' ');
+        // Ensure coordinates are valid numbers
+        if (!isFinite(x) || !isFinite(y)) return null;
+        return `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10}`;
+    }).filter(p => p !== null).join(' ');
 
     const last = history[history.length - 1];
     const exhaustionText = projectedExhaustion
@@ -718,13 +722,13 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
                                         </td>
                                         <td>
                                             ${license.isDisabled && html`
-                                                <span class="badge bg-warning">Disabled</span>
+                                                <span class="badge bg-orange-lt">Disabled</span>
                                             `}
                                             ${!license.isActive && !license.isDisabled && html`
-                                                <span class="badge bg-danger">Inactive</span>
+                                                <span class="badge bg-red-lt">Inactive</span>
                                             `}
                                             ${license.isActive && !license.isDisabled && html`
-                                                <span class="badge bg-success">Active</span>
+                                                <span class="badge bg-green-lt">Active</span>
                                             `}
                                         </td>
                                         <td class="text-muted">

@@ -521,12 +521,12 @@ export class ApiClient {
         return this.get('/api/v1/aggregations', params);
     }
 
-    async getAssets(params) {
-        return this.get('/api/v1/assets', params);
-    }
-
     async getSoftwareInventory(orgId) {
         return this.get(`/api/v1/orgs/${orgId}/apps`);
+    }
+
+    async getHardwareInventory(orgId) {
+        return this.get(`/api/v1/orgs/${orgId}/hardware`);
     }
 
     async getCompliance(params) {
