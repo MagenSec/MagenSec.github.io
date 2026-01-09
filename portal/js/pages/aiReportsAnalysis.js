@@ -20,12 +20,15 @@ export function AiReportsAnalysisPage() {
         orgsWithReports: 0
     });
     const [timeRange, setTimeRange] = useState('7'); // days
-    const [selectedOrg, setSelectedOrg] = useState('');
+    const [selectedOrg, setSelectedOrg] = useState(''); // Filter by org
+    const [startDate, setStartDate] = useState(''); // Filter by start date
     const [orgStats, setOrgStats] = useState({});
+    const [sortBy, setSortBy] = useState('completed'); // Sort column: enqueued, started, completed, time
+    const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
 
     useEffect(() => {
         loadReports();
-    }, [timeRange]);
+    }, [timeRange, selectedOrg, startDate]);
 
     const loadReports = async () => {
         setLoading(true);
@@ -54,10 +57,24 @@ export function AiReportsAnalysisPage() {
             const now = new Date();
             const daysAgo = new Date(now.getTime() - parseInt(timeRange) * 24 * 60 * 60 * 1000);
             
-            const filteredReports = data.data.filter(r => {
+            let filteredReports = data.data.filter(r => {
                 const completedAt = r.completedAt ? new Date(r.completedAt) : null;
                 return completedAt && completedAt >= daysAgo;
             });
+
+            // Filter by organization
+            if (selectedOrg) {
+                filteredReports = filteredReports.filter(r => r.partitionKey === selectedOrg);
+            }
+
+            // Filter by start date (if specified, only show reports from that date onwards)
+            if (startDate) {
+                const filterDate = new Date(startDate);
+                filteredReports = filteredReports.filter(r => {
+                    const enqueuedAt = r.enqueuedAt ? new Date(r.enqueuedAt) : null;
+                    return enqueuedAt && enqueuedAt >= filterDate;
+                });
+            }
 
             setReports(filteredReports);
             calculateStats(filteredReports);
@@ -171,26 +188,96 @@ export function AiReportsAnalysisPage() {
         return new Date(dateStr).toLocaleString();
     };
 
+    const sortReports = (reportsToSort) => {
+        const sorted = [...reportsToSort];
+        sorted.sort((a, b) => {
+            let valueA, valueB;
+            
+            switch (sortBy) {
+                case 'enqueued':
+                    valueA = a.enqueuedAt ? new Date(a.enqueuedAt).getTime() : 0;
+                    valueB = b.enqueuedAt ? new Date(b.enqueuedAt).getTime() : 0;
+                    break;
+                case 'started':
+                    valueA = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+                    valueB = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+                    break;
+                case 'completed':
+                    valueA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+                    valueB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+                    break;
+                case 'time':
+                    valueA = a.completedAt && a.startedAt ? new Date(a.completedAt) - new Date(a.startedAt) : 0;
+                    valueB = b.completedAt && b.startedAt ? new Date(b.completedAt) - new Date(b.startedAt) : 0;
+                    break;
+                default:
+                    return 0;
+            }
+            
+            return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
+        });
+        return sorted;
+    };
+
+    const toggleSort = (column) => {
+        if (sortBy === column) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(column);
+            setSortOrder('desc');
+        }
+    };
+
+    const getUniqueOrgs = () => {
+        return [...new Set(reports.map(r => r.partitionKey))].sort();
+    };
+
     return html`
         <div class="container-xl">
             <div class="page-header d-print-none">
-                <div class="row align-items-center">
+                <div class="row align-items-center mb-3">
                     <div class="col">
                         <h2 class="page-title">AI Reports Analysis</h2>
                         <div class="text-muted mt-1">Monitor and analyze security posture report generation metrics</div>
                     </div>
                     <div class="col-auto ms-auto d-print-none">
-                        <select class="form-select d-inline-block w-auto me-2" value=${timeRange} onChange=${(e) => setTimeRange(e.target.value)}>
-                            <option value="1">Last 24 hours</option>
-                            <option value="7">Last 7 days</option>
-                            <option value="30">Last 30 days</option>
-                            <option value="90">Last 90 days</option>
-                        </select>
                         <button class="btn btn-primary" onClick=${loadReports}>
                             <i class="ti ti-refresh me-2"></i>
                             Refresh
                         </button>
                     </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="row g-2 mb-3">
+                    <div class="col-auto">
+                        <label class="form-label mb-1">Time Range</label>
+                        <select class="form-select" value=${timeRange} onChange=${(e) => setTimeRange(e.target.value)}>
+                            <option value="1">Last 24 hours</option>
+                            <option value="7">Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label mb-1">Organization</label>
+                        <select class="form-select" value=${selectedOrg} onChange=${(e) => setSelectedOrg(e.target.value)}>
+                            <option value="">All Organizations</option>
+                            ${getUniqueOrgs().map(org => html`<option value=${org}>${org}</option>`)}
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label mb-1">Start Date</label>
+                        <input type="date" class="form-control" value=${startDate} onChange=${(e) => setStartDate(e.target.value)} />
+                    </div>
+                    ${(selectedOrg || startDate) && html`
+                        <div class="col-auto d-flex align-items-end">
+                            <button class="btn btn-outline-secondary" onClick=${() => { setSelectedOrg(''); setStartDate(''); }}>
+                                <i class="ti ti-x me-1"></i>
+                                Clear Filters
+                            </button>
+                        </div>
+                    `}
                 </div>
             </div>
 
@@ -338,28 +425,43 @@ export function AiReportsAnalysisPage() {
                     <!-- Recent Reports -->
                     <div class="card mt-3">
                         <div class="card-header">
-                            <h3 class="card-title">Recent Reports</h3>
+                            <h3 class="card-title">Recent Reports (${reports.length} total)</h3>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover">
                                 <thead>
                                     <tr>
                                         <th>Organization</th>
-                                        <th>Enqueued</th>
-                                        <th>Started</th>
-                                        <th>Completed</th>
-                                        <th>Gen Time</th>
+                                        <th style="cursor: pointer;" onClick=${() => toggleSort('enqueued')}>
+                                            Enqueued
+                                            ${sortBy === 'enqueued' && html`<i class="ti ${sortOrder === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} ms-1"></i>`}
+                                        </th>
+                                        <th style="cursor: pointer;" onClick=${() => toggleSort('started')}>
+                                            Started
+                                            ${sortBy === 'started' && html`<i class="ti ${sortOrder === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} ms-1"></i>`}
+                                        </th>
+                                        <th style="cursor: pointer;" onClick=${() => toggleSort('completed')}>
+                                            Completed
+                                            ${sortBy === 'completed' && html`<i class="ti ${sortOrder === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} ms-1"></i>`}
+                                        </th>
+                                        <th style="cursor: pointer;" onClick=${() => toggleSort('time')}>
+                                            Gen Time
+                                            ${sortBy === 'time' && html`<i class="ti ${sortOrder === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} ms-1"></i>`}
+                                        </th>
                                         <th>Total Time</th>
+                                        <th>Trigger</th>
+                                        <th>Performed By</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${reports.length > 0 ? reports
-                                        .slice()
-                                        .reverse()
+                                    ${reports.length > 0 ? sortReports(reports)
                                         .slice(0, 20)
                                         .map(r => {
                                             const genTime = r.startedAt && r.completedAt ? new Date(r.completedAt) - new Date(r.startedAt) : 0;
                                             const totalTime = r.enqueuedAt && r.completedAt ? new Date(r.completedAt) - new Date(r.enqueuedAt) : 0;
+                                            const triggerSource = r.triggerSource || 'System';
+                                            const performedBy = r.performedBy || 'system';
+                                            const triggerBadge = triggerSource === 'User' ? 'bg-info-lt' : 'bg-secondary-lt';
                                             return html`
                                                 <tr>
                                                     <td class="fw-semibold">${r.partitionKey || 'unknown'}</td>
@@ -368,12 +470,14 @@ export function AiReportsAnalysisPage() {
                                                     <td class="text-muted small">${formatDate(r.completedAt)}</td>
                                                     <td>${formatDuration(genTime)}</td>
                                                     <td>${formatDuration(totalTime)}</td>
+                                                    <td><span class="badge ${triggerBadge}">${triggerSource}</span></td>
+                                                    <td class="text-muted small">${performedBy}</td>
                                                 </tr>
                                             `;
                                         })
                                     : html`
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted py-4">No reports found for selected time range</td>
+                                            <td colspan="9" class="text-center text-muted py-4">No reports found for selected time range</td>
                                         </tr>
                                     `}
                                 </tbody>

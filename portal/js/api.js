@@ -534,28 +534,34 @@ export class ApiClient {
     }
 
     async getAlerts(params) {
-        return this.get('/api/v1/alerts', params);
+        return this.get(`/api/v1/orgs/${params.orgId}/alerts`, params);
     }
 
     async getPlatformInsights(params) {
         return this.get('/api/v1/platform-insights', params);
     }
 
-    // === AI REPORTS ===
-    async getAIReports(params) {
-        return this.get('/api/v1/ai/reports', params);
+    // === AI ANALYST (ORG-SCOPED) ===
+    // Note: All AI endpoints are org-scoped. Use these methods from pages:
+    // - POST /api/v1/orgs/{orgId}/ai-analyst/run - Generate report
+    // - POST /api/v1/orgs/{orgId}/ai-analyst/ask - Ask question
+    // - GET /api/v1/orgs/{orgId}/ai-analyst/reports - List reports
+    // - GET /api/v1/orgs/{orgId}/ai-analyst/reports/{reportId} - Get report detail
+    
+    async generateAIReport(orgId, data) {
+        return this.post(`/api/v1/orgs/${orgId}/ai-analyst/run`, data);
     }
 
-    async createAIReport(data) {
-        return this.post('/api/v1/ai/reports', data);
+    async askAIAnalyst(orgId, data) {
+        return this.post(`/api/v1/orgs/${orgId}/ai-analyst/ask`, data);
     }
 
-    async getAIReport(reportId) {
-        return this.get(`/api/v1/ai/reports/${reportId}`);
+    async getAIReports(orgId, params = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/ai-analyst/reports`, params);
     }
 
-    async submitAIFeedback(reportId, feedback) {
-        return this.put(`/api/v1/ai/reports/${reportId}/feedback`, feedback);
+    async getAIReport(orgId, reportId) {
+        return this.get(`/api/v1/orgs/${orgId}/ai-analyst/reports/${reportId}`);
     }
 
     // === TEST SEEDING ===

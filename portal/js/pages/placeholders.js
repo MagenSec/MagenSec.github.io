@@ -212,7 +212,7 @@ export class ComplianceReportPage extends Component {
 
     this.setState({ loading: true });
     try {
-      const result = await api.get(`/api/v1/reports/${orgId}/compliance?framework=${this.state.framework}`);
+      const result = await api.get(`/api/v1/orgs/${orgId}/reports/compliance?framework=${this.state.framework}`);
       if (result.success) {
         this.setState({ report: result.data, loading: false });
       } else {
@@ -333,7 +333,7 @@ export class AlertsPage extends Component {
     this.setState({ loading: true });
     try {
       const query = this.state.severity !== 'all' ? `?severity=${this.state.severity}` : '';
-      const result = await api.get(`/api/v1/alerts/${orgId}${query}`);
+      const result = await api.get(`/api/v1/orgs/${orgId}/alerts${query}`);
       if (result.success) {
         this.setState({ alerts: result.data.alerts, loading: false });
       } else {

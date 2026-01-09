@@ -28,7 +28,7 @@ class DashboardPage extends Component {
       const statsResponse = await window.api.get(`/api/v1/orgs/${orgId}/dashboard`);
       
       // Load alerts
-      const alertsResponse = await window.api.get(`/api/v1/alerts/${orgId}`);
+      const alertsResponse = await window.api.get(`/api/v1/orgs/${orgId}/alerts`);
       
       if (statsResponse.success) {
         this.setState({ 

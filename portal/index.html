@@ -23,6 +23,12 @@
     <script src="https://cdn.jsdelivr.net/npm/page@1.11.6/page.min.js" crossorigin="anonymous" integrity="sha384-I21flNc4c7wK3Q4Zxf/hz43oz5U8ks1jEK2NdsOPELdxzIs9XHBgvBulNBRklYVf"></script>
     
     <style>
+        /* Modal backdrop tweaks */
+        .modal-root { position: fixed; inset: 0; z-index: 1040; }
+        .modal-root .modal-backdrop.custom-backdrop { background-color: rgba(0,0,0,0.6); }
+        .modal-root .modal-backdrop { position: fixed; inset: 0; }
+        .modal-root .modal { z-index: 1050; }
+
         /* Markdown content styling */
         .markdown {
             line-height: 1.6;

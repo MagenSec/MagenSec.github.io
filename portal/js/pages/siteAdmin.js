@@ -21,8 +21,10 @@ const ORG_DURATION_OPTIONS = [
 const showToast = (message, type) => toast.show(message, type);
 
 export function SiteAdminPage() {
+    const [mainSection, setMainSection] = useState('overview'); // 'overview' or 'reports'
     const [activeTab, setActiveTab] = useState('organizations');
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [orgs, setOrgs] = useState([]);
     const [accounts, setAccounts] = useState([]);
     
@@ -72,6 +74,20 @@ export function SiteAdminPage() {
         }
         loadData();
     }, []);
+
+    // Close modal on Escape key
+    useEffect(() => {
+        if (!selectedOrg) return;
+        const handler = (e) => {
+            if (e.key === 'Escape') {
+                setSelectedOrg(null);
+                setSelectedOrgId('');
+                setOrgLicenses([]);
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [selectedOrg]);
 
     const loadData = async () => {
         setLoading(true);
@@ -381,69 +397,114 @@ export function SiteAdminPage() {
                         <h2 class="page-title">Site Administration</h2>
                         <div class="text-muted mt-1">Manage organizations, accounts, and system activity</div>
                     </div>
-                    <div class="col-auto ms-auto d-print-none">
-                        <button class="btn btn-primary" onClick=${loadData}>
-                            <i class="ti ti-refresh me-2"></i>
-                            Refresh Data
-                        </button>
-                    </div>
                 </div>
             </div>
 
+            <!-- Main Section Navigation (Two-Level: Overview | Activity Reports) -->
+            <div class="mb-3">
+                <ul class="nav nav-pills nav-fill">
+                    <li class="nav-item">
+                        <a 
+                            class="nav-link ${mainSection === 'overview' ? 'active' : ''}"
+                            href="#"
+                            onClick=${(e) => { 
+                                e.preventDefault(); 
+                                setMainSection('overview'); 
+                                setActiveTab('organizations');
+                            }}
+                        >
+                            <i class="ti ti-layout-dashboard me-2"></i>
+                            Overview
+                            <span class="badge bg-primary-lt ms-2">${orgs.length + accounts.length}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a 
+                            class="nav-link ${mainSection === 'reports' ? 'active' : ''}"
+                            href="#"
+                            onClick=${(e) => { 
+                                e.preventDefault(); 
+                                setMainSection('reports'); 
+                                setActiveTab('user-activity');
+                            }}
+                        >
+                            <i class="ti ti-chart-bar me-2"></i>
+                            Activity Reports
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Card with Secondary Navigation (Sub-tabs) + Refresh Button -->
             <div class="card mb-3">
-                <div class="card-header">
-                    <ul class="nav nav-tabs card-header-tabs">
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'organizations' ? 'active' : ''}"
-                                href="#"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('organizations'); }}
-                            >
-                                <i class="ti ti-building me-2"></i>
-                                Organizations
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'accounts' ? 'active' : ''}"
-                                href="#"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('accounts'); }}
-                            >
-                                <i class="ti ti-users me-2"></i>
-                                Accounts
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'user-activity' ? 'active' : ''}"
-                                href="#"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('user-activity'); }}
-                            >
-                                <i class="ti ti-user-check me-2"></i>
-                                User Activity
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'device-activity' ? 'active' : ''}"
-                                href="#"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('device-activity'); }}
-                            >
-                                <i class="ti ti-device-desktop me-2"></i>
-                                Device Activity
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'ai-reports' ? 'active' : ''}"
-                                href="#"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('ai-reports'); }}
-                            >
-                                <i class="ti ti-brain me-2"></i>
-                                AI Reports
-                            </a>
-                        </li>
-                    </ul>
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    ${mainSection === 'overview' ? html`
+                        <div class="d-flex align-items-center justify-content-between w-100 gap-3">
+                            <ul class="nav nav-tabs card-header-tabs">
+                                <li class="nav-item">
+                                    <a 
+                                        class="nav-link ${activeTab === 'organizations' ? 'active' : ''}"
+                                        href="#"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('organizations'); }}
+                                    >
+                                        <i class="ti ti-building me-2"></i>
+                                        Organizations
+                                        <span class="badge bg-blue-lt ms-2">${orgs.length}</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a 
+                                        class="nav-link ${activeTab === 'accounts' ? 'active' : ''}"
+                                        href="#"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('accounts'); }}
+                                    >
+                                        <i class="ti ti-users me-2"></i>
+                                        Accounts
+                                        <span class="badge bg-blue-lt ms-2">${accounts.length}</span>
+                                    </a>
+                                </li>
+                            </ul>
+                            <button class="btn btn-sm btn-primary" onClick=${async () => { setRefreshing(true); await loadData(); setRefreshing(false); }} disabled=${refreshing}>
+                                ${refreshing ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-refresh me-1"></i>`}
+                                ${refreshing ? 'Refreshing...' : 'Refresh'}
+                            </button>
+                        </div>
+                    ` : html`
+                        <div class="d-flex align-items-center w-100">
+                            <ul class="nav nav-tabs card-header-tabs">
+                                <li class="nav-item">
+                                    <a 
+                                        class="nav-link ${activeTab === 'user-activity' ? 'active' : ''}"
+                                        href="#"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('user-activity'); }}
+                                    >
+                                        <i class="ti ti-user-check me-2"></i>
+                                        User Activity
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a 
+                                        class="nav-link ${activeTab === 'device-activity' ? 'active' : ''}"
+                                        href="#"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('device-activity'); }}
+                                    >
+                                        <i class="ti ti-device-desktop me-2"></i>
+                                        Device Activity
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a 
+                                        class="nav-link ${activeTab === 'ai-reports' ? 'active' : ''}"
+                                        href="#"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('ai-reports'); }}
+                                    >
+                                        <i class="ti ti-brain me-2"></i>
+                                        AI Reports
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    `}
                 </div>
                 <div class="card-body">
                     ${activeTab === 'organizations' && html`
@@ -631,196 +692,230 @@ export function SiteAdminPage() {
                                                 </ul>
                                             </div>
                                         `}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `}
 
-                                        ${selectedOrg && html`
-                                            <div class="mt-4 border-top pt-4">
-                                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                                    <h4>Managing: ${selectedOrg.orgName}</h4>
-                                                    <button class="btn btn-sm btn-ghost-secondary" onClick=${() => { setSelectedOrg(null); setSelectedOrgId(''); }}>
-                                                        <i class="ti ti-x me-1"></i> Close
-                                                    </button>
+                    ${selectedOrg && html`
+                        <div class="modal-root">
+                            <div class="modal-backdrop fade show custom-backdrop"></div>
+                            <div
+                                class="modal modal-blur fade show"
+                                style="display: block;"
+                                tabindex="-1"
+                                onClick=${() => { setSelectedOrg(null); setSelectedOrgId(''); setOrgLicenses([]); }}
+                            >
+                                <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" onClick=${(e) => e.stopPropagation()}>
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h3 class="modal-title">Manage Organization: ${selectedOrg.orgName}</h3>
+                                            <button type="button" class="btn-close" onClick=${() => { setSelectedOrg(null); setSelectedOrgId(''); setOrgLicenses([]); }}></button>
+                                        </div>
+
+                                        <div class="modal-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Organization Name</label>
+                                                    <input class="form-control" value=${updateOrgName} onInput=${(e) => setUpdateOrgName(e.target.value)} />
                                                 </div>
-                                                <div class="row g-3">
-                                                    <div class="col-md-6">
-                                                        <label class="form-label">Organization Name</label>
-                                                        <input class="form-control" value=${updateOrgName} onInput=${(e) => setUpdateOrgName(e.target.value)} />
-                                                    </div>
-                                                    <div class="col-md-6">
-                                                        <label class="form-label">Owner Email</label>
-                                                        <div class="input-group">
-                                                            <input type="email" class="form-control" value=${selectedOrg.ownerEmail} disabled />
-                                                            <button 
-                                                                class="btn btn-outline-primary"
-                                                                onClick=${() => {
-                                                                    setNewTransferOwner(selectedOrg.ownerEmail);
-                                                                    setShowTransferOwner(true);
-                                                                }}
-                                                            >
-                                                                <i class="ti ti-arrows-exchange me-1"></i>
-                                                                Transfer
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-6">
-                                                        <label class="form-label">Current Status</label>
-                                                        <div>
-                                                            <span class=${`badge ${selectedOrg.isDisabled ? 'bg-danger' : 'bg-success'}`}>
-                                                                ${selectedOrg.isDisabled ? 'Disabled' : 'Active'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-12">
-                                                        <button class="btn btn-primary" onClick=${onUpdateOrg}>
-                                                            <i class="ti ti-device-floppy me-2"></i>
-                                                            Update Organization
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Owner Email</label>
+                                                    <div class="input-group">
+                                                        <input type="email" class="form-control" value=${selectedOrg.ownerEmail} disabled />
+                                                        <button
+                                                            class="btn btn-outline-primary"
+                                                            onClick=${() => {
+                                                                setNewTransferOwner(selectedOrg.ownerEmail);
+                                                                setShowTransferOwner(true);
+                                                            }}
+                                                            disabled=${selectedOrg.licenseType === 'Personal'}
+                                                            title=${selectedOrg.licenseType === 'Personal' ? 'Transfer not available for Personal organizations' : 'Transfer ownership'}
+                                                        >
+                                                            <i class="ti ti-arrows-exchange me-1"></i>
+                                                            Transfer
                                                         </button>
                                                     </div>
+                                                    ${selectedOrg.licenseType === 'Personal' && html`
+                                                        <small class="text-muted"><i class="ti ti-info-circle me-1"></i>Ownership transfer is not available for Personal organizations</small>
+                                                    `}
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Current Status</label>
+                                                    <div>
+                                                        <span class=${`badge ${selectedOrg.isDisabled ? 'bg-danger' : 'bg-success'}`}>
+                                                            ${selectedOrg.isDisabled ? 'Disabled' : 'Active'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <button class="btn btn-primary" onClick=${onUpdateOrg}>
+                                                        <i class="ti ti-device-floppy me-2"></i>
+                                                        Update Organization
+                                                    </button>
+                                                </div>
 
-                                                    <div class="col-12 mt-4">
-                                                        <div class="d-flex justify-content-between align-items-center mb-3">
-                                                            <h4 class="m-0">Licenses</h4>
-                                                            <button 
+                                                <div class="col-12 mt-4">
+                                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                                        <h4 class="m-0">Licenses</h4>
+                                                        <div>
+                                                            <button
                                                                 class="btn btn-sm btn-primary"
                                                                 onClick=${() => setShowCreateLicense(true)}
+                                                                disabled=${selectedOrg.licenseType === 'Personal'}
+                                                                title=${selectedOrg.licenseType === 'Personal' ? 'Additional licenses not available for Personal organizations' : 'Create new license'}
                                                             >
                                                                 <i class="ti ti-plus me-1"></i> Create License
                                                             </button>
-                                                        </div>
-                                                        
-                                                        ${showCreateLicense && html`
-                                                            <div class="card mb-3 bg-light">
-                                                                <div class="card-body">
-                                                                    <h5 class="card-title">New License</h5>
-                                                                    <div class="row g-2 align-items-end">
-                                                                        <div class="col-md-4">
-                                                                            <label class="form-label small">Seats</label>
-                                                                            <input type="number" class="form-control form-control-sm" value=${newLicenseSeats} onInput=${(e) => setNewLicenseSeats(e.target.value)} />
-                                                                        </div>
-                                                                        <div class="col-md-4">
-                                                                            <label class="form-label small">Duration (Days)</label>
-                                                                            <input type="number" class="form-control form-control-sm" value=${newLicenseDuration} onInput=${(e) => setNewLicenseDuration(e.target.value)} />
-                                                                        </div>
-                                                                        <div class="col-md-4">
-                                                                            <button class="btn btn-sm btn-success me-1" onClick=${onCreateLicense}>Create</button>
-                                                                            <button class="btn btn-sm btn-ghost-secondary" onClick=${() => setShowCreateLicense(false)}>Cancel</button>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        `}
-
-                                                        <div class="table-responsive border rounded">
-                                                            <table class="table table-vcenter card-table table-sm">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th>Type</th>
-                                                                        <th>Key / Email</th>
-                                                                        <th>Seats</th>
-                                                                        <th>Credits</th>
-                                                                        <th>Status</th>
-                                                                        <th>Created</th>
-                                                                        <th class="w-1">Actions</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    ${orgLicenses.map(lic => html`
-                                                                        <tr>
-                                                                            <td>${lic.licenseType}</td>
-                                                                            <td>
-                                                                                <div class="text-truncate" style="max-width: 200px;" title=${lic.serialKey}>
-                                                                                    ${lic.serialKey}
-                                                                                </div>
-                                                                            </td>
-                                                                            <td>${lic.seats || '-'}</td>
-                                                                            <td>
-                                                                                <div class="small text-muted">${lic.remainingCredits} / ${lic.totalCredits}</div>
-                                                                                <div class="progress progress-sm mt-1" style="width: 60px">
-                                                                                    <div class="progress-bar bg-primary" style="width: ${(lic.remainingCredits / lic.totalCredits) * 100}%"></div>
-                                                                                </div>
-                                                                            </td>
-                                                                            <td>
-                                                                                <span class=${`badge ${lic.isDisabled ? 'bg-danger' : 'bg-success'}`}>
-                                                                                    ${lic.isDisabled ? 'Disabled' : 'Active'}
-                                                                                </span>
-                                                                            </td>
-                                                                            <td class="text-muted small">
-                                                                                ${new Date(lic.createdAt).toLocaleDateString()}
-                                                                            </td>
-                                                                            <td>
-                                                                                <div class="btn-list flex-nowrap">
-                                                                                    <button 
-                                                                                        class="btn btn-sm btn-outline-primary"
-                                                                                        onClick=${() => onAdjustLicense(lic)}
-                                                                                        title="Adjust Credits"
-                                                                                    >
-                                                                                        <i class="ti ti-adjustments"></i>
-                                                                                    </button>
-                                                                                    <button 
-                                                                                        class="btn btn-sm btn-outline-warning"
-                                                                                        onClick=${() => onDisableLicense(lic)}
-                                                                                        title=${lic.isDisabled ? 'Enable' : 'Disable'}
-                                                                                    >
-                                                                                        <i class=${`ti ${lic.isDisabled ? 'ti-check' : 'ti-ban'}`}></i>
-                                                                                    </button>
-                                                                                    <button 
-                                                                                        class="btn btn-sm btn-outline-danger"
-                                                                                        onClick=${() => onDeleteLicense(lic.licenseId)}
-                                                                                        title="Delete"
-                                                                                    >
-                                                                                        <i class="ti ti-trash"></i>
-                                                                                    </button>
-                                                                                </div>
-                                                                            </td>
-                                                                        </tr>
-                                                                    `)}
-                                                                    ${orgLicenses.length === 0 && html`
-                                                                        <tr>
-                                                                            <td colspan="6" class="text-center py-3 text-muted small">
-                                                                                No licenses found
-                                                                            </td>
-                                                                        </tr>
-                                                                    `}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    </div>
-
-                                                    <div class="col-12 mt-3">
-                                                        <div class="card border border-danger">
-                                                            <div class="card-header d-flex justify-content-between align-items-center">
-                                                                <div class="d-flex align-items-center gap-2">
-                                                                    <span class="badge bg-danger text-white">Danger</span>
-                                                                    <span class="fw-bold">Danger Zone</span>
-                                                                </div>
-                                                                <button 
-                                                                    class="btn btn-sm btn-outline-danger"
-                                                                    onClick=${() => setShowDangerZone(!showDangerZone)}
-                                                                >
-                                                                    ${showDangerZone ? 'Hide' : 'Show'}
-                                                                </button>
-                                                            </div>
-                                                            ${showDangerZone && html`
-                                                                <div class="card-body">
-                                                                    <p class="text-muted mb-3">
-                                                                        Actions below are destructive or impact availability. Proceed with caution.
-                                                                    </p>
-                                                                    <div class="d-flex flex-wrap gap-2">
-                                                                        <button class="btn btn-warning" onClick=${onDisableOrg}>
-                                                                            <i class="ti ti-ban me-2"></i>
-                                                                            ${selectedOrg.isDisabled ? 'Enable Organization' : 'Disable Organization'}
-                                                                        </button>
-                                                                        <button class="btn btn-danger" onClick=${onDeleteOrg}>
-                                                                            <i class="ti ti-trash me-2"></i>
-                                                                            Delete Organization
-                                                                        </button>
-                                                                    </div>
+                                                            ${selectedOrg.licenseType === 'Personal' && html`
+                                                                <div class="text-muted small mt-1">
+                                                                    <i class="ti ti-info-circle me-1"></i>Personal organizations are limited to a single license
                                                                 </div>
                                                             `}
                                                         </div>
                                                     </div>
+
+                                                    ${showCreateLicense && html`
+                                                        <div class="card mb-3 bg-light">
+                                                            <div class="card-body">
+                                                                <h5 class="card-title">New License</h5>
+                                                                <div class="row g-2 align-items-end">
+                                                                    <div class="col-md-4">
+                                                                        <label class="form-label small">Seats</label>
+                                                                        <input type="number" class="form-control form-control-sm" value=${newLicenseSeats} onInput=${(e) => setNewLicenseSeats(e.target.value)} />
+                                                                    </div>
+                                                                    <div class="col-md-4">
+                                                                        <label class="form-label small">Duration (Days)</label>
+                                                                        <input type="number" class="form-control form-control-sm" value=${newLicenseDuration} onInput=${(e) => setNewLicenseDuration(e.target.value)} />
+                                                                    </div>
+                                                                    <div class="col-md-4">
+                                                                        <button class="btn btn-sm btn-success me-1" onClick=${onCreateLicense}>Create</button>
+                                                                        <button class="btn btn-sm btn-ghost-secondary" onClick=${() => setShowCreateLicense(false)}>Cancel</button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    `}
+
+                                                    <div class="table-responsive border rounded">
+                                                        <table class="table table-vcenter card-table table-sm">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Type</th>
+                                                                    <th>Key / Email</th>
+                                                                    <th>Seats</th>
+                                                                    <th>Credits</th>
+                                                                    <th>Status</th>
+                                                                    <th>Created</th>
+                                                                    <th class="w-1">Actions</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                ${orgLicenses.map(lic => html`
+                                                                    <tr>
+                                                                        <td>${lic.licenseType}</td>
+                                                                        <td>
+                                                                            <div class="text-truncate" style="max-width: 200px;" title=${lic.serialKey}>
+                                                                                ${lic.serialKey}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td>${lic.seats || '-'}</td>
+                                                                        <td>
+                                                                            <div class="small text-muted">${lic.remainingCredits} / ${lic.totalCredits}</div>
+                                                                            <div class="progress progress-sm mt-1" style="width: 60px">
+                                                                                <div class="progress-bar bg-primary" style="width: ${(lic.remainingCredits / lic.totalCredits) * 100}%"></div>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span class=${`badge ${lic.isDisabled ? 'bg-danger' : 'bg-success'}`}>
+                                                                                ${lic.isDisabled ? 'Disabled' : 'Active'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td class="text-muted small">
+                                                                            ${new Date(lic.createdAt).toLocaleDateString()}
+                                                                        </td>
+                                                                        <td>
+                                                                            <div class="btn-list flex-nowrap">
+                                                                                <button 
+                                                                                    class="btn btn-sm btn-outline-primary"
+                                                                                    onClick=${() => onAdjustLicense(lic)}
+                                                                                    title="Adjust Credits"
+                                                                                >
+                                                                                    <i class="ti ti-adjustments"></i>
+                                                                                </button>
+                                                                                <button 
+                                                                                    class="btn btn-sm btn-outline-warning"
+                                                                                    onClick=${() => onDisableLicense(lic)}
+                                                                                    title=${lic.isDisabled ? 'Enable' : 'Disable'}
+                                                                                >
+                                                                                    <i class=${`ti ${lic.isDisabled ? 'ti-check' : 'ti-ban'}`}></i>
+                                                                                </button>
+                                                                                <button 
+                                                                                    class="btn btn-sm btn-outline-danger"
+                                                                                    onClick=${() => onDeleteLicense(lic.licenseId)}
+                                                                                    title="Delete"
+                                                                                >
+                                                                                    <i class="ti ti-trash"></i>
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                `)}
+                                                                ${orgLicenses.length === 0 && html`
+                                                                    <tr>
+                                                                        <td colspan="6" class="text-center py-3 text-muted small">
+                                                                            No licenses found
+                                                                        </td>
+                                                                    </tr>
+                                                                `}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-12 mt-3">
+                                                    <div class="card border border-danger">
+                                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <span class="badge bg-danger text-white">Danger</span>
+                                                                <span class="fw-bold">Danger Zone</span>
+                                                            </div>
+                                                            <button 
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                onClick=${() => setShowDangerZone(!showDangerZone)}
+                                                            >
+                                                                ${showDangerZone ? 'Hide' : 'Show'}
+                                                            </button>
+                                                        </div>
+                                                        ${showDangerZone && html`
+                                                            <div class="card-body">
+                                                                <p class="text-muted mb-3">
+                                                                    Actions below are destructive or impact availability. Proceed with caution.
+                                                                </p>
+                                                                <div class="d-flex flex-wrap gap-2">
+                                                                    <button class="btn btn-warning" onClick=${onDisableOrg}>
+                                                                        <i class="ti ti-ban me-2"></i>
+                                                                        ${selectedOrg.isDisabled ? 'Enable Organization' : 'Disable Organization'}
+                                                                    </button>
+                                                                    <button class="btn btn-danger" onClick=${onDeleteOrg}>
+                                                                        <i class="ti ti-trash me-2"></i>
+                                                                        Delete Organization
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        `}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        `}
+                                        </div>
+
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" onClick=${() => { setSelectedOrg(null); setSelectedOrgId(''); setOrgLicenses([]); }}>
+                                                <i class="ti ti-x me-2"></i>
+                                                Close
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

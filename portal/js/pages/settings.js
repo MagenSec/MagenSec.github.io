@@ -21,6 +21,54 @@ const ORG_DURATION_OPTIONS = [
     { label: '3 years (1095 days)', value: 1095 }
 ];
 
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const GAUGE_GRADIENT_ID = 'settings-gauge-blue-gradient';
+
+function getDaysLeftInfo(projectedExhaustion) {
+    if (!projectedExhaustion) {
+        return { daysLeft: null, targetDate: null };
+    }
+
+    const targetDate = new Date(projectedExhaustion);
+    if (Number.isNaN(targetDate.getTime())) {
+        return { daysLeft: null, targetDate: null };
+    }
+
+    const now = new Date();
+    const diffMs = targetDate.getTime() - now.getTime();
+    const daysLeft = Math.max(0, Math.ceil(diffMs / MS_PER_DAY));
+    return { daysLeft, targetDate };
+}
+
+function polarToCartesian(cx, cy, radius, angleInDegrees) {
+    // Standard SVG: 0° is at 3 o'clock, increases clockwise
+    const angleInRadians = angleInDegrees * Math.PI / 180.0;
+    return {
+        x: cx + (radius * Math.cos(angleInRadians)),
+        y: cy + (radius * Math.sin(angleInRadians))
+    };
+}
+
+function describeArc(cx, cy, radius, startAngle, endAngle) {
+    const start = polarToCartesian(cx, cy, radius, startAngle);
+    const end = polarToCartesian(cx, cy, radius, endAngle);
+    
+    // For 270° arc (-135° to 135°), we need largeArcFlag=1, sweepFlag=1 (clockwise)
+    const arcSize = endAngle - startAngle;
+    const largeArcFlag = arcSize > 180 ? 1 : 0;
+    const sweepFlag = 1; // Always clockwise for our gauges
+    
+    return `M ${start.x.toFixed(3)} ${start.y.toFixed(3)} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${end.x.toFixed(3)} ${end.y.toFixed(3)}`;
+}
+
+function getPercentRemaining(org) {
+    if (!org || !org.totalCredits || org.totalCredits <= 0) {
+        return null;
+    }
+    const rawPercent = (org.remainingCredits ?? 0) / org.totalCredits * 100;
+    return Math.min(100, Math.max(0, Math.round(rawPercent)));
+}
+
 // Local helper to keep existing showToast signature while using default export
 const showToast = (message, type) => toast.show(message, type);
 
@@ -487,6 +535,17 @@ export function SettingsPage() {
 function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion }) {
     if (!org) return html`<div class="text-muted">No organization data</div>`;
 
+    const { daysLeft, targetDate } = getDaysLeftInfo(projectedExhaustion);
+    const projectionLabel = targetDate
+        ? `Projected to reach zero on ${targetDate.toLocaleDateString()}`
+        : 'Projection not available yet';
+    const percentRemaining = getPercentRemaining(org);
+    const percentDisplay = percentRemaining !== null ? percentRemaining : 0;
+    const statusClass = org.isDisabled
+        ? 'badge bg-light text-danger border border-danger'
+        : 'badge bg-light text-success border border-success';
+    const statusText = org.isDisabled ? 'Disabled' : 'Active';
+
     return html`
         <div class="row">
             <div class="col-md-6">
@@ -512,8 +571,8 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion }) {
                         <tr>
                             <td class="text-muted">Status</td>
                             <td>
-                                <span class=${`badge ${org.isDisabled ? 'bg-danger' : 'bg-success'}`}>
-                                    ${org.isDisabled ? 'Disabled' : 'Active'}
+                                <span class=${statusClass}>
+                                    ${statusText}
                                 </span>
                             </td>
                         </tr>
@@ -521,32 +580,25 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion }) {
                 </table>
             </div>
             <div class="col-md-6">
-                <h3 class="card-title mb-3">Credits</h3>
+                <h3 class="card-title mb-3">Days Remaining</h3>
                 <div class="card bg-light">
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-6">
-                                <div class="text-muted mb-1">Total Credits</div>
-                                <div class="h3 mb-0">${org.totalCredits || 0}</div>
+                        <div class="d-flex flex-column flex-sm-row align-items-center gap-4">
+                            <div class="flex-fill">
+                                <div class="text-muted small mb-1">Projected days left</div>
+                                <div class="display-4 fw-bold mb-1">${daysLeft !== null ? daysLeft : '—'}</div>
+                                <div class="text-muted small">${projectionLabel}</div>
                             </div>
-                            <div class="col-6">
-                                <div class="text-muted mb-1">Remaining</div>
-                                <div class="h3 mb-0 ${org.remainingCredits < 100 ? 'text-danger' : 'text-success'}">
-                                    ${org.remainingCredits || 0}
+                            <div class="d-flex flex-column align-items-center">
+                                <${SemiCircleGauge} percent=${percentDisplay} />
+                                <div class="text-muted small mt-2">
+                                    ${daysLeft !== null && org.totalCredits && org.seats 
+                                        ? `${daysLeft} of ${Math.round(org.totalCredits / org.seats)} days`
+                                        : '—'}
                                 </div>
                             </div>
                         </div>
-                        <div class="progress mt-3" style="height: 8px;">
-                            <div 
-                                class="progress-bar" 
-                                role="progressbar" 
-                                style="width: ${org.totalCredits > 0 ? (org.remainingCredits / org.totalCredits * 100) : 0}%"
-                            ></div>
-                        </div>
-                        <div class="text-muted small mt-2">
-                            ${org.totalCredits > 0 ? Math.round((org.remainingCredits / org.totalCredits) * 100) : 0}% remaining
-                        </div>
-                        <div class="mt-3">
+                        <div class="mt-4">
                             <CreditsChart history=${creditHistory} projectedExhaustion=${projectedExhaustion} />
                         </div>
                     </div>
@@ -579,6 +631,78 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion }) {
                 </div>
             </div>
         ` : ''}
+    `;
+}
+
+function SemiCircleGauge({ percent }) {
+    const clamped = percent !== null ? Math.min(100, Math.max(0, percent)) : 0;
+    
+    // Rotated 90° anti-clockwise from bottom opening: now opens on right side
+    const startAngle = -225; // -135° - 90°
+    const endAngle = 45;     // 135° - 90°
+    const totalDegrees = endAngle - startAngle; // 270°
+    const valueDegrees = (clamped / 100) * totalDegrees;
+    const valueEndAngle = startAngle + valueDegrees;
+    
+    const radius = 80;
+    const centerX = 120;
+    const centerY = 100;
+    const strokeWidth = 15;
+    
+    // Generate arc paths
+    const backgroundPath = describeArc(centerX, centerY, radius, startAngle, endAngle);
+    const valuePath = clamped > 0 ? describeArc(centerX, centerY, radius, startAngle, valueEndAngle) : '';
+    
+    const displayPercent = percent !== null ? `${clamped}%` : '—';
+    const ariaLabel = percent !== null ? `Credits remaining ${displayPercent}` : 'Credits remaining gauge';
+
+    return html`
+        <div class="position-relative" style="width: 240px; height: 160px;">
+            <svg
+                width="240"
+                height="160"
+                viewBox="0 0 240 160"
+                role="img"
+                aria-label=${ariaLabel}
+            >
+                <defs>
+                    <linearGradient id=${GAUGE_GRADIENT_ID} x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#0084ff" stop-opacity="1" />
+                        <stop offset="50%" stop-color="#0066cc" stop-opacity="1" />
+                        <stop offset="65%" stop-color="#0055b3" stop-opacity="1" />
+                        <stop offset="91%" stop-color="#004499" stop-opacity="1" />
+                    </linearGradient>
+                </defs>
+                
+                <!-- Background arc (light gray, dashed) -->
+                <path
+                    d=${backgroundPath}
+                    fill="none"
+                    stroke="#e9ecef"
+                    stroke-width=${strokeWidth}
+                    stroke-linecap="round"
+                    stroke-dasharray="4"
+                />
+                
+                <!-- Value arc (blue gradient, dashed) -->
+                ${clamped > 0 ? html`
+                    <path
+                        d=${valuePath}
+                        fill="none"
+                        stroke=${`url(#${GAUGE_GRADIENT_ID})`}
+                        stroke-width=${strokeWidth}
+                        stroke-linecap="round"
+                        stroke-dasharray="4"
+                    />
+                ` : ''}
+            </svg>
+            
+            <!-- Center label -->
+            <div class="position-absolute" style="top: 70px; left: 50%; transform: translateX(-50%); text-align: center;">
+                <div class="fs-3 fw-bold text-dark">${displayPercent}</div>
+                <div class="text-muted small">remaining</div>
+            </div>
+        </div>
     `;
 }
 

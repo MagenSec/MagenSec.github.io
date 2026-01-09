@@ -88,93 +88,70 @@ export function initRouter(renderApp) {
         page.redirect('/posture');
     });
 
-    // Security routes (protected)
-    page('/security/threat-intel', (ctx) => {
+    // Security routes REMOVED - threatIntel, response, vulnerabilities are placeholder/unreachable
+    // Use: Analyst for AI-powered insights, Posture for security posture
+
+    // Assets routes REMOVED - software-inventory, hardware-inventory are placeholder/unreachable
+
+    // Reports routes REMOVED - compliance-report is placeholder/unreachable
+
+    // Advanced routes REMOVED - alerts, platform-insights are placeholder/unreachable
+
+    // Inventory (protected)
+    page('/inventory', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'threat-intel', ctx });
+        renderApp({ page: 'inventory', ctx });
     });
 
-    page('/security/response', (ctx) => {
+    // Site Admin (protected)
+    page('/site-admin', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'response-actions', ctx });
+        renderApp({ page: 'site-admin', ctx });
     });
 
-    page('/security/vulnerabilities', (ctx) => {
+    // Audit (protected)
+    page('/audit', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'vulnerabilities', ctx });
+        renderApp({ page: 'audit', ctx });
     });
 
-    // Assets routes (protected)
-    page('/assets/software', (ctx) => {
+    // Members (protected)
+    page('/members', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'software-inventory', ctx });
+        renderApp({ page: 'audit', ctx }); // Embedded in audit page
     });
 
-    page('/assets/hardware', (ctx) => {
+    // Licenses (protected)
+    page('/licenses', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'hardware-inventory', ctx });
+        renderApp({ page: 'settings', ctx }); // Embedded in settings page
     });
 
-    // Reports routes (protected)
-    page('/reports/compliance', (ctx) => {
+    // Settings (protected)
+    page('/settings', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'compliance-report', ctx });
+        renderApp({ page: 'settings', ctx });
     });
 
-    // Advanced routes (protected)
-    page('/alerts', (ctx) => {
-        if (!ctx.isAuthenticated) {
-            page.redirect('/');
-            return;
-        }
-        renderApp({ page: 'alerts', ctx });
-    });
-
-    page('/platform/insights', (ctx) => {
-        if (!ctx.isAuthenticated) {
-            page.redirect('/');
-            return;
-        }
-        renderApp({ page: 'platform-insights', ctx });
-    });
-
-    // Other placeholder routes (protected)
-    const protectedRoutes = [
-        ['inventory', 'inventory'],
-        ['site-admin', 'site-admin'],
-        ['audit', 'audit'],
-        ['members', 'members'],
-        ['licenses', 'licenses'],
-        ['account', 'account'],
-        ['settings', 'settings']
-    ];
-    protectedRoutes.forEach(([path, pageName]) => {
-        page(`/${path}`, (ctx) => {
-            if (!ctx.isAuthenticated) {
-                page.redirect('/');
-                return;
-            }
-            renderApp({ page: pageName, ctx });
-        });
-    });
+    // Account route REMOVED - account page is placeholder (login-based signup/profile)
 
     // Start router with hash-bang mode
     // Set base to /portal/ for GitHub Pages, or current directory

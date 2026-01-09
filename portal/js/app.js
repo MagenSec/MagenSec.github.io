@@ -13,10 +13,7 @@ import DevicesPage from './pages/devices.js';
 import { DeviceDetailPage } from './pages/device-detail.js';
 import { AnalystPage } from './pages/analyst.js';
 import { PosturePage } from './pages/posture.js';
-import { ThreatIntelPage } from './pages/threatIntel.js';
-import { ResponseActionsPage } from './pages/responseActions.js';
-import { VulnerabilitiesPage } from './pages/vulnerabilities.js';
-import { AlertsPage } from './pages/alerts.js';
+// Removed: threatIntel, responseActions, vulnerabilities, alerts pages (unreachable/placeholder)
 import { AssetsPage } from './pages/assets.js';
 import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
 import { SettingsPage } from './pages/settings.js';
@@ -60,28 +57,10 @@ function App() {
             return html`<${AnalystPage} />`;
         case 'posture':
             return html`<${PosturePage} />`;
-        case 'threat-intel':
-            return html`<${ThreatIntelPage} />`;
-        case 'response-actions':
-            return html`<${ResponseActionsPage} />`;
-        case 'vulnerabilities':
-            return html`<${VulnerabilitiesPage} />`;
-        case 'software-inventory':
-            return html`<${SoftwareInventoryPage} />`;
-        case 'hardware-inventory':
-            return html`<${HardwareInventoryPage} />`;
-        case 'compliance-report':
-            return html`<${ComplianceReportPage} />`;
-        case 'alerts':
-            return html`<${AlertsPage} />`;
-        case 'platform-insights':
-            return html`<${PlatformInsightsPage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
         case 'site-admin':
             return html`<${SiteAdminPage} />`;
-        case 'account':
-            return html`<${AccountPage} />`;
         case 'settings':
             return html`<${SettingsPage} />`;
         case 'audit':
