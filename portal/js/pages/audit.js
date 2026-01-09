@@ -56,10 +56,10 @@ const getTypeLabel = (evt) => {
 
 export function AuditPage() {
     logger.debug('[Audit] Component rendering...');
-    
+
     const currentUser = auth.getUser();
     const isSiteAdmin = currentUser?.userType === 'SiteAdmin';
-    
+
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'timeline', 'user-activity', or 'device-activity'
     const [events, setEvents] = useState([]);
@@ -108,14 +108,14 @@ export function AuditPage() {
 
     const extractCreditJobEvents = () => {
         // Filter to SYSTEM org credit consumption events
-        const jobEvents = events.filter(e => 
-            e.orgId === 'SYSTEM' && 
-            e.eventType && 
+        const jobEvents = events.filter(e =>
+            e.orgId === 'SYSTEM' &&
+            e.eventType &&
             e.eventType.startsWith('CreditConsumption')
         ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
+
         setCreditJobEvents(jobEvents);
-        
+
         // Render chart if we have events
         if (jobEvents.length > 0) {
             setTimeout(() => renderCreditJobChart(jobEvents), 100);
@@ -128,7 +128,7 @@ export function AuditPage() {
             logger.warn('[Audit] Chart.js not loaded, skipping credit job chart');
             return;
         }
-        
+
         const canvas = document.getElementById('creditJobChart');
         if (!canvas) {
             logger.warn('[Audit] creditJobChart canvas not found');
@@ -136,7 +136,7 @@ export function AuditPage() {
         }
 
         const ctx = canvas.getContext('2d');
-        
+
         // Destroy existing chart
         if (auditChartInstance) {
             auditChartInstance.destroy();
@@ -146,11 +146,11 @@ export function AuditPage() {
         // Prepare data
         const labels = jobEvents.map(e => {
             const date = new Date(e.timestamp);
-            return date.toLocaleString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
-                hour: '2-digit', 
-                minute: '2-digit' 
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
             });
         });
 
@@ -196,7 +196,7 @@ export function AuditPage() {
                     },
                     tooltip: {
                         callbacks: {
-                            label: function(context) {
+                            label: function (context) {
                                 const event = jobEvents[context.dataIndex];
                                 const lines = [event.eventType];
                                 if (event.metadata) {
@@ -227,7 +227,7 @@ export function AuditPage() {
                         max: 2.5,
                         ticks: {
                             stepSize: 1,
-                            callback: function(value) {
+                            callback: function (value) {
                                 if (value === 0) return 'Failed';
                                 if (value === 1) return 'Started';
                                 if (value === 2) return 'Completed';
@@ -490,21 +490,72 @@ export function AuditPage() {
             return keys.some(k => combo.includes(k.toLowerCase()));
         };
 
+        // Credit events: consumption + adjustments (LicenseAdjustment includes seat/credit changes)
         const creditEvents = allEvents
-            .filter(e => includesAny(e, ['credit', 'licensecreated', 'licensecreditsadded', 'creditconsumptioncalculated', 'licenseexpired', 'licensecreditslow', 'licenseexpiringsoon']))
+            .filter(e => includesAny(e, ['credit', 'licenseadjustment', 'licensecreated', 'licensecreditsadded', 'creditconsumptioncalculated', 'licenseexpired', 'licensecreditslow', 'licenseexpiringsoon']))
             .slice()
             .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         const creditDataPoints = creditEvents.map(evt => {
             const meta = evt.metadata || {};
+            const eventType = evt.eventType || '';
+
+            // Handle LicenseAdjustment: use newRemainingCredits and creditsDiff
+            if (eventType.toLowerCase() === 'licenseadjustment') {
+                return {
+                    timestamp: evt.timestamp,
+                    eventType: getTypeLabel(evt),
+                    reason: meta.reason || 'License adjustment',
+                    remaining: toNumber(meta.newRemainingCredits ?? meta.remainingCredits),
+                    consumed: toNumber(meta.creditsDiff ?? meta.creditsConsumed ?? 0),
+                    added: meta.creditsDiff > 0 ? toNumber(meta.creditsDiff) : 0,
+                    seats: toNumber(meta.newSeats ?? meta.seats ?? 1),
+                    isAdjustment: true
+                };
+            }
+
+            // Handle CreditConsumption: use remainingCredits and creditsConsumed (negative)
             return {
                 timestamp: evt.timestamp,
                 eventType: getTypeLabel(evt),
-                remaining: toNumber(meta.RemainingCredits ?? meta.remainingCredits),
-                consumed: toNumber(meta.CreditsConsumed ?? meta.creditsConsumed ?? meta.totalCreditsDeducted),
-                added: toNumber(meta.CreditsAdded ?? meta.creditsAdded)
+                remaining: toNumber(meta.remainingCredits),
+                consumed: -toNumber(meta.creditsConsumed ?? 0), // Negative for consumption
+                added: 0,
+                seats: toNumber(meta.seats ?? 1),
+                isAdjustment: false
             };
         });
+
+        // License adjustments (seats, credits): extract key state transitions
+        const licenseAdjustmentEvents = allEvents
+            .filter(e => includesAny(e, ['licenseadjustment']))
+            .map(evt => ({
+                timestamp: evt.timestamp,
+                eventType: evt.eventType,
+                performedBy: evt.performedBy,
+                description: evt.description,
+                metadata: evt.metadata
+            }))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Newest first
+
+        // AI reports: track report generation by model
+        const aiReports = allEvents
+            .filter(e => includesAny(e, ['ai_report', 'report_generated']))
+            .map(evt => ({
+                timestamp: evt.timestamp,
+                model: evt.subType || evt.metadata?.Model || 'unknown',
+                riskScore: toNumber(evt.metadata?.RiskScore),
+                deviceCount: toNumber(evt.metadata?.DeviceCount),
+                criticalVulns: toNumber(evt.metadata?.CriticalVulns),
+                highVulns: toNumber(evt.metadata?.HighVulns)
+            }))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        // Device lifecycle events: state changes
+        const deviceLifecycleEvents = allEvents
+            .filter(e => includesAny(e, ['device', 'heartbeat', 'license', 'state']))
+            .filter(e => !includesAny(e, ['credit', 'email', 'login', 'report']))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         const emailEvents = allEvents
             .filter(e => includesAny(e, ['email', 'notification']))
@@ -513,16 +564,19 @@ export function AuditPage() {
                 const metaType = meta.eventType || meta.EventType || meta.emailType || meta.EmailType || meta.type || meta.Type;
                 return { ...e, eventType: metaType || getTypeKey(e) };
             });
-            const loginEvents = allEvents.filter(e => includesAny(e, ['login', 'session']));
-            const lifecycleEventsRaw = allEvents.filter(e => classifyLifecycleCategory(e));
-            const userSessionsRaw = computeUserSessions(allEvents);
+        const loginEvents = allEvents.filter(e => includesAny(e, ['login', 'session']));
+        const lifecycleEventsRaw = allEvents.filter(e => classifyLifecycleCategory(e));
+        const userSessionsRaw = computeUserSessions(allEvents);
 
         const emailNotifications = groupByDayAndType(emailEvents);
-            const loginTimeline = groupLoginEvents(loginEvents);
-            const lifecycleEvents = groupLifecycleEvents(lifecycleEventsRaw);
+        const loginTimeline = groupLoginEvents(loginEvents);
+        const lifecycleEvents = groupLifecycleEvents(lifecycleEventsRaw);
 
         return {
             creditConsumption: { dataPoints: creditDataPoints },
+            licenseAdjustments: licenseAdjustmentEvents,
+            aiReports,
+            deviceLifecycle: deviceLifecycleEvents,
             emailNotifications,
             loginTimeline,
             lifecycleEvents,
@@ -541,7 +595,7 @@ export function AuditPage() {
             setLoading(true);
             setLoadingAnalytics(true);
             const currentOrg = orgContext.getCurrentOrg();
-            
+
             if (!currentOrg?.orgId) {
                 logger.warn('[Audit] No org selected');
                 toast.show('Please select an organization', 'warning');
@@ -606,7 +660,7 @@ export function AuditPage() {
         }
 
         setTimeout(() => {
-            renderCreditConsumptionChart(analyticsData.creditConsumption);
+            renderCreditConsumptionChart(analyticsData.creditConsumption, rangeDays);
             renderEmailNotificationsChart(analyticsData.emailNotifications);
             renderLoginTimelineChart(analyticsData.loginTimeline);
             renderLifecycleChart(analyticsData.lifecycleEvents);
@@ -614,7 +668,7 @@ export function AuditPage() {
         }, 100);
     };
 
-    const renderCreditConsumptionChart = (data) => {
+    const renderCreditConsumptionChart = (data, daysRange = 7) => {
         const canvas = document.getElementById('creditConsumptionChart');
         if (!canvas) return;
 
@@ -628,28 +682,66 @@ export function AuditPage() {
             return;
         }
 
+        // Filter to selected time range
+        const now = new Date();
+        const cutoffDate = new Date(now);
+        cutoffDate.setDate(cutoffDate.getDate() - daysRange);
+        
+        const filteredPoints = points.filter(p => new Date(p.timestamp) >= cutoffDate);
+
+        // Convert credits to days: days = credits / seats (1 credit per seat per day)
+        const pointsWithDays = filteredPoints.map(p => ({
+            ...p,
+            days: Math.round((p.remaining || 0) / Math.max(1, p.seats || 1))
+        }));
+
+        // Sort by timestamp for proper X-axis ordering
+        const sortedPoints = pointsWithDays.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
         new Chart(ctx, {
             type: 'line',
             data: {
-                labels: points.map(p => new Date(p.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                labels: sortedPoints.map(p => new Date(p.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
                 datasets: [
                     {
-                        label: 'Remaining Credits',
-                        data: points.map(p => p.remaining),
+                        label: 'Remaining Days Left',
+                        data: sortedPoints.map(p => ({
+                            x: new Date(p.timestamp),
+                            y: p.days,
+                            timestamp: p.timestamp,
+                            isAdjustment: p.isAdjustment,
+                            creditsDiff: p.consumed,
+                            eventType: p.eventType,
+                            reason: p.reason
+                        })),
                         borderColor: '#206bc4',
                         backgroundColor: 'rgba(32, 107, 196, 0.1)',
                         borderWidth: 2,
                         fill: true,
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Credits Consumed',
-                        data: points.map(p => p.consumed),
-                        borderColor: '#d63939',
-                        backgroundColor: 'rgba(214, 57, 57, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointRadius: (context) => {
+                            const point = context.raw;
+                            return point.isAdjustment ? 7 : 3; // Larger dots for adjustments
+                        },
+                        pointBackgroundColor: (context) => {
+                            const point = context.raw;
+                            // For adjustments: Green if credits added, Red if credits reduced
+                            if (point.isAdjustment) {
+                                return point.creditsDiff > 0 ? '#28a745' : '#dc3545'; // Green for additions, Red for reductions
+                            }
+                            return '#206bc4'; // Blue for regular consumption
+                        },
+                        pointBorderColor: (context) => {
+                            const point = context.raw;
+                            if (point.isAdjustment) {
+                                return point.creditsDiff > 0 ? '#1e7e34' : '#a02622'; // Darker green/red for borders
+                            }
+                            return '#0e4f8f';
+                        },
+                        pointBorderWidth: (context) => {
+                            const point = context.raw;
+                            return point.isAdjustment ? 3 : 1; // Thicker border for adjustments
+                        }
                     }
                 ]
             },
@@ -657,22 +749,59 @@ export function AuditPage() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: true, position: 'top' },
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            generateLabels: (chart) => [
+                                { text: '📈 Days Remaining', fillStyle: '#206bc4', hidden: false },
+                                { text: '🟢 Credit Added', fillStyle: '#28a745', hidden: false },
+                                { text: '🔴 Credit Reduced', fillStyle: '#dc3545', hidden: false }
+                            ]
+                        }
+                    },
                     tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: { size: 13, weight: 'bold' },
+                        bodyFont: { size: 12 },
                         callbacks: {
+                            title: () => 'Days Remaining',
                             label: (context) => {
-                                const point = points[context.dataIndex];
-                                return [
-                                    `${context.dataset.label}: ${context.parsed.y}`,
-                                    `Event: ${point.eventType}`
-                                ];
+                                const point = context.raw;
+                                const lines = [`${point.y} days`];
+                                if (point.isAdjustment) {
+                                    lines.push(`Adjustment: ${point.creditsDiff > 0 ? '+' : ''}${point.creditsDiff}`);
+                                    if (point.reason) lines.push(`Reason: ${point.reason}`);
+                                }
+                                return lines;
+                            },
+                            afterLabel: (context) => {
+                                const point = context.raw;
+                                const date = new Date(point.timestamp);
+                                return `${date.toLocaleDateString('en-US')} ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
                             }
                         }
                     }
                 },
                 scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Credits' } },
-                    x: { title: { display: true, text: 'Date' } }
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Days Remaining', font: { weight: 'bold' } },
+                        ticks: { callback: (v) => `${v}d` }
+                    },
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            displayFormats: {
+                                day: 'MMM d'
+                            }
+                        },
+                        min: cutoffDate,
+                        max: now,
+                        title: { display: true, text: 'Date', font: { weight: 'bold' } }
+                    }
                 }
             }
         });
@@ -864,7 +993,7 @@ export function AuditPage() {
                         position: 'bottom',
                         title: { display: true, text: 'Time' },
                         ticks: {
-                            callback: function(value) {
+                            callback: function (value) {
                                 const date = new Date(value);
                                 return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                             }
@@ -1104,6 +1233,9 @@ export function AuditPage() {
                         </div>
                     </div>
 
+                    <!-- License Adjustments Table -->
+                    <!-- Merged into Credit Consumption chart as colored markers -->
+
                     <!-- User Activity Sessions Chart -->
                     <div class="col-lg-12">
                         <div class="card">
@@ -1291,9 +1423,9 @@ export function AuditPage() {
                 <div class="card">
                     <div class="list-group list-group-flush">
                         ${paginatedEvents.map((event) => {
-                            const color = getEventColor(event.eventType);
-                            const icon = getEventIcon(event.eventType);
-                            return html`
+                                const color = getEventColor(event.eventType);
+                                const icon = getEventIcon(event.eventType);
+                                return html`
                                 <div class="list-group-item">
                                     <div class="row align-items-center">
                                         <div class="col-auto">
@@ -1337,7 +1469,7 @@ export function AuditPage() {
                                     </div>
                                 </div>
                             `;
-                        })}
+                            })}
                     </div>
                 </div>
 
@@ -1405,59 +1537,59 @@ export function AuditPage() {
             `;
         }
 
-    return html`
-        <div class="container-xl">
-            <div class="page-header d-print-none">
-                <div class="row align-items-center">
-                    <div class="col">
-                        <h2 class="page-title">Audit</h2>
-                        <div class="text-muted mt-1">
-                            ${activeTab === 'analytics' ? 'Analytics Dashboard' : `${filteredEvents.length} ${filteredEvents.length === 1 ? 'event' : 'events'}`}
-                            ${activeTab === 'timeline' && (filters.eventType !== 'all' || filters.search || filters.dateFrom || filters.dateTo) ? '(filtered)' : ''}
+        return html`
+            <div class="container-xl">
+                <div class="page-header d-print-none">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h2 class="page-title">Audit</h2>
+                            <div class="text-muted mt-1">
+                                ${activeTab === 'analytics' ? 'Analytics Dashboard' : `${filteredEvents.length} ${filteredEvents.length === 1 ? 'event' : 'events'}`}
+                                ${activeTab === 'timeline' && (filters.eventType !== 'all' || filters.search || filters.dateFrom || filters.dateTo) ? '(filtered)' : ''}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-icon" onClick=${() => activeTab === 'analytics' ? loadAnalytics() : loadEvents()} title="Refresh">
+                                <i class="ti ti-refresh"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="col-auto">
-                        <button class="btn btn-icon" onClick=${() => activeTab === 'analytics' ? loadAnalytics() : loadEvents()} title="Refresh">
-                            <i class="ti ti-refresh"></i>
-                        </button>
+                </div>
+
+                <!-- Tab Navigation -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                            <li class="nav-item">
+                                <a 
+                                    class="nav-link ${activeTab === 'analytics' ? 'active' : ''}"
+                                    href="#"
+                                    role="tab"
+                                    onClick=${(e) => { e.preventDefault(); setActiveTab('analytics'); }}
+                                >
+                                    <i class="ti ti-chart-line me-2"></i>
+                                    Analytics
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a 
+                                    class="nav-link ${activeTab === 'timeline' ? 'active' : ''}"
+                                    href="#"
+                                    role="tab"
+                                    onClick=${(e) => { e.preventDefault(); setActiveTab('timeline'); }}
+                                >
+                                    <i class="ti ti-history me-2"></i>
+                                    Timeline
+                                </a>
+                            </li>
+                        </ul>
                     </div>
                 </div>
-            </div>
 
-            <!-- Tab Navigation -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'analytics' ? 'active' : ''}"
-                                href="#"
-                                role="tab"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('analytics'); }}
-                            >
-                                <i class="ti ti-chart-line me-2"></i>
-                                Analytics
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a 
-                                class="nav-link ${activeTab === 'timeline' ? 'active' : ''}"
-                                href="#"
-                                role="tab"
-                                onClick=${(e) => { e.preventDefault(); setActiveTab('timeline'); }}
-                            >
-                                <i class="ti ti-history me-2"></i>
-                                Timeline
-                            </a>
-                        </li>
-                    </ul>
-                </div>
+                <!-- Tab Content -->
+                ${activeTab === 'analytics' ? renderAnalyticsTab() : renderTimelineTab()}
             </div>
-
-            <!-- Tab Content -->
-            ${activeTab === 'analytics' ? renderAnalyticsTab() : renderTimelineTab()}
-        </div>
-    `;
+        `;
     } catch (error) {
         logger.error('[Audit] Rendering error:', error);
         return html`

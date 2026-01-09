@@ -537,7 +537,7 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion }) {
 
     const { daysLeft, targetDate } = getDaysLeftInfo(projectedExhaustion);
     const projectionLabel = targetDate
-        ? `Projected to reach zero on ${targetDate.toLocaleDateString()}`
+        ? `Projected to expire on ${targetDate.toLocaleDateString()}`
         : 'Projection not available yet';
     const percentRemaining = getPercentRemaining(org);
     const percentDisplay = percentRemaining !== null ? percentRemaining : 0;
@@ -747,7 +747,7 @@ function CreditsChart({ history, projectedExhaustion }) {
 
     const last = history[history.length - 1];
     const exhaustionText = projectedExhaustion
-        ? `Projected to reach zero on ${new Date(projectedExhaustion).toLocaleDateString()}`
+        ? `Projected to expire on ${new Date(projectedExhaustion).toLocaleDateString()}`
         : 'Projection not available yet';
 
     return html`
