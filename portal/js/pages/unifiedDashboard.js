@@ -26,11 +26,14 @@ export class UnifiedDashboardPage extends Component {
             recentAlerts: [],
             recentDevices: [],
             licenseInfo: null,
+            coverage: { healthy: 0, stale: 0, offline: 0, total: 0 },
+            actions: [],
             inventoryStats: { totalApps: 0, vendors: 0 },
             securityScore: 0,
             securityGrade: 'N/A',
             lastScan: 'Never',
             nextScan: 'Pending',
+            generatedAt: null,
             refreshInterval: null
         };
         this.orgUnsubscribe = null;
@@ -76,6 +79,10 @@ export class UnifiedDashboardPage extends Component {
                 // License info from backend
                 const licenseInfo = dashboard.license || null;
 
+                const coverage = dashboard.coverage || { healthy: 0, stale: 0, offline: 0, total: 0 };
+                const actions = dashboard.actions || [];
+                const generatedAt = dashboard.generatedAt || new Date().toISOString();
+
                 this.setState({
                     dashboardData: dashboard,
                     deviceStats: dashboard.devices || { total: 0, active: 0, disabled: 0, blocked: 0 },
@@ -89,6 +96,9 @@ export class UnifiedDashboardPage extends Component {
                     nextScan: dashboard.nextScan || 'Pending',
                     inventoryStats,
                     licenseInfo,
+                    coverage,
+                    actions,
+                    generatedAt,
                     loading: false
                 });
             } else {
@@ -133,8 +143,35 @@ export class UnifiedDashboardPage extends Component {
         return 'No Risk';
     }
 
+    getCoveragePercents() {
+        const { coverage } = this.state;
+        const total = coverage.total || 0;
+        return {
+            healthyPct: total ? Math.round((coverage.healthy / total) * 100) : 0,
+            stalePct: total ? Math.round((coverage.stale / total) * 100) : 0,
+            offlinePct: total ? Math.max(0, 100 - Math.round((coverage.healthy / total) * 100) - Math.round((coverage.stale / total) * 100)) : 0
+        };
+    }
+
+    getSeatUsage() {
+        const { licenseInfo } = this.state;
+        return {
+            used: licenseInfo?.usedSeats ?? 0,
+            total: licenseInfo?.seats ?? 0,
+            pct: licenseInfo?.seatUtilization ?? 0
+        };
+    }
+
+    getCreditUsage() {
+        const { licenseInfo } = this.state;
+        return {
+            remaining: licenseInfo?.remainingCredits ?? 0,
+            pct: licenseInfo?.creditUtilization ?? 0
+        };
+    }
+
     render() {
-        const { loading, error, user } = this.state;
+        const { loading, error, user, currentOrg } = this.state;
         
         if (loading) {
             return html`
@@ -158,14 +195,15 @@ export class UnifiedDashboardPage extends Component {
         const role = this.getUserRole();
         const riskScore = this.getRiskScore();
         const riskColor = this.getRiskColor(riskScore);
+        const orgName = currentOrg?.name || currentOrg?.orgId || user?.email || 'Your organization';
 
         return html`
             <div class="page-header d-print-none">
                 <div class="container-xl">
                     <div class="row g-2 align-items-center">
                         <div class="col">
-                            <div class="page-pretitle">Overview</div>
-                            <h2 class="page-title">Security Operations Center</h2>
+                            <div class="page-pretitle">Security overview</div>
+                            <h2 class="page-title">${orgName}</h2>
                         </div>
                         <div class="col-auto ms-auto">
                             ${this.renderQuickActions()}
@@ -176,41 +214,93 @@ export class UnifiedDashboardPage extends Component {
 
             <div class="page-body">
                 <div class="container-xl">
-                    <!-- AI Analyst Widget -->
-                    <div class="row mb-3">
-                        ${this.renderAIAnalystWidget()}
-                    </div>
+                    ${this.renderValuePanel(riskColor)}
+                    ${this.renderHero(riskScore, riskColor)}
+                    ${this.renderHighlights()}
 
-                    <!-- KPI Cards -->
-                    <div class="row row-deck row-cards mb-3">
+                    <div class="row row-deck row-cards mt-3">
                         ${this.renderKPICards(role, riskScore, riskColor)}
                     </div>
 
-                    <!-- Main Content Grid -->
-                    <div class="row row-deck row-cards">
-                        <!-- Left Column: Posture & Alerts -->
+                    <div class="row row-cards mt-3">
                         <div class="col-lg-8">
-                            <div class="row row-cards">
-                                <div class="col-12">
-                                    ${this.renderPostureWidget()}
-                                </div>
-                                <div class="col-12">
-                                    ${this.renderRecentAlerts()}
-                                </div>
+                            <div class="vstack gap-3">
+                                ${this.renderAIAnalystWidget()}
+                                ${this.renderActionList()}
+                                ${this.renderPostureWidget()}
+                                ${this.renderRecentAlerts()}
                             </div>
                         </div>
-
-                        <!-- Right Column: Inventory & Placeholders -->
                         <div class="col-lg-4">
-                            <div class="row row-cards">
-                                <div class="col-12">
-                                    ${this.renderInventoryWidget()}
+                            <div class="vstack gap-3">
+                                ${this.renderCoverageWidget()}
+                                ${this.renderLicenseWidget()}
+                                ${this.renderRecentDevices()}
+                                ${this.renderInventoryWidget()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderValuePanel(riskColor) {
+        const { threatSummary } = this.state;
+        const coveragePercents = this.getCoveragePercents();
+        const seats = this.getSeatUsage();
+        const credits = this.getCreditUsage();
+
+        return html`
+            <div class="card mb-3" style="background: linear-gradient(120deg, #0b7285 0%, #1c7ed6 50%, #4263eb 100%); color: #fff;">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-lg-7">
+                            <div class="text-uppercase text-white-50 fw-semibold mb-1">Trusted Security Overview</div>
+                            <div class="h2 mb-2">Spot risks faster. Prove readiness instantly.</div>
+                            <div class="text-white-70">Real-time telemetry, actionable playbooks, and license health in one view. Ship reports your auditors will love.</div>
+                            <div class="btn-list mt-3">
+                                <a href="#!/posture" class="btn btn-white">Run full scan</a>
+                                <a href="#!/devices" class="btn btn-light">Add device</a>
+                            </div>
+                        </div>
+                        <div class="col-lg-5 mt-3 mt-lg-0">
+                            <div class="row row-cards g-2">
+                                <div class="col-6">
+                                    <div class="card bg-white text-body shadow-sm">
+                                        <div class="card-body p-3">
+                                            <div class="text-muted text-uppercase fw-semibold small">Coverage</div>
+                                            <div class="h3 mb-0">${coveragePercents.healthyPct}%</div>
+                                            <div class="text-muted small">Healthy telemetry</div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-12">
-                                    ${this.renderPlaceholderTile('Threat Intelligence', 'Global threat feed integration coming soon.', 'activity')}
+                                <div class="col-6">
+                                    <div class="card bg-white text-body shadow-sm">
+                                        <div class="card-body p-3">
+                                            <div class="text-muted text-uppercase fw-semibold small">Seats used</div>
+                                            <div class="h3 mb-0">${seats.used}/${seats.total || '—'}</div>
+                                            <div class="text-muted small">${seats.pct}% utilization</div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-12">
-                                    ${this.renderPlaceholderTile('Compliance Reports', 'Detailed compliance frameworks (ISO, SOC2) coming soon.', 'file-check')}
+                                <div class="col-6">
+                                    <div class="card bg-white text-body shadow-sm">
+                                        <div class="card-body p-3">
+                                            <div class="text-muted text-uppercase fw-semibold small">Credits left</div>
+                                            <div class="h3 mb-0">${credits.remaining}</div>
+                                            <div class="text-muted small">${credits.pct}% used</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="card bg-white text-body shadow-sm">
+                                        <div class="card-body p-3">
+                                            <div class="text-muted text-uppercase fw-semibold small">Open threats</div>
+                                            <div class="h3 mb-0 text-${riskColor}">${(threatSummary.critical || 0) + (threatSummary.high || 0)}</div>
+                                            <div class="text-muted small">Critical / High</div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -220,34 +310,268 @@ export class UnifiedDashboardPage extends Component {
         `;
     }
 
-    renderAIAnalystWidget() {
+    renderHero(riskScore, riskColor) {
+        const { securityGrade, lastScan, nextScan, coverage, generatedAt } = this.state;
+        const coverageTotal = coverage.total || 0;
+        const coverageLabel = coverageTotal ? `${coverage.healthy}/${coverageTotal} healthy` : 'No devices yet';
+
         return html`
-            <div class="col-12">
-                <div class="card bg-primary-lt">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-auto">
-                                <span class="avatar avatar-md bg-primary text-white">AI</span>
-                            </div>
-                            <div class="col">
-                                <h3 class="card-title m-0">AI Security Analyst</h3>
-                                <div class="text-muted">Ask questions about your security posture, vulnerabilities, or devices.</div>
+            <div class="card bg-dark text-white">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-lg-8">
+                            <div class="text-uppercase text-white-50 fw-semibold mb-1">Security posture</div>
+                            <div class="d-flex align-items-center">
+                                <div class="display-6 mb-0 me-3 text-${riskColor}">${riskScore}</div>
+                                <div>
+                                    <div class="h3 mb-0">Grade ${securityGrade}</div>
+                                    <div class="text-white-70">Last scan: ${lastScan} · Next: ${nextScan}</div>
+                                </div>
                             </div>
                         </div>
-                        <div class="mt-3">
-                            <div class="input-group input-group-flat">
-                                <input type="text" class="form-control" placeholder="e.g., 'Show me critical vulnerabilities' or 'How many devices are non-compliant?'" 
-                                    onKeydown=${(e) => e.key === 'Enter' && this.handleAnalystSearch(e.target.value)} />
-                                <span class="input-group-text">
-                                    <a href="#" class="link-primary" title="Ask Analyst" onClick=${(e) => {
-                                        e.preventDefault();
-                                        const input = e.target.closest('.input-group').querySelector('input');
-                                        this.handleAnalystSearch(input.value);
-                                    }}>
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
-                                    </a>
-                                </span>
+                        <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                            <div class="text-white-50">Telemetry coverage</div>
+                            <div class="h4 mb-1">${coverageLabel}</div>
+                            <div class="text-white-50 small">Updated ${this.formatTimestamp(generatedAt)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderHighlights() {
+        const { deviceStats, threatSummary, complianceSummary } = this.state;
+        const atRisk = (deviceStats.blocked || 0) + (deviceStats.disabled || 0);
+        const hasThreats = (threatSummary.total || 0) > 0;
+        const criticalHigh = hasThreats ? (threatSummary.critical || 0) + (threatSummary.high || 0) : '—';
+        const hasCompliance = (complianceSummary.total || 0) > 0;
+        const complianceScoreLabel = hasCompliance ? `${complianceSummary.score}%` : 'Awaiting scan';
+
+        return html`
+            <div class="row row-cards mt-3">
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted text-uppercase fw-semibold small">At-risk endpoints</div>
+                            <div class="h2 mb-0">${atRisk}</div>
+                            <div class="text-muted small">Blocked + disabled</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted text-uppercase fw-semibold small">Critical/High threats</div>
+                            <div class="h2 mb-0">${criticalHigh}</div>
+                            <div class="text-muted small">Focus your patching</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted text-uppercase fw-semibold small">Compliance score</div>
+                            <div class="h2 mb-0">${complianceScoreLabel}</div>
+                            <div class="text-muted small">${complianceSummary.compliant} pass / ${complianceSummary.nonCompliant} fail</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted text-uppercase fw-semibold small">Telemetry health</div>
+                            <div class="h2 mb-0">${this.getCoveragePercents().healthyPct}%</div>
+                            <div class="text-muted small">Healthy devices streaming</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderActionList() {
+        const { actions } = this.state;
+
+        const severityToBadge = (severity) => {
+            if (severity === 'critical') return 'bg-danger';
+            if (severity === 'warning') return 'bg-warning';
+            if (severity === 'success') return 'bg-success';
+            return 'bg-info';
+        };
+
+        return html`
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h3 class="card-title">Recommended actions</h3>
+                    <div class="card-actions">
+                        <span class="badge bg-azure-lt">Landing page focus</span>
+                    </div>
+                </div>
+                <div class="list-group list-group-flush">
+                    ${actions && actions.length ? actions.slice(0, 4).map(action => html`
+                        <div class="list-group-item">
+                            <div class="d-flex align-items-start">
+                                <span class="status-dot me-3 ${severityToBadge(action.severity)}"></span>
+                                <div class="flex-fill">
+                                    <div class="d-flex align-items-center">
+                                        <div class="fw-semibold">${action.title}</div>
+                                        ${action.ctaLabel ? html`<a href="${action.ctaHref || '#'}" class="ms-auto small text-primary">${action.ctaLabel}</a>` : ''}
+                                    </div>
+                                    <div class="text-muted small">${action.description}</div>
+                                </div>
                             </div>
+                        </div>
+                    `) : html`
+                        <div class="list-group-item text-muted text-center py-3">No immediate actions. Keep monitoring telemetry.</div>
+                    `}
+                </div>
+            </div>
+        `;
+    }
+
+    renderCoverageWidget() {
+        const { coverage } = this.state;
+        const total = coverage.total || 0;
+        const healthyPct = total ? Math.round((coverage.healthy / total) * 100) : 0;
+        const stalePct = total ? Math.round((coverage.stale / total) * 100) : 0;
+        const offlinePct = total ? Math.max(0, 100 - healthyPct - stalePct) : 0;
+
+        return html`
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h3 class="card-title">Telemetry coverage</h3>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="subheader">Healthy</div>
+                        <div class="ms-auto h4 mb-0">${coverage.healthy}</div>
+                    </div>
+                    <div class="progress progress-sm mb-3">
+                        <div class="progress-bar bg-success" style=${`width: ${healthyPct}%`} role="progressbar"></div>
+                        <div class="progress-bar bg-warning" style=${`width: ${stalePct}%`} role="progressbar"></div>
+                        <div class="progress-bar bg-secondary" style=${`width: ${offlinePct}%`} role="progressbar"></div>
+                    </div>
+                    <div class="small text-muted">Stale: ${coverage.stale} · Offline: ${coverage.offline}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderLicenseWidget() {
+        const { licenseInfo } = this.state;
+
+        if (!licenseInfo) {
+            return html`
+                <div class="card mb-3">
+                    <div class="card-body text-center text-muted">No license info available.</div>
+                </div>
+            `;
+        }
+
+        const seatPct = licenseInfo.seatUtilization || 0;
+        const creditPct = licenseInfo.creditUtilization || 0;
+
+        return html`
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h3 class="card-title">License & credits</h3>
+                    <div class="card-actions">
+                        <span class="badge ${licenseInfo.status === 'Active' ? 'bg-success-lt text-success' : 'bg-warning-lt text-warning'}">${licenseInfo.status}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div>Seats</div>
+                        <div class="ms-auto">${licenseInfo.usedSeats}/${licenseInfo.seats}</div>
+                    </div>
+                    <div class="progress progress-sm mb-3">
+                        <div class="progress-bar" style=${`width: ${seatPct}%`} role="progressbar"></div>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <div>Credits remaining</div>
+                        <div class="ms-auto">${licenseInfo.remainingCredits}</div>
+                    </div>
+                    <div class="progress progress-sm">
+                        <div class="progress-bar bg-azure" style=${`width: ${creditPct}%`} role="progressbar"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderRecentDevices() {
+        const { recentDevices } = this.state;
+
+        return html`
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h3 class="card-title">Recent devices</h3>
+                    <div class="card-actions">
+                        <a href="#!/devices" class="btn btn-sm btn-ghost-secondary">View all</a>
+                    </div>
+                </div>
+                <div class="list-group list-group-flush">
+                    ${recentDevices && recentDevices.length ? recentDevices.map(device => {
+                        // Prefer friendly names; only show IDs in the link, not as display text
+                        const deviceName = device.displayName
+                            || device.friendlyName
+                            || device.deviceName
+                            || device.hostname
+                            || device.name
+                            || 'Unnamed device';
+                        const deviceId = device.deviceId || device.id || device.name || device.hostname || '';
+                        const deviceHref = deviceId ? `#!/devices/${encodeURIComponent(deviceId)}` : '#!/devices';
+
+                        return html`
+                            <div class="list-group-item">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-fill">
+                                        <a class="fw-semibold" href="${deviceHref}">${deviceName}</a>
+                                        <div class="text-muted small">${this.formatTimestamp(device.lastSeen)}</div>
+                                    </div>
+                                    <span class="badge ${device.status === 'active' ? 'bg-success-lt text-success' : device.status === 'blocked' ? 'bg-danger-lt text-danger' : 'bg-warning-lt text-warning'}">${device.status}</span>
+                                </div>
+                            </div>`;
+                    }) : html`<div class="list-group-item text-muted text-center py-3">No recent activity</div>`}
+                </div>
+            </div>
+        `;
+    }
+
+    formatTimestamp(value) {
+        if (!value) return 'just now';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return value;
+        return parsed.toLocaleString();
+    }
+
+    renderAIAnalystWidget() {
+        return html`
+            <div class="card bg-primary-lt mb-3">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="avatar avatar-md bg-primary text-white">AI</span>
+                        </div>
+                        <div class="col">
+                            <h3 class="card-title m-0">AI Security Analyst</h3>
+                            <div class="text-muted">Ask questions about your security posture, vulnerabilities, or devices.</div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="input-group input-group-flat">
+                            <input type="text" class="form-control" placeholder="e.g., 'Show me critical vulnerabilities' or 'How many devices are non-compliant?'" 
+                                onKeydown=${(e) => e.key === 'Enter' && this.handleAnalystSearch(e.target.value)} />
+                            <span class="input-group-text">
+                                <a href="#" class="link-primary" title="Ask Analyst" onClick=${(e) => {
+                                    e.preventDefault();
+                                    const input = e.target.closest('.input-group').querySelector('input');
+                                    this.handleAnalystSearch(input.value);
+                                }}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
+                                </a>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -256,10 +580,9 @@ export class UnifiedDashboardPage extends Component {
     }
 
     renderKPICards(role, riskScore, riskColor) {
-        const { deviceStats, licenseInfo, threatSummary, securityGrade, lastScan } = this.state;
+        const { deviceStats, licenseInfo, coverage, securityGrade, lastScan, complianceSummary } = this.state;
         const riskLabel = this.getRiskLabel(riskScore);
-        
-        // Security Score Card
+
         const scoreCard = html`
             <div class="col-sm-6 col-lg-3">
                 <div class="card">
@@ -270,9 +593,7 @@ export class UnifiedDashboardPage extends Component {
                                 <span class="badge bg-${riskColor}">${securityGrade}</span>
                             </div>
                         </div>
-                        <div class="h1 mb-3">
-                            <span class="text-${riskColor}">${riskScore}</span>/100
-                        </div>
+                        <div class="h1 mb-3"><span class="text-${riskColor}">${riskScore}</span>/100</div>
                         <div class="d-flex mb-2">
                             <div>${riskLabel}</div>
                             <div class="ms-auto text-muted small">Last: ${lastScan}</div>
@@ -282,25 +603,19 @@ export class UnifiedDashboardPage extends Component {
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
 
-        // Devices Card
         const devicesCard = html`
             <div class="col-sm-6 col-lg-3">
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
                             <div class="subheader">Active Endpoints</div>
-                            <div class="ms-auto lh-1">
-                                <a href="#!/devices" class="text-muted">View All</a>
-                            </div>
+                            <div class="ms-auto lh-1"><a href="#!/devices" class="text-muted">View All</a></div>
                         </div>
                         <div class="h1 mb-3">${deviceStats.active} <span class="text-muted fs-4 fw-normal">/ ${deviceStats.total}</span></div>
                         <div class="d-flex mb-2">
-                            <span class="text-${deviceStats.blocked > 0 ? 'danger' : 'success'}">
-                                ${deviceStats.blocked} Blocked
-                            </span>
+                            <span class="text-${deviceStats.blocked > 0 ? 'danger' : 'success'}">${deviceStats.blocked} Blocked</span>
                             <span class="ms-auto text-muted">${deviceStats.disabled} Disabled</span>
                         </div>
                         <div class="progress progress-sm">
@@ -308,61 +623,71 @@ export class UnifiedDashboardPage extends Component {
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
 
-        // Threats Card
-        const threatsCard = html`
+        const coverageCard = html`
             <div class="col-sm-6 col-lg-3">
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
-                            <div class="subheader">Active Threats</div>
+                            <div class="subheader">Telemetry</div>
                         </div>
-                        <div class="h1 mb-3">${threatSummary.total}</div>
+                        <div class="h1 mb-3">${coverage.healthy}/${coverage.total || 0}</div>
                         <div class="d-flex mb-2">
-                            <span class="text-danger me-2">${threatSummary.critical} Critical</span>
-                            <span class="text-warning">${threatSummary.high} High</span>
+                            <span class="text-success me-2">Healthy</span>
+                            <span class="text-warning">${coverage.stale} Stale</span>
+                            <span class="ms-auto text-danger">${coverage.offline} Offline</span>
                         </div>
                         <div class="progress progress-sm">
-                            <div class="progress-bar bg-danger" style="width: ${threatSummary.total ? (threatSummary.critical / threatSummary.total * 100) : 0}%" role="progressbar"></div>
-                            <div class="progress-bar bg-warning" style="width: ${threatSummary.total ? (threatSummary.high / threatSummary.total * 100) : 0}%" role="progressbar"></div>
+                            <div class="progress-bar bg-success" style="width: ${coverage.total ? (coverage.healthy / coverage.total * 100) : 0}%" role="progressbar"></div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
 
-        // Compliance Card
-        const { complianceSummary } = this.state;
-        const complianceCard = html`
+        const creditsCard = html`
             <div class="col-sm-6 col-lg-3">
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
-                            <div class="subheader">Compliance</div>
+                            <div class="subheader">Credits</div>
                         </div>
-                        <div class="h1 mb-3">${complianceSummary.score}%</div>
+                        <div class="h1 mb-3">${licenseInfo?.remainingCredits ?? 0}</div>
                         <div class="d-flex mb-2">
-                            <span class="text-success me-2">${complianceSummary.compliant} Pass</span>
-                            <span class="text-danger">${complianceSummary.nonCompliant} Fail</span>
+                            <span class="text-muted">Seats used ${licenseInfo?.usedSeats ?? 0}/${licenseInfo?.seats ?? 0}</span>
+                            <span class="ms-auto badge ${licenseInfo?.status === 'Active' ? 'bg-success-lt text-success' : 'bg-warning-lt text-warning'}">${licenseInfo?.status || 'Unknown'}</span>
                         </div>
                         <div class="progress progress-sm">
-                            <div class="progress-bar ${complianceSummary.score >= 80 ? 'bg-success' : 'bg-warning'}" style="width: ${complianceSummary.score}%" role="progressbar"></div>
+                            <div class="progress-bar bg-azure" style="width: ${licenseInfo?.creditUtilization ?? 0}%" role="progressbar"></div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
 
-        return html`${scoreCard}${devicesCard}${threatsCard}${complianceCard}`;
+        return html`${scoreCard}${devicesCard}${coverageCard}${creditsCard}`;
     }
 
     renderPostureWidget() {
         const { threatSummary, complianceSummary } = this.state;
+        const hasPostureData = (threatSummary.total || 0) > 0 || (complianceSummary.total || 0) > 0;
+
+        if (!hasPostureData) {
+            return html`
+                <div class="card mb-3">
+                    <div class="card-body text-center py-5">
+                        <h3 class="card-title mb-2">Security posture summary</h3>
+                        <div class="text-muted mb-3">No posture data yet. Run a full scan to generate threats and compliance scores.</div>
+                        <div>
+                            <a href="#!/posture" class="btn btn-primary me-2">Run full scan</a>
+                            <a href="#!/devices" class="btn btn-outline-secondary">Add devices</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         
         return html`
-            <div class="card">
+            <div class="card mb-3">
                 <div class="card-header">
                     <h3 class="card-title">Security Posture Summary</h3>
                     <div class="card-actions">
@@ -419,7 +744,7 @@ export class UnifiedDashboardPage extends Component {
         const { recentAlerts } = this.state;
         
         return html`
-            <div class="card">
+            <div class="card mb-3">
                 <div class="card-header">
                     <h3 class="card-title">Recent Alerts</h3>
                     <div class="card-actions">
@@ -458,9 +783,10 @@ export class UnifiedDashboardPage extends Component {
 
     renderInventoryWidget() {
         const { inventoryStats } = this.state;
+        const hasInventory = (inventoryStats.totalApps || 0) > 0 || (inventoryStats.vendors || 0) > 0;
         
         return html`
-            <div class="card">
+            <div class="card mb-0">
                 <div class="card-header">
                     <h3 class="card-title">Software Inventory</h3>
                     <div class="card-actions">
@@ -468,17 +794,26 @@ export class UnifiedDashboardPage extends Component {
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="subheader">Total Applications</div>
-                        <div class="ms-auto h3 mb-0">${inventoryStats.totalApps}</div>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <div class="subheader">Unique Vendors</div>
-                        <div class="ms-auto h3 mb-0">${inventoryStats.vendors}</div>
-                    </div>
-                    <div class="mt-3">
-                        <a href="#!/inventory" class="btn btn-outline-secondary w-100">View Software Inventory</a>
-                    </div>
+                    ${hasInventory ? html`
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="subheader">Total Applications</div>
+                            <div class="ms-auto h3 mb-0">${inventoryStats.totalApps}</div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Unique Vendors</div>
+                            <div class="ms-auto h3 mb-0">${inventoryStats.vendors}</div>
+                        </div>
+                        <div class="mt-3">
+                            <a href="#!/inventory" class="btn btn-outline-secondary w-100">View Software Inventory</a>
+                        </div>
+                    ` : html`
+                        <div class="text-center text-muted py-3">
+                            No inventory yet. Install the agent and run a software scan.
+                        </div>
+                        <div class="mt-2 d-flex justify-content-center">
+                            <a href="#!/devices" class="btn btn-primary">Add device</a>
+                        </div>
+                    `}
                 </div>
             </div>
         `;
