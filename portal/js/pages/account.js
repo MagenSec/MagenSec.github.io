@@ -91,7 +91,7 @@ class AccountPage extends Component {
             <div class="card-header"><strong>Quick Links</strong></div>
             <div class="card-body">
               <div class="list-group list-group-flush">
-                <a href="#/dashboard-v2" class="list-group-item list-group-item-action">
+                <a href="#/dashboard" class="list-group-item list-group-item-action">
                   <svg class="icon me-2" width="24" height="24"><use href="#tabler-dashboard"/></svg>
                   Dashboard
                 </a>
@@ -134,8 +134,8 @@ class AccountPage extends Component {
                           </div>
                         </div>
                         <div class="col-auto">
-                          <button class="btn btn-sm btn-primary" 
-                                  onclick=${() => { orgContext.setCurrentOrg(org); window.location.hash = '#/dashboard-v2'; }}>
+                            <button class="btn btn-sm btn-primary" 
+                              onclick=${() => { orgContext.setCurrentOrg(org); window.location.hash = '#/dashboard'; }}>
                             Switch
                           </button>
                         </div>

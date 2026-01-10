@@ -8,7 +8,7 @@ import { orgContext } from './orgContext.js';
 import { initRouter } from './router.js';
 import { logger } from './config.js';
 import { LoginPage } from './pages/login.js';
-import { UnifiedDashboardPage } from './pages/unifiedDashboard.js';
+import { DashboardPage } from './pages/dashboard.js';
 import DevicesPage from './pages/devices.js';
 import { DeviceDetailPage } from './pages/device-detail.js';
 import { AnalystPage } from './pages/analyst.js';
@@ -47,7 +47,7 @@ function App() {
         case 'login':
             return html`<${LoginPage} />`;
         case 'dashboard':
-            return html`<${UnifiedDashboardPage} />`;
+            return html`<${DashboardPage} />`;
         case 'devices':
             return html`<${DevicesPage} />`;
         case 'device-detail':

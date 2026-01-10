@@ -648,23 +648,66 @@ export class DeviceDetailPage extends window.Component {
     }
 
     computeAppStatus(apps) {
-        return apps.map(app => {
-            let status = 'current';
-            if (app.matchType === 'absolute' || app.matchType === 'Absolute') {
-                // Check if appears uninstalled based on lastSeen
-                if (app.lastSeen) {
-                    const daysSinceLastSeen = (Date.now() - new Date(app.lastSeen).getTime()) / (1000 * 60 * 60 * 24);
-                    if (daysSinceLastSeen > 30 && !app.isInstalled) {
-                        status = 'uninstalled';
+        // Group by appName to ensure only the newest version shows as installed
+        const groups = new Map();
+        const normalizeDate = (d) => {
+            const dt = d ? new Date(d) : null;
+            return dt && !Number.isNaN(dt.getTime()) ? dt.getTime() : 0;
+        };
+
+        for (const app of apps) {
+            const key = (app.appName || '').toLowerCase();
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(app);
+        }
+
+        const result = [];
+
+        groups.forEach((entries) => {
+            // Sort newest first by firstSeen then lastSeen
+            const sorted = entries.slice().sort((a, b) => {
+                const aFirst = normalizeDate(a.firstSeen || a.FirstSeen);
+                const bFirst = normalizeDate(b.firstSeen || b.FirstSeen);
+                if (bFirst !== aFirst) return bFirst - aFirst;
+                const aLast = normalizeDate(a.lastSeen || a.LastSeen);
+                const bLast = normalizeDate(b.lastSeen || b.LastSeen);
+                return bLast - aLast;
+            });
+
+            sorted.forEach((app, idx) => {
+                // Prefer backend-provided status, fall back to local heuristics
+                let status = (app.status || app.Status || '').toString().toLowerCase();
+
+                if (!status) {
+                    status = 'installed';
+                    if (app.matchType === 'absolute' || app.matchType === 'Absolute') {
+                        if (app.lastSeen) {
+                            const daysSinceLastSeen = (Date.now() - new Date(app.lastSeen).getTime()) / (1000 * 60 * 60 * 24);
+                            if (daysSinceLastSeen > 30 && app.isInstalled === false) {
+                                status = 'uninstalled';
+                            }
+                        }
+                    }
+                    if (app.matchType === 'heuristic' || app.matchType === 'Heuristic') {
+                        status = 'updated';
                     }
                 }
-            }
-            // Check if version suggests update available (heuristic)
-            if (app.matchType === 'heuristic' || app.matchType === 'Heuristic') {
-                status = 'updated'; // Was updated/re-detected
-            }
-            return { ...app, status };
+
+                // Normalize to expected values
+                if (status !== 'updated' && status !== 'uninstalled') {
+                    status = 'installed';
+                }
+
+                // Any non-latest version in the group should be marked uninstalled/updated
+                if (idx > 0) {
+                    status = 'uninstalled';
+                }
+
+                result.push({ ...app, status });
+            });
         });
+
+        return result;
     }
 
     filterApps(apps, q) {
@@ -2494,7 +2537,7 @@ export class DeviceDetailPage extends window.Component {
                     <div class="card">
                         <div class="card-body text-center">
                             <div class="text-muted small">Updated</div>
-                            <div class="h3 text-warning">${enrichedApps.filter(a => a.status === 'updated').length}</div>
+                            <div class="h3"><span class="badge bg-warning-lt text-dark">${enrichedApps.filter(a => a.status === 'updated').length}</span></div>
                         </div>
                     </div>
                 </div>
@@ -2502,7 +2545,7 @@ export class DeviceDetailPage extends window.Component {
                     <div class="card">
                         <div class="card-body text-center">
                             <div class="text-muted small">Uninstalled</div>
-                            <div class="h3 text-danger">${enrichedApps.filter(a => a.status === 'uninstalled').length}</div>
+                            <div class="h3"><span class="badge bg-success-lt text-dark">${enrichedApps.filter(a => a.status === 'uninstalled').length}</span></div>
                         </div>
                     </div>
                 </div>
@@ -3485,9 +3528,9 @@ export class DeviceDetailPage extends window.Component {
                                     <td>${app.vendor || '—'}</td>
                                     <td><code class="text-sm">${app.version || '—'}</code></td>
                                     <td>
-                                        ${app.status === 'updated' ? html`<span class="badge bg-warning-lt">Updated</span>` : 
-                                          app.status === 'uninstalled' ? html`<span class="badge bg-danger-lt">Uninstalled</span>` : 
-                                          html`<span class="badge bg-success-lt">Current</span>`}
+                                                                                ${app.status === 'updated' ? html`<span class="badge bg-warning-lt text-dark">Updated${app.updatedFromVersion ? ` from v${app.updatedFromVersion}` : ''}</span>` : 
+                                                                                    app.status === 'uninstalled' ? html`<span class="badge bg-success-lt text-dark">Uninstalled</span>` : 
+                                                                                    html`<span class="badge bg-blue-lt text-dark">Installed</span>`}
                                     </td>
                                     <td>
                                         ${cves.length > 0 ? html`
