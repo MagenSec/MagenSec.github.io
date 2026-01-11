@@ -1259,7 +1259,158 @@ export function AuditPage() {
         `;
     };
 
+    const renderEventFrequencyChart = (events = []) => {
+        if (typeof window.Chart === 'undefined' || events.length === 0) {
+            return;
+        }
+
+        const canvas = document.getElementById('eventFrequencyChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) existingChart.destroy();
+
+        // Group events by date and type
+        const eventsByDateAndType = {};
+        const now = new Date();
+        const cutoffDate = new Date(now);
+        cutoffDate.setDate(cutoffDate.getDate() - rangeDays);
+
+        events.forEach(event => {
+            const eventDate = new Date(event.timestamp);
+            if (eventDate < cutoffDate) return;
+
+            const dateKey = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            if (!eventsByDateAndType[dateKey]) {
+                eventsByDateAndType[dateKey] = {};
+            }
+
+            const eventType = getTypeKey(event);
+            eventsByDateAndType[dateKey][eventType] = (eventsByDateAndType[dateKey][eventType] || 0) + 1;
+        });
+
+        // Build complete date range (including gaps)
+        const dates = [];
+        const current = new Date(cutoffDate);
+        while (current <= now) {
+            dates.push(current.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+        }
+
+        // Get unique event types
+        const eventTypes = new Set();
+        Object.values(eventsByDateAndType).forEach(dayEvents => {
+            Object.keys(dayEvents).forEach(type => eventTypes.add(type));
+        });
+        const sortedEventTypes = Array.from(eventTypes).sort();
+
+        // Color mapping for important event types
+        const colorMap = {
+            'CRONRUN': 'rgba(75, 192, 192, 0.7)',
+            'CreditConsumption': 'rgba(54, 162, 235, 0.7)',
+            'CreditConsumptionJobStarted': 'rgba(100, 162, 235, 0.7)',
+            'CreditConsumptionJobCompleted': 'rgba(40, 167, 69, 0.7)',
+            'CreditConsumptionJobFailed': 'rgba(220, 53, 69, 0.7)',
+            'Heartbeat': 'rgba(255, 193, 7, 0.7)',
+            'Login': 'rgba(153, 102, 255, 0.7)',
+            'License': 'rgba(201, 203, 207, 0.7)',
+            'Device': 'rgba(255, 159, 64, 0.7)',
+            'Audit': 'rgba(255, 99, 132, 0.7)'
+        };
+
+        const getColor = (type) => {
+            // Direct match
+            if (colorMap[type]) return colorMap[type];
+            // Partial match (e.g., "License:Created" -> "License")
+            const base = type.split(':')[0];
+            return colorMap[base] || `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.7)`;
+        };
+
+        // Build datasets
+        const datasets = sortedEventTypes.map(type => ({
+            label: type,
+            data: dates.map(date => eventsByDateAndType[date]?.[type] || 0),
+            backgroundColor: getColor(type),
+            borderColor: getColor(type).replace('0.7', '1'),
+            borderWidth: 0,
+            borderRadius: 2
+        }));
+
+        // Create chart
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: dates.map(d => {
+                    const date = new Date(d + 'T00:00:00Z');
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }),
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                            font: { size: 11 }
+                        }
+                    },
+                    y: {
+                        stacked: true,
+                        title: {
+                            display: true,
+                            text: 'Event Count'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            footer: function (context) {
+                                const dateIndex = context[0].dataIndex;
+                                const dateKey = dates[dateIndex];
+                                const totalEvents = context.reduce((sum, ctx) => sum + ctx.parsed.y, 0);
+
+                                // Check for gaps (no events on this date)
+                                if (totalEvents === 0) {
+                                    return '⚠️ No events recorded';
+                                }
+
+                                return `Total: ${totalEvents} events`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    };
+
     const renderTimelineTab = () => {
+        // Trigger event frequency chart render when tab becomes active
+        useEffect(() => {
+            if (activeTab === 'timeline' && filteredEvents.length > 0) {
+                setTimeout(() => renderEventFrequencyChart(filteredEvents), 100);
+            }
+        }, [filteredEvents, activeTab]);
+
         return html`
             <!-- Timeline View -->
             ${creditJobEvents.length > 0 && html`
@@ -1329,6 +1480,34 @@ export function AuditPage() {
                             <i class="ti ti-info-circle me-1"></i>
                             This chart shows the credit consumption job execution timeline. Expected interval: once per 24 hours.
                             Alert if gap exceeds 25 hours.
+                        </div>
+                    </div>
+                </div>
+            `}
+
+            <!-- Event Frequency Timeline Chart -->
+            ${filteredEvents.length > 0 && html`
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="ti ti-chart-timeline me-2"></i>
+                            Event Frequency Timeline
+                        </h3>
+                        <div class="card-actions">
+                            <span class="badge bg-secondary-lt">
+                                ${filteredEvents.length} total events
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div style="height: 350px; position: relative;">
+                            <canvas id="eventFrequencyChart"></canvas>
+                        </div>
+                        <div class="mt-3 text-muted small">
+                            <i class="ti ti-info-circle me-1"></i>
+                            <strong>Stacked bar chart:</strong> Visualizes event distribution by type and date.
+                            Empty days indicate no activity and may signal issues (e.g., cron not running, credit consumption paused).
+                            Hover over bars for details.
                         </div>
                     </div>
                 </div>
