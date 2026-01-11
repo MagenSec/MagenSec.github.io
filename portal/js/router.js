@@ -74,13 +74,22 @@ export function initRouter(renderApp) {
         renderApp({ page: 'analyst', ctx });
     });
 
-    // Security Posture (protected)
+    // Security Posture - New PostureEngine Snapshot (protected)
     page('/posture', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
         renderApp({ page: 'posture', ctx });
+    });
+
+    // AI-Based Security Posture - Legacy AI Reports (protected)
+    page('/posture-ai', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'posture-ai', ctx });
     });
 
     // Legacy alias: security-dashboard -> posture

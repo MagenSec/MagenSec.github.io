@@ -12,7 +12,8 @@ import { DashboardPage } from './pages/dashboard.js';
 import DevicesPage from './pages/devices.js';
 import { DeviceDetailPage } from './pages/device-detail.js';
 import { AnalystPage } from './pages/analyst.js';
-import { PosturePage } from './pages/posture.js';
+import { PosturePage } from './pages/posture-snapshot.js';
+import { AIPosturePage } from './pages/posture-ai.js';
 // Removed: threatIntel, responseActions, vulnerabilities, alerts pages (unreachable/placeholder)
 import { AssetsPage } from './pages/assets.js';
 import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
@@ -57,6 +58,8 @@ function App() {
             return html`<${AnalystPage} />`;
         case 'posture':
             return html`<${PosturePage} />`;
+        case 'posture-ai':
+            return html`<${AIPosturePage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
         case 'site-admin':

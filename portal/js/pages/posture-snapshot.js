@@ -7,6 +7,9 @@ const { html, Component } = window;
 /**
  * Posture Snapshot (PostureEngine) - deterministic, on-demand posture view.
  * Fetches the latest snapshot for the selected org; if missing, generates one immediately.
+ * 
+ * Note: If PostureEngine endpoint is not available (404), this page will redirect to
+ * the legacy Security Dashboard page.
  */
 export class PosturePage extends Component {
     constructor(props) {
@@ -16,7 +19,8 @@ export class PosturePage extends Component {
             refreshing: false,
             error: null,
             snapshot: null,
-            triggeredGeneration: false
+            triggeredGeneration: false,
+            period: 'daily'
         };
         this.orgUnsubscribe = null;
     }
@@ -44,7 +48,8 @@ export class PosturePage extends Component {
         });
 
         try {
-            const res = await api.getPostureSnapshot(currentOrg.orgId, { period: 'daily', force });
+            const period = this.state?.period || 'daily';
+            const res = await api.getPostureSnapshot(currentOrg.orgId, { period, force });
             const payload = res?.data || res;
             const snapshot = payload?.snapshot || payload?.data?.snapshot || null;
             const triggeredGeneration = payload?.triggeredGeneration ?? payload?.data?.triggeredGeneration ?? force;
@@ -61,12 +66,73 @@ export class PosturePage extends Component {
             });
         } catch (err) {
             logger.error('[Posture] Failed to load snapshot:', err);
+            const is404 = err?.message?.includes('404');
+            const errorMsg = is404
+                ? 'Posture Snapshot API is being deployed. Please check back in a few minutes.'
+                : (err?.message || 'Failed to load posture snapshot');
+
             this.setState({
-                error: err?.message || 'Failed to load posture snapshot',
+                error: errorMsg,
                 loading: false,
                 refreshing: false
             });
         }
+    }
+
+    setPeriod(period) {
+        this.setState({ period }, () => this.loadSnapshot(true));
+    }
+
+    renderTrendHighlights() {
+        const history = this.state.snapshot?.risk?.history || [];
+        if (!history.length) return null;
+        const last = history.slice(-1)[0];
+        const first = history[0];
+        const delta = (last?.score ?? 0) - (first?.score ?? 0);
+        const trendLabel = delta > 0 ? `Improved by ${delta.toFixed(1)} pts` : delta < 0 ? `Declined by ${Math.abs(delta).toFixed(1)} pts` : 'No change';
+        const trendClass = delta > 0 ? 'text-success' : delta < 0 ? 'text-danger' : 'text-muted';
+
+        return html`
+            <div class="card shadow-sm mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="card-title mb-0">Trends</div>
+                        <div class="text-muted small">Risk score progression</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="display-6 mb-0 ${trendClass}">${trendLabel}</div>
+                        <div class="text-muted small">First: ${first?.score ?? 'n/a'} → Latest: ${last?.score ?? 'n/a'}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderActionHighlights() {
+        const actions = this.state.snapshot?.actions?.prioritized || [];
+        if (!actions.length) return null;
+        const top = actions.slice(0, 3);
+        return html`
+            <div class="card shadow-sm mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="card-title mb-0">Action Highlights</div>
+                        <div class="text-muted small">Top 3 recommended actions</div>
+                    </div>
+                </div>
+                <div class="card-body d-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+                    ${top.map(action => html`
+                        <div class="p-3 rounded border bg-light">
+                            <div class="fw-semibold">${action.title}</div>
+                            <div class="text-muted small mb-1">Priority ${action.priority} · Effort ${action.effort}</div>
+                            <div class="badge bg-primary-subtle text-primary">${action.affectedCount} affected</div>
+                        </div>
+                    `)}
+                </div>
+            </div>
+        `;
     }
 
     getSeverityCounts() {
@@ -83,10 +149,10 @@ export class PosturePage extends Component {
         const { critical, high, medium, low } = this.getSeverityCounts();
         return html`
             <div class="d-flex gap-2 flex-wrap">
-                <span class="badge bg-danger">Critical: ${critical}</span>
-                <span class="badge bg-warning text-dark">High: ${high}</span>
-                <span class="badge bg-info text-dark">Medium: ${medium}</span>
-                <span class="badge bg-secondary">Low: ${low}</span>
+                <span class="badge bg-light border border-danger text-danger">Critical: ${critical}</span>
+                <span class="badge bg-light border border-warning text-warning">High: ${high}</span>
+                <span class="badge bg-light border border-info text-info">Medium: ${medium}</span>
+                <span class="badge bg-light border text-muted">Low: ${low}</span>
             </div>
         `;
     }
@@ -123,7 +189,7 @@ export class PosturePage extends Component {
                             <div class="text-muted small">Priority: ${action.priority} · Effort: ${action.effort} · Risk Reduction: ${action.riskReduction}</div>
                         </div>
                         <div class="d-flex gap-2">
-                            <span class="badge bg-primary">${action.affectedCount} affected</span>
+                            <span class="badge bg-light border border-primary text-primary">${action.affectedCount} affected</span>
                             <span class="badge bg-outline-secondary border">SLA: ${action.sla}</span>
                         </div>
                     </div>
@@ -155,7 +221,7 @@ export class PosturePage extends Component {
                             <tr>
                                 <td class="fw-semibold">${item.title}</td>
                                 <td>${item.domain}</td>
-                                <td><span class="badge bg-${this.severityToColor(item.severity)}">${item.severity}</span></td>
+                                <td><span class="badge ${this.severityToColor(item.severity)}">${item.severity}</span></td>
                                 <td>${item.affectedCount}</td>
                                 <td>${item.agingDays}</td>
                             </tr>
@@ -168,10 +234,10 @@ export class PosturePage extends Component {
 
     severityToColor(severity) {
         const s = (severity || '').toLowerCase();
-        if (s === 'critical') return 'danger';
-        if (s === 'high') return 'warning text-dark';
-        if (s === 'medium') return 'info text-dark';
-        return 'secondary';
+        if (s === 'critical') return 'bg-light border border-danger text-danger';
+        if (s === 'high') return 'bg-light border border-warning text-warning';
+        if (s === 'medium') return 'bg-light border border-info text-info';
+        return 'bg-light border text-muted';
     }
 
     renderCompliance() {
@@ -191,7 +257,7 @@ export class PosturePage extends Component {
                             <div class="fw-semibold">${control}</div>
                             <div class="text-muted small">${status.description || 'No description'}</div>
                         </div>
-                        <span class="badge bg-${this.controlColor(status.status)}">${status.status}</span>
+                        <span class="badge ${this.controlColor(status.status)}">${status.status}</span>
                     </div>
                 `)}
             </div>
@@ -200,9 +266,9 @@ export class PosturePage extends Component {
 
     controlColor(status) {
         const s = (status || '').toLowerCase();
-        if (s === 'compliant') return 'success';
-        if (s === 'noncompliant') return 'danger';
-        return 'secondary';
+        if (s === 'compliant') return 'bg-light border border-success text-success';
+        if (s === 'noncompliant') return 'bg-light border border-danger text-danger';
+        return 'bg-light border text-muted';
     }
 
     renderMetadata() {
@@ -223,6 +289,10 @@ export class PosturePage extends Component {
         const risk = this.state.snapshot?.risk || {};
         const severity = this.getSeverityCounts();
 
+        const trendDelta = risk.scoreDelta ?? 0;
+        const trendLabel = trendDelta > 0 ? `▲ ${trendDelta}` : trendDelta < 0 ? `▼ ${Math.abs(trendDelta)}` : '—';
+        const trendClass = trendDelta > 0 ? 'text-success' : trendDelta < 0 ? 'text-danger' : 'text-light';
+
         return html`
             <div class="card shadow-sm border-0 mb-4" style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); color: #fff;">
                 <div class="card-body d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
@@ -231,14 +301,18 @@ export class PosturePage extends Component {
                         <div class="display-4 fw-bold mb-0">${risk.orgScore ?? 0}</div>
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-light text-dark">Grade: ${risk.grade || 'N/A'}</span>
-                            <span class="badge bg-outline-light border text-light">Trend Δ ${risk.scoreDelta ?? 0}</span>
+                            <span class="badge bg-outline-light border ${trendClass}">Trend ${trendLabel}</span>
                         </div>
                         <div class="mt-3">Findings: ${severity.critical + severity.high + severity.medium + severity.low}</div>
                     </div>
                     <div class="d-flex flex-column gap-2">
-                        <button class="btn btn-light" disabled=${this.state.refreshing} onClick=${() => this.loadSnapshot(true)}>
-                            ${this.state.refreshing ? 'Refreshing...' : 'Regenerate snapshot'}
-                        </button>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-light" disabled=${this.state.refreshing} onClick=${() => this.loadSnapshot(true)}>
+                                ${this.state.refreshing ? 'Refreshing...' : 'Regenerate'}
+                            </button>
+                            <button class="btn btn-outline-light ${this.state.period === 'daily' ? 'active' : ''}" onClick=${() => this.setPeriod('daily')}>Daily</button>
+                            <button class="btn btn-outline-light ${this.state.period === 'weekly' ? 'active' : ''}" onClick=${() => this.setPeriod('weekly')}>Weekly</button>
+                        </div>
                         ${this.state.triggeredGeneration ? html`<span class="small">Generated just now for this view.</span>` : null}
                     </div>
                 </div>
@@ -256,10 +330,30 @@ export class PosturePage extends Component {
         }
 
         if (this.state.error) {
+            const is404 = this.state.error.includes('being deployed');
+            
             return html`
                 <div class="container py-4">
-                    <div class="alert alert-danger">${this.state.error}</div>
-                    <button class="btn btn-primary" onClick=${() => this.loadSnapshot()}>Retry</button>
+                    <div class="alert ${is404 ? 'alert-info' : 'alert-danger'}">
+                        ${is404 ? html`
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-3" role="status"></div>
+                                <div>
+                                    <strong>Deployment in Progress</strong>
+                                    <div class="mt-1">${this.state.error}</div>
+                                    <div class="mt-2 small">
+                                        In the meantime, you can view 
+                                        <a href="#!/posture-ai" class="alert-link">AI Posture Reports</a>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : this.state.error}
+                    </div>
+                    ${!is404 ? html`
+                        <button class="btn btn-primary" onClick=${() => this.loadSnapshot()}>Retry</button>
+                    ` : html`
+                        <button class="btn btn-primary" onClick=${() => this.loadSnapshot()}>Check Again</button>
+                    `}
                 </div>
             `;
         }

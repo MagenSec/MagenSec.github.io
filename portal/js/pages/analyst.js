@@ -17,16 +17,11 @@ export class AnalystPage extends Component {
         super(props);
         this.state = {
             prompt: '',
-            forceRecompute: false,
             selectedOrgId: orgContext.getCurrentOrg()?.orgId || '',
             availableOrgs: orgContext.getAvailableOrgs(),
             loading: false,
-            polling: false,
             result: null,
             error: null,
-            reportId: null,
-            feedback: { rating: null, comment: '' },
-            showFeedbackModal: false,
             history: []
         };
         this.orgUnsubscribe = null;
@@ -164,53 +159,31 @@ export class AnalystPage extends Component {
         this.addToHistory(sanitizedPrompt);
 
         const payload = {
+            entity: 0, // CveTelemetry
+            operation: 0, // Count
             prompt: this.buildPrompt(prompt, selectedOrgId),
-            waitSeconds: 30,
-            forceRecompute
+            limit: 50
         };
 
-        this.setState({ loading: true, polling: false, error: null, result: null, reportId: null, feedback: { rating: null, comment: '' } });
+        this.setState({ loading: true, error: null, result: null });
 
         try {
-            const response = await api.post('/api/v1/analyst/run', payload);
-            
-            // Normalized response: report, reportId, success, message (all lowercase)
-            if (response.report || response.Report) {
-                // Inline completion (HTTP 200)
-                const report = response.report || response.Report;
-                const reportId = response.reportId || response.ReportId;
-                
-                // Check for graph execution errors in the report
-                if (report.ExecutiveSummary?.includes('Graph executed with no Generator node')) {
-                    throw new Error('The AI analysis could not be completed. This may happen if the query is too complex or requires data that is not available. Please try rephrasing your question or use one of the suggested prompts.');
-                }
-                
-                this.setState({ result: response, loading: false, reportId });
-            } else if (response.reportId || response.ReportId) {
-                // Job queued, poll for completion (HTTP 202)
-                const reportId = response.reportId || response.ReportId;
-                this.setState({ reportId, loading: false, polling: true });
-                this.startPolling(reportId);
-            } else if (response.success === false || response.Success === false) {
-                // Explicit error from backend
-                throw new Error(response.message || response.Message || response.error || response.Error || 'Request failed');
-            } else {
-                throw new Error('Unexpected response format');
+            const response = await api.runAnalytics(selectedOrgId, payload);
+            if (response?.success === false) {
+                throw new Error(response.message || response.error || 'Request failed');
             }
+            const result = response.result || response.data || response;
+            this.setState({ result, loading: false });
         } catch (err) {
-            let errorMsg = err?.message || 'Failed to call analyst.';
-            // Make graph execution errors more user-friendly
-            if (errorMsg.includes('Graph executed with no Generator node')) {
-                errorMsg = 'The AI analysis could not generate a report for this query. Please try: \n• Using one of the suggested prompts\n• Rephrasing your question\n• Ensuring you have devices registered in your organization';
-            }
-            this.setState({ loading: false, polling: false, error: errorMsg });
+            const errorMsg = err?.message || 'Failed to call analyst.';
+            this.setState({ loading: false, error: errorMsg });
         }
     }
 
-    startPolling(reportId) {
+    startPolling(reportId, orgId) {
         this.pollAttempts = 0;
-        this.pollInterval = setInterval(() => this.pollReport(reportId), CONSTANTS.POLL_INTERVAL_MS);
-        this.pollReport(reportId);
+        this.pollInterval = setInterval(() => this.pollReport(reportId, orgId), CONSTANTS.POLL_INTERVAL_MS);
+        this.pollReport(reportId, orgId);
     }
 
     stopPolling() {
@@ -232,30 +205,8 @@ export class AnalystPage extends Component {
         }
     }
 
-    async pollReport(reportId) {
-        this.pollAttempts++;
-
-        if (this.pollAttempts > this.maxPollAttempts) {
-            this.stopPolling();
-            this.setState({ polling: false, error: `Report generation timed out. Report ID: ${reportId}`, reportId });
-            return;
-        }
-
-        try {
-            const status = await api.get(`/api/v1/analyst/reports/${reportId}`);
-
-            // Normalized response: report, status (with state, errorMessage)
-            if (status.report) {
-                this.stopPolling();
-                this.setState({ result: status, polling: false, reportId });
-            } else if (status.status?.state === 'Failed') {
-                this.stopPolling();
-                this.setState({ polling: false, error: `Report generation failed. Report ID: ${reportId}. ${status.status.errorMessage || ''}`, reportId });
-            }
-        } catch (err) {
-            console.error('[AnalystPage] Poll error:', err);
-            this.setState({ polling: false, error: `Polling error: ${err?.message || err}. Report ID: ${reportId}`, reportId });
-        }
+    async pollReport(reportId, orgId = this.state.selectedOrgId) {
+        // Polling logic has been removed as per the new implementation
     }
 
     handlePromptSelect(suggestedPrompt) {

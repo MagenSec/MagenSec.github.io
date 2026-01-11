@@ -286,6 +286,11 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/dashboard`);
     }
 
+    // === POSTURE ENGINE ===
+    async getPostureSnapshot(orgId, params = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/posture`, params, { skipCache: params?.force });
+    }
+
     // === DEVICES ===
     async getDevices(orgId, params = null, options = {}) {
         return this.get(`/api/v1/orgs/${orgId}/devices`, params, options);
@@ -562,6 +567,15 @@ export class ApiClient {
 
     async getAIReport(orgId, reportId) {
         return this.get(`/api/v1/orgs/${orgId}/ai-analyst/reports/${reportId}`);
+    }
+
+    async getLatestAIReport(orgId) {
+        return this.get(`/api/v1/orgs/${orgId}/ai-analyst/reports/latest`);
+    }
+
+    async runAnalytics(orgId, payload) {
+        const qs = orgId ? `?orgId=${encodeURIComponent(orgId)}` : '';
+        return this.post(`/api/v1/ai-analyst/analytics${qs}`, payload);
     }
 
     // === TEST SEEDING ===
