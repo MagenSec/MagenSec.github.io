@@ -49,53 +49,33 @@ export class SecurityDashboardPage extends Component {
         this.setState({ loading: true, error: null });
 
         try {
-            const token = auth.getToken();
-            const response = await fetch(
-                `${config.API_BASE}/api/v1/analyst/reports/${currentOrg.orgId}/historical/${targetDate}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            if (!response.ok) {
-                // Handle 404 - no report exists for this date
-                if (response.status === 404) {
-                    // Immediately trigger dashboard generation
-                    this.setState({
-                        loading: true,
-                        error: null,
-                        report: null,
-                        showGenerateButton: false,
-                        selectedDate: targetDate,
-                        refreshing: true
-                    });
-                    await this.refreshDashboard();
-                    return;
-                }
-                // Handle other errors
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.Message || `HTTP ${response.status}: Failed to load dashboard`);
+            const data = await api.getAIReportByDate(currentOrg.orgId, targetDate);
+            if (data?.success === false) {
+                throw new Error(data.message || data.error || 'Failed to load dashboard');
             }
 
-            const data = await response.json();
+            // Normalize fields from GetSecurityReport
+            const report = data.report || data.Report || null;
+            const generatedAt = data.completedAt || data.GeneratedAt || null;
+            const nextRefreshAt = null;
+            const canRefreshNow = true;
 
             this.setState({
                 loading: false,
-                report: data.Report || null,
-                reportId: data.ReportId || null,
-                generatedAt: data.GeneratedAt ? new Date(data.GeneratedAt) : null,
-                nextRefreshAt: data.NextRefreshAt ? new Date(data.NextRefreshAt) : null,
-                canRefreshNow: data.CanRefreshNow || false,
+                report,
+                reportId: data.reportId || null,
+                generatedAt: generatedAt ? new Date(generatedAt) : null,
+                nextRefreshAt: nextRefreshAt ? new Date(nextRefreshAt) : null,
+                canRefreshNow,
                 selectedDate: targetDate,
                 showGenerateButton: false
             });
         } catch (err) {
+            // If not found, offer to generate a fresh report
             this.setState({ 
                 error: err.message || 'Failed to load dashboard', 
-                loading: false 
+                loading: false, 
+                showGenerateButton: true 
             });
         }
     }
@@ -107,42 +87,38 @@ export class SecurityDashboardPage extends Component {
         this.setState({ refreshing: true, error: null });
 
         try {
-            const token = auth.getToken();
-            
-            // Trigger new dashboard generation with !dashboard prompt
-            const response = await fetch(`${config.API_BASE}/api/v1/analyst/run`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    prompt: '!dashboard',
-                    waitSeconds: 5 // Short timeout, expect 202
-                })
-            });
-
-            const data = await response.json();
-
-            if (!data.Success) {
-                throw new Error(data.Message || 'Failed to refresh dashboard');
+            // Trigger new dashboard generation via unified AI report endpoint
+            const resp = await api.generateAIReport(currentOrg.orgId, { model: 'heuristic' });
+            if (resp?.success === false) {
+                throw new Error(resp.message || resp.error || 'Failed to refresh dashboard');
             }
 
-            // If completed inline (unlikely for dashboard), reload
-            if (response.status === 200 && data.Report) {
+            // If completed inline, reload
+            const generatedDate = resp.generatedDate || this.formatDate(new Date());
+            const report = resp.report || null;
+            if (report) {
                 this.setState({
                     refreshing: false,
-                    report: data.Report,
-                    reportId: data.ReportId,
+                    report,
+                    reportId: resp.reportId || null,
                     generatedAt: new Date(),
                     canRefreshNow: false
                 });
                 return;
             }
 
-            // Otherwise poll for completion
-            const reportId = data.ReportId;
-            await this.pollForCompletion(reportId);
+            // Fetch freshly generated report by date
+            const latest = await api.getAIReportByDate(currentOrg.orgId, generatedDate);
+            if (latest?.success === false) {
+                throw new Error(latest.message || latest.error || 'Report generation failed');
+            }
+            this.setState({
+                refreshing: false,
+                report: latest.report || null,
+                reportId: latest.reportId || null,
+                generatedAt: latest.completedAt ? new Date(latest.completedAt) : new Date(),
+                canRefreshNow: false
+            });
         } catch (err) {
             this.setState({ 
                 error: err.message || 'Failed to refresh dashboard', 
@@ -168,32 +144,15 @@ export class SecurityDashboardPage extends Component {
             attempts++;
 
             try {
-                const response = await fetch(
-                    `${config.API_BASE}/api/v1/analyst/reports/${reportId}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    }
-                );
-
-                const data = await response.json();
-
-                if (!data.Success) {
-                    throw new Error(data.Message || 'Failed to check report status');
-                }
-
-                if (data.Status?.State === 'Completed') {
+                // Re-fetch report by selected date to check freshness
+                const data = await api.getAIReportByDate(orgContext.getCurrentOrg().orgId, this.state.selectedDate);
+                if (data?.success !== false && (data?.report || data?.Report)) {
                     this.setState({
                         refreshing: false
                     });
                     // Reload the dashboard to get the newly generated report
                     await this.loadDashboard();
                     return;
-                }
-
-                if (data.Status?.State === 'Failed') {
-                    throw new Error(data.Status.Error || 'Report generation failed');
                 }
 
                 // Still processing, poll again
@@ -369,6 +328,19 @@ export class SecurityDashboardPage extends Component {
                                         <h3 class="card-title">Risk Summary</h3>
                                     </div>
                                     <div class="card-body">
+                                        ${report.RiskSummary.MitigatedThreats && html`
+                                            <div class="alert alert-info mb-3">
+                                                <div class="fw-semibold">Mitigated vulnerabilities (resolved apps)</div>
+                                                <div class="small text-muted">Last 30 days</div>
+                                                <div class="d-flex gap-2 flex-wrap mt-2">
+                                                    <span class="badge bg-azure-lt text-azure">Total mitigated: ${report.RiskSummary.MitigatedThreats.Total ?? 0}</span>
+                                                    <span class="badge bg-azure-lt text-azure">Critical: ${report.RiskSummary.MitigatedThreats.Critical ?? 0}</span>
+                                                    <span class="badge bg-azure-lt text-azure">High: ${report.RiskSummary.MitigatedThreats.High ?? 0}</span>
+                                                    <span class="badge bg-azure-lt text-azure">Medium: ${report.RiskSummary.MitigatedThreats.Medium ?? 0}</span>
+                                                    <span class="badge bg-azure-lt text-azure">Low: ${report.RiskSummary.MitigatedThreats.Low ?? 0}</span>
+                                                </div>
+                                            </div>
+                                        `}
                                         <div class="row">
                                             ${report.RiskSummary.OverallRiskScore && html`
                                                 <div class="col-md-4">

@@ -554,7 +554,8 @@ export class ApiClient {
     // - GET /api/v1/orgs/{orgId}/ai-analyst/reports/{reportId} - Get report detail
     
     async generateAIReport(orgId, data) {
-        return this.post(`/api/v1/orgs/${orgId}/ai-analyst/run`, data);
+        // Use unified AI report generation endpoint
+        return this.post(`/api/v1/orgs/${orgId}/ai/reports/generate`, data);
     }
 
     async askAIAnalyst(orgId, data) {
@@ -562,15 +563,23 @@ export class ApiClient {
     }
 
     async getAIReports(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/ai-analyst/reports`, params);
+        // Listing endpoint is not currently mapped server-side; placeholder
+        // Prefer fetching by specific date via getAIReportByDate
+        const today = new Date();
+        const yyyymmdd = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+        return this.getAIReportByDate(orgId, yyyymmdd);
     }
 
-    async getAIReport(orgId, reportId) {
-        return this.get(`/api/v1/orgs/${orgId}/ai-analyst/reports/${reportId}`);
+    async getAIReportByDate(orgId, date) {
+        // Fetch AI report by YYYYMMDD date
+        return this.get(`/api/v1/orgs/${orgId}/ai/reports/${date}`);
     }
 
     async getLatestAIReport(orgId) {
-        return this.get(`/api/v1/orgs/${orgId}/ai-analyst/reports/latest`);
+        // Fallback to today's date for latest
+        const today = new Date();
+        const yyyymmdd = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+        return this.getAIReportByDate(orgId, yyyymmdd);
     }
 
     async runAnalytics(orgId, payload) {

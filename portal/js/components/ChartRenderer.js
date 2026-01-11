@@ -69,6 +69,12 @@ function ChartCard({ chart }) {
 function convertToApexOptions(chart) {
     const { type, series, labels, title, description } = chart;
 
+    // Normalize series values to avoid NaN issues
+    const toNumber = (v) => {
+        const n = typeof v === 'number' ? v : parseFloat(v);
+        return Number.isFinite(n) ? n : 0;
+    };
+
     // Base configuration
     const baseOptions = {
         chart: {
@@ -110,7 +116,7 @@ function convertToApexOptions(chart) {
                 ...baseOptions.chart,
                 type: type.toLowerCase()
             },
-            series: series.map(s => s.value),
+            series: series.map(s => toNumber(s.value)),
             labels: labels || series.map(s => s.name),
             legend: {
                 position: 'bottom',
@@ -119,7 +125,8 @@ function convertToApexOptions(chart) {
             dataLabels: {
                 enabled: true,
                 formatter: function(val) {
-                    return val.toFixed(1) + '%';
+                    const n = Number.isFinite(val) ? val : 0;
+                    return n.toFixed(1) + '%';
                 }
             },
             plotOptions: {
@@ -141,7 +148,7 @@ function convertToApexOptions(chart) {
             },
             series: [{
                 name: title,
-                data: series.map(s => s.value)
+                data: series.map(s => toNumber(s.value))
             }],
             xaxis: {
                 categories: labels || series.map(s => s.name),
@@ -184,7 +191,7 @@ function convertToApexOptions(chart) {
             },
             series: [{
                 name: title,
-                data: series.map(s => s.value)
+                data: series.map(s => toNumber(s.value))
             }],
             xaxis: {
                 categories: labels || series.map(s => s.name),
@@ -212,7 +219,7 @@ function convertToApexOptions(chart) {
         ...baseOptions,
         series: [{
             name: title,
-            data: series.map(s => s.value)
+            data: series.map(s => toNumber(s.value))
         }],
         xaxis: {
             categories: labels || series.map(s => s.name)

@@ -49,18 +49,24 @@ export default class AIReportDetailPage extends Component {
         logger.info(`[AIReportDetail] Loading report ${reportId} for org ${org.orgId}`);
 
         try {
-            const response = await api.get(`/api/v1/orgs/${org.orgId}/ai-analyst/reports/${reportId}`);
-            
-            if (response.success && response.data) {
-                logger.info('[AIReportDetail] Report loaded successfully:', response.data);
+            // Accept REPORT-YYYYMMDD or raw YYYYMMDD
+            let date = null;
+            const m = /^REPORT-(\d{8})$/.exec(reportId);
+            if (m) date = m[1];
+            else if (/^\d{8}$/.test(reportId)) date = reportId;
+
+            const response = await api.getAIReportByDate(org.orgId, date || reportId);
+            if (response && response.success !== false) {
+                const report = response.report || response.data || response;
+                logger.info('[AIReportDetail] Report loaded successfully:', report);
                 this.setState({
-                    report: response.data,
+                    report,
                     loading: false
                 });
             } else {
                 logger.error('[AIReportDetail] Failed to load report:', response);
                 this.setState({
-                    error: response.message || 'Failed to load report',
+                    error: (response && (response.message || response.error)) || 'Failed to load report',
                     loading: false
                 });
             }

@@ -28,6 +28,7 @@ export class DeviceDetailPage extends window.Component {
             telemetryHistory: [],
             appInventory: [],
             cveInventory: [],
+            mitigatedCveInventory: [],
             installers: null,
             timeline: [],
             knownExploits: null,
@@ -47,6 +48,7 @@ export class DeviceDetailPage extends window.Component {
             sessionLoading: false,
             sessionError: null,
             showAllIps: false,
+            showMitigatedCves: false,
             perfData: null,
             perfBucket: '6h',
             perfRangeDays: 7,
@@ -452,16 +454,32 @@ export class DeviceDetailPage extends window.Component {
                 `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/cves?limit=1000`
             );
             const cvePayload = cvesResp.success 
-                ? (cvesResp.data?.items || cvesResp.data?.cves || cvesResp.data?.list || cvesResp.data || [])
+                ? (cvesResp.data?.cves || cvesResp.data?.items || cvesResp.data?.list || [])
                 : [];
+            const mitigatedCvePayload = cvesResp.success 
+                ? (cvesResp.data?.mitigatedCves || [])
+                : [];
+                
             const cveList = cvePayload.map(x => ({
                     appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
                     vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || ''),
                     cveId: x.cveId || x.CveId,
                     severity: x.severity || x.Severity,
                     epss: x.epss || x.EPSS,
-                    score: x.score || x.Score,
-                    lastSeen: x.lastSeen || x.LastSeen
+                    score: x.score || x.Score || x.cvss,
+                    lastSeen: x.lastSeen || x.LastSeen,
+                    appStatus: x.appStatus || 'installed'
+                }));
+                
+            const mitigatedCveList = mitigatedCvePayload.map(x => ({
+                    appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
+                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || ''),
+                    cveId: x.cveId || x.CveId,
+                    severity: x.severity || x.Severity,
+                    epss: x.epss || x.EPSS,
+                    score: x.score || x.Score || x.cvss,
+                    lastSeen: x.lastSeen || x.LastSeen,
+                    appStatus: x.appStatus || 'updated'
                 }));
 
             // Build timeline from telemetry changes
@@ -480,6 +498,7 @@ export class DeviceDetailPage extends window.Component {
                 telemetryDetail: telemetryData,
                 appInventory: appList,
                 cveInventory: cveList,
+                mitigatedCveInventory: mitigatedCveList,
                 telemetryHistory: telemetryData?.history || [],
                 timeline,
                 deviceSummary,
@@ -813,6 +832,86 @@ export class DeviceDetailPage extends window.Component {
         if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
+    }
+
+    // Filter CVEs based on app installation status for accurate risk scoring
+    getActiveApps() {
+        return this.state.appInventory.filter(app => {
+            const status = (app.status || '').toLowerCase();
+            // Keep installed and updated apps (updated = upgraded but still has CVE coverage)
+            return status === 'installed' || status === 'updated';
+        });
+    }
+
+    getActiveCves() {
+        const activeAppNames = new Set(
+            this.getActiveApps().map(app => (app.appName || '').toLowerCase())
+        );
+        return this.state.cveInventory.filter(cve => {
+            const cveAppName = (cve.appName || '').toLowerCase();
+            return activeAppNames.has(cveAppName);
+        });
+    }
+
+    getMitigatedCves() {
+        // Prefer API-provided mitigated CVEs (from backend computation with AppStatus)
+        if (this.state.mitigatedCveInventory && this.state.mitigatedCveInventory.length > 0) {
+            return this.state.mitigatedCveInventory;
+        }
+        
+        // Fallback to client-side computation for backward compatibility
+        const activeAppNames = new Set(
+            this.getActiveApps().map(app => (app.appName || '').toLowerCase())
+        );
+        return this.state.cveInventory.filter(cve => {
+            const cveAppName = (cve.appName || '').toLowerCase();
+            return !activeAppNames.has(cveAppName);
+        });
+    }
+
+    getMitigationStats() {
+        const mitigated = this.getMitigatedCves();
+        const uninstalledApps = this.state.appInventory.filter(app => 
+            (app.status || '').toLowerCase() === 'uninstalled'
+        );
+        
+        const bySeverity = {
+            critical: mitigated.filter(c => (c.severity || '').toUpperCase() === 'CRITICAL').length,
+            high: mitigated.filter(c => (c.severity || '').toUpperCase() === 'HIGH').length,
+            medium: mitigated.filter(c => (c.severity || '').toUpperCase() === 'MEDIUM').length,
+            low: mitigated.filter(c => (c.severity || '').toUpperCase() === 'LOW').length
+        };
+
+        return {
+            totalMitigated: mitigated.length,
+            mitigatedApps: uninstalledApps.length,
+            bySeverity,
+            mitigatedCves: mitigated
+        };
+    }
+
+    // Derive last scan time from app telemetry when heartbeat doesn't have it
+    deriveLastScanTime() {
+        const heartbeatScan = this.state.telemetryDetail?.latest?.fields?.LastScanComplete 
+            || this.state.telemetryDetail?.latest?.fields?.LastScanStart;
+        
+        if (heartbeatScan) {
+            return new Date(heartbeatScan);
+        }
+
+        // Fallback: Use median of recent app LastSeen timestamps (top 5 most recent)
+        const appTimestamps = this.state.appInventory
+            .map(app => app.lastSeen || app.LastSeen)
+            .filter(ts => ts && !isNaN(new Date(ts).getTime()))
+            .map(ts => new Date(ts).getTime())
+            .sort((a, b) => b - a)
+            .slice(0, 5);
+
+        if (appTimestamps.length === 0) return null;
+
+        // Return median to avoid outliers
+        const mid = Math.floor(appTimestamps.length / 2);
+        return new Date(appTimestamps[mid]);
     }
 
     // Filter out uninstalled and patched vulnerabilities from risk calculations
@@ -1778,8 +1877,11 @@ export class DeviceDetailPage extends window.Component {
             }
             return 0;
         });
-        const criticalCves = this.state.cveInventory.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical');
-        const highCves = this.state.cveInventory.filter(c => c.severity === 'HIGH' || c.severity === 'High');
+        // Use active CVEs only (excluding uninstalled/updated apps) for risk display
+        const activeCves = this.getActiveCves();
+        const mitigationStats = this.getMitigationStats();
+        const criticalCves = activeCves.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical');
+        const highCves = activeCves.filter(c => c.severity === 'HIGH' || c.severity === 'High');
 
         const riskScoreRaw = this.getRiskScoreValue(this.state.deviceSummary, this.calculateRiskScore(device))
             ?? 0;
@@ -1789,8 +1891,8 @@ export class DeviceDetailPage extends window.Component {
             return Math.max(0, Math.min(100, Math.round(n)));
         })();
         const worstSeverity = (this.state.deviceSummary?.worstSeverity || '').toUpperCase()
-            || (criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : this.state.cveInventory.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? 'MEDIUM' : this.state.cveInventory.length > 0 ? 'LOW' : 'CLEAN');
-        const knownExploitCount = this.state.knownExploits ? this.state.cveInventory.filter(c => this.state.knownExploits.has(c.cveId)).length : 0;
+            || (criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : activeCves.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? 'MEDIUM' : activeCves.length > 0 ? 'LOW' : 'CLEAN');
+        const knownExploitCount = this.state.knownExploits ? activeCves.filter(c => this.state.knownExploits.has(c.cveId)).length : 0;
         const latestFields = this.state.telemetryDetail?.latest?.fields || {};
         const ipRaw = latestFields.IPAddresses || latestFields.ipAddresses;
         const ipList = Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : [];
@@ -2723,10 +2825,12 @@ export class DeviceDetailPage extends window.Component {
         const score = Number.isFinite(scoreNum) ? scoreNum : 0;
         const clampedScore = Math.max(0, Math.min(100, Math.round(score)));
 
-        const criticalCves = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'CRITICAL');
-        const highCves = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'HIGH');
-        const mediumCves = this.state.cveInventory.filter(c => (c.severity || '').toUpperCase() === 'MEDIUM');
-        const worstSeverity = criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : mediumCves.length > 0 ? 'MEDIUM' : this.state.cveInventory.length > 0 ? 'LOW' : 'CLEAN';
+        // Use active CVEs for chart rendering (excludes uninstalled apps)
+        const activeCves = this.getActiveCves();
+        const criticalCves = activeCves.filter(c => (c.severity || '').toUpperCase() === 'CRITICAL');
+        const highCves = activeCves.filter(c => (c.severity || '').toUpperCase() === 'HIGH');
+        const mediumCves = activeCves.filter(c => (c.severity || '').toUpperCase() === 'MEDIUM');
+        const worstSeverity = criticalCves.length > 0 ? 'CRITICAL' : highCves.length > 0 ? 'HIGH' : mediumCves.length > 0 ? 'MEDIUM' : activeCves.length > 0 ? 'LOW' : 'CLEAN';
         const gradientStart = '#2fb344';
 
         if (this.detailRiskChartEl) {
@@ -3785,6 +3889,9 @@ export class DeviceDetailPage extends window.Component {
         // Get only active apps (not old uninstalled) and unpatched CVEs
         const { activeApps, activeCves } = this.getActiveAppsAndCves();
         
+        // Get mitigation stats for AI/posture engines
+        const mitigationStats = this.getMitigationStats();
+        
         // Filter by selected app if cross-linked from Inventory tab
         let filteredCves = this.state.cveFilterApp 
             ? activeCves.filter(c => c.appName && c.appName.toLowerCase() === this.state.cveFilterApp.toLowerCase())
@@ -3823,6 +3930,61 @@ export class DeviceDetailPage extends window.Component {
                     <span class=${`badge ${severityBadgeClass}`}>${filteredCves.length}</span>
                 </button>
             </div>
+
+            <!-- Mitigated Vulnerabilities Section -->
+            ${mitigationStats.totalMitigated > 0 ? html`
+                <div class="card bg-success-lt mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h3 class="card-title text-success mb-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 4l7 3v6c0 3.5 -2.5 6.5 -7 9c-4.5 -2.5 -7 -5.5 -7 -9v-6z" /><path d="M9 12l2 2l4 -4" /></svg>
+                                    ${mitigationStats.totalMitigated} Vulnerabilities Mitigated
+                                </h3>
+                                <div class="text-muted small">Through ${mitigationStats.mitigatedApps} app updates/removals</div>
+                                <div class="mt-2 d-flex flex-wrap gap-1">
+                                    ${mitigationStats.bySeverity.critical > 0 ? html`<span class="badge bg-danger">${mitigationStats.bySeverity.critical} Critical</span>` : ''}
+                                    ${mitigationStats.bySeverity.high > 0 ? html`<span class="badge bg-warning">${mitigationStats.bySeverity.high} High</span>` : ''}
+                                    ${mitigationStats.bySeverity.medium > 0 ? html`<span class="badge bg-yellow">${mitigationStats.bySeverity.medium} Medium</span>` : ''}
+                                    ${mitigationStats.bySeverity.low > 0 ? html`<span class="badge bg-info">${mitigationStats.bySeverity.low} Low</span>` : ''}
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-ghost-success" onclick=${() => this.setState({ showMitigatedCves: !this.state.showMitigatedCves })}>
+                                ${this.state.showMitigatedCves ? 'Hide' : 'Show'} Details
+                            </button>
+                        </div>
+                        ${this.state.showMitigatedCves ? html`
+                            <div class="mt-3 table-responsive">
+                                <table class="table table-sm table-hover bg-white">
+                                    <thead>
+                                        <tr>
+                                            <th>CVE ID</th>
+                                            <th>Affected Application</th>
+                                            <th>Severity</th>
+                                            <th>Mitigated Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${mitigationStats.mitigatedCves.map(cve => html`
+                                            <tr>
+                                                <td>
+                                                    <a href="https://nvd.nist.gov/vuln/detail/${cve.cveId}" target="_blank" class="text-decoration-none">
+                                                        ${cve.cveId}
+                                                    </a>
+                                                </td>
+                                                <td>${cve.appName}</td>
+                                                <td><span class="badge ${this.getSeverityColor(cve.severity)}">${(cve.severity || 'Unknown').toUpperCase()}</span></td>
+                                                <td class="text-muted small">${cve.lastSeen ? new Date(cve.lastSeen).toLocaleDateString() : '—'}</td>
+                                            </tr>
+                                        `)}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            ` : ''}
+
             <div class="table-responsive">
                 <table class="table table-sm table-hover" id="cve-table">
                     <thead>

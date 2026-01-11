@@ -21,7 +21,7 @@ export class DashboardPage extends Component {
             currentOrg: null,
             dashboardData: null,
             deviceStats: { total: 0, active: 0, disabled: 0, blocked: 0 },
-            threatSummary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+            threatSummary: { critical: 0, high: 0, medium: 0, low: 0, total: 0, mitigatedCritical: 0, mitigatedHigh: 0, mitigatedMedium: 0, mitigatedLow: 0, mitigatedTotal: 0 },
             complianceSummary: { score: 0, compliant: 0, nonCompliant: 0, total: 0 },
             recentAlerts: [],
             recentDevices: [],
@@ -101,11 +101,12 @@ export class DashboardPage extends Component {
                 const coverage = dashboard.coverage || { healthy: 0, stale: 0, offline: 0, total: 0 };
                 const actions = dashboard.actions || [];
                 const generatedAt = dashboard.generatedAt || new Date().toISOString();
+                const threatSummary = this.normalizeThreatSummary(dashboard.threats);
 
                 this.setState({
                     dashboardData: dashboard,
                     deviceStats: dashboard.devices || { total: 0, active: 0, disabled: 0, blocked: 0 },
-                    threatSummary: dashboard.threats || { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
+                    threatSummary,
                     complianceSummary: dashboard.compliance || { score: 0, compliant: 0, nonCompliant: 0, total: 0 },
                     recentAlerts: dashboard.alerts || [],
                     recentDevices: dashboard.recentDevices || [],
@@ -162,6 +163,46 @@ export class DashboardPage extends Component {
         return 'No Risk';
     }
 
+    normalizeThreatSummary(threats) {
+        const t = threats || {};
+        const critical = t.critical ?? 0;
+        const high = t.high ?? 0;
+        const medium = t.medium ?? 0;
+        const low = t.low ?? 0;
+        const mitigatedCritical = t.mitigatedCritical ?? 0;
+        const mitigatedHigh = t.mitigatedHigh ?? 0;
+        const mitigatedMedium = t.mitigatedMedium ?? 0;
+        const mitigatedLow = t.mitigatedLow ?? 0;
+
+        return {
+            critical,
+            high,
+            medium,
+            low,
+            total: t.total ?? (critical + high + medium + low),
+            mitigatedCritical,
+            mitigatedHigh,
+            mitigatedMedium,
+            mitigatedLow,
+            mitigatedTotal: t.mitigatedTotal ?? (mitigatedCritical + mitigatedHigh + mitigatedMedium + mitigatedLow)
+        };
+    }
+
+    getActiveThreats() {
+        return this.normalizeThreatSummary(this.state.threatSummary);
+    }
+
+    getMitigatedThreats() {
+        const t = this.normalizeThreatSummary(this.state.threatSummary);
+        return {
+            critical: t.mitigatedCritical,
+            high: t.mitigatedHigh,
+            medium: t.mitigatedMedium,
+            low: t.mitigatedLow,
+            total: t.mitigatedTotal
+        };
+    }
+
     getCoveragePercents() {
         const { coverage } = this.state;
         const total = coverage.total || 0;
@@ -191,18 +232,22 @@ export class DashboardPage extends Component {
 
     renderThreatCard(threats) {
         const { html } = window;
-        const critical = threats?.critical ?? 0;
-        const high = threats?.high ?? 0;
-        const medium = threats?.medium ?? 0;
-        const low = threats?.low ?? 0;
-        const total = critical + high + medium + low;
+        const active = this.normalizeThreatSummary(threats);
+        const mitigated = {
+            critical: active.mitigatedCritical,
+            high: active.mitigatedHigh,
+            medium: active.mitigatedMedium,
+            low: active.mitigatedLow,
+            total: active.mitigatedTotal
+        };
+        const { critical, high, medium, low, total } = active;
 
         return html`
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
                         <div class="card-title">Threat Landscape</div>
-                        <div class="text-muted small">Severity mix across your fleet</div>
+                        <div class="text-muted small">Active vulnerabilities by severity (30d)</div>
                     </div>
                     <span class="badge bg-danger-lt text-danger">${total} findings</span>
                 </div>
@@ -213,6 +258,16 @@ export class DashboardPage extends Component {
                         <span class="badge bg-warning-lt text-warning">High: ${high}</span>
                         <span class="badge bg-info-lt text-info">Medium: ${medium}</span>
                         <span class="badge bg-secondary-lt text-secondary">Low: ${low}</span>
+                    </div>
+                    <div class="text-muted small mt-3">
+                        <div class="fw-semibold mb-1">Mitigated in last 30 days</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="badge bg-azure-lt text-azure">Total mitigated: ${mitigated.total}</span>
+                            <span class="badge bg-azure-lt text-azure">Critical: ${mitigated.critical}</span>
+                            <span class="badge bg-azure-lt text-azure">High: ${mitigated.high}</span>
+                            <span class="badge bg-azure-lt text-azure">Medium: ${mitigated.medium}</span>
+                            <span class="badge bg-azure-lt text-azure">Low: ${mitigated.low}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -419,22 +474,29 @@ export class DashboardPage extends Component {
     }
 
     computeRadarStats() {
-        const complianceScore = Math.max(0, Math.min(100, this.state.complianceSummary?.score ?? 0));
+        const toNumber = (v) => {
+            const n = typeof v === 'number' ? v : parseFloat(v);
+            return Number.isFinite(n) ? n : 0;
+        };
+
+        const clamp100 = (n) => Math.max(0, Math.min(100, toNumber(n)));
+
+        const complianceScore = clamp100(this.state.complianceSummary?.score ?? 0);
         const devices = this.state.deviceStats || { total: 0, active: 0 };
         const coverage = this.state.coverage || { healthy: 0, stale: 0, offline: 0, total: 0 };
-        const alerts = this.state.recentAlerts || [];
+        const alerts = Array.isArray(this.state.recentAlerts) ? this.state.recentAlerts : [];
         const threats = this.state.threatSummary || { critical: 0, high: 0, medium: 0, low: 0 };
 
-        const totalDevices = devices.total || 0;
-        const activePercent = totalDevices ? Math.round((devices.active / totalDevices) * 100) : 0;
+        const totalDevices = toNumber(devices.total);
+        const activePercent = totalDevices ? clamp100((toNumber(devices.active) / totalDevices) * 100) : 0;
 
-        const coverageTotal = coverage.healthy + coverage.stale + coverage.offline;
-        const coverageHealth = coverageTotal ? Math.round((coverage.healthy / coverageTotal) * 100) : 0;
+        const coverageTotal = toNumber(coverage.healthy) + toNumber(coverage.stale) + toNumber(coverage.offline);
+        const coverageHealth = coverageTotal ? clamp100((toNumber(coverage.healthy) / coverageTotal) * 100) : 0;
 
-        const threatPressureRaw = (threats.critical ?? 0) * 25 + (threats.high ?? 0) * 10 + (threats.medium ?? 0) * 5 + (threats.low ?? 0) * 2;
-        const threatPressure = Math.min(100, Math.round(threatPressureRaw));
+        const threatPressureRaw = toNumber(threats.critical) * 25 + toNumber(threats.high) * 10 + toNumber(threats.medium) * 5 + toNumber(threats.low) * 2;
+        const threatPressure = clamp100(Math.round(threatPressureRaw));
 
-        const alertLoad = Math.min(100, (alerts.length ?? 0) * 10);
+        const alertLoad = clamp100((alerts.length || 0) * 10);
 
         return {
             complianceScore,
@@ -457,7 +519,7 @@ export class DashboardPage extends Component {
             stats.activePercent,
             100 - stats.threatPressure, // invert: higher pressure -> lower score
             100 - stats.alertLoad       // invert alerts
-        ].map(v => Math.max(0, Math.min(100, v)));
+        ].map(v => (Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0));
 
         const options = {
             chart: { type: 'radar', height: 250, toolbar: { show: false } },

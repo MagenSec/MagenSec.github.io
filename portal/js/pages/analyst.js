@@ -340,6 +340,7 @@ export class AnalystPage extends Component {
         const recommendations = Array.isArray(report.Recommendations) ? report.Recommendations.slice(0, CONSTANTS.MAX_RECOMMENDATIONS) : [];
         const devices = Array.isArray(report.DevicesAtRisk) ? report.DevicesAtRisk.slice(0, CONSTANTS.MAX_DEVICES_AT_RISK) : [];
         const analysisText = report.Analysis || report.AnalysisText || report.DetailedAnalysis || '';
+        const mitigated = summary.MitigatedThreats || summary.ResolvedThreats;
 
         return html`<div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -372,6 +373,17 @@ export class AnalystPage extends Component {
                 ${report.Charts && report.Charts.length > 0 && html`<div>
                     <h4 class="mb-3">Security Overview</h4>
                     <${ChartRenderer} charts=${report.Charts} />
+                </div>`}
+
+                ${mitigated && html`<div class="mt-4">
+                    <h4>Mitigated Vulnerabilities (last 30 days)</h4>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <span class="badge bg-azure-lt text-azure">Total mitigated: ${mitigated.Total ?? 0}</span>
+                        <span class="badge bg-azure-lt text-azure">Critical: ${mitigated.Critical ?? 0}</span>
+                        <span class="badge bg-azure-lt text-azure">High: ${mitigated.High ?? 0}</span>
+                        <span class="badge bg-azure-lt text-azure">Medium: ${mitigated.Medium ?? 0}</span>
+                        <span class="badge bg-azure-lt text-azure">Low: ${mitigated.Low ?? 0}</span>
+                    </div>
                 </div>`}
 
                 ${topFactors.length > 0 && html`<div>

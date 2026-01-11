@@ -331,8 +331,10 @@ export function SiteAdminPage() {
 
         setChangingUserType(true);
         try {
-            const endpoint = newUserType === 'SiteAdmin' ? 'elevate' : 'downgrade';
-            const res = await api.post(`/api/admin/users/${selectedUser.userId}/${endpoint}`);
+            // Use change-type endpoint to toggle Individual <-> SiteAdmin
+            const res = await api.put(`/api/v1/admin/users/${selectedUser.userId}/change-type`, {
+                newUserType: newUserType
+            });
 
             if (res.success) {
                 showToast(`User type changed to ${newUserType}`, 'success');
