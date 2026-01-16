@@ -4,6 +4,7 @@ import toast from '../toast.js';
 import { logger } from '../config.js';
 import { ApiAuditPage } from './apiAudit.js';
 import { DeviceActivityPage } from './deviceActivity.js';
+import { CronActivityPage } from './cronActivity.js';
 import { AiReportsAnalysisPage } from './aiReportsAnalysis.js';
 import { LicenseAdjustmentDialog } from '../components/LicenseAdjustmentDialog.js';
 
@@ -60,6 +61,10 @@ export function SiteAdminPage() {
     const [newUserType, setNewUserType] = useState('');
     const [changingUserType, setChangingUserType] = useState(false);
 
+    // Cron Management State
+    const [cronStatus, setCronStatus] = useState(null);
+    const [loadingCron, setLoadingCron] = useState(false);
+
     // Email validation helper
     const isValidEmail = (email) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -114,6 +119,23 @@ export function SiteAdminPage() {
             showToast('Failed to load admin data', 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadCronStatus = async () => {
+        setLoadingCron(true);
+        try {
+            const res = await api.get('/api/v1/admin/cron/status');
+            if (res.success) {
+                setCronStatus(res.data);
+            } else {
+                showToast(res.message || 'Failed to load cron status', 'error');
+            }
+        } catch (error) {
+            logger.error('[SiteAdmin] Error loading cron status:', error);
+            showToast('Failed to load cron status', 'error');
+        } finally {
+            setLoadingCron(false);
         }
     };
 
@@ -502,6 +524,17 @@ export function SiteAdminPage() {
                                     >
                                         <i class="ti ti-brain me-2"></i>
                                         AI Reports
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a 
+                                        class="nav-link ${activeTab === 'cron-jobs' ? 'active' : ''}"
+                                        href="#"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('cron-jobs'); loadCronStatus(); }}
+                                    >
+                                        <i class="ti ti-clock me-2"></i>
+                                        Cron Jobs
+                                        ${cronStatus && !cronStatus.currentStatus.isHealthy ? html`<span class="badge bg-red-lt ms-2">!</span>` : ''}
                                     </a>
                                 </li>
                             </ul>
@@ -990,6 +1023,92 @@ export function SiteAdminPage() {
                     ${activeTab === 'user-activity' && html`<${ApiAuditPage} />`}
                     ${activeTab === 'device-activity' && html`<${DeviceActivityPage} />`}
                     ${activeTab === 'ai-reports' && html`<${AiReportsAnalysisPage} />`}
+                    ${activeTab === 'cron-jobs' && html`
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3 class="mb-0">Cron Jobs Status & Activity</h3>
+                                <button 
+                                    class="btn btn-sm btn-primary" 
+                                    onClick=${loadCronStatus} 
+                                    disabled=${loadingCron}
+                                >
+                                    ${loadingCron ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-refresh me-1"></i>`}
+                                    ${loadingCron ? 'Refreshing...' : 'Refresh Status'}
+                                </button>
+                            </div>
+
+                            ${loadingCron && !cronStatus ? html`
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                    <p class="text-muted mt-2">Loading cron status...</p>
+                                </div>
+                            ` : !cronStatus ? html`
+                                <div class="empty">
+                                    <div class="empty-icon"><i class="ti ti-clock"></i></div>
+                                    <p class="empty-title">No cron status available</p>
+                                    <p class="empty-subtitle text-muted">Click Refresh to load cron status</p>
+                                </div>
+                            ` : html`
+                                <!-- System Status Card -->
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h3 class="card-title">System Status</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-md-3">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="me-3">
+                                                        <i class="ti ti-${cronStatus.currentStatus.isHealthy ? 'circle-check text-success' : 'alert-circle text-danger'}" style="font-size: 2rem;"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div class="text-muted small">Health</div>
+                                                        <div class="fw-bold ${cronStatus.currentStatus.isHealthy ? 'text-success' : 'text-danger'}">
+                                                            ${cronStatus.currentStatus.isHealthy ? 'Healthy' : 'Unhealthy'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-muted small">Last Run</div>
+                                                <div class="fw-bold">
+                                                    ${cronStatus.currentStatus.lastRunAt ? (() => {
+                                                        const lastRun = new Date(cronStatus.currentStatus.lastRunAt);
+                                                        const now = new Date();
+                                                        const diffMs = now - lastRun;
+                                                        const diffMins = Math.floor(diffMs / 60000);
+                                                        const diffHours = Math.floor(diffMins / 60);
+                                                        const mins = diffMins % 60;
+                                                        const isOverdue = diffMins > 60;
+                                                        const timeAgo = diffHours > 0 ? `${diffHours}h ${mins}m ago` : `${mins}m ago`;
+                                                        return html`
+                                                            <div>${lastRun.toLocaleString()}</div>
+                                                            <div class="small ${isOverdue ? 'text-danger' : 'text-muted'}">${timeAgo}</div>
+                                                        `;
+                                                    })() : 'Never'}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-muted small">Status</div>
+                                                <div class="fw-bold">
+                                                    ${cronStatus.currentStatus.lastStatus || 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-muted small">Lock Status</div>
+                                                <div class="fw-bold">
+                                                    ${cronStatus.currentStatus.lockHeldBy || 'Not locked'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Detailed Activity with Filters -->
+                                <${CronActivityPage} cronStatus=${cronStatus} />
+                            `}
+                        </div>
+                    `}
                 </div>
             </div>
 

@@ -4,6 +4,7 @@
  */
 
 import { auth } from './auth.js';
+import { api } from './api.js';
 import { orgContext } from './orgContext.js';
 import { initRouter } from './router.js';
 import { logger } from './config.js';
@@ -20,9 +21,15 @@ import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceRe
 import { SettingsPage } from './pages/settings.js';
 import { AuditPage } from './pages/audit.js';
 import { SiteAdminPage } from './pages/siteAdmin.js';
+import ReportPreviewPage from './pages/ReportPreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
+
+// Make auth, api, and orgContext available globally for pages
+window.auth = auth;
+window.api = api;
+window.orgContext = orgContext;
 
 // App state
 let currentPage = 'login';
@@ -60,6 +67,8 @@ function App() {
             return html`<${PosturePage} />`;
         case 'posture-ai':
             return html`<${AIPosturePage} />`;
+        case 'report-preview':
+            return html`<${ReportPreviewPage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
         case 'site-admin':

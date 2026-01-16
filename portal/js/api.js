@@ -576,10 +576,33 @@ export class ApiClient {
     }
 
     async getLatestAIReport(orgId) {
-        // Fallback to today's date for latest
-        const today = new Date();
-        const yyyymmdd = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
-        return this.getAIReportByDate(orgId, yyyymmdd);
+        // Use dedicated /latest endpoint to get most recent report
+        return this.get(`/api/v1/orgs/${orgId}/ai/reports/latest`);
+    }
+
+    async emailAIReportPDF(orgId) {
+        // Send latest report as PDF via email
+        return this.post(`/api/v1/orgs/${orgId}/ai/reports/email-pdf`, {});
+    }
+
+    async getAuditLogs(orgId, params = {}) {
+        // Get audit logs with optional filtering
+        const queryParams = new URLSearchParams();
+        if (params.eventType) queryParams.append('eventType', params.eventType);
+        if (params.subType) queryParams.append('subType', params.subType);
+        if (params.limit) queryParams.append('limit', params.limit);
+        const qs = queryParams.toString() ? `?${queryParams.toString()}` : '';
+        return this.get(`/api/v1/orgs/${orgId}/audit${qs}`);
+    }
+
+    async getReportPreview(orgId) {
+        // Get report preview data (snapshot, org details, default tier)
+        return this.get(`/api/v1/orgs/${orgId}/reports/preview`);
+    }
+
+    async sendTestReport(orgId, tier) {
+        // Send test security report email to org admin
+        return this.post(`/api/v1/orgs/${orgId}/reports/send-test`, { tier });
     }
 
     async runAnalytics(orgId, payload) {

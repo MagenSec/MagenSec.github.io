@@ -92,6 +92,15 @@ export function initRouter(renderApp) {
         renderApp({ page: 'posture-ai', ctx });
     });
 
+    // Report Preview (protected)
+    page('/report-preview', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'report-preview', ctx });
+    });
+
     // Legacy alias: security-dashboard -> posture
     page('/security-dashboard', (ctx) => {
         page.redirect('/posture');
