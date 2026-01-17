@@ -276,7 +276,7 @@ class DevicesPage extends window.Component {
                             <div class="mb-4">
                                 <h5 class="text-muted">Overall Risk: <strong>${Math.round(enriched.score || 0)}/100</strong></h5>
                                 <div class="progress mb-3" style="height: 8px;">
-                                    <div class="progress-bar ${enriched.score >= 80 ? 'bg-danger' : enriched.score >= 60 ? 'bg-warning' : enriched.score >= 40 ? 'bg-warning' : 'bg-success'}" style="width: ${Math.min(enriched.score || 0, 100)}%"></div>
+                                    <div class="progress-bar ${enriched.score >= 80 ? 'bg-success' : enriched.score >= 60 ? 'bg-info' : enriched.score >= 40 ? 'bg-warning' : 'bg-danger'}" style="width: ${Math.min(enriched.score || 0, 100)}%"></div>
                                 </div>
                                 <p class="text-muted small">
                                     This risk score combines vulnerability data from installed applications with network and deployment factors.
@@ -450,7 +450,8 @@ class DevicesPage extends window.Component {
         const safeRadialSeries = [Number.isFinite(displayScore) ? displayScore : 0];
         const gradientStart = '#2fb344';
         const gradientEnd = '#d63939';
-        const scoreColor = displayScore >= 80 ? gradientEnd : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : gradientStart;
+        // 100=best (green), 0=worst (red)
+        const scoreColor = displayScore >= 80 ? gradientStart : displayScore >= 60 ? '#fab005' : displayScore >= 40 ? '#f59f00' : gradientEnd;
 
         if (this.riskChartEl && this.riskChartEl.getBoundingClientRect().width > 0) {
             if (this.riskChart) this.riskChart.destroy();
@@ -598,7 +599,8 @@ class DevicesPage extends window.Component {
             const numericScore = Number(displayScoreRaw);
             const displayScore = Number.isFinite(numericScore) ? numericScore : 0;
             const clampedScore = Math.max(0, Math.min(100, Math.round(displayScore)));
-            const scoreColor = clampedScore >= 80 ? '#d63939' : clampedScore >= 60 ? '#f59f00' : clampedScore >= 40 ? '#fab005' : '#2fb344';
+            // 100=best (green), 0=worst (red)
+            const scoreColor = clampedScore >= 80 ? '#2fb344' : clampedScore >= 60 ? '#fab005' : clampedScore >= 40 ? '#f59f00' : '#d63939';
 
             const riskEl = this.tableRiskEls.get(device.id);
             const bounds = riskEl?.getBoundingClientRect();
@@ -1772,8 +1774,9 @@ class DevicesPage extends window.Component {
                 riskCount++;
             }
             
-            if (score >= 80) stats.criticalRiskCount++;
-            else if (score >= 60) stats.highRiskCount++;
+            // 100=best, 0=worst: low scores = high risk
+            if (score < 40) stats.criticalRiskCount++;  // Poor/Very Poor
+            else if (score < 60) stats.highRiskCount++; // Fair
 
             stats.vulnerableApps += (summary.vulnerableApps || 0);
             stats.criticalCves += (summary.criticalCves || 0);
@@ -1887,8 +1890,9 @@ class DevicesPage extends window.Component {
                     const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                     const enriched = this.state.enrichedScores[device.id];
                     const displayScore = enriched?.score !== undefined ? enriched.score : summary.score || 0;
-                    const scoreSeverity = displayScore >= 80 ? 'CRITICAL' : displayScore >= 60 ? 'HIGH' : displayScore >= 40 ? 'MEDIUM' : 'LOW';
-                    const severityBadge = displayScore >= 80 ? 'bg-danger' : displayScore >= 60 ? 'bg-warning' : displayScore >= 40 ? 'bg-warning' : 'bg-success';
+                    // 100=best, 0=worst
+                    const scoreSeverity = displayScore >= 80 ? 'EXCELLENT' : displayScore >= 60 ? 'GOOD' : displayScore >= 40 ? 'FAIR' : 'POOR';
+                    const severityBadge = displayScore >= 80 ? 'bg-success' : displayScore >= 60 ? 'bg-info' : displayScore >= 40 ? 'bg-warning' : 'bg-danger';
                     
                     return html`
                         <div class="col-sm-6 col-lg-4">

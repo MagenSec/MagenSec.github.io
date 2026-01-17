@@ -460,7 +460,7 @@ export class AnalystPage extends Component {
                                         </td>
                                         <td>
                                             ${!isStringDevice && dev.RiskScore !== undefined ? html`
-                                                <span class="badge ${dev.RiskScore >= 80 ? 'bg-danger-lt' : dev.RiskScore >= 50 ? 'bg-warning-lt' : 'bg-info-lt'}">
+                                                <span class="badge ${dev.RiskScore >= 80 ? 'bg-success-lt' : dev.RiskScore >= 50 ? 'bg-info-lt' : 'bg-danger-lt'}">
                                                     ${dev.RiskScore.toFixed(1)}
                                                 </span>
                                             ` : html`<span class="text-muted">-</span>`}

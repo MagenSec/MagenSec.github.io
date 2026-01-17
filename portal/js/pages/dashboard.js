@@ -149,18 +149,20 @@ export class DashboardPage extends Component {
 
     getRiskColor(score) {
         if (score === null || score === 0) return 'secondary';
-        if (score >= 80) return 'danger';
-        if (score >= 60) return 'warning';
-        if (score >= 40) return 'info';
-        return 'success';
+        // 100=best (green), 0=worst (red)
+        if (score >= 80) return 'success';  // A/B grade
+        if (score >= 60) return 'info';     // C/D grade
+        if (score >= 40) return 'warning';  // F grade
+        return 'danger';                     // Very low
     }
 
     getRiskLabel(score) {
-        if (score >= 80) return 'Critical';
-        if (score >= 60) return 'High';
-        if (score >= 40) return 'Medium';
-        if (score > 0) return 'Low';
-        return 'No Risk';
+        // 100=best, 0=worst
+        if (score >= 80) return 'Excellent';  // A/B grade
+        if (score >= 60) return 'Good';       // C/D grade
+        if (score >= 40) return 'Fair';       // F grade
+        if (score > 0) return 'Poor';         // Very low
+        return 'Not Rated';
     }
 
     normalizeThreatSummary(threats) {

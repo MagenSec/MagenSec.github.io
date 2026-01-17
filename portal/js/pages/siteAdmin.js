@@ -6,6 +6,7 @@ import { ApiAuditPage } from './apiAudit.js';
 import { DeviceActivityPage } from './deviceActivity.js';
 import { CronActivityPage } from './cronActivity.js';
 import { AiReportsAnalysisPage } from './aiReportsAnalysis.js';
+import ReportPreviewPage from './ReportPreviewPage.js';
 import { LicenseAdjustmentDialog } from '../components/LicenseAdjustmentDialog.js';
 
 const { html } = window;
@@ -22,7 +23,7 @@ const ORG_DURATION_OPTIONS = [
 const showToast = (message, type) => toast.show(message, type);
 
 export function SiteAdminPage() {
-    const [mainSection, setMainSection] = useState('overview'); // 'overview' or 'reports'
+    const [mainSection, setMainSection] = useState('overview'); // 'overview', 'activity', or 'preview'
     const [activeTab, setActiveTab] = useState('organizations');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -471,7 +472,7 @@ export function SiteAdminPage() {
                 </div>
             </div>
 
-            <!-- Main Section Navigation (Two-Level: Overview | Activity Reports) -->
+            <!-- Main Section Navigation (Three-Level: Overview | Activity Reports | Preview) -->
             <div class="mb-3">
                 <ul class="nav nav-pills nav-fill">
                     <li class="nav-item">
@@ -491,11 +492,11 @@ export function SiteAdminPage() {
                     </li>
                     <li class="nav-item">
                         <a 
-                            class="nav-link ${mainSection === 'reports' ? 'active' : ''}"
+                            class="nav-link ${mainSection === 'activity' ? 'active' : ''}"
                             href="#"
                             onClick=${(e) => { 
                                 e.preventDefault(); 
-                                setMainSection('reports'); 
+                                setMainSection('activity'); 
                                 setActiveTab('user-activity');
                             }}
                         >
@@ -503,10 +504,24 @@ export function SiteAdminPage() {
                             Activity Reports
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a 
+                            class="nav-link ${mainSection === 'preview' ? 'active' : ''}"
+                            href="#"
+                            onClick=${(e) => { 
+                                e.preventDefault(); 
+                                setMainSection('preview');
+                            }}
+                        >
+                            <i class="ti ti-eye me-2"></i>
+                            Preview
+                        </a>
+                    </li>
                 </ul>
             </div>
 
             <!-- Card with Secondary Navigation (Sub-tabs) + Refresh Button -->
+            ${mainSection !== 'preview' && html`
             <div class="card mb-3">
                 <div class="card-header d-flex align-items-center justify-content-between">
                     ${mainSection === 'overview' ? html`
@@ -540,7 +555,7 @@ export function SiteAdminPage() {
                                 ${refreshing ? 'Refreshing...' : 'Refresh'}
                             </button>
                         </div>
-                    ` : html`
+                    ` : mainSection === 'activity' ? html`
                         <div class="d-flex align-items-center w-100">
                             <ul class="nav nav-tabs card-header-tabs">
                                 <li class="nav-item">
@@ -586,10 +601,10 @@ export function SiteAdminPage() {
                                 </li>
                             </ul>
                         </div>
-                    `}
+                    ` : html``}
                 </div>
                 <div class="card-body">
-                    ${activeTab === 'organizations' && html`
+                    ${mainSection === 'overview' && activeTab === 'organizations' && html`
                         <div class="row g-3">
                             <div class="col-12">
                                 <div class="card">
@@ -1325,7 +1340,7 @@ export function SiteAdminPage() {
                         </div>
                     `}
 
-                    ${activeTab === 'accounts' && html`
+                    ${mainSection === 'overview' && activeTab === 'accounts' && html`
                         <div>
                             <div class="row g-2 mb-3">
                                 <div class="col-md-6">
@@ -1388,10 +1403,10 @@ export function SiteAdminPage() {
                         </div>
                     `}
 
-                    ${activeTab === 'user-activity' && html`<${ApiAuditPage} />`}
-                    ${activeTab === 'device-activity' && html`<${DeviceActivityPage} />`}
-                    ${activeTab === 'ai-reports' && html`<${AiReportsAnalysisPage} />`}
-                    ${activeTab === 'cron-jobs' && html`
+                    ${mainSection === 'activity' && activeTab === 'user-activity' && html`<${ApiAuditPage} />`}
+                    ${mainSection === 'activity' && activeTab === 'device-activity' && html`<${DeviceActivityPage} />`}
+                    ${mainSection === 'activity' && activeTab === 'ai-reports' && html`<${AiReportsAnalysisPage} />`}
+                    ${mainSection === 'activity' && activeTab === 'cron-jobs' && html`
                         <div>
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h3 class="mb-0">Cron Jobs Status & Activity</h3>
@@ -1479,6 +1494,9 @@ export function SiteAdminPage() {
                     `}
                 </div>
             </div>
+            `}
+
+            ${mainSection === 'preview' && html`<${ReportPreviewPage} embedded=${true} />`}
 
             ${adjustingLicense && html`<${LicenseAdjustmentDialog} 
                 license=${adjustingLicense}

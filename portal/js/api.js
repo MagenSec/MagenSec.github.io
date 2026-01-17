@@ -600,9 +600,9 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/reports/preview`);
     }
 
-    async sendTestReport(orgId, tier) {
-        // Send test security report email to org admin
-        return this.post(`/api/v1/orgs/${orgId}/reports/send-test`, { tier });
+    async sendReport(orgId, tier, recipient = 'owner', customEmail = '') {
+        // Send security report email to selected recipient (owner/admin/custom)
+        return this.post(`/api/v1/orgs/${orgId}/reports/send`, { tier, recipient, customEmail });
     }
 
     async runAnalytics(orgId, payload) {

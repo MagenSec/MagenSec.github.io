@@ -67,8 +67,9 @@ function App() {
             return html`<${PosturePage} />`;
         case 'posture-ai':
             return html`<${AIPosturePage} />`;
-        case 'report-preview':
-            return html`<${ReportPreviewPage} />`;
+        // Report Preview moved under Site Admin → Activity Reports (Preview tab)
+        // case 'report-preview':
+        //     return html`<${ReportPreviewPage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
         case 'site-admin':
