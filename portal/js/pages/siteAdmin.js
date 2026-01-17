@@ -28,6 +28,7 @@ export function SiteAdminPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [orgs, setOrgs] = useState([]);
     const [accounts, setAccounts] = useState([]);
+    const [showCreateForm, setShowCreateForm] = useState(false);
     
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -38,8 +39,17 @@ export function SiteAdminPage() {
     const [newOwnerEmail, setNewOwnerEmail] = useState('');
     const [newOrgSeats, setNewOrgSeats] = useState(20);
     const [newOrgDuration, setNewOrgDuration] = useState('365');
+    const [newReportEnabled, setNewReportEnabled] = useState(true);
+    const [newWeeklyEnabled, setNewWeeklyEnabled] = useState(true);
+    const [newDailySnapshotEnabled, setNewDailySnapshotEnabled] = useState(false);
+    const [newBusinessTier, setNewBusinessTier] = useState('Professional');
     const [updateOrgName, setUpdateOrgName] = useState('');
+    const [updateReportEnabled, setUpdateReportEnabled] = useState(true);
+    const [updateWeeklyEnabled, setUpdateWeeklyEnabled] = useState(true);
+    const [updateDailySnapshotEnabled, setUpdateDailySnapshotEnabled] = useState(false);
+    const [updateBusinessTier, setUpdateBusinessTier] = useState('Professional');
     const [orgSearch, setOrgSearch] = useState('');
+    const [orgTypeFilter, setOrgTypeFilter] = useState('All'); // 'All', 'Business', 'Personal'
     const [selectedOrgId, setSelectedOrgId] = useState('');
     const [selectedOrg, setSelectedOrg] = useState(null);
     const [orgLicenses, setOrgLicenses] = useState([]);
@@ -145,6 +155,23 @@ export function SiteAdminPage() {
         setSelectedOrg(org);
         if (org) {
             setUpdateOrgName(org.orgName || org.name || '');
+            // Load report settings
+            try {
+                const configRes = await api.get(`/api/v1/admin/email/${orgId}/config`);
+                if (configRes.success && configRes.data) {
+                    setUpdateReportEnabled(configRes.data.reportEnabled !== false);
+                    setUpdateWeeklyEnabled(!!configRes.data.weeklyEnabled);
+                    setUpdateDailySnapshotEnabled(!!configRes.data.dailySnapshotEnabled);
+                    setUpdateBusinessTier(configRes.data.reportTier || 'Professional');
+                }
+            } catch (error) {
+                logger.warn('[SiteAdmin] Could not load report config:', error);
+                // Use defaults
+                setUpdateReportEnabled(true);
+                setUpdateWeeklyEnabled(true);
+                setUpdateDailySnapshotEnabled(false);
+                setUpdateBusinessTier('Professional');
+            }
             // Load licenses
             try {
                 const res = await api.get(`/api/v1/licenses/org/${orgId}`);
@@ -169,15 +196,24 @@ export function SiteAdminPage() {
                 orgName: newOrgName,
                 ownerEmail: newOwnerEmail,
                 seats: parseInt(newOrgSeats, 10),
-                days: parseInt(newOrgDuration, 10)
+                days: parseInt(newOrgDuration, 10),
+                reportEnabled: newReportEnabled,
+                weeklyEnabled: newWeeklyEnabled,
+                dailySnapshotEnabled: newDailySnapshotEnabled,
+                reportTier: newBusinessTier
             };
 
-            const res = await api.post('/api/admin/orgs', payload);
+            const res = await api.post('/api/v1/admin/orgs', payload);
             if (res.success) {
                 showToast('Organization created successfully', 'success');
                 setNewOrgName('');
                 setNewOwnerEmail('');
                 setNewOrgSeats(20);
+                setNewOrgDuration('365');
+                setNewReportEnabled(true);
+                setNewWeeklyEnabled(true);
+                setNewDailySnapshotEnabled(false);
+                setNewBusinessTier('Professional');
                 loadData();
             } else {
                 showToast(res.message || 'Failed to create organization', 'error');
@@ -192,8 +228,12 @@ export function SiteAdminPage() {
         if (!selectedOrgId || !updateOrgName) return;
 
         try {
-            const res = await api.put(`/api/admin/orgs/${selectedOrgId}`, {
-                orgName: updateOrgName
+            const res = await api.put(`/api/v1/admin/orgs/${selectedOrgId}`, {
+                orgName: updateOrgName,
+                reportEnabled: updateReportEnabled,
+                weeklyEnabled: updateWeeklyEnabled,
+                dailySnapshotEnabled: updateDailySnapshotEnabled,
+                reportTier: updateBusinessTier
             });
 
             if (res.success) {
@@ -283,7 +323,7 @@ export function SiteAdminPage() {
 
         try {
             const endpoint = selectedOrg.isDisabled ? 'enable' : 'disable';
-            const res = await api.put(`/api/admin/orgs/${selectedOrgId}/${endpoint}`);
+            const res = await api.put(`/api/v1/admin/orgs/${selectedOrgId}/${endpoint}`);
 
             if (res.success) {
                 showToast(`Organization ${action}d successfully`, 'success');
@@ -305,7 +345,7 @@ export function SiteAdminPage() {
         if (!confirm('Are you sure you want to DELETE this organization? This action cannot be undone and will delete all associated data.')) return;
 
         try {
-            const res = await api.delete(`/api/admin/orgs/${selectedOrgId}`);
+            const res = await api.delete(`/api/v1/admin/orgs/${selectedOrgId}`);
 
             if (res.success) {
                 showToast('Organization deleted successfully', 'success');
@@ -328,7 +368,7 @@ export function SiteAdminPage() {
 
         setTransferringOwner(true);
         try {
-            const res = await api.post(`/api/admin/orgs/${selectedOrgId}/transfer`, {
+            const res = await api.post(`/api/v1/admin/orgs/${selectedOrgId}/transfer`, {
                 newOwnerEmail: newTransferOwner
             });
 
@@ -384,12 +424,19 @@ export function SiteAdminPage() {
     );
 
     // Filter Logic
-    const filteredOrgs = orgs.filter(org => 
-        !orgSearch || 
-        (org.orgName || org.name || '').toLowerCase().includes(orgSearch.toLowerCase()) ||
-        (org.orgId || '').toLowerCase().includes(orgSearch.toLowerCase()) ||
-        (org.ownerEmail || '').toLowerCase().includes(orgSearch.toLowerCase())
-    );
+    const filteredOrgs = orgs.filter(org => {
+        const matchesSearch = !orgSearch || 
+            (org.orgName || org.name || '').toLowerCase().includes(orgSearch.toLowerCase()) ||
+            (org.orgId || '').toLowerCase().includes(orgSearch.toLowerCase()) ||
+            (org.ownerEmail || '').toLowerCase().includes(orgSearch.toLowerCase());
+        
+        // Determine org type: use isPersonal if available, fallback to email pattern match
+        const isPersonal = org.isPersonal !== undefined ? org.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(org.orgId);
+        const matchesType = orgTypeFilter === 'All' || 
+                           (orgTypeFilter === 'Personal' && isPersonal) ||
+                           (orgTypeFilter === 'Business' && !isPersonal);
+        return matchesSearch && matchesType;
+    });
 
     // Pagination Logic
     const indexOfLastOrg = currentPage * itemsPerPage;
@@ -546,10 +593,15 @@ export function SiteAdminPage() {
                         <div class="row g-3">
                             <div class="col-12">
                                 <div class="card">
-                                    <div class="card-header">
-                                        <h3 class="card-title">Create New Organization</h3>
+                                    <div class="card-header" style="cursor: pointer;" onClick=${() => setShowCreateForm(!showCreateForm)}>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h3 class="card-title mb-0">
+                                                <i class="${`ti ${showCreateForm ? 'ti-chevron-down' : 'ti-chevron-right'}`} me-2"></i>
+                                                Create New Organization
+                                            </h3>
+                                        </div>
                                     </div>
-                                    <div class="card-body">
+                                    ${showCreateForm && html`<div class="card-body">
                                         <div class="row g-3">
                                             <div class="col-md-6">
                                                 <label class="form-label">Organization Name <span class="text-danger">*</span></label>
@@ -610,6 +662,102 @@ export function SiteAdminPage() {
                                                     `)}
                                                 </select>
                                             </div>
+
+                                            <div class="col-12">
+                                                <hr class="my-2" />
+                                            </div>
+
+                                            <!-- Enable Reports Toggle -->
+                                            <div class="col-12">
+                                                <div class="form-check form-switch d-flex align-items-start gap-2">
+                                                    <input 
+                                                        class="form-check-input" 
+                                                        type="checkbox" 
+                                                        id="newReportEnabled"
+                                                        checked=${newReportEnabled}
+                                                        onChange=${(e) => setNewReportEnabled(e.target.checked)}
+                                                        style="width: 40px; height: 20px; margin-top: 4px; flex-shrink: 0;"
+                                                    />
+                                                    <label class="form-check-label" for="newReportEnabled">
+                                                        <strong>Enable Security Reports</strong>
+                                                        <div class="small text-muted">Configure automated security reporting for this organization</div>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <!-- Report Configuration - Only shown when reports enabled -->
+                                            ${newReportEnabled ? html`
+                                                <div class="col-12">
+                                                    <div class="card border border-light">
+                                                        <div class="card-header">
+                                                            <h5 class="card-title mb-0"><i class="ti ti-mail me-2"></i>Report Configuration</h5>
+                                                        </div>
+                                                        <div class="card-body">
+                                                            <div class="d-flex gap-4 flex-wrap">
+                                                                <!-- Business Tier Toggle -->
+                                                                <div class="d-flex flex-column gap-2">
+                                                                    <label class="form-label mb-0"><strong>Business Tier</strong></label>
+                                                                    <div class="btn-group" role="group">
+                                                                        <input 
+                                                                            type="radio" 
+                                                                            class="btn-check" 
+                                                                            id="newTierPro"
+                                                                            name="newTier"
+                                                                            value="Professional"
+                                                                            checked=${newBusinessTier === 'Professional'}
+                                                                            onChange=${(e) => setNewBusinessTier(e.target.value)}
+                                                                        />
+                                                                        <label class="btn btn-outline-primary" for="newTierPro">Professional</label>
+                                                                        <input 
+                                                                            type="radio" 
+                                                                            class="btn-check" 
+                                                                            id="newTierPrem"
+                                                                            name="newTier"
+                                                                            value="Premium"
+                                                                            checked=${newBusinessTier === 'Premium'}
+                                                                            onChange=${(e) => setNewBusinessTier(e.target.value)}
+                                                                        />
+                                                                        <label class="btn btn-outline-primary" for="newTierPrem">Premium</label>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Weekly Report Toggle -->
+                                                                <div class="d-flex flex-column gap-2">
+                                                                    <label class="form-label mb-0"><strong>Weekly Report</strong></label>
+                                                                    <div class="form-check form-switch">
+                                                                        <input 
+                                                                            class="form-check-input" 
+                                                                            type="checkbox" 
+                                                                            id="newWeeklyEnabled"
+                                                                            checked=${newWeeklyEnabled}
+                                                                            onChange=${(e) => setNewWeeklyEnabled(e.target.checked)}
+                                                                            style="width: 40px; height: 20px; margin-top: 0px;"
+                                                                        />
+                                                                    </div>
+                                                                    <small class="text-muted">Every Monday</small>
+                                                                </div>
+
+                                                                <!-- Daily Snapshot Toggle -->
+                                                                <div class="d-flex flex-column gap-2">
+                                                                    <label class="form-label mb-0"><strong>Daily Snapshot</strong></label>
+                                                                    <div class="form-check form-switch">
+                                                                        <input 
+                                                                            class="form-check-input" 
+                                                                            type="checkbox" 
+                                                                            id="newDailySnapshotEnabled"
+                                                                            checked=${newDailySnapshotEnabled}
+                                                                            onChange=${(e) => setNewDailySnapshotEnabled(e.target.checked)}
+                                                                            style="width: 40px; height: 20px; margin-top: 0px;"
+                                                                        />
+                                                                    </div>
+                                                                    <small class="text-muted">Basic snapshot</small>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ` : null}
+
                                             <div class="col-12">
                                                 <button 
                                                     class="btn btn-primary" 
@@ -621,7 +769,7 @@ export function SiteAdminPage() {
                                                 </button>
                                             </div>
                                         </div>
-                                    </div>
+                                    </div>`}
                                 </div>
                             </div>
 
@@ -630,20 +778,65 @@ export function SiteAdminPage() {
                                     <div class="card-header">
                                         <h3 class="card-title">Manage Organizations</h3>
                                         <div class="card-actions ms-auto">
-                                            <div class="input-icon">
-                                                <span class="input-icon-addon">
-                                                    <i class="ti ti-search"></i>
-                                                </span>
-                                                <input 
-                                                    type="text" 
-                                                    class="form-control" 
-                                                    placeholder="Search organizations..." 
-                                                    value=${orgSearch}
-                                                    onInput=${(e) => {
-                                                        setOrgSearch(e.target.value);
-                                                        setCurrentPage(1);
-                                                    }}
-                                                />
+                                            <div class="d-flex gap-2">
+                                                <!-- Org Type Filter -->
+                                                <div class="btn-group" role="group">
+                                                    <input 
+                                                        type="radio" 
+                                                        class="btn-check" 
+                                                        id="filterAll"
+                                                        name="orgTypeFilter"
+                                                        value="All"
+                                                        checked=${orgTypeFilter === 'All'}
+                                                        onChange=${(e) => {
+                                                            setOrgTypeFilter(e.target.value);
+                                                            setCurrentPage(1);
+                                                        }}
+                                                    />
+                                                    <label class="btn btn-outline-secondary btn-sm" for="filterAll">All</label>
+                                                    <input 
+                                                        type="radio" 
+                                                        class="btn-check" 
+                                                        id="filterBusiness"
+                                                        name="orgTypeFilter"
+                                                        value="Business"
+                                                        checked=${orgTypeFilter === 'Business'}
+                                                        onChange=${(e) => {
+                                                            setOrgTypeFilter(e.target.value);
+                                                            setCurrentPage(1);
+                                                        }}
+                                                    />
+                                                    <label class="btn btn-outline-secondary btn-sm" for="filterBusiness"><i class="ti ti-building me-1"></i>Business</label>
+                                                    <input 
+                                                        type="radio" 
+                                                        class="btn-check" 
+                                                        id="filterPersonal"
+                                                        name="orgTypeFilter"
+                                                        value="Personal"
+                                                        checked=${orgTypeFilter === 'Personal'}
+                                                        onChange=${(e) => {
+                                                            setOrgTypeFilter(e.target.value);
+                                                            setCurrentPage(1);
+                                                        }}
+                                                    />
+                                                    <label class="btn btn-outline-secondary btn-sm" for="filterPersonal"><i class="ti ti-user me-1"></i>Personal</label>
+                                                </div>
+                                                <!-- Search -->
+                                                <div class="input-icon">
+                                                    <span class="input-icon-addon">
+                                                        <i class="ti ti-search"></i>
+                                                    </span>
+                                                    <input 
+                                                        type="text" 
+                                                        class="form-control" 
+                                                        placeholder="Search organizations..." 
+                                                        value=${orgSearch}
+                                                        onInput=${(e) => {
+                                                            setOrgSearch(e.target.value);
+                                                            setCurrentPage(1);
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -664,8 +857,25 @@ export function SiteAdminPage() {
                                                     ${currentOrgs.map(org => html`
                                                         <tr>
                                                             <td>
-                                                                <div class="fw-bold">${org.orgName || org.name}</div>
-                                                                <div class="text-muted small">${org.orgId}</div>
+                                                                <div class="d-flex align-items-center gap-2">
+                                                                    ${(() => {
+                                                                        // Determine org type: use isPersonal if available, fallback to email check
+                                                                        const isPersonal = org.isPersonal !== undefined ? org.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(org.orgId);
+                                                                        return isPersonal ? html`
+                                                                            <span class="badge bg-info-lt" style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;">
+                                                                                <i class="ti ti-user" style="font-size: 16px;"></i>
+                                                                            </span>
+                                                                        ` : html`
+                                                                            <span class="badge bg-primary-lt" style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;">
+                                                                                <i class="ti ti-building" style="font-size: 16px;"></i>
+                                                                            </span>
+                                                                        `;
+                                                                    })()}
+                                                                    <div>
+                                                                        <div class="fw-bold">${org.orgName || org.name}</div>
+                                                                        <div class="text-muted small">${org.orgId}</div>
+                                                                    </div>
+                                                                </div>
                                                             </td>
                                                             <td>${org.ownerEmail}</td>
                                                             <td>
@@ -765,16 +975,25 @@ export function SiteAdminPage() {
                                                                 setNewTransferOwner(selectedOrg.ownerEmail);
                                                                 setShowTransferOwner(true);
                                                             }}
-                                                            disabled=${selectedOrg.licenseType === 'Personal'}
-                                                            title=${selectedOrg.licenseType === 'Personal' ? 'Transfer not available for Personal organizations' : 'Transfer ownership'}
+                                                            disabled=${(() => {
+                                                                const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                return isPersonal;
+                                                            })()}
+                                                            title=${(() => {
+                                                                const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                return isPersonal ? 'Transfer not available for Personal organizations' : 'Transfer ownership';
+                                                            })()}
                                                         >
                                                             <i class="ti ti-arrows-exchange me-1"></i>
                                                             Transfer
                                                         </button>
                                                     </div>
-                                                    ${selectedOrg.licenseType === 'Personal' && html`
-                                                        <small class="text-muted"><i class="ti ti-info-circle me-1"></i>Ownership transfer is not available for Personal organizations</small>
-                                                    `}
+                                                    ${(() => {
+                                                        const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                        return isPersonal ? html`
+                                                            <small class="text-muted"><i class="ti ti-info-circle me-1"></i>Ownership transfer is not available for Personal organizations</small>
+                                                        ` : '';
+                                                    })()}
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label">Current Status</label>
@@ -784,6 +1003,137 @@ export function SiteAdminPage() {
                                                         </span>
                                                     </div>
                                                 </div>
+
+                                                <div class="col-12">
+                                                    <hr class="my-3" />
+                                                </div>
+
+                                                <!-- Enable Reports Toggle -->
+                                                <div class="col-12">
+                                                    <div class="form-check form-switch d-flex align-items-start gap-2">
+                                                        <input 
+                                                            class="form-check-input" 
+                                                            type="checkbox" 
+                                                            id="updateReportEnabled"
+                                                            checked=${updateReportEnabled}
+                                                            onChange=${(e) => setUpdateReportEnabled(e.target.checked)}
+                                                            style="width: 40px; height: 20px; margin-top: 4px; flex-shrink: 0;"
+                                                        />
+                                                        <label class="form-check-label" for="updateReportEnabled">
+                                                            <strong>Enable Security Reports</strong>
+                                                            <div class="small text-muted">Configure automated security reporting for this organization</div>
+                                                        </label>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Report Configuration - Only shown when reports enabled -->
+                                                ${updateReportEnabled ? html`
+                                                    <div class="col-12">
+                                                        <div class="card border border-light">
+                                                            <div class="card-header">
+                                                                <h5 class="card-title mb-0"><i class="ti ti-mail me-2"></i>Report Configuration</h5>
+                                                            </div>
+                                                            <div class="card-body">
+                                                                <div class="d-flex gap-4 flex-wrap">
+                                                                    <!-- Business Tier Toggle -->
+                                                                    <div class="d-flex flex-column gap-2">
+                                                                        <label class="form-label mb-0">
+                                                                            <strong>Business Tier</strong>
+                                                                            ${(() => {
+                                                                                const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                                return isPersonal ? html`
+                                                                                    <span class="badge bg-warning-lt ms-2">
+                                                                                        <i class="ti ti-alert-triangle me-1"></i>Business Org Only
+                                                                                    </span>
+                                                                                ` : '';
+                                                                            })()}
+                                                                        </label>
+                                                                        <div class="btn-group" role="group" ${(() => {
+                                                                            const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                            return isPersonal ? 'disabled' : '';
+                                                                        })()}>
+                                                                            <input 
+                                                                                type="radio" 
+                                                                                class="btn-check" 
+                                                                                id="updateTierPro"
+                                                                                name="updateTier"
+                                                                                value="Professional"
+                                                                                checked=${updateBusinessTier === 'Professional'}
+                                                                                onChange=${(e) => setUpdateBusinessTier(e.target.value)}
+                                                                                disabled=${(() => {
+                                                                                    const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                                    return isPersonal;
+                                                                                })()}
+                                                                            />
+                                                                            <label class="btn btn-outline-primary" for="updateTierPro">Professional</label>
+                                                                            <input 
+                                                                                type="radio" 
+                                                                                class="btn-check" 
+                                                                                id="updateTierPrem"
+                                                                                name="updateTier"
+                                                                                value="Premium"
+                                                                                checked=${updateBusinessTier === 'Premium'}
+                                                                                onChange=${(e) => setUpdateBusinessTier(e.target.value)}
+                                                                                disabled=${(() => {
+                                                                                    const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                                    return isPersonal;
+                                                                                })()}
+                                                                            />
+                                                                            <label class="btn btn-outline-primary" for="updateTierPrem">Premium</label>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <!-- Weekly Report Toggle -->
+                                                                    <div class="d-flex flex-column gap-2">
+                                                                        <label class="form-label mb-0">
+                                                                            <strong>Weekly Report</strong>
+                                                                            ${(() => {
+                                                                                const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                                return isPersonal ? html`
+                                                                                    <span class="badge bg-warning-lt ms-2">
+                                                                                        <i class="ti ti-alert-triangle me-1"></i>Business Org Only
+                                                                                    </span>
+                                                                                ` : '';
+                                                                            })()}
+                                                                        </label>
+                                                                        <div class="form-check form-switch">
+                                                                            <input 
+                                                                                class="form-check-input" 
+                                                                                type="checkbox" 
+                                                                                id="updateWeeklyEnabled"
+                                                                                checked=${updateWeeklyEnabled}
+                                                                                onChange=${(e) => setUpdateWeeklyEnabled(e.target.checked)}
+                                                                                disabled=${(() => {
+                                                                                    const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                                    return isPersonal;
+                                                                                })()}
+                                                                                style="width: 40px; height: 20px; margin-top: 0px;"
+                                                                            />
+                                                                        </div>
+                                                                        <small class="text-muted">Every Monday</small>
+                                                                    </div>
+
+                                                                <!-- Daily Snapshot Toggle -->
+                                                                <div class="d-flex flex-column gap-2">
+                                                                    <label class="form-label mb-0"><strong>Daily Snapshot</strong></label>
+                                                                    <div class="form-check form-switch">
+                                                                        <input 
+                                                                            class="form-check-input" 
+                                                                            type="checkbox" 
+                                                                            id="updateDailySnapshotEnabled"
+                                                                            checked=${updateDailySnapshotEnabled}
+                                                                            onChange=${(e) => setUpdateDailySnapshotEnabled(e.target.checked)}
+                                                                            style="width: 40px; height: 20px; margin-top: 0px;"
+                                                                        />
+                                                                    </div>
+                                                                    <small class="text-muted">Basic snapshot</small>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                ` : null}
+
                                                 <div class="col-12">
                                                     <button class="btn btn-primary" onClick=${onUpdateOrg}>
                                                         <i class="ti ti-device-floppy me-2"></i>
@@ -798,16 +1148,34 @@ export function SiteAdminPage() {
                                                             <button
                                                                 class="btn btn-sm btn-primary"
                                                                 onClick=${() => setShowCreateLicense(true)}
-                                                                disabled=${selectedOrg.licenseType === 'Personal'}
-                                                                title=${selectedOrg.licenseType === 'Personal' ? 'Additional licenses not available for Personal organizations' : 'Create new license'}
+                                                                disabled=${(() => {
+                                                                    const licenseType = orgLicenses && orgLicenses.length > 0 ? orgLicenses[0].licenseType : null;
+                                                                    const isPersonal = selectedOrg.isPersonal !== undefined
+                                                                        ? selectedOrg.isPersonal
+                                                                        : licenseType === 'Personal' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                    return isPersonal;
+                                                                })()}
+                                                                title=${(() => {
+                                                                    const licenseType = orgLicenses && orgLicenses.length > 0 ? orgLicenses[0].licenseType : null;
+                                                                    const isPersonal = selectedOrg.isPersonal !== undefined
+                                                                        ? selectedOrg.isPersonal
+                                                                        : licenseType === 'Personal' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                    return isPersonal ? 'Additional licenses not available for Personal organizations' : 'Create new license';
+                                                                })()}
                                                             >
                                                                 <i class="ti ti-plus me-1"></i> Create License
                                                             </button>
-                                                            ${selectedOrg.licenseType === 'Personal' && html`
+                                                            ${(() => {
+                                                                const licenseType = orgLicenses && orgLicenses.length > 0 ? orgLicenses[0].licenseType : null;
+                                                                const isPersonal = selectedOrg.isPersonal !== undefined
+                                                                    ? selectedOrg.isPersonal
+                                                                    : licenseType === 'Personal' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                return isPersonal ? html`
                                                                 <div class="text-muted small mt-1">
                                                                     <i class="ti ti-info-circle me-1"></i>Personal organizations are limited to a single license
                                                                 </div>
-                                                            `}
+                                                            ` : '';
+                                                            })()}
                                                         </div>
                                                     </div>
 

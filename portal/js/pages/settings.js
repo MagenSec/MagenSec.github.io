@@ -102,6 +102,9 @@ export function SettingsPage() {
         return emailRegex.test(email);
     };
 
+    const [reportConfig, setReportConfig] = useState(null);
+    const [savingReportConfig, setSavingReportConfig] = useState(false);
+
     // Load data on mount and reload when org changes
     useEffect(() => {
         const unsubscribe = orgContext.onChange(() => {
@@ -250,6 +253,19 @@ export function SettingsPage() {
                     // Network error or other issue - log but don't fail page load
                     logger.error('[Settings] Error loading email preferences:', error);
                 }
+
+                // Load report configuration
+                try {
+                    const reportRes = await api.get(`/api/v1/admin/email/${currentOrgId}/config`);
+                    if (reportRes.success && reportRes.data) {
+                        setReportConfig(reportRes.data);
+                        logger.debug('[Settings] Report configuration loaded');
+                    } else {
+                        logger.debug('[Settings] Report configuration not available:', reportRes.error);
+                    }
+                } catch (error) {
+                    logger.error('[Settings] Error loading report config:', error);
+                }
             }
 
         } catch (error) {
@@ -397,6 +413,34 @@ export function SettingsPage() {
         }
     };
 
+    const handleSaveReportConfig = async (config) => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) {
+            showToast('No organization selected', 'warning');
+            return;
+        }
+
+        try {
+            setSavingReportConfig(true);
+            
+            const res = await api.put(`/api/v1/admin/email/${currentOrg.orgId}/config`, config);
+            
+            if (res.success) {
+                showToast('Report configuration saved', 'success');
+                setReportConfig(config);
+            } else if (res.error === 'FORBIDDEN' || res.error === 'UNAUTHORIZED') {
+                showToast('You do not have permission to modify report settings', 'warning');
+            } else {
+                showToast(res.message || 'Failed to save report configuration', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error saving report config', error);
+            showToast(error?.message || 'Failed to save report configuration', 'error');
+        } finally {
+            setSavingReportConfig(false);
+        }
+    };
+
     if (loading) {
         return html`
             <div class="container-xl">
@@ -457,6 +501,19 @@ export function SettingsPage() {
                                 Team
                             </a>
                         </li>
+                        ${html`
+                            <li class="nav-item">
+                                <a 
+                                    class=${`nav-link ${activeTab === 'reports' ? 'active' : ''}`}
+                                    href="#"
+                                    onClick=${(e) => { e.preventDefault(); setActiveTab('reports'); }}
+                                >
+                                    <i class="ti ti-file-text me-2"></i>
+                                    Reports
+                                </a>
+                            </li>
+                        `}
+
                         ${!isPersonalOrg && html`
                             <li class="nav-item">
                                 <a 
@@ -515,6 +572,13 @@ export function SettingsPage() {
                         setEmailPreferences=${setEmailPreferences}
                         savingPreferences=${savingPreferences}
                         onSavePreferences=${handleSaveEmailPreferences}
+                    />`}
+                    ${activeTab === 'reports' && html`<${ReportsConfigTab}
+                        orgId=${org?.orgId}
+                        reportConfig=${reportConfig}
+                        savingReportConfig=${savingReportConfig}
+                        onSaveReportConfig=${handleSaveReportConfig}
+                        isPersonalOrg=${isPersonalOrg}
                     />`}
 
                 </div>
@@ -1065,39 +1129,82 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
 function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, savingPreferences, onSavePreferences }) {
     const [localPrefs, setLocalPrefs] = useState(null);
 
-    useEffect(() => {
-        if (emailPreferences) {
-            setLocalPrefs({ ...emailPreferences });
-        } else {
-            // Initialize with defaults
-            setLocalPrefs({
-                orgId: orgId,
-                sendToAllTeamMembers: false,
-                creditsLowThresholdDays: 7,
-                licenseExpiringSoonDays: 30,
-                deviceRegistered: true,
-                deviceBlocked: true,
-                deviceDeleted: true,
-                deviceDisabled: true,
-                licenseCreated: true,
-                licenseRotated: true,
-                licenseExpired: true,
-                creditsLow: true,
-                licenseExpiringSoon: true,
-                welcomePersonal: true,
-                welcomeBusiness: true,
-                orgMemberAdded: true,
-                orgMemberRemoved: true,
-                roleChanged: true,
-                unauthorizedAccess: true,
-                highTelemetryFailures: true,
-                seatLimitReached: true,
-                multiDeviceThreshold: false,
-                configurationChanged: false,
-                weeklyDeviceSummary: false,
-                monthlyUsageReport: false
-            });
+    const EVENT_GROUPS = [
+        {
+            title: 'Device Lifecycle',
+            items: [
+                { key: 'deviceRegistered', title: 'Device Registered', alwaysEnabled: true, defaultEnabled: true },
+                { key: 'deviceBlocked', title: 'Device Blocked', alwaysEnabled: true, defaultEnabled: true },
+                { key: 'deviceDeleted', title: 'Device Deleted', alwaysEnabled: true, defaultEnabled: true },
+                { key: 'deviceDisabled', title: 'Device Disabled', defaultEnabled: true }
+            ]
+        },
+        {
+            title: 'License Lifecycle',
+            items: [
+                { key: 'licenseCreated', title: 'License Created', defaultEnabled: true },
+                { key: 'licenseRotated', title: 'License Rotated', alwaysEnabled: true, defaultEnabled: true },
+                { key: 'licenseExpired', title: 'License Expired', alwaysEnabled: true, defaultEnabled: true }
+            ]
+        },
+        {
+            title: 'Credit Monitoring',
+            items: [
+                { key: 'creditsLow', title: 'Credits Low Warning', alwaysEnabled: true, defaultEnabled: true },
+                { key: 'licenseExpiringSoon', title: 'License Expiring Soon', alwaysEnabled: true, defaultEnabled: true }
+            ]
+        },
+        {
+            title: 'Organization Membership',
+            items: [
+                { key: 'orgMemberAdded', title: 'Member Added', defaultEnabled: true },
+                { key: 'orgMemberRemoved', title: 'Member Removed', defaultEnabled: true },
+                { key: 'roleChanged', title: 'Role Changed', defaultEnabled: true }
+            ]
+        },
+        {
+            title: 'Security & Monitoring',
+            items: [
+                { key: 'unauthorizedAccess', title: 'Unauthorized Access Attempts', alwaysEnabled: true, defaultEnabled: true },
+                { key: 'highTelemetryFailures', title: 'High Telemetry Failure Rate', defaultEnabled: false },
+                { key: 'seatLimitReached', title: 'Seat Limit Reached', defaultEnabled: true },
+                { key: 'multiDeviceThreshold', title: 'Multi-Device Threshold Exceeded', defaultEnabled: false },
+                { key: 'configurationChanged', title: 'Configuration Changed', defaultEnabled: false }
+            ]
+        },
+        {
+            title: 'Periodic Reports',
+            items: [
+                { key: 'weeklyDeviceSummary', title: 'Weekly Device Summary', defaultEnabled: false },
+                { key: 'monthlyUsageReport', title: 'Monthly Usage Report', defaultEnabled: false }
+            ]
         }
+    ];
+
+    useEffect(() => {
+        const rawPrefs = emailPreferences?.preferences || emailPreferences?.Preferences || {};
+        const sendToAllTeamMembers = emailPreferences?.sendToAllTeamMembers ?? emailPreferences?.SendToAllTeamMembers ?? false;
+        const reportRecipients = [];
+        const ownerEmail = emailPreferences?.ownerEmail || emailPreferences?.OwnerEmail || '';
+
+        const normalizedPreferences = {};
+        EVENT_GROUPS.forEach(group => {
+            group.items.forEach(item => {
+                const existing = rawPrefs[item.key] || rawPrefs[item.key.toLowerCase()] || null;
+                const existingEnabled = existing?.enabled ?? existing?.Enabled;
+                normalizedPreferences[item.key] = {
+                    enabled: existingEnabled ?? item.defaultEnabled ?? true
+                };
+            });
+        });
+
+        setLocalPrefs({
+            orgId,
+            ownerEmail,
+            sendToAllTeamMembers,
+            reportRecipients,
+            preferences: normalizedPreferences
+        });
     }, [emailPreferences, orgId]);
 
     if (!localPrefs) {
@@ -1105,43 +1212,65 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
     }
 
     const handleToggle = (key) => {
-        setLocalPrefs({ ...localPrefs, [key]: !localPrefs[key] });
-    };
-
-    const handleThresholdChange = (key, value) => {
-        const numValue = parseInt(value, 10);
-        if (!isNaN(numValue) && numValue > 0) {
-            setLocalPrefs({ ...localPrefs, [key]: numValue });
-        }
+        const current = localPrefs.preferences[key]?.enabled ?? false;
+        setLocalPrefs({
+            ...localPrefs,
+            preferences: {
+                ...localPrefs.preferences,
+                [key]: { enabled: !current }
+            }
+        });
     };
 
     const handleSave = async () => {
-        await onSavePreferences(localPrefs);
+        const payload = {
+            orgId: localPrefs.orgId,
+            ownerEmail: localPrefs.ownerEmail,
+            sendToAllTeamMembers: localPrefs.sendToAllTeamMembers,
+            reportRecipients: [],
+            preferences: localPrefs.preferences
+        };
+        await onSavePreferences(payload);
+        setEmailPreferences(payload);
     };
 
-    const EventToggle = ({ eventKey, title, alwaysEnabled = false, badge = null }) => html`
-        <div class="form-check form-switch mb-2">
-            <input 
-                class="form-check-input" 
-                type="checkbox" 
-                id=${eventKey}
-                checked=${localPrefs[eventKey]}
-                onChange=${() => handleToggle(eventKey)}
-                disabled=${alwaysEnabled || savingPreferences}
-            />
-            <label class="form-check-label d-flex align-items-center" for=${eventKey}>
-                ${title}
-                ${badge && html`<span class="badge bg-info ms-2">${badge}</span>`}
-            </label>
-        </div>
-    `;
+    const EventToggle = ({ eventKey, title, alwaysEnabled = false, badge = null }) => {
+        const enabled = alwaysEnabled ? true : (localPrefs.preferences[eventKey]?.enabled ?? false);
+        if (alwaysEnabled) {
+            return html`
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="ti ti-check text-success"></i>
+                        <span>${title}</span>
+                    </div>
+                    ${badge && html`<span class="badge bg-info-lt">${badge}</span>`}
+                </div>
+            `;
+        }
+        return html`
+            <div class="form-check form-switch mb-2">
+                <input 
+                    class="form-check-input" 
+                    type="checkbox" 
+                    id=${eventKey}
+                    checked=${enabled}
+                    onChange=${() => handleToggle(eventKey)}
+                    disabled=${savingPreferences}
+                />
+                <label class="form-check-label d-flex align-items-center" for=${eventKey}>
+                    ${title}
+                    ${badge && html`<span class="badge bg-info ms-2">${badge}</span>`}
+                </label>
+            </div>
+        `;
+    };
 
     return html`
         <div>
             <div class="d-flex justify-content-between align-items-start mb-4">
                 <div>
                     <h3 class="card-title mb-1">Email Notifications</h3>
-                    <div class="text-muted small">Configure email notification preferences for this organization</div>
+                    <div class="text-muted small">Choose who receives organization notifications and which events trigger emails</div>
                 </div>
                 <button 
                     class="btn btn-primary"
@@ -1153,10 +1282,9 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
                 </button>
             </div>
 
-            <!-- Global Settings -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h4 class="card-title">Global Settings</h4>
+                    <h4 class="card-title">Recipients</h4>
                 </div>
                 <div class="card-body">
                     <div class="form-check form-switch mb-3">
@@ -1165,121 +1293,47 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
                             type="checkbox" 
                             id="sendToAllTeamMembers"
                             checked=${localPrefs.sendToAllTeamMembers}
-                            onChange=${() => handleToggle('sendToAllTeamMembers')}
+                            onChange=${() => setLocalPrefs({ ...localPrefs, sendToAllTeamMembers: !localPrefs.sendToAllTeamMembers })}
                             disabled=${savingPreferences}
                         />
                         <label class="form-check-label" for="sendToAllTeamMembers">
                             <strong>Send to All Team Members</strong>
-                            <div class="small text-muted">When enabled, send notifications to all team members in addition to the organization owner</div>
+                            <div class="small text-muted">Includes all users added under Team in addition to the organization owner</div>
                         </label>
                     </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label class="form-label">Credits Low Threshold (Days)</label>
-                            <input 
-                                type="number" 
-                                class="form-control"
-                                value=${localPrefs.creditsLowThresholdDays}
-                                onInput=${(e) => handleThresholdChange('creditsLowThresholdDays', e.target.value)}
-                                min="1"
-                                max="30"
-                                disabled=${savingPreferences}
-                            />
-                            <div class="form-text">Alert when credits remaining ≤ this many days</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">License Expiring Soon (Days)</label>
-                            <input 
-                                type="number" 
-                                class="form-control"
-                                value=${localPrefs.licenseExpiringSoonDays}
-                                onInput=${(e) => handleThresholdChange('licenseExpiringSoonDays', e.target.value)}
-                                min="1"
-                                max="90"
-                                disabled=${savingPreferences}
-                            />
-                            <div class="form-text">Alert when expiration is within this many days</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Device Lifecycle Events -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h4 class="card-title">Device Lifecycle</h4>
-                </div>
-                <div class="card-body">
-                    <${EventToggle} eventKey="deviceRegistered" title="Device Registered" badge="Always Enabled" alwaysEnabled=${true} />
-                    <${EventToggle} eventKey="deviceBlocked" title="Device Blocked" badge="Always Enabled" alwaysEnabled=${true} />
-                    <${EventToggle} eventKey="deviceDeleted" title="Device Deleted" badge="Always Enabled" alwaysEnabled=${true} />
-                    <${EventToggle} eventKey="deviceDisabled" title="Device Disabled" />
-                </div>
-            </div>
-
-            <!-- License Lifecycle Events -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h4 class="card-title">License Lifecycle</h4>
-                </div>
-                <div class="card-body">
-                    <${EventToggle} eventKey="licenseCreated" title="License Created" />
-                    <${EventToggle} eventKey="licenseRotated" title="License Rotated" badge="Always Enabled" alwaysEnabled=${true} />
-                    <${EventToggle} eventKey="licenseExpired" title="License Expired" badge="Always Enabled" alwaysEnabled=${true} />
-                </div>
-            </div>
-
-            <!-- Credit Monitoring -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h4 class="card-title">Credit Monitoring</h4>
-                </div>
-                <div class="card-body">
-                    <${EventToggle} eventKey="creditsLow" title="Credits Low Warning" badge="Always Enabled" alwaysEnabled=${true} />
-                    <${EventToggle} eventKey="licenseExpiringSoon" title="License Expiring Soon" badge="Always Enabled" alwaysEnabled=${true} />
-                </div>
-            </div>
-
-            <!-- Org Membership Events -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h4 class="card-title">Organization Membership</h4>
-                </div>
-                <div class="card-body">
-                    <${EventToggle} eventKey="orgMemberAdded" title="Member Added" />
-                    <${EventToggle} eventKey="orgMemberRemoved" title="Member Removed" />
-                    <${EventToggle} eventKey="roleChanged" title="Role Changed" />
-                </div>
-            </div>
-
-            <!-- Security & Monitoring -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h4 class="card-title">Security & Monitoring</h4>
-                </div>
-                <div class="card-body">
-                    <${EventToggle} eventKey="unauthorizedAccess" title="Unauthorized Access Attempts" badge="Always Enabled" alwaysEnabled=${true} />
-                    <${EventToggle} eventKey="highTelemetryFailures" title="High Telemetry Failure Rate" />
-                    <${EventToggle} eventKey="seatLimitReached" title="Seat Limit Reached" />
-                    <${EventToggle} eventKey="multiDeviceThreshold" title="Multi-Device Threshold Exceeded" />
-                    <${EventToggle} eventKey="configurationChanged" title="Configuration Changed" />
-                </div>
-            </div>
-
-            <!-- Periodic Reports -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h4 class="card-title">Periodic Reports</h4>
-                </div>
-                <div class="card-body">
-                    <${EventToggle} eventKey="weeklyDeviceSummary" title="Weekly Device Summary" />
-                    <${EventToggle} eventKey="monthlyUsageReport" title="Monthly Usage Report" />
-                    <div class="alert alert-info mt-3">
+                    <div class="alert alert-info mb-0">
                         <i class="ti ti-info-circle me-2"></i>
-                        Reports are generated automatically and include device activity, credit consumption, and usage trends.
+                        Notifications are delivered to the organization owner, plus team members when enabled.
                     </div>
                 </div>
+            </div>
+
+            <div class="row g-3">
+                ${EVENT_GROUPS.map(group => html`
+                    <div class="col-12 col-lg-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h4 class="card-title">${group.title}</h4>
+                            </div>
+                            <div class="card-body">
+                                ${group.items.map(item => html`
+                                    <${EventToggle}
+                                        eventKey=${item.key}
+                                        title=${item.title}
+                                        alwaysEnabled=${item.alwaysEnabled || false}
+                                        badge=${item.alwaysEnabled ? 'Always On' : null}
+                                    />
+                                `)}
+                                ${group.title === 'Periodic Reports' && html`
+                                    <div class="alert alert-info mt-3">
+                                        <i class="ti ti-info-circle me-2"></i>
+                                        Reports are generated automatically and include device activity and usage trends.
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `)}
             </div>
 
             <div class="text-end mt-4">
@@ -1292,6 +1346,285 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
                     Save Preferences
                 </button>
             </div>
+        </div>
+    `;
+}
+
+// Reports Configuration Tab - Manage security report settings
+function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveReportConfig, isPersonalOrg }) {
+    const [localConfig, setLocalConfig] = useState(null);
+    const [showPopovers, setShowPopovers] = useState({});
+
+    useEffect(() => {
+        if (reportConfig) {
+            // Normalize legacy fields if present and ensure required keys exist
+            const normalized = {
+                reportEnabled: reportConfig.reportEnabled ?? true,
+                weeklyEnabled: reportConfig.weeklyEnabled ?? (reportConfig.reportFrequency === 'weekly'),
+                dailySnapshotEnabled: reportConfig.dailySnapshotEnabled ?? (reportConfig.reportFrequency === 'daily'),
+                reportTier: reportConfig.reportTier ?? 'Basic'
+            };
+            // Personal orgs: force weekly off and tier Basic
+            if (isPersonalOrg) {
+                normalized.weeklyEnabled = false;
+                normalized.reportTier = 'Basic';
+            }
+            setLocalConfig(normalized);
+        } else {
+            // Initialize with defaults
+            const defaults = {
+                reportEnabled: true,
+                weeklyEnabled: !isPersonalOrg, // Business: weekly on by default; Personal: off
+                dailySnapshotEnabled: false,
+                reportTier: isPersonalOrg ? 'Basic' : 'Professional'
+            };
+            setLocalConfig(defaults);
+        }
+    }, [reportConfig, orgId]);
+
+    if (!localConfig) {
+        return html`<div class="text-muted">Loading report configuration...</div>`;
+    }
+
+    const handleToggle = (key) => {
+        setLocalConfig({ ...localConfig, [key]: !localConfig[key] });
+    };
+
+    const handleTierChange = (value) => {
+        setLocalConfig({ ...localConfig, reportTier: value });
+    };
+
+    const handleSave = async () => {
+        const payload = { ...localConfig };
+        // Ensure personal org constraints are respected
+        if (isPersonalOrg) {
+            payload.weeklyEnabled = false;
+            payload.reportTier = 'Basic';
+        }
+        await onSaveReportConfig(payload);
+    };
+
+    const togglePopover = (key) => {
+        setShowPopovers({ ...showPopovers, [key]: !showPopovers[key] });
+    };
+
+    return html`
+        <div>
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <h3 class="card-title mb-1">Security Reports</h3>
+                    <div class="text-muted small">Configure how and when security reports are delivered to your organization</div>
+                </div>
+                <button 
+                    class="btn btn-primary"
+                    onClick=${handleSave}
+                    disabled=${savingReportConfig}
+                >
+                    ${savingReportConfig ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-device-floppy me-2"></i>`}
+                    Save Settings
+                </button>
+            </div>
+
+            <!-- Report Enable/Disable -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">Report Status</h4>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch mb-0">
+                            <input 
+                                class="form-check-input" 
+                                type="checkbox" 
+                                id="reportEnabled"
+                                checked=${localConfig.reportEnabled}
+                                onChange=${() => handleToggle('reportEnabled')}
+                                disabled=${savingReportConfig}
+                            />
+                            <label class="form-check-label" for="reportEnabled">
+                                <strong>Enable Security Reports</strong>
+                            </label>
+                        </div>
+                        <div class="text-muted small">When enabled, security reports will be generated and sent according to your configuration</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Configuration - Only shown when reports enabled -->
+            ${localConfig.reportEnabled && html`
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4 class="card-title">Report Configuration</h4>
+                    </div>
+                    <div class="card-body">
+                        <!-- Toggles in a row -->
+                        <div class="d-flex gap-4 flex-wrap">
+                            <!-- Business Tier Toggle -->
+                            <div class="d-flex flex-column gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="form-label mb-0"><strong>Business Tier</strong></label>
+                                    ${isPersonalOrg && html`
+                                        <div 
+                                            class="position-relative"
+                                            onMouseEnter=${() => togglePopover('tier')}
+                                            onMouseLeave=${() => togglePopover('tier')}
+                                        >
+                                            <i class="ti ti-info-circle text-warning" style="cursor: help; font-size: 16px;"></i>
+                                            ${showPopovers.tier && html`
+                                                <div class="popover bs-popover-bottom show" style="position: absolute; top: 100%; left: 0; margin-top: 8px; z-index: 1000; min-width: 200px;">
+                                                    <div class="popover-arrow"></div>
+                                                    <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                                                        Business Tier selection is available for Business organizations only. Upgrade to Business to unlock Professional and Premium tiers.
+                                                    </div>
+                                                </div>
+                                            `}
+                                        </div>
+                                    `}
+                                </div>
+                                <div class="btn-group" role="group">
+                                    <div class="position-relative">
+                                        <input 
+                                            type="radio" 
+                                            class="btn-check" 
+                                            id="tierPro"
+                                            name="tier"
+                                            value="Professional"
+                                            checked=${localConfig.reportTier === 'Professional'}
+                                            onChange=${(e) => handleTierChange(e.target.value)}
+                                            disabled=${savingReportConfig || isPersonalOrg}
+                                        />
+                                        <label class="btn btn-outline-primary position-relative" for="tierPro">
+                                            Professional
+                                            <span 
+                                                onMouseEnter=${() => togglePopover('professional')}
+                                                onMouseLeave=${() => togglePopover('professional')}
+                                                style="margin-left: 4px; cursor: help;"
+                                            >
+                                                <i class="ti ti-info-circle text-muted" style="font-size: 12px;"></i>
+                                                ${showPopovers.professional && html`
+                                                    <div class="popover bs-popover-top show" style="position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 8px; z-index: 1002; min-width: 240px;">
+                                                        <div class="popover-arrow"></div>
+                                                        <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                                                            <strong>Professional:</strong> Detailed analysis with device risk scores, vulnerability trends, and recommended actions.
+                                                        </div>
+                                                    </div>
+                                                `}
+                                            </span>
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="position-relative">
+                                        <input 
+                                            type="radio" 
+                                            class="btn-check" 
+                                            id="tierPrem"
+                                            name="tier"
+                                            value="Premium"
+                                            checked=${localConfig.reportTier === 'Premium'}
+                                            onChange=${(e) => handleTierChange(e.target.value)}
+                                            disabled=${savingReportConfig || isPersonalOrg}
+                                        />
+                                        <label class="btn btn-outline-primary position-relative" for="tierPrem">
+                                            Premium
+                                            <span 
+                                                onMouseEnter=${() => togglePopover('premium')}
+                                                onMouseLeave=${() => togglePopover('premium')}
+                                                style="margin-left: 4px; cursor: help;"
+                                            >
+                                                <i class="ti ti-info-circle text-muted" style="font-size: 12px;"></i>
+                                                ${showPopovers.premium && html`
+                                                    <div class="popover bs-popover-top show" style="position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 8px; z-index: 1002; min-width: 240px;">
+                                                        <div class="popover-arrow"></div>
+                                                        <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                                                            <strong>Premium:</strong> Executive summary with compliance status, top threats, and strategic insights for leadership.
+                                                        </div>
+                                                    </div>
+                                                `}
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Weekly Report Toggle -->
+                            <div class="d-flex flex-column gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="form-label mb-0"><strong>Weekly Report</strong></label>
+                                    <div 
+                                        class="position-relative"
+                                        onMouseEnter=${() => togglePopover('weeklyInfo')}
+                                        onMouseLeave=${() => togglePopover('weeklyInfo')}
+                                    >
+                                        <i class="ti ti-info-circle text-muted" style="cursor: help; font-size: 16px;"></i>
+                                        ${showPopovers.weeklyInfo && html`
+                                            <div class="popover bs-popover-bottom show" style="position: absolute; top: 100%; left: 0; margin-top: 8px; z-index: 1000; min-width: 240px;">
+                                                <div class="popover-arrow"></div>
+                                                <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                                                    <strong>Weekly Summary:</strong> Comprehensive report delivered every Monday in your selected tier (Professional for detailed analysis or Premium for executive summary). Includes trends, comparative insights, and strategic recommendations.
+                                                </div>
+                                            </div>
+                                        `}
+                                    </div>
+                                    ${isPersonalOrg && html`
+                                        <div 
+                                            class="position-relative"
+                                            onMouseEnter=${() => togglePopover('weekly')}
+                                            onMouseLeave=${() => togglePopover('weekly')}
+                                        >
+                                            <i class="ti ti-info-circle text-warning" style="cursor: help; font-size: 16px;"></i>
+                                            ${showPopovers.weekly && html`
+                                                <div class="popover bs-popover-bottom show" style="position: absolute; top: 100%; left: 0; margin-top: 8px; z-index: 1000; min-width: 200px;">
+                                                    <div class="popover-arrow"></div>
+                                                    <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                                                        Weekly reports are exclusive to Business organizations. Upgrade to Business to enable.
+                                                    </div>
+                                                </div>
+                                            `}
+                                        </div>
+                                    `}
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="weeklyEnabled"
+                                        checked=${localConfig.weeklyEnabled}
+                                        onChange=${() => handleToggle('weeklyEnabled')}
+                                        disabled=${savingReportConfig || isPersonalOrg}
+                                        style="width: 48px; height: 24px; margin-top: 2px;"
+                                    />
+                                </div>
+                                <small class="text-muted">Every Monday</small>
+                            </div>
+
+                            <!-- Daily Snapshot Toggle -->
+                            <div class="d-flex flex-column gap-2">
+                                <label class="form-label mb-0"><strong>Daily Snapshot</strong></label>
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="dailySnapshotEnabled"
+                                        checked=${localConfig.dailySnapshotEnabled}
+                                        onChange=${() => handleToggle('dailySnapshotEnabled')}
+                                        disabled=${savingReportConfig}
+                                        style="width: 48px; height: 24px; margin-top: 2px;"
+                                    />
+                                </div>
+                                <small class="text-muted">Basic snapshot</small>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-top">
+                            <small class="text-muted d-block">
+                                <i class="ti ti-info-circle me-2"></i>
+                                Reports are sent to the organization owner and all team members who have opted in to email notifications.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `}
+            <!-- Recipients moved to Email Notifications. No manual recipients here. -->
         </div>
     `;
 }
