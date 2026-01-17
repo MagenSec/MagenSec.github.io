@@ -1,13 +1,15 @@
 /**
- * Unified Dashboard - Security Operations Center (SOC) View
+ * Unified Dashboard - Security Command Center (merged with Posture Snapshot)
  * Adaptive layout for all user roles
  * Features: AI Analyst, Security Posture, Inventory, Threat Intel
+ * Tabs: Overview | Detailed Analysis | Findings Table
  */
 
 import { auth } from '../auth.js';
 import { api } from '../api.js';
 import { config } from '../config.js';
 import { orgContext } from '../orgContext.js';
+import { SavingsCalculator } from '../components/SavingsCalculator.js';
 
 const { html, Component } = window;
 
@@ -34,7 +36,10 @@ export class DashboardPage extends Component {
             lastScan: 'Never',
             nextScan: 'Pending',
             generatedAt: null,
-            refreshInterval: null
+            refreshInterval: null,
+            activeTab: 'overview', // New: tab state (overview | analysis | findings)
+            postureSnapshot: null, // New: PostureEngine snapshot data
+            loadingPosture: false // New: separate loading state for posture tab
         };
         this.orgUnsubscribe = null;
         this.threatChart = null;
@@ -45,6 +50,8 @@ export class DashboardPage extends Component {
         this.coverageChartEl = null;
         this.radarChart = null;
         this.radarChartEl = null;
+        this.savingsChart = null;
+        this.savingsChartEl = null;
     }
 
     componentDidMount() {
@@ -555,10 +562,611 @@ export class DashboardPage extends Component {
             this.coverageChart.destroy();
             this.coverageChart = null;
         }
+        if (this.savingsChart) {
+            this.savingsChart.destroy();
+            this.savingsChart = null;
+        }
+        if (this.deviceRiskChart) {
+            this.deviceRiskChart.destroy();
+            this.deviceRiskChart = null;
+        }
+        if (this.cveAgingChart) {
+            this.cveAgingChart.destroy();
+            this.cveAgingChart = null;
+        }
+    }
+
+    async loadPostureAndSwitchTab(tab = 'analysis') {
+        const { postureSnapshot, loadingPosture } = this.state;
+        
+        // Avoid loading if already loading
+        if (loadingPosture) return;
+        
+        // Switch tab immediately
+        this.setState({ activeTab: tab });
+        
+        // Load posture data if not already loaded
+        if (!postureSnapshot) {
+            this.setState({ loadingPosture: true });
+            
+            try {
+                const org = orgContext.getCurrentOrg();
+                if (!org) {
+                    console.error('[Dashboard] No org selected for posture snapshot');
+                    this.setState({ loadingPosture: false });
+                    return;
+                }
+                
+                console.log('[Dashboard] Loading posture snapshot for org:', org.orgId);
+                const response = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: false });
+                console.log('[Dashboard] Posture snapshot response:', response);
+                
+                // API returns: {success, data: {snapshot, triggeredGeneration}, message}
+                const snapshot = response?.data?.snapshot;
+                
+                if (!snapshot) {
+                    console.warn('[Dashboard] No snapshot in response, trying force generation...');
+                    const forceResponse = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: true });
+                    console.log('[Dashboard] Forced snapshot response:', forceResponse);
+                    
+                    this.setState({ 
+                        postureSnapshot: forceResponse?.data?.snapshot || null,
+                        loadingPosture: false 
+                    });
+                } else {
+                    this.setState({ 
+                        postureSnapshot: snapshot,
+                        loadingPosture: false 
+                    });
+                }
+            } catch (err) {
+                console.error('[Dashboard] Failed to load posture snapshot:', err);
+                this.setState({ 
+                    loadingPosture: false,
+                    error: `Failed to load posture data: ${err.message}`
+                });
+            }
+        }
+    }
+
+    async forcePostureGeneration() {
+        this.setState({ loadingPosture: true, postureSnapshot: null });
+        
+        try {
+            const org = orgContext.getCurrentOrg();
+            if (!org) {
+                console.error('[Dashboard] No org selected');
+                this.setState({ loadingPosture: false });
+                return;
+            }
+            
+            console.log('[Dashboard] Forcing posture snapshot generation for org:', org.orgId);
+            const response = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: true });
+            console.log('[Dashboard] Generated snapshot response:', response);
+            
+            // API returns: {success, data: {snapshot, triggeredGeneration}, message}
+            const snapshot = response?.data?.snapshot;
+            
+            this.setState({ 
+                postureSnapshot: snapshot || null,
+                loadingPosture: false 
+            });
+        } catch (err) {
+            console.error('[Dashboard] Failed to generate posture snapshot:', err);
+            this.setState({ 
+                loadingPosture: false,
+                error: `Failed to generate posture snapshot: ${err.message}`
+            });
+        }
+    }
+
+    renderOverviewTab(role, riskScore, riskColor) {
+        const { currentOrg, dashboardData } = this.state;
+        const isPersonalOrg = currentOrg?.type === 'Personal' || currentOrg?.type === 'Individual';
+        const deviceStats = dashboardData?.deviceStats || { total: 0, active: 0, disabled: 0 };
+        const threatSummary = this.state.threatSummary || { critical: 0, high: 0, medium: 0, low: 0 };
+        
+        // Fallback: If deviceStats.total is 0 but we have devices data, count from there
+        let deviceCount = deviceStats.total;
+        if (deviceCount === 0 && dashboardData?.devices?.length > 0) {
+            deviceCount = dashboardData.devices.length;
+        }
+        // Another fallback: check recent devices
+        if (deviceCount === 0 && dashboardData?.recentDevices?.length > 0) {
+            deviceCount = dashboardData.recentDevices.length;
+        }
+        
+        console.log('[Dashboard] Overview tab - deviceCount:', deviceCount, 'deviceStats:', deviceStats, 'threatSummary:', threatSummary);
+        
+        return html`
+            ${this.renderValuePanel(riskColor)}
+            ${this.renderHero(riskScore, riskColor)}
+            ${this.renderHighlights()}
+            ${this.renderVisualChartsRow()}
+            ${this.renderRadarAndKPIsRow(role, riskScore, riskColor)}
+
+            <div class="row row-cards mt-3">
+                <div class="col-lg-8">
+                    <div class="vstack gap-3">
+                        ${this.renderAIAnalystWidget()}
+                        ${this.renderActionList()}
+                        
+                        <!-- Security Savings Calculator -->
+                        <${SavingsCalculator} 
+                            deviceCount=${Number(deviceCount) || 1}
+                            vulnerabilities=${{critical: Number(threatSummary.critical) || 0, high: Number(threatSummary.high) || 0}}
+                            isPersonal=${!!isPersonalOrg}
+                        />
+                        
+                        ${this.renderPostureWidget()}
+                        ${this.renderRecentAlerts()}
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="vstack gap-3">
+                        ${this.renderCoverageWidget()}
+                        ${this.renderLicenseWidget()}
+                        ${this.renderRecentDevices()}
+                        ${this.renderInventoryWidget()}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderAnalysisTab(riskScore, riskColor) {
+        const { postureSnapshot, loadingPosture } = this.state;
+        
+        if (loadingPosture) {
+            return html`
+                <div class="d-flex align-items-center justify-content-center" style="min-height: 40vh;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading analysis...</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (!postureSnapshot) {
+            return html`
+                <div class="alert alert-warning">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-fill">
+                            <h4 class="alert-title">Posture Snapshot Not Available</h4>
+                            <div class="text-secondary">The security posture snapshot hasn't been generated yet. Click the button to generate one now.</div>
+                        </div>
+                        <div class="ms-3">
+                            <button 
+                                class="btn btn-primary"
+                                onClick=${() => this.forcePostureGeneration()}
+                            >
+                                Generate Snapshot
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        const snapshot = postureSnapshot;
+        
+        return html`
+            <div class="row row-cards">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Security Posture Analysis</h3>
+                            <div class="card-actions">
+                                <button 
+                                    class="btn btn-sm btn-ghost-primary me-2"
+                                    onClick=${() => this.forcePostureGeneration()}
+                                    title="Refresh snapshot"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                                    Refresh
+                                </button>
+                                <span class="badge bg-${riskColor}">${snapshot.risk?.orgScore || riskScore}/100</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            ${this.renderDomainBreakdown(snapshot)}
+                            ${this.renderDeviceRiskMatrix(snapshot)}
+                            ${this.renderCVEAgingChart(snapshot)}
+                            ${this.renderPrioritizedActions(snapshot)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderFindingsTab() {
+        const { postureSnapshot, loadingPosture } = this.state;
+        
+        if (loadingPosture) {
+            return html`
+                <div class="d-flex align-items-center justify-content-center" style="min-height: 40vh;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading findings...</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (!postureSnapshot || !postureSnapshot.findings) {
+            return html`
+                <div class="alert alert-info">
+                    <h4 class="alert-title">No Findings</h4>
+                    <div class="text-secondary">No security findings available. Snapshot may still be generating.</div>
+                </div>
+            `;
+        }
+        
+        const snapshot = postureSnapshot;
+        const findings = snapshot.findings.top10 || [];
+        
+        return html`
+            <div class="row row-cards">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Top Security Findings</h3>
+                            <div class="ms-auto">
+                                <span class="badge bg-secondary">${findings.length} findings</span>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-vcenter card-table">
+                                <thead>
+                                    <tr>
+                                        <th>Severity</th>
+                                        <th>Domain</th>
+                                        <th>Title</th>
+                                        <th>Affected</th>
+                                        <th>Aging</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${findings.length === 0 ? html`
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">No findings available</td>
+                                        </tr>
+                                    ` : findings.map(finding => html`
+                                        <tr>
+                                            <td>
+                                                <span class=${`badge bg-${this.getSeverityColor(finding.severity)}`}>
+                                                    ${finding.severity}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-light">${finding.domain || 'Unknown'}</span>
+                                            </td>
+                                            <td>${finding.title || finding.description || 'No title'}</td>
+                                            <td>${finding.affectedDevices || 1} device${finding.affectedDevices !== 1 ? 's' : ''}</td>
+                                            <td>${finding.agingDays || 0} days</td>
+                                        </tr>
+                                    `)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    getSeverityColor(severity) {
+        const s = (severity || '').toLowerCase();
+        if (s === 'critical') return 'danger';
+        if (s === 'high') return 'warning';
+        if (s === 'medium') return 'info';
+        return 'light';
+    }
+
+    renderDomainBreakdown(snapshot) {
+        if (!snapshot.findings || !snapshot.findings.byDomain) {
+            return html`
+                <div class="alert alert-info mb-4">
+                    <strong>Domain Breakdown:</strong> No domain data available yet.
+                </div>
+            `;
+        }
+        
+        const domains = snapshot.findings.byDomain || {};
+        const domainList = Object.entries(domains).sort((a, b) => b[1] - a[1]);
+        
+        if (domainList.length === 0) {
+            return html`
+                <div class="alert alert-info mb-4">
+                    <strong>Domain Breakdown:</strong> No findings to categorize.
+                </div>
+            `;
+        }
+        
+        return html`
+            <div class="mb-4">
+                <h4 class="mb-3">Findings by Domain</h4>
+                <div class="row g-2">
+                    ${domainList.map(([domain, count]) => html`
+                        <div class="col-md-3">
+                            <div class="card card-sm">
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">
+                                            <span class="bg-light text-dark avatar">
+                                                ${domain.charAt(0).toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <div class="col">
+                                            <div class="font-weight-medium">${domain}</div>
+                                            <div class="text-muted">${count} finding${count !== 1 ? 's' : ''}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `)}
+                </div>
+            </div>
+        `;
+    }
+
+    renderDeviceRiskMatrix(snapshot) {
+        // Chart.js scatter plot showing device risk distribution
+        const chartId = 'deviceRiskMatrixChart';
+        
+        // Parse device data from snapshot.risk.topDeviceRisks
+        const devices = snapshot.risk?.topDeviceRisks || [];
+        
+        if (devices.length === 0) {
+            return html`
+                <div class="mb-4">
+                    <h4 class="mb-3">Device Risk Distribution</h4>
+                    <div class="alert alert-info">
+                        <strong>No Device Data:</strong> No devices with risk scores available yet.
+                    </div>
+                </div>
+            `;
+        }
+        
+        const dataPoints = devices.map((d, idx) => ({
+            x: (d.critical || 0) * 10 + (d.high || 0) * 5, // Vulnerability severity score
+            y: Math.min(100, idx * (100 / devices.length)), // Exposure level (spread vertically)
+            label: d.deviceName || d.deviceId || 'Unknown',
+            riskScore: d.score || 50,
+            critical: d.critical || 0,
+            high: d.high || 0
+        }));
+        
+        // Render chart after DOM update
+        setTimeout(() => {
+            const canvas = document.getElementById(chartId);
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (this.deviceRiskChart) {
+                this.deviceRiskChart.destroy();
+            }
+            
+            this.deviceRiskChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Device Risk',
+                        data: dataPoints,
+                        backgroundColor: dataPoints.map(d => {
+                            if (d.riskScore >= 75) return 'rgba(220, 53, 69, 0.7)';  // Red: High risk
+                            if (d.riskScore >= 50) return 'rgba(255, 193, 7, 0.7)';  // Yellow: Medium risk
+                            return 'rgba(32, 201, 151, 0.7)';                         // Green: Low risk
+                        }),
+                        borderColor: dataPoints.map(d => {
+                            if (d.riskScore >= 75) return 'rgb(220, 53, 69)';
+                            if (d.riskScore >= 50) return 'rgb(255, 193, 7)';
+                            return 'rgb(32, 201, 151)';
+                        }),
+                        borderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const point = dataPoints[context.dataIndex];
+                                    return [
+                                        `Device: ${point.label}`,
+                                        `Critical: ${point.critical}`,
+                                        `High: ${point.high}`,
+                                        `Risk Score: ${point.riskScore}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Vulnerability Severity' },
+                            min: 0,
+                            max: 100
+                        },
+                        y: {
+                            title: { display: true, text: 'Device Distribution' },
+                            min: 0,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }, 100);
+        
+        return html`
+            <div class="mb-4">
+                <h4 class="mb-3">Device Risk Distribution</h4>
+                <div style="height: 300px; position: relative;">
+                    <canvas id="${chartId}"></canvas>
+                </div>
+                <div class="mt-2 d-flex gap-3 justify-content-center">
+                    <span><span class="badge" style="background-color: rgb(32, 201, 151);">●</span> Low Risk</span>
+                    <span><span class="badge" style="background-color: rgb(255, 193, 7);">●</span> Medium Risk</span>
+                    <span><span class="badge" style="background-color: rgb(220, 53, 69);">●</span> High Risk</span>
+                </div>
+            </div>
+        `;
+    }
+
+    renderCVEAgingChart(snapshot) {
+        // Chart.js line chart showing CVE aging distribution
+        const chartId = 'cveAgingChart';
+        
+        if (!snapshot.findings || !snapshot.findings.aging) {
+            return html`
+                <div class="mb-4">
+                    <h4 class="mb-3">CVE Aging Distribution</h4>
+                    <div class="alert alert-info">
+                        <strong>No Aging Data:</strong> CVE aging information not available yet.
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Use aging data from snapshot (0-30, 31-60, 61-90, 90+)
+        const aging = snapshot.findings.aging;
+        const labels = ['0-7 days', '8-30 days', '31-60 days', '61-90 days', '90+ days'];
+        const data = [
+            aging.recent || 0,          // 0-7 days (use 'recent' bucket)
+            aging.days030 || 0,         // 8-30 days
+            aging.days3160 || 0,        // 31-60 days  
+            aging.days6190 || 0,        // 61-90 days
+            aging.days90Plus || 0       // 90+ days
+        ];
+        
+        const total = data.reduce((sum, val) => sum + val, 0);
+        
+        if (total === 0) {
+            return html`
+                <div class="mb-4">
+                    <h4 class="mb-3">CVE Aging Distribution</h4>
+                    <div class="alert alert-success">
+                        <strong>No Overdue Vulnerabilities:</strong> All vulnerabilities are current.
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Render chart after DOM update
+        setTimeout(() => {
+            const canvas = document.getElementById(chartId);
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (this.cveAgingChart) {
+                this.cveAgingChart.destroy();
+            }
+            
+            this.cveAgingChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Vulnerability Count',
+                        data: data,
+                        borderColor: 'rgb(220, 53, 69)',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: 'rgb(220, 53, 69)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.parsed.y} vulnerabilities`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Age Range' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Number of CVEs' },
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }, 100);
+        
+        return html`
+            <div class="mb-4">
+                <h4 class="mb-3">CVE Aging Distribution</h4>
+                <div style="height: 250px; position: relative;">
+                    <canvas id="${chartId}"></canvas>
+                </div>
+                <div class="mt-2 text-center text-muted small">
+                    Showing age distribution of ${total} vulnerabilities
+                </div>
+            </div>
+        `;
+    }
+
+    renderPrioritizedActions(snapshot) {
+        if (!snapshot.actions || !snapshot.actions.top10 || snapshot.actions.top10.length === 0) {
+            return html`
+                <div class="alert alert-success mb-3">
+                    <strong>No Critical Actions:</strong> No high-priority actions required at this time.
+                </div>
+            `;
+        }
+        
+        const actions = snapshot.actions.top10.slice(0, 6);
+        
+        return html`
+            <div class="mb-3">
+                <h4 class="mb-3">Prioritized Actions</h4>
+                <div class="list-group">
+                    ${actions.map((action, idx) => html`
+                        <div class="list-group-item">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <span class="badge badge-pill bg-primary">${idx + 1}</span>
+                                </div>
+                                <div class="col">
+                                    <strong>${action.title || action.action}</strong>
+                                    <div class="text-muted small">${action.description || action.reason || ''}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <span class=${`badge bg-${this.getSeverityColor(action.priority || action.severity)}`}>
+                                        ${action.priority || action.severity || 'Medium'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    `)}
+                </div>
+            </div>
+        `;
     }
 
     render() {
-        const { loading, error, user, currentOrg } = this.state;
+        const { loading, error, user, currentOrg, activeTab } = this.state;
         
         if (loading) {
             return html`
@@ -589,42 +1197,57 @@ export class DashboardPage extends Component {
                 <div class="container-xl">
                     <div class="row g-2 align-items-center">
                         <div class="col">
-                            <div class="page-pretitle">Security overview</div>
+                            <div class="page-pretitle">Security Command Center</div>
                             <h2 class="page-title">${orgName}</h2>
                         </div>
                         <div class="col-auto ms-auto">
                             ${this.renderQuickActions()}
                         </div>
                     </div>
+                    
+                    <!-- Tabbed Navigation -->
+                    <div class="nav-tabs-alt mt-3">
+                        <ul class="nav nav-tabs">
+                            <li class="nav-item">
+                                <a 
+                                    class=${`nav-link ${activeTab === 'overview' ? 'active' : ''}`}
+                                    href="#"
+                                    onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'overview' }); }}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
+                                    Overview
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a 
+                                    class=${`nav-link ${activeTab === 'analysis' ? 'active' : ''}`}
+                                    href="#"
+                                    onClick=${(e) => { e.preventDefault(); this.loadPostureAndSwitchTab(); }}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 14l2 2l4 -4" /></svg>
+                                    Detailed Analysis
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a 
+                                    class=${`nav-link ${activeTab === 'findings' ? 'active' : ''}`}
+                                    href="#"
+                                    onClick=${(e) => { e.preventDefault(); this.loadPostureAndSwitchTab('findings'); }}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 10m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 16v-5" /></svg>
+                                    Findings Table
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
 
             <div class="page-body">
                 <div class="container-xl">
-                    ${this.renderValuePanel(riskColor)}
-                    ${this.renderHero(riskScore, riskColor)}
-                    ${this.renderHighlights()}
-                    ${this.renderVisualChartsRow()}
-                    ${this.renderRadarAndKPIsRow(role, riskScore, riskColor)}
-
-                    <div class="row row-cards mt-3">
-                        <div class="col-lg-8">
-                            <div class="vstack gap-3">
-                                ${this.renderAIAnalystWidget()}
-                                ${this.renderActionList()}
-                                ${this.renderPostureWidget()}
-                                ${this.renderRecentAlerts()}
-                            </div>
-                        </div>
-                        <div class="col-lg-4">
-                            <div class="vstack gap-3">
-                                ${this.renderCoverageWidget()}
-                                ${this.renderLicenseWidget()}
-                                ${this.renderRecentDevices()}
-                                ${this.renderInventoryWidget()}
-                            </div>
-                        </div>
-                    </div>
+                    ${activeTab === 'overview' && this.renderOverviewTab(role, riskScore, riskColor)}
+                    ${activeTab === 'analysis' && this.renderAnalysisTab(riskScore, riskColor)}
+                    ${activeTab === 'findings' && this.renderFindingsTab()}
                 </div>
             </div>
         `;

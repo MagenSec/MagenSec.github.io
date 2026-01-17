@@ -1362,7 +1362,8 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                 reportEnabled: reportConfig.reportEnabled ?? true,
                 weeklyEnabled: reportConfig.weeklyEnabled ?? (reportConfig.reportFrequency === 'weekly'),
                 dailySnapshotEnabled: reportConfig.dailySnapshotEnabled ?? (reportConfig.reportFrequency === 'daily'),
-                reportTier: reportConfig.reportTier ?? 'Basic'
+                reportTier: reportConfig.reportTier ?? 'Basic',
+                sendToAllTeamMembers: reportConfig.sendToAllTeamMembers ?? true
             };
             // Personal orgs: force weekly off and tier Basic
             if (isPersonalOrg) {
@@ -1376,11 +1377,12 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                 reportEnabled: true,
                 weeklyEnabled: !isPersonalOrg, // Business: weekly on by default; Personal: off
                 dailySnapshotEnabled: false,
-                reportTier: isPersonalOrg ? 'Basic' : 'Professional'
+                reportTier: isPersonalOrg ? 'Basic' : 'Professional',
+                sendToAllTeamMembers: true
             };
             setLocalConfig(defaults);
         }
-    }, [reportConfig, orgId]);
+    }, [reportConfig, orgId, isPersonalOrg]);
 
     if (!localConfig) {
         return html`<div class="text-muted">Loading report configuration...</div>`;
@@ -1612,6 +1614,23 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                                     />
                                 </div>
                                 <small class="text-muted">Basic snapshot</small>
+                            </div>
+
+                            <!-- Send To All Members Toggle -->
+                            <div class="d-flex flex-column gap-2">
+                                <label class="form-label mb-0"><strong>Send To All Members</strong></label>
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="sendToAllTeamMembers"
+                                        checked=${localConfig.sendToAllTeamMembers}
+                                        onChange=${() => handleToggle('sendToAllTeamMembers')}
+                                        disabled=${savingReportConfig || isPersonalOrg}
+                                        style="width: 48px; height: 24px; margin-top: 2px;"
+                                    />
+                                </div>
+                                <small class="text-muted">${isPersonalOrg ? 'Business only' : 'Owner + team'}</small>
                             </div>
                         </div>
 

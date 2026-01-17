@@ -43,11 +43,13 @@ export function SiteAdminPage() {
     const [newReportEnabled, setNewReportEnabled] = useState(true);
     const [newWeeklyEnabled, setNewWeeklyEnabled] = useState(true);
     const [newDailySnapshotEnabled, setNewDailySnapshotEnabled] = useState(false);
+    const [newSendToAllMembers, setNewSendToAllMembers] = useState(true);
     const [newBusinessTier, setNewBusinessTier] = useState('Professional');
     const [updateOrgName, setUpdateOrgName] = useState('');
     const [updateReportEnabled, setUpdateReportEnabled] = useState(true);
     const [updateWeeklyEnabled, setUpdateWeeklyEnabled] = useState(true);
     const [updateDailySnapshotEnabled, setUpdateDailySnapshotEnabled] = useState(false);
+    const [updateSendToAllMembers, setUpdateSendToAllMembers] = useState(true);
     const [updateBusinessTier, setUpdateBusinessTier] = useState('Professional');
     const [orgSearch, setOrgSearch] = useState('');
     const [orgTypeFilter, setOrgTypeFilter] = useState('All'); // 'All', 'Business', 'Personal'
@@ -163,6 +165,7 @@ export function SiteAdminPage() {
                     setUpdateReportEnabled(configRes.data.reportEnabled !== false);
                     setUpdateWeeklyEnabled(!!configRes.data.weeklyEnabled);
                     setUpdateDailySnapshotEnabled(!!configRes.data.dailySnapshotEnabled);
+                    setUpdateSendToAllMembers(configRes.data.sendToAllTeamMembers !== false);
                     setUpdateBusinessTier(configRes.data.reportTier || 'Professional');
                 }
             } catch (error) {
@@ -171,6 +174,7 @@ export function SiteAdminPage() {
                 setUpdateReportEnabled(true);
                 setUpdateWeeklyEnabled(true);
                 setUpdateDailySnapshotEnabled(false);
+                setUpdateSendToAllMembers(true);
                 setUpdateBusinessTier('Professional');
             }
             // Load licenses
@@ -201,6 +205,7 @@ export function SiteAdminPage() {
                 reportEnabled: newReportEnabled,
                 weeklyEnabled: newWeeklyEnabled,
                 dailySnapshotEnabled: newDailySnapshotEnabled,
+                sendToAllTeamMembers: newSendToAllMembers,
                 reportTier: newBusinessTier
             };
 
@@ -214,6 +219,7 @@ export function SiteAdminPage() {
                 setNewReportEnabled(true);
                 setNewWeeklyEnabled(true);
                 setNewDailySnapshotEnabled(false);
+                setNewSendToAllMembers(true);
                 setNewBusinessTier('Professional');
                 loadData();
             } else {
@@ -234,6 +240,7 @@ export function SiteAdminPage() {
                 reportEnabled: updateReportEnabled,
                 weeklyEnabled: updateWeeklyEnabled,
                 dailySnapshotEnabled: updateDailySnapshotEnabled,
+                sendToAllTeamMembers: updateSendToAllMembers,
                 reportTier: updateBusinessTier
             });
 
@@ -767,6 +774,22 @@ export function SiteAdminPage() {
                                                                     </div>
                                                                     <small class="text-muted">Basic snapshot</small>
                                                                 </div>
+
+                                                                <!-- Send To All Members Toggle -->
+                                                                <div class="d-flex flex-column gap-2">
+                                                                    <label class="form-label mb-0"><strong>Send To All Members</strong></label>
+                                                                    <div class="form-check form-switch">
+                                                                        <input 
+                                                                            class="form-check-input" 
+                                                                            type="checkbox" 
+                                                                            id="newSendToAllMembers"
+                                                                            checked=${newSendToAllMembers}
+                                                                            onChange=${(e) => setNewSendToAllMembers(e.target.checked)}
+                                                                            style="width: 40px; height: 20px; margin-top: 0px;"
+                                                                        />
+                                                                    </div>
+                                                                    <small class="text-muted">Owner + team</small>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1142,6 +1165,29 @@ export function SiteAdminPage() {
                                                                         />
                                                                     </div>
                                                                     <small class="text-muted">Basic snapshot</small>
+                                                                </div>
+
+                                                                <!-- Send To All Members Toggle -->
+                                                                <div class="d-flex flex-column gap-2">
+                                                                    <label class="form-label mb-0"><strong>Send To All Members</strong></label>
+                                                                    <div class="form-check form-switch">
+                                                                        <input 
+                                                                            class="form-check-input" 
+                                                                            type="checkbox" 
+                                                                            id="updateSendToAllMembers"
+                                                                            checked=${updateSendToAllMembers}
+                                                                            onChange=${(e) => setUpdateSendToAllMembers(e.target.checked)}
+                                                                            disabled=${(() => {
+                                                                                const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                                return isPersonal;
+                                                                            })()}
+                                                                            style="width: 40px; height: 20px; margin-top: 0px;"
+                                                                        />
+                                                                    </div>
+                                                                    <small class="text-muted">${(() => {
+                                                                        const isPersonal = selectedOrg.isPersonal !== undefined ? selectedOrg.isPersonal : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedOrg.orgId);
+                                                                        return isPersonal ? 'Business only' : 'Owner + team';
+                                                                    })()}</small>
                                                                 </div>
                                                             </div>
                                                         </div>
