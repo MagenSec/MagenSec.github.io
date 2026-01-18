@@ -892,7 +892,7 @@ export class DeviceDetailPage extends window.Component {
 
     // Derive last scan time from app telemetry when heartbeat doesn't have it
     deriveLastScanTime() {
-        const heartbeatScan = this.state.telemetryDetail?.latest?.fields?.LastScanComplete 
+        const heartbeatScan = this.state.telemetryDetail?.latest?.fields?.LastScanEnd 
             || this.state.telemetryDetail?.latest?.fields?.LastScanStart;
         
         if (heartbeatScan) {
