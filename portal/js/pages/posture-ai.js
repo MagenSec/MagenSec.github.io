@@ -19,9 +19,11 @@ export class AIPosturePage extends Component {
             selectedTemplate: 'full-posture',
             emailingSending: false,
             showEmailModal: false,
-            lastEmailSent: null
+            lastEmailSent: null,
+            pollingForReport: false
         };
         this.orgUnsubscribe = null;
+        this.pollInterval = null;
     }
 
     componentDidMount() {
@@ -31,6 +33,10 @@ export class AIPosturePage extends Component {
 
     componentWillUnmount() {
         if (this.orgUnsubscribe) this.orgUnsubscribe();
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+        }
     }
 
     async loadReports() {
@@ -49,25 +55,28 @@ export class AIPosturePage extends Component {
             // Success - extract report data from unified envelope
             const reportData = response?.data || response;
             if (reportData?.report) {
-                this.setState({ currentReport: reportData, loading: false, error: null });
+                // Stop polling if we have a report
+                if (this.pollInterval) {
+                    clearInterval(this.pollInterval);
+                    this.pollInterval = null;
+                }
+                this.setState({ 
+                    currentReport: reportData, 
+                    loading: false, 
+                    error: null,
+                    pollingForReport: false
+                });
                 return;
             }
 
-            // If no report data, show generate button
-            this.setState({ 
-                currentReport: null, 
-                loading: false, 
-                error: null 
-            });
+            // No report available - auto-trigger generation and start polling
+            logger.info('[AI Posture] No report found, auto-triggering generation');
+            await this.autoGenerateReport();
         } catch (err) {
             // Check if it's a NOT_FOUND error (no report exists yet - normal state)
             if (err?.response?.error === 'NOT_FOUND' || err?.message?.includes('No report')) {
-                logger.info('[AI Posture] No existing report found, showing generate button');
-                this.setState({ 
-                    currentReport: null, 
-                    loading: false, 
-                    error: null 
-                });
+                logger.info('[AI Posture] No existing report found, auto-triggering generation');
+                await this.autoGenerateReport();
                 return;
             }
             
@@ -78,6 +87,90 @@ export class AIPosturePage extends Component {
                 loading: false
             });
         }
+    }
+
+    async autoGenerateReport() {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg || !currentOrg.orgId) return;
+
+        this.setState({ pollingForReport: true, loading: false });
+
+        try {
+            // Trigger report generation
+            logger.info('[AI Posture] Generating report...');
+            const generateResponse = await api.generateAIReport(currentOrg.orgId, {
+                prompt: 'Full security posture analysis',
+                model: 'heuristic',
+                waitSeconds: 30
+            });
+
+            // Check if generate API returned report immediately
+            const generateData = generateResponse?.data || generateResponse;
+            if (generateData?.report) {
+                // Report generated successfully - use it directly
+                logger.info('[AI Posture] Report generated successfully');
+                this.setState({ 
+                    currentReport: generateData, 
+                    pollingForReport: false,
+                    error: null
+                });
+                return;
+            }
+
+            // Generate API timed out or returned without report - start polling /latest
+            logger.info('[AI Posture] Report generation queued, starting polling...');
+            this.startPolling();
+        } catch (err) {
+            logger.error('[AI Posture] Auto-generation failed:', err);
+            this.setState({
+                error: err?.message || 'Failed to generate report automatically',
+                pollingForReport: false
+            });
+        }
+    }
+
+    startPolling() {
+        // Clear any existing interval
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+        }
+
+        // Poll every 5 seconds
+        this.pollInterval = setInterval(async () => {
+            const currentOrg = orgContext.getCurrentOrg();
+            if (!currentOrg || !currentOrg.orgId) {
+                this.stopPolling();
+                return;
+            }
+
+            try {
+                const response = await api.getLatestAIReport(currentOrg.orgId);
+                const reportData = response?.data || response;
+                
+                if (reportData?.report) {
+                    logger.info('[AI Posture] Report ready, stopping poll');
+                    this.stopPolling();
+                    this.setState({ 
+                        currentReport: reportData, 
+                        pollingForReport: false,
+                        error: null
+                    });
+                } else {
+                    logger.debug('[AI Posture] Report not ready yet, continuing poll...');
+                }
+            } catch (err) {
+                // Continue polling on transient errors
+                logger.warn('[AI Posture] Poll check failed, will retry:', err.message);
+            }
+        }, 5000); // 5 seconds
+    }
+
+    stopPolling() {
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+        }
+        this.setState({ pollingForReport: false });
     }
 
     async checkLastEmailSent() {
@@ -145,13 +238,9 @@ export class AIPosturePage extends Component {
         this.setState({ generating: true, error: null });
 
         try {
-            // Use custom prompt and model from form if provided
-            const customPrompt = this.state.prompt?.trim();
-            const selectedModel = this.state.model || 'heuristic';
-            
             const res = await api.generateAIReport(currentOrg.orgId, {
-                prompt: customPrompt || 'Full security posture analysis',
-                model: selectedModel,
+                prompt: 'Full security posture analysis',
+                model: 'heuristic',
                 waitSeconds: 30
             });
 
@@ -211,18 +300,20 @@ export class AIPosturePage extends Component {
                 
                 // Create a container that will render after mermaid
                 const container = document.createElement('div');
-                container.className = 'markdown-content';
+                container.className = 'markdown'; // Use Tabler markdown class for styling
                 container.innerHTML = cleanHtml;
                 
-                // Post-process: Add table borders CSS
+                // Post-process: Add table borders CSS (Tabler already handles this with .markdown class)
                 const tables = container.querySelectorAll('table');
                 tables.forEach(table => {
-                    table.className = (table.className || '') + ' markdown-table';
+                    if (!table.className.includes('table')) {
+                        table.className = (table.className || '') + ' table';
+                    }
                 });
                 
                 // Render and return - use setTimeout to allow DOM mounting first
                 const htmlContent = container.innerHTML;
-                const vnode = html`<div class="markdown-content" dangerouslySetInnerHTML=${{ __html: htmlContent }} />`;
+                const vnode = html`<div class="markdown" dangerouslySetInnerHTML=${{ __html: htmlContent }} />`;
                 
                 // Schedule ApexCharts rendering after DOM update
                 setTimeout(() => {
@@ -259,6 +350,18 @@ export class AIPosturePage extends Component {
                 try {
                     const chartDataText = codeBlock.textContent.trim();
                     const chartConfig = JSON.parse(chartDataText);
+                    
+                    // Validate required chart properties
+                    if (!chartConfig.type) {
+                        logger.warn('[AI Posture] Chart block missing type property');
+                        return;
+                    }
+                    
+                    if (!chartConfig.series || (Array.isArray(chartConfig.series) && chartConfig.series.length === 0)) {
+                        logger.warn('[AI Posture] Chart block missing or empty series data', { type: chartConfig.type });
+                        return;
+                    }
+                    
                     const preParent = codeBlock.parentElement;
                     
                     // Create chart container
@@ -270,7 +373,7 @@ export class AIPosturePage extends Component {
                     // Replace pre > code with chart div
                     preParent.replaceWith(chartDiv);
                     
-                    // Build ApexCharts options
+                    // Build ApexCharts options with safe defaults
                     const options = {
                         chart: {
                             type: chartConfig.type,
@@ -278,11 +381,11 @@ export class AIPosturePage extends Component {
                             toolbar: { show: true },
                             animations: { enabled: true }
                         },
-                        series: chartConfig.series,
-                        labels: chartConfig.labels,
+                        series: Array.isArray(chartConfig.series) ? chartConfig.series : [],
+                        labels: chartConfig.labels || [],
                         colors: chartConfig.colors || ['#008FFB', '#00E396', '#FEB019', '#FF4560', '#775DD0'],
                         title: {
-                            text: chartConfig.title,
+                            text: chartConfig.title || 'Chart',
                             align: 'center'
                         },
                         dataLabels: { enabled: true },
@@ -291,12 +394,12 @@ export class AIPosturePage extends Component {
 
                     // Add type-specific options
                     if (chartConfig.type === 'bar') {
-                        options.xaxis = { categories: chartConfig.categories };
+                        options.xaxis = { categories: chartConfig.categories || [] };
                         options.plotOptions = {
                             bar: { horizontal: false, columnWidth: '55%' }
                         };
                     } else if (chartConfig.type === 'line') {
-                        options.xaxis = { categories: chartConfig.categories };
+                        options.xaxis = { categories: chartConfig.categories || [] };
                         options.stroke = { curve: 'smooth', width: 3 };
                         if (chartConfig.yaxis) {
                             options.yaxis = chartConfig.yaxis;
@@ -317,7 +420,8 @@ export class AIPosturePage extends Component {
                     
                     logger.debug('[AI Posture] Rendered ApexChart', { 
                         id: chartDiv.id, 
-                        type: chartConfig.type
+                        type: chartConfig.type,
+                        seriesCount: options.series.length
                     });
                 } catch (blockErr) {
                     logger.error('[AI Posture] Failed to process ApexChart block:', blockErr);
@@ -427,84 +531,49 @@ export class AIPosturePage extends Component {
                                 <span class="text-muted">AI-generated security analysis and recommendations</span>
                             </div>
                         </div>
-                        </div>
                         <div class="col-auto ms-auto">
                             <div class="btn-group">
-                        ${this.state.currentReport ? html`
-                            <button 
-                                class="btn btn-outline-primary"
-                                disabled=${this.state.emailingSending}
-                                onClick=${() => this.checkLastEmailSent()}
-                            >
-                                ${this.state.emailingSending ? html`
-                                    <span class="spinner-border spinner-border-sm me-2"></span>
-                                    Sending...
-                                ` : html`
-                                    <i class="ti ti-mail me-2"></i>
-                                    Email PDF
-                                `}
-                            </button>
-                        ` : ''}
-                        <button 
-                            class="btn btn-primary" 
-                            disabled=${this.state.generating}
-                            onClick=${() => {
-                                this.setState({ prompt: '', model: 'heuristic' });
-                                this.generateReport();
-                            }}
-                        >
-                            ${this.state.generating ? html`
-                                <span class="spinner-border spinner-border-sm me-2"></span>
-                                Generating...
-                            ` : 'Generate Standard Report'}
-                        </button>
-                    </div>
-                </div>
-
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">Custom Report Options</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-3">
-                                    <label class="form-label">Analysis Focus (Optional)</label>
-                                    <input 
-                                        class="form-control"
-                                        type="text"
-                                        placeholder="e.g., Show critical vulnerabilities and top 5 remediation actions"
-                                        value=${this.state.prompt || ''}
-                                        onChange=${(e) => this.setState({ prompt: e.target.value })}
-                                    />
-                                    <small class="text-muted">Customize the AI analysis with specific focus areas</small>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Analysis Model</label>
-                                    <select 
-                                        class="form-select" 
-                                        value=${this.state.model || 'heuristic'}
-                                        onChange=${(e) => this.setState({ model: e.target.value })}
+                                ${this.state.currentReport ? html`
+                                    <button 
+                                        class="btn btn-outline-primary"
+                                        disabled=${this.state.emailingSending}
+                                        onClick=${() => this.checkLastEmailSent()}
                                     >
-                                        <option value="heuristic">Heuristic (Fast Pattern-Based)</option>
-                                        <option value="local-llm">Local ML Model (Detailed)</option>
-                                    </select>
-                                    <small class="text-muted">Choose analysis depth and speed</small>
-                                </div>
+                                        ${this.state.emailingSending ? html`
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            Sending...
+                                        ` : html`
+                                            <i class="ti ti-mail me-2"></i>
+                                            Email PDF
+                                        `}
+                                    </button>
+                                ` : null}
                                 <button 
-                                    class="btn btn-secondary w-100" 
-                                    disabled=${this.state.generating}
+                                    class="btn btn-primary" 
+                                    disabled=${this.state.generating || this.state.pollingForReport}
                                     onClick=${() => this.generateReport()}
                                 >
-                                    ${this.state.generating ? html`
+                                    ${this.state.generating || this.state.pollingForReport ? html`
                                         <span class="spinner-border spinner-border-sm me-2"></span>
-                                        Generating Custom Report...
-                                    ` : 'Generate Custom Report'}
+                                        Generating...
+                                    ` : 'Generate Report'}
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="container">
+                ${this.state.pollingForReport ? html`
+                    <div class="alert alert-info d-flex align-items-center mb-4">
+                        <span class="spinner-border spinner-border-sm me-3"></span>
+                        <div>
+                            <strong>Generating Report...</strong>
+                            <p class="mb-0 small">Please wait while we analyze your security posture. This may take up to 30 seconds.</p>
+                        </div>
+                    </div>
+                ` : null}
 
                 <div class="card">
                     <div class="card-header">

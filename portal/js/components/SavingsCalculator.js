@@ -1,7 +1,7 @@
 /**
  * Security Savings Calculator Widget
  * Shows ROI from MagenSec license vs potential breach costs
- * Pricing: $1.99/user/device/month (Business), $4.99/org/year up to 5 devices (Personal)
+ * Pricing: $1.99/user/device/month (Business), $9.99/org/year up to 5 devices (Personal)
  */
 
 const { html, Component } = window;
@@ -37,9 +37,9 @@ export class SavingsCalculator extends Component {
         
         // MagenSec Pricing
         // Business: $1.99/user/device/month = $23.88/user/device/year
-        // Personal: $4.99/org/year (up to 5 devices)
-        const pricePerDeviceYear = isPersonal ? (4.99 / Math.min(deviceCount, 5)) : (1.99 * 12);
-        const annualLicenseCost = isPersonal ? 4.99 : (deviceCount * 1.99 * 12);
+        // Personal: $9.99/org/year (up to 5 devices)
+        const pricePerDeviceYear = isPersonal ? (9.99 / Math.min(deviceCount, 5)) : (1.99 * 12);
+        const annualLicenseCost = isPersonal ? 9.99 : (deviceCount * 1.99 * 12);
         
         // Industry average breach costs (IBM Cost of Data Breach 2024)
         const costPerCritical = 2400;  // $2,400 per critical CVE unpatched
@@ -157,7 +157,7 @@ export class SavingsCalculator extends Component {
                             <div class="d-flex align-items-center">
                                 <div class="subheader mb-0">Return on Investment</div>
                                 <div class="ms-auto">
-                                    <span class="badge bg-success-lt text-success fs-3">${savings.roi.toFixed(0)}%</span>
+                                    <span class="badge bg-success-lt text-success fs-3">${Math.min(999, Math.round(savings.roi))}%</span>
                                 </div>
                             </div>
                         </div>

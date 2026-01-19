@@ -69,11 +69,15 @@ export class DashboardPage extends Component {
 
     componentDidUpdate(prevProps, prevState) {
         const dataChanged = prevState.dashboardData !== this.state.dashboardData;
-        if (dataChanged) {
+        const tabChanged = prevState.activeTab !== this.state.activeTab;
+        
+        // Only render Overview tab charts when on Overview tab
+        if (dataChanged && this.state.activeTab === 'overview') {
             this.renderThreatChart(this.state.threatSummary);
             this.renderComplianceDonut(this.state.complianceSummary);
             this.renderCoveragePolar(this.state.coverage);
             this.renderPostureRadar();
+            this.renderPostureSummaryDonuts();
         }
     }
 
@@ -278,15 +282,15 @@ export class DashboardPage extends Component {
                         <div class="card-title">Threat Landscape</div>
                         <div class="text-muted small">Active vulnerabilities by severity (30d)</div>
                     </div>
-                    <span class="badge bg-danger-lt text-danger">${total} findings</span>
+                    <span class="badge bg-danger-lt text-danger">${Math.max(0, (critical + high + medium + low) - (mitigated.total || 0))} open</span>
                 </div>
                 <div class="card-body">
                     <div id="unified-threat-chart" ref=${(el) => { this.threatChartEl = el; }} style="min-height:240px;"></div>
                     <div class="d-flex gap-3 text-muted small mt-2 flex-wrap">
-                        <span class="badge bg-danger-lt text-danger">Critical: ${critical}</span>
-                        <span class="badge bg-warning-lt text-warning">High: ${high}</span>
-                        <span class="badge bg-info-lt text-info">Medium: ${medium}</span>
-                        <span class="badge bg-secondary-lt text-secondary">Low: ${low}</span>
+                        <span class="badge bg-danger-lt text-danger">Critical (open): ${Math.max(0, critical - (mitigated.critical || 0))}</span>
+                        <span class="badge bg-warning-lt text-warning">High (open): ${Math.max(0, high - (mitigated.high || 0))}</span>
+                        <span class="badge bg-info-lt text-info">Medium (open): ${Math.max(0, medium - (mitigated.medium || 0))}</span>
+                        <span class="badge bg-secondary-lt text-secondary">Low (open): ${Math.max(0, low - (mitigated.low || 0))}</span>
                     </div>
                     <div class="text-muted small mt-3">
                         <div class="fw-semibold mb-1">Mitigated in last 30 days</div>
@@ -361,12 +365,22 @@ export class DashboardPage extends Component {
             return;
         }
 
+        const openCritical = Math.max(0, (threats?.critical ?? 0) - (threats?.mitigatedCritical ?? 0));
+        const openHigh = Math.max(0, (threats?.high ?? 0) - (threats?.mitigatedHigh ?? 0));
+        const openMedium = Math.max(0, (threats?.medium ?? 0) - (threats?.mitigatedMedium ?? 0));
+        const openLow = Math.max(0, (threats?.low ?? 0) - (threats?.mitigatedLow ?? 0));
         const seriesData = [
-              Math.round(Math.max(0, threats?.critical ?? 0)),
-              Math.round(Math.max(0, threats?.high ?? 0)),
-              Math.round(Math.max(0, threats?.medium ?? 0)),
-              Math.round(Math.max(0, threats?.low ?? 0))
+              Math.round(openCritical || 0),
+              Math.round(openHigh || 0),
+              Math.round(openMedium || 0),
+              Math.round(openLow || 0)
         ];
+
+        // Validate data before charting
+        if (!seriesData.every(val => !isNaN(val) && isFinite(val))) {
+            console.warn('[ThreatChart] Invalid data - contains NaN values', seriesData);
+            return;
+        }
 
         const options = {
             chart: { type: 'bar', height: 240, toolbar: { show: false } },
@@ -394,11 +408,18 @@ export class DashboardPage extends Component {
         const compliant = Math.max(0, compliance?.compliant ?? 0);
         const nonCompliant = Math.max(0, compliance?.nonCompliant ?? 0);
         const unknown = Math.max(0, compliance?.unknown ?? 0);
-            const series = [
-                Math.round(compliant),
-                Math.round(nonCompliant),
-                Math.round(unknown)
-            ];
+        const series = [
+            Math.round(compliant || 0),
+            Math.round(nonCompliant || 0),
+            Math.round(unknown || 0)
+        ];
+
+        // Validate data before charting
+        if (!series.every(val => !isNaN(val) && isFinite(val))) {
+            console.warn('[ComplianceChart] Invalid data - contains NaN values', series);
+            return;
+        }
+
         const hasData = series.some(v => v > 0);
         const safeSeries = hasData ? series : [1, 0, 0];
 
@@ -407,7 +428,8 @@ export class DashboardPage extends Component {
             labels: ['Compliant', 'Non-Compliant', 'Unknown'],
             series: safeSeries,
             colors: ['#2fb344', '#d63939', '#868e96'],
-            dataLabels: { enabled: true },
+            dataLabels: { enabled: true, formatter: (val) => `${Math.round(val)}%` },
+            tooltip: { y: { formatter: (val) => `${Math.round(val)}%` } },
             legend: { position: 'bottom' },
             stroke: { width: 1, colors: ['#fff'] }
         };
@@ -428,11 +450,18 @@ export class DashboardPage extends Component {
         const healthy = Math.max(0, coverage?.healthy ?? 0);
         const stale = Math.max(0, coverage?.stale ?? 0);
         const offline = Math.max(0, coverage?.offline ?? 0);
-            const series = [
-                Math.round(healthy),
-                Math.round(stale),
-                Math.round(offline)
-            ];
+        const series = [
+            Math.round(healthy || 0),
+            Math.round(stale || 0),
+            Math.round(offline || 0)
+        ];
+
+        // Validate data before charting
+        if (!series.every(val => !isNaN(val) && isFinite(val))) {
+            console.warn('[CoverageChart] Invalid data - contains NaN values', series);
+            return;
+        }
+
         const hasData = series.some(v => v > 0);
         const safeSeries = hasData ? series : [1, 0, 0];
 
@@ -443,6 +472,8 @@ export class DashboardPage extends Component {
             colors: ['#2fb344', '#f59f00', '#868e96'],
             stroke: { colors: ['#fff'] },
             fill: { opacity: 0.9 },
+            dataLabels: { enabled: false },
+            tooltip: { y: { formatter: (val) => `${Math.round(val)} devices` } },
             legend: { position: 'bottom' }
         };
 
@@ -550,6 +581,12 @@ export class DashboardPage extends Component {
             100 - stats.alertLoad       // invert alerts
         ].map(v => (Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0));
 
+        // Validate data before charting
+        if (!series.every(val => !isNaN(val) && isFinite(val) && val >= 0 && val <= 100)) {
+            console.warn('[RadarChart] Invalid data - values out of range or NaN', series);
+            return;
+        }
+
         const options = {
             chart: { type: 'radar', height: 250, toolbar: { show: false } },
             series: [{ name: 'Posture', data: series }],
@@ -593,6 +630,14 @@ export class DashboardPage extends Component {
         if (this.cveAgingChart) {
             this.cveAgingChart.destroy();
             this.cveAgingChart = null;
+        }
+        if (this.threatDonutChart) {
+            this.threatDonutChart.destroy();
+            this.threatDonutChart = null;
+        }
+        if (this.complianceDonutChart) {
+            this.complianceDonutChart.destroy();
+            this.complianceDonutChart = null;
         }
     }
 
@@ -785,11 +830,11 @@ export class DashboardPage extends Component {
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                                     Refresh
                                 </button>
-                                <span class="badge bg-${riskColor}">${snapshot.risk?.orgScore || riskScore}/100</span>
+                                <span class="badge bg-${riskColor} text-white">${snapshot.risk?.orgScore || riskScore}/100</span>
                             </div>
                         </div>
                         <div class="card-body">
-                            ${this.renderDomainBreakdown(snapshot)}
+                            ${this.renderSeverityBreakdown(snapshot)}
                             ${this.renderDeviceRiskMatrix(snapshot)}
                             ${this.renderCVEAgingChart(snapshot)}
                             ${this.renderPrioritizedActions(snapshot)}
@@ -798,6 +843,74 @@ export class DashboardPage extends Component {
                 </div>
             </div>
         `;
+    }
+
+    renderPostureSummaryDonuts() {
+        if (!window.ApexCharts) return;
+        
+        // Destroy existing charts
+        if (this.threatDonutChart) {
+            this.threatDonutChart.destroy();
+            this.threatDonutChart = null;
+        }
+        if (this.complianceDonutChart) {
+            this.complianceDonutChart.destroy();
+            this.complianceDonutChart = null;
+        }
+        
+        // Threat donut
+        const t = this.state.threatSummary || {};
+        const openCritical = Math.max(0, (t.critical ?? 0) - (t.mitigatedCritical ?? 0));
+        const openHigh = Math.max(0, (t.high ?? 0) - (t.mitigatedHigh ?? 0));
+        const openMedium = Math.max(0, (t.medium ?? 0) - (t.mitigatedMedium ?? 0));
+        const openLow = Math.max(0, (t.low ?? 0) - (t.mitigatedLow ?? 0));
+        
+        const threatTotal = openCritical + openHigh + openMedium + openLow;
+        const threatSeries = [Math.round(openCritical || 0), Math.round(openHigh || 0), Math.round(openMedium || 0), Math.round(openLow || 0)];
+        
+        // Validate threat data
+        if (threatSeries.every(val => !isNaN(val) && isFinite(val))) {
+            const threatEl = document.getElementById('posture-threat-donut');
+            if (threatEl && threatTotal > 0) {
+                const opts = {
+                    chart: { type: 'donut', height: 160 },
+                    labels: ['Critical', 'High', 'Medium', 'Low'],
+                    series: threatSeries,
+                    colors: ['#d63939', '#f59f00', '#3490dc', '#206bc4'],
+                    dataLabels: { enabled: true, formatter: (val) => `${Math.round(val)}%` },
+                    legend: { position: 'bottom' },
+                    stroke: { width: 1, colors: ['#fff'] }
+                };
+                this.threatDonutChart = new window.ApexCharts(threatEl, opts);
+                this.threatDonutChart.render();
+            }
+        }
+        
+        // Compliance donut
+        const c = this.state.complianceSummary || {};
+        const compliant = Math.max(0, c.compliant || 0);
+        const nonCompliant = Math.max(0, c.nonCompliant || 0);
+        const unknown = Math.max(0, c.unknown || 0);
+        const compTotal = compliant + nonCompliant + unknown;
+        const compSeries = [Math.round(compliant || 0), Math.round(nonCompliant || 0), Math.round(unknown || 0)];
+        
+        // Validate compliance data
+        if (compSeries.every(val => !isNaN(val) && isFinite(val))) {
+            const compEl = document.getElementById('posture-compliance-donut');
+            if (compEl && compTotal > 0) {
+                const opts = {
+                    chart: { type: 'donut', height: 160 },
+                    labels: ['Compliant', 'Non-Compliant', 'Unknown'],
+                    series: compSeries,
+                    colors: ['#2fb344', '#d63939', '#868e96'],
+                    dataLabels: { enabled: true, formatter: (val) => `${Math.round(val)}%` },
+                    legend: { position: 'bottom' },
+                    stroke: { width: 1, colors: ['#fff'] }
+                };
+                this.complianceDonutChart = new window.ApexCharts(compEl, opts);
+                this.complianceDonutChart.render();
+            }
+        }
     }
 
     renderFindingsTab() {
@@ -868,15 +981,32 @@ export class DashboardPage extends Component {
                                     ` : findings.map(finding => html`
                                         <tr>
                                             <td>
-                                                <span class=${`badge bg-${this.getSeverityColor(finding.severity)}-lt`}>
+                                                <span class=${`badge bg-${this.getSeverityColor(finding.severity)} text-white`}>
                                                     ${finding.severity}
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="badge bg-secondary-lt">${finding.domain || 'Unknown'}</span>
+                                                <span class="badge bg-secondary text-white">${finding.domain || 'Unknown'}</span>
                                             </td>
-                                            <td>${finding.title || finding.description || 'No title'}</td>
-                                            <td>${finding.affectedDevices || 1} device${finding.affectedDevices !== 1 ? 's' : ''}</td>
+                                            <td>
+                                                <div>${finding.title || finding.description || 'No title'}</div>
+                                                ${finding.affectedApplication ? html`
+                                                    <div class="text-muted small">App: ${finding.affectedApplication}</div>
+                                                ` : ''}
+                                            </td>
+                                            <td>
+                                                ${finding.affectedDevices ? html`
+                                                    <div class="small">
+                                                        ${Array.isArray(finding.affectedDevices) 
+                                                            ? finding.affectedDevices.map((d, i) => html`
+                                                                ${i > 0 ? ', ' : ''}
+                                                                <a href="#!/devices/${d.deviceId || d}" class="text-primary" title="View device details">${d.deviceName || d}</a>
+                                                            `)
+                                                            : html`<span>${finding.affectedDevices} device${finding.affectedDevices !== 1 ? 's' : ''}</span>`
+                                                        }
+                                                    </div>
+                                                ` : ''}
+                                            </td>
                                             <td>${finding.agingDays || 0} days</td>
                                         </tr>
                                     `)}
@@ -898,49 +1028,48 @@ export class DashboardPage extends Component {
         return 'secondary';
     }
 
-    renderDomainBreakdown(snapshot) {
-        if (!snapshot.findings || !snapshot.findings.byDomain) {
+    renderSeverityBreakdown(snapshot) {
+        if (!snapshot.findings || !snapshot.findings.bySeverity) {
             return html`
                 <div class="alert alert-info mb-4">
-                    <strong>Domain Breakdown:</strong> No domain data available yet.
+                    <strong>Findings by Severity:</strong> No severity data available yet.
                 </div>
             `;
         }
         
-        const domains = snapshot.findings.byDomain || {};
-        const domainList = Object.entries(domains).sort((a, b) => b[1] - a[1]);
-        
-        if (domainList.length === 0) {
-            return html`
-                <div class="alert alert-info mb-4">
-                    <strong>Domain Breakdown:</strong> No findings to categorize.
-                </div>
-            `;
-        }
+        const severities = [
+            { name: 'Critical', key: 'Critical', color: 'danger' },
+            { name: 'High', key: 'High', color: 'warning' },
+            { name: 'Medium', key: 'Medium', color: 'info' },
+            { name: 'Low', key: 'Low', color: 'success' }
+        ];
         
         return html`
             <div class="mb-4">
-                <h4 class="mb-3">Findings by Domain</h4>
+                <h4 class="mb-3">Findings by Severity</h4>
                 <div class="row g-2">
-                    ${domainList.map(([domain, count]) => html`
-                        <div class="col-md-3">
-                            <div class="card card-sm">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-auto">
-                                            <span class="bg-light text-dark avatar">
-                                                ${domain.charAt(0).toUpperCase()}
-                                            </span>
-                                        </div>
-                                        <div class="col">
-                                            <div class="font-weight-medium">${domain}</div>
-                                            <div class="text-muted">${count} finding${count !== 1 ? 's' : ''}</div>
+                    ${severities.map(sev => {
+                        const count = snapshot.findings.bySeverity[sev.key] || 0;
+                        return html`
+                            <div class="col-md-3">
+                                <div class="card card-sm">
+                                    <div class="card-body">
+                                        <div class="row align-items-center">
+                                            <div class="col-auto">
+                                                <span class=${`bg-${sev.color} text-white avatar`}>
+                                                    ${sev.name.charAt(0).toUpperCase()}
+                                                </span>
+                                            </div>
+                                            <div class="col">
+                                                <div class="font-weight-medium">${sev.name}</div>
+                                                <div class="text-muted">${count} finding${count !== 1 ? 's' : ''}</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    `)}
+                        `;
+                    })}
                 </div>
             </div>
         `;
@@ -1069,15 +1198,14 @@ export class DashboardPage extends Component {
             `;
         }
         
-        // Use aging data from snapshot (0-30, 31-60, 61-90, 90+)
+        // Use aging data from snapshot
         const aging = snapshot.findings.aging;
-        const labels = ['0-7 days', '8-30 days', '31-60 days', '61-90 days', '90+ days'];
+        const labels = ['< 7 days', '7-30 days', '30-90 days', '90+ days'];
         const data = [
-            aging.recent || 0,          // 0-7 days (use 'recent' bucket)
-            aging.days030 || 0,         // 8-30 days
-            aging.days3160 || 0,        // 31-60 days  
-            aging.days6190 || 0,        // 61-90 days
-            aging.days90Plus || 0       // 90+ days
+            aging.lessThan7Days || 0,    // 0-7 days
+            aging.days7To30 || 0,        // 7-30 days
+            aging.days30To90 || 0,       // 30-90 days
+            aging.moreThan90Days || 0    // 90+ days
         ];
         
         const total = data.reduce((sum, val) => sum + val, 0);
@@ -1163,7 +1291,7 @@ export class DashboardPage extends Component {
     }
 
     renderPrioritizedActions(snapshot) {
-        if (!snapshot.actions || !snapshot.actions.top10 || snapshot.actions.top10.length === 0) {
+        if (!snapshot.actions || !snapshot.actions.prioritized || snapshot.actions.prioritized.length === 0) {
             return html`
                 <div class="alert alert-success mb-3">
                     <strong>No Critical Actions:</strong> No high-priority actions required at this time.
@@ -1171,7 +1299,7 @@ export class DashboardPage extends Component {
             `;
         }
         
-        const actions = snapshot.actions.top10.slice(0, 6);
+        const actions = snapshot.actions.prioritized.slice(0, 6);
         
         return html`
             <div class="mb-3">
@@ -1185,10 +1313,22 @@ export class DashboardPage extends Component {
                                 </div>
                                 <div class="col">
                                     <strong>${action.title || action.action}</strong>
-                                    <div class="text-muted small">${action.description || action.reason || ''}</div>
+                                    ${action.affectedDevice || action.affectedApplication ? html`
+                                        <div style="margin-top: 4px;">
+                                            ${action.affectedDevice ? html`
+                                                <span class="badge bg-secondary text-white" style="margin-right: 4px;">${action.affectedDevice}</span>
+                                            ` : ''}
+                                            ${action.affectedApplication ? html`
+                                                <span class="badge bg-info text-white">App: ${action.affectedApplication}</span>
+                                            ` : ''}
+                                        </div>
+                                    ` : ''}
+                                    ${action.description ? html`
+                                        <div class="text-muted small" style="margin-top: 4px;">${action.description}</div>
+                                    ` : ''}
                                 </div>
                                 <div class="col-auto">
-                                    <span class=${`badge bg-${this.getSeverityColor(action.priority || action.severity)}`}>
+                                    <span class=${`badge bg-${this.getSeverityColor(action.priority || action.severity)} text-white`}>
                                         ${action.priority || action.severity || 'Medium'}
                                     </span>
                                 </div>
@@ -1866,20 +2006,7 @@ export class DashboardPage extends Component {
                             <h4 class="subheader">Threat Distribution</h4>
                             <div class="d-flex align-items-center mb-3">
                                 <div class="w-100">
-                                    <div class="row">
-                                        <div class="col-auto d-flex align-items-center">
-                                            <span class="legend me-2 bg-danger"></span>
-                                            <span>Critical: <strong>${threatSummary.critical}</strong></span>
-                                        </div>
-                                        <div class="col-auto d-flex align-items-center">
-                                            <span class="legend me-2 bg-warning"></span>
-                                            <span>High: <strong>${threatSummary.high}</strong></span>
-                                        </div>
-                                        <div class="col-auto d-flex align-items-center">
-                                            <span class="legend me-2 bg-info"></span>
-                                            <span>Medium: <strong>${threatSummary.medium}</strong></span>
-                                        </div>
-                                    </div>
+                                    <div id="posture-threat-donut" style="min-height:160px;"></div>
                                 </div>
                             </div>
                         </div>
@@ -1887,16 +2014,7 @@ export class DashboardPage extends Component {
                             <h4 class="subheader">Compliance Status</h4>
                             <div class="d-flex align-items-center">
                                 <div class="w-100">
-                                    <div class="row">
-                                        <div class="col-auto d-flex align-items-center">
-                                            <span class="legend me-2 bg-success"></span>
-                                            <span>Compliant: <strong>${complianceSummary.compliant}</strong></span>
-                                        </div>
-                                        <div class="col-auto d-flex align-items-center">
-                                            <span class="legend me-2 bg-danger"></span>
-                                            <span>Non-Compliant: <strong>${complianceSummary.nonCompliant}</strong></span>
-                                        </div>
-                                    </div>
+                                    <div id="posture-compliance-donut" style="min-height:160px;"></div>
                                 </div>
                             </div>
                         </div>
