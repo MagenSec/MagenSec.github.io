@@ -83,10 +83,13 @@ export class PosturePage extends Component {
         const { critical, high, medium, low } = this.getSeverityCounts();
         return html`
             <div class="d-flex gap-2 flex-wrap">
-                <span class="badge bg-danger">Critical: ${critical}</span>
-                <span class="badge bg-warning text-dark">High: ${high}</span>
-                <span class="badge bg-info text-dark">Medium: ${medium}</span>
-                <span class="badge bg-secondary">Low: ${low}</span>
+                ${critical > 0 ? html`<span class="badge bg-danger text-white">⚠️ ${critical} Critical</span>` : ''}
+                ${high > 0 ? html`<span class="badge bg-warning text-white">🔴 ${high} High</span>` : ''}
+                ${medium > 0 ? html`<span class="badge bg-info text-white">🟡 ${medium} Medium</span>` : ''}
+                ${low > 0 ? html`<span class="badge bg-success text-white">🔵 ${low} Low</span>` : ''}
+                ${critical === 0 && high === 0 && medium === 0 && low === 0 ? html`
+                    <span class="badge bg-success-lt">✓ No vulnerabilities found</span>
+                ` : ''}
             </div>
         `;
     }
@@ -96,12 +99,33 @@ export class PosturePage extends Component {
         const entries = Object.entries(domains).sort((a, b) => b[1] - a[1]).slice(0, 5);
         if (!entries.length) return html`<div class="text-muted">No domain findings available.</div>`;
 
+        const domainIcons = {
+            'Vulnerabilities': '🛡️',
+            'Configuration': '⚙️',
+            'Compliance': '📋',
+            'Identity': '👤',
+            'Network': '🌐',
+            'Endpoint': '💻'
+        };
+
         return html`
-            <div class="d-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+            <div class="row row-cards">
                 ${entries.map(([domain, count]) => html`
-                    <div class="p-3 rounded border bg-light">
-                        <div class="text-uppercase small text-muted">${domain}</div>
-                        <div class="fw-bold fs-5">${count}</div>
+                    <div class="col-sm-6 col-lg-4">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="subheader">${domainIcons[domain] || '📊'} ${domain}</div>
+                                    <div class="ms-auto">
+                                        <span class="badge ${count > 10 ? 'bg-danger' : count > 5 ? 'bg-warning' : 'bg-success'} text-white">
+                                            ${count}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="h1 mb-0 mt-2">${count}</div>
+                                <div class="text-muted small">findings</div>
+                            </div>
+                        </div>
                     </div>
                 `)}
             </div>
@@ -123,7 +147,7 @@ export class PosturePage extends Component {
                             <div class="text-muted small">Priority: ${action.priority} · Effort: ${action.effort} · Risk Reduction: ${action.riskReduction}</div>
                         </div>
                         <div class="d-flex gap-2">
-                            <span class="badge bg-primary">${action.affectedCount} affected</span>
+                            <span class="badge bg-primary text-white">${action.affectedCount} affected</span>
                             <span class="badge bg-outline-secondary border">SLA: ${action.sla}</span>
                         </div>
                     </div>
@@ -155,7 +179,7 @@ export class PosturePage extends Component {
                             <tr>
                                 <td class="fw-semibold">${item.title}</td>
                                 <td>${item.domain}</td>
-                                <td><span class="badge bg-${this.severityToColor(item.severity)}">${item.severity}</span></td>
+                                <td><span class="badge bg-${this.severityToColor(item.severity)} text-white">${item.severity}</span></td>
                                 <td>${item.affectedCount}</td>
                                 <td>${item.agingDays}</td>
                             </tr>
@@ -191,7 +215,7 @@ export class PosturePage extends Component {
                             <div class="fw-semibold">${control}</div>
                             <div class="text-muted small">${status.description || 'No description'}</div>
                         </div>
-                        <span class="badge bg-${this.controlColor(status.status)}">${status.status}</span>
+                        <span class="badge bg-${this.controlColor(status.status)} text-white">${status.status}</span>
                     </div>
                 `)}
             </div>
@@ -230,8 +254,8 @@ export class PosturePage extends Component {
                         <div class="text-uppercase small opacity-75">Security Posture</div>
                         <div class="display-4 fw-bold mb-0">${risk.orgScore ?? 0}</div>
                         <div class="d-flex align-items-center gap-2">
-                            <span class="badge bg-light text-dark">Grade: ${risk.grade || 'N/A'}</span>
-                            <span class="badge bg-outline-light border text-light">Trend Δ ${risk.scoreDelta ?? 0}</span>
+                            <span class="badge bg-white text-dark">Grade: ${risk.grade || 'N/A'}</span>
+                            <span class="badge bg-white-lt text-dark border">Trend Δ ${risk.scoreDelta ?? 0}</span>
                         </div>
                         <div class="mt-3">Findings: ${severity.critical + severity.high + severity.medium + severity.low}</div>
                     </div>

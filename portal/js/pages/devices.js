@@ -1495,6 +1495,31 @@ class DevicesPage extends window.Component {
         return `${months[d.getMonth()]}-${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()}`;
     }
 
+    getStatusDot(lastSeen) {
+        const hours = lastSeen ? (Date.now() - new Date(lastSeen)) / 3600000 : 9999;
+        if (hours < 6) return 'status-dot-animated status-green';
+        if (hours < 24) return 'status-yellow';
+        return 'status-red';
+    }
+
+    getStatusText(lastSeen) {
+        const hours = lastSeen ? Math.floor((Date.now() - new Date(lastSeen)) / 3600000) : 9999;
+        if (hours < 1) return 'Online';
+        if (hours < 6) return `${hours}h ago`;
+        if (hours < 24) return 'Today';
+        if (hours < 9999) return `${Math.floor(hours / 24)}d ago`;
+        return 'Never';
+    }
+
+    getDeviceInitials(deviceName) {
+        if (!deviceName) return 'DV';
+        const words = deviceName.split(/[-_\s]+/).filter(Boolean);
+        if (words.length >= 2) {
+            return (words[0][0] + words[1][0]).toUpperCase();
+        }
+        return deviceName.substring(0, 2).toUpperCase();
+    }
+
     severityLabelFromWeight(weight) {
         if (weight >= 3) return 'CRITICAL';
         if (weight >= 2) return 'HIGH';
@@ -1898,14 +1923,20 @@ class DevicesPage extends window.Component {
                         <div class="col-sm-6 col-lg-4">
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
-                                    <!-- Header: Name & Menu -->
+                                    <!-- Header: Avatar, Name & Menu -->
                                     <div class="d-flex justify-content-between align-items-start mb-3">
-                                        <div class="text-truncate pe-2">
-                                            <h3 class="card-title mb-1 text-truncate">
-                                                <a href="#!/devices/${device.id}" class="text-reset" title="${device.name || device.id}">${device.name || device.id}</a>
-                                            </h3>
-                                            <div class="text-muted small text-truncate" title="${device.telemetry?.osEdition || 'Unknown OS'}">
-                                                ${device.telemetry?.osEdition || 'Unknown OS'}
+                                        <div class="d-flex align-items-center flex-grow-1 min-width-0">
+                                            <span class="avatar avatar-sm me-2 bg-blue-lt flex-shrink-0">
+                                                ${this.getDeviceInitials(device.name || device.id)}
+                                            </span>
+                                            <div class="min-width-0 flex-grow-1">
+                                                <h3 class="card-title mb-1 text-truncate">
+                                                    <a href="#!/devices/${device.id}" class="text-reset" title="${device.name || device.id}">${device.name || device.id}</a>
+                                                </h3>
+                                                <div class="device-meta text-muted small text-truncate" title="${device.telemetry?.osEdition || 'Unknown OS'}">
+                                                    <span class="status-dot ${this.getStatusDot(device.lastSeen)} me-1"></span>
+                                                    ${this.getStatusText(device.lastSeen)} · ${device.telemetry?.osEdition || 'Unknown OS'}
+                                                </div>
                                             </div>
                                         </div>
                                         <div class="dropdown">
@@ -1964,9 +1995,11 @@ class DevicesPage extends window.Component {
                                         <div class="mb-2">
                                             <span class="badge ${severityBadge} text-white">${scoreSeverity} RISK</span>
                                         </div>
-                                        <div>
-                                            <span class="badge ${this.getStateBadgeClass(device.state)} text-white">${device.state}</span>
-                                            ${this.isDeviceInactive(device) ? html`<span class="badge bg-secondary-lt ms-1">Offline</span>` : html`<span class="badge bg-success-lt ms-1">Online</span>`}
+                                        <div class="d-flex align-items-center justify-content-center gap-2">
+                                            <div class="d-flex align-items-center">
+                                                <span class="status-dot ${this.getStatusDot(device.lastSeen)} me-2"></span>
+                                                <span class="badge ${this.getStateBadgeClass(device.state)}">${device.state}</span>
+                                            </div>
                                         </div>
                                     </div>
 

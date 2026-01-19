@@ -1956,45 +1956,97 @@ export class DeviceDetailPage extends window.Component {
             <div class="page-wrapper">
                 <div class="page-body">
                     <div class="container-xl">
-                        <!-- Header -->
+                        <!-- Header with Action Ribbon -->
                         <div class="page-header d-print-none">
-                            <div class="row align-items-center">
+                            <div class="row g-2 align-items-center">
                                 <div class="col">
-                                    <a href="#!/devices" class="btn btn-ghost-primary me-3">← Back</a>
-                                    <h2 class="page-title d-inline-block">${device.DeviceName || device.deviceName || device.DeviceId || device.deviceId}</h2>
-                                    <span class="badge ${this.getStateBadgeClass(device.State || device.state)} ms-2" title="License state; Active/Enabled denotes license status. Online/offline shown separately.">${this.getStateDisplay(device.State || device.state)}</span>
-                                    ${(() => {
-                                        const dv = device.ClientVersion || device.clientVersion;
-                                        return dv && this.isVersionOutdated(dv) ? window.html`<span class="badge bg-warning-lt ms-2" title="Update available to v${config.INSTALLERS.ENGINE.VERSION}">Update Available</span>` : '';
-                                    })()}
+                                    <div class="page-pretitle">
+                                        <a href="#!/devices" class="text-muted">← Devices</a>
+                                    </div>
+                                    <h2 class="page-title">
+                                        <span class="avatar avatar-sm me-2 bg-blue-lt">
+                                            ${(() => {
+                                                const name = device.DeviceName || device.deviceName || device.DeviceId || device.deviceId || '';
+                                                return name.substring(0, 2).toUpperCase();
+                                            })()}
+                                        </span>
+                                        ${device.DeviceName || device.deviceName || device.DeviceId || device.deviceId}
+                                    </h2>
+                                    <div class="page-subtitle">
+                                        <div class="row">
+                                            <div class="col-auto">
+                                                ${(() => {
+                                                    const last = device.LastHeartbeat || device.lastHeartbeat;
+                                                    if (!last) return html`<span class="status-dot status-red me-1"></span>Offline`;
+                                                    const mins = Math.floor((Date.now() - new Date(last).getTime())/60000);
+                                                    const isActive = String(device.State||'').toUpperCase()==='ACTIVE';
+                                                    if (mins <= 30 && isActive) {
+                                                        return html`<span class="status-dot status-dot-animated status-green me-1"></span>Online`;
+                                                    } else if (mins <= 360) {
+                                                        return html`<span class="status-dot status-yellow me-1"></span>${mins < 60 ? mins + 'm ago' : Math.floor(mins/60) + 'h ago'}`;
+                                                    } else {
+                                                        return html`<span class="status-dot status-red me-1"></span>Offline`;
+                                                    }
+                                                })()}
+                                            </div>
+                                            <div class="col-auto">
+                                                Last scan: ${(() => {
+                                                    const ts = this.state.telemetryDetail?.latest?.timestamp || device.LastHeartbeat || device.lastHeartbeat;
+                                                    return ts ? this.formatDate(ts) : 'N/A';
+                                                })()}
+                                            </div>
+                                            <div class="col-auto">
+                                                ${(() => {
+                                                    const f = this.state.telemetryDetail?.latest?.fields || {};
+                                                    const os = f.OSVersion || f.osVersion || f.OS || device.OS || device.os || 'Windows';
+                                                    return os;
+                                                })()}
+                                            </div>
+                                            ${(() => {
+                                                const f = this.state.telemetryDetail?.latest?.fields || {};
+                                                const ipRaw = f.IPAddresses || f.ipAddresses;
+                                                const ipList = Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : [];
+                                                const primaryIp = ipList[0];
+                                                return primaryIp ? html`<div class="col-auto">${primaryIp}</div>` : '';
+                                            })()}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-auto">
-                                    <div class="btn-list mb-2">
-                                        <button class="btn btn-outline-primary" title="Generate a device security report and save as PDF" onclick=${(e) => this.printDeviceReport(e)}>
+                                <div class="col-auto ms-auto d-print-none">
+                                    <div class="btn-list">
+                                        <button class="btn btn-primary" title="Generate a device security report and save as PDF" onclick=${(e) => this.printDeviceReport(e)}>
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 17v-6" /><path d="M9.5 14.5l2.5 2.5l2.5 -2.5" /></svg>
                                             Save as PDF
                                         </button>
-                                        <button class="btn btn-outline-secondary" title="Trigger Windows Update (coming soon)" onclick=${(e) => { e.preventDefault(); console.info('Windows Update trigger requested'); }}>
+                                        <button class="btn" title="Trigger Windows Update (coming soon)" onclick=${(e) => { e.preventDefault(); console.info('Windows Update trigger requested'); }}>
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5.5l7 -1.5v8l-7 .5z" /><path d="M20 4l-7 1.5v7.5l7 -.5z" /><path d="M4 15l7 .5v5l-7 -1.5z" /><path d="M20 13l-7 .5v6.5l7 -1.5z" /></svg>
-                                            Trigger Windows Update
+                                            Patch Now
                                         </button>
-                                        <button class="btn btn-primary" disabled title="Coming soon - Device action queue">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 9a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" /><path d="M7 14l-3 3l-1 -1" /><path d="M9 13l2 2l4 -4" /></svg>
-                                            Update Client
-                                        </button>
-                                    </div>
-                                    ${device.LastHeartbeat ? html`
-                                        <div class="text-muted small">
-                                            Last heartbeat: ${this.formatDate(device.LastHeartbeat)}
+                                        <div class="dropdown">
+                                            <button class="btn dropdown-toggle" data-bs-toggle="dropdown">
+                                                More Actions
+                                            </button>
+                                            <div class="dropdown-menu dropdown-menu-end">
+                                                <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'inventory' }); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" /><path d="M16 5l3 3" /></svg>
+                                                    View Applications
+                                                </a>
+                                                <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'risks' }); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>
+                                                    View Vulnerabilities
+                                                </a>
+                                                <a class="dropdown-item ${updateAvailable ? '' : 'disabled'}" href="#" onclick=${(e) => { e.preventDefault(); if (updateAvailable) console.info('Update client requested'); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 9a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" /><path d="M7 14l-3 3l-1 -1" /><path d="M9 13l2 2l4 -4" /></svg>
+                                                    Update Client
+                                                </a>
+                                                <div class="dropdown-divider"></div>
+                                                <a class="dropdown-item text-danger" href="#" onclick=${(e) => { e.preventDefault(); console.info('Block device requested'); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M5.7 5.7l12.6 12.6" /></svg>
+                                                    Block Device
+                                                </a>
+                                            </div>
                                         </div>
-                                        ${(() => {
-                                            const last = device.LastHeartbeat;
-                                            if (!last) return '';
-                                            const mins = Math.floor((Date.now() - new Date(last).getTime())/60000);
-                                            const online = mins <= 30 && String(device.State||'').toUpperCase()==='ACTIVE';
-                                            return html`<span class="badge ${online?'bg-success-lt':'bg-danger-lt'} mt-1">${online?'Online':'Offline'}</span>`;
-                                        })()}
-                                    ` : ''}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4023,15 +4075,56 @@ export class DeviceDetailPage extends window.Component {
                                     </td>
                                     <td>${cve.vendor || '—'}</td>
                                     <td>
-                                        <span class="badge ${this.getSeverityColor(cve.severity)}">
-                                            ${(cve.severity || 'Unknown').toUpperCase()}
-                                        </span>
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            <span class="badge ${this.getSeverityColor(cve.severity)}">
+                                                ${(() => {
+                                                    const sev = (cve.severity || 'Unknown').toUpperCase();
+                                                    const icon = sev === 'CRITICAL' ? '⚠️' : sev === 'HIGH' ? '🔴' : sev === 'MEDIUM' ? '🟡' : '🔵';
+                                                    return icon + ' ' + sev;
+                                                })()}
+                                            </span>
+                                            ${isKnownExploit ? html`
+                                                <span class="badge bg-red-lt" title="Exploit available in public repositories">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-xs" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>
+                                                    Exploit
+                                                </span>
+                                            ` : ''}
+                                        </div>
                                     </td>
                                     <td>
-                                        ${cve.epss ? html`<span class="font-weight-medium">${Number(cve.epss).toFixed(2)}</span>` : html`<span class="text-muted">—</span>`}
-                                        ${cve.score ? html`<span class="badge bg-blue-lt ms-2">${Number(cve.score).toFixed(1)}</span>` : ''}
+                                        ${cve.epss ? html`
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="badge ${Number(cve.epss) > 0.5 ? 'bg-danger-lt' : Number(cve.epss) > 0.2 ? 'bg-warning-lt' : 'bg-success-lt'}">
+                                                    ${(Number(cve.epss) * 100).toFixed(1)}%
+                                                </span>
+                                                ${cve.score ? html`<span class="text-muted small">CVSS ${Number(cve.score).toFixed(1)}</span>` : ''}
+                                            </div>
+                                        ` : html`<span class="text-muted">—</span>`}
                                     </td>
-                                    <td class="text-muted small">${cve.lastSeen ? new Date(cve.lastSeen).toLocaleDateString() : '—'}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="text-muted small">${cve.lastSeen ? new Date(cve.lastSeen).toLocaleDateString() : '—'}</span>
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-ghost-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /><circle cx="12" cy="5" r="1" /></svg>
+                                                </button>
+                                                <div class="dropdown-menu dropdown-menu-end">
+                                                    <a class="dropdown-item" href="https://nvd.nist.gov/vuln/detail/${cve.cveId}" target="_blank" rel="noopener">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7" /></svg>
+                                                        View in NVD
+                                                    </a>
+                                                    <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); console.info('Mark false positive:', cve.cveId); }}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
+                                                        Mark False Positive
+                                                    </a>
+                                                    <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); console.info('Assign for review:', cve.cveId); }}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="9" cy="7" r="4" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 11l2 2l4 -4" /></svg>
+                                                        Assign for Review
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
                                 </tr>
                             `;
                         })}

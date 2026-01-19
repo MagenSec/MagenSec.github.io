@@ -385,6 +385,14 @@ export function SettingsPage() {
 
 
 
+    const toggleEmailPreference = (key) => {
+        if (!emailPreferences) return;
+        setEmailPreferences({
+            ...emailPreferences,
+            [key]: !emailPreferences[key]
+        });
+    };
+
     const handleSaveEmailPreferences = async (preferences) => {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg?.orgId) {
@@ -395,7 +403,7 @@ export function SettingsPage() {
         try {
             setSavingPreferences(true);
             
-            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/email-preferences`, preferences);
+            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/email-preferences`, preferences || emailPreferences);
             
             if (res.success) {
                 showToast('Email preferences saved', 'success');

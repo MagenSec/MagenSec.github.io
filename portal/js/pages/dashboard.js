@@ -172,6 +172,26 @@ export class DashboardPage extends Component {
         return 'Not Rated';
     }
 
+    getGradeBadge(score) {
+        if (score >= 80) return 'bg-success';
+        if (score >= 60) return 'bg-info';
+        if (score >= 40) return 'bg-warning';
+        return 'bg-danger';
+    }
+
+    getGrade(score) {
+        if (score >= 80) return 'A';
+        if (score >= 60) return 'B';
+        if (score >= 40) return 'C';
+        return 'D';
+    }
+
+    calculateTrend(currentValue, previousValue) {
+        if (!previousValue || previousValue === 0) return 0;
+        const delta = currentValue - previousValue;
+        return Math.round((delta / previousValue) * 100);
+    }
+
     normalizeThreatSummary(threats) {
         const t = threats || {};
         const critical = t.critical ?? 0;
@@ -829,17 +849,31 @@ export class DashboardPage extends Component {
                                 <tbody>
                                     ${findings.length === 0 ? html`
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted">No findings available</td>
+                                            <td colspan="5" class="p-4">
+                                                <div class="empty">
+                                                    <div class="empty-icon">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                                            <path d="M9 12l2 2 4-4"/>
+                                                        </svg>
+                                                    </div>
+                                                    <p class="empty-title">No critical findings</p>
+                                                    <p class="empty-subtitle text-muted">
+                                                        Your security posture is looking good
+                                                    </p>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ` : findings.map(finding => html`
                                         <tr>
                                             <td>
-                                                <span class=${`badge bg-${this.getSeverityColor(finding.severity)}`}>
+                                                <span class=${`badge bg-${this.getSeverityColor(finding.severity)}-lt`}>
                                                     ${finding.severity}
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="badge bg-light">${finding.domain || 'Unknown'}</span>
+                                                <span class="badge bg-secondary-lt">${finding.domain || 'Unknown'}</span>
                                             </td>
                                             <td>${finding.title || finding.description || 'No title'}</td>
                                             <td>${finding.affectedDevices || 1} device${finding.affectedDevices !== 1 ? 's' : ''}</td>
@@ -860,7 +894,8 @@ export class DashboardPage extends Component {
         if (s === 'critical') return 'danger';
         if (s === 'high') return 'warning';
         if (s === 'medium') return 'info';
-        return 'light';
+        if (s === 'low') return 'success';
+        return 'secondary';
     }
 
     renderDomainBreakdown(snapshot) {
@@ -1653,21 +1688,33 @@ export class DashboardPage extends Component {
 
         const scoreCard = html`
             <div class="${colClass}">
-                <div class="card">
+                <div class="card card-hover">
+                    <div class="card-stamp card-stamp-lg">
+                        <div class="card-stamp-icon bg-${riskColor}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                <path d="M9 12l2 2 4-4"/>
+                            </svg>
+                        </div>
+                    </div>
                     <div class="card-body">
                         <div class="d-flex align-items-center">
                             <div class="subheader">Security Score</div>
                             <div class="ms-auto lh-1">
-                                <span class="badge bg-${riskColor}">${securityGrade}</span>
+                                <span class="badge ${this.getGradeBadge(riskScore)}">${securityGrade || this.getGrade(riskScore)}</span>
                             </div>
                         </div>
-                        <div class="h1 mb-3"><span class="text-${riskColor}">${riskScore}</span>/100</div>
-                        <div class="d-flex mb-2">
-                            <div>${riskLabel}</div>
+                        <div class="d-flex align-items-baseline">
+                            <div class="h1 mb-0 me-2"><span class="text-${riskColor}">${riskScore}</span></div>
+                            <div class="text-muted h3 mb-0">/100</div>
+                        </div>
+                        <div class="d-flex mb-2 mt-2">
+                            <div class="text-muted small">${riskLabel}</div>
                             <div class="ms-auto text-muted small">Last: ${lastScan}</div>
                         </div>
                         <div class="progress progress-sm">
-                            <div class="progress-bar bg-${riskColor}" style="width: ${riskScore}%" role="progressbar"></div>
+                            <div class="progress-bar bg-${riskColor}" style="width: ${riskScore}%" role="progressbar" aria-valuenow="${riskScore}" aria-valuemin="0" aria-valuemax="100"></div>
                         </div>
                     </div>
                 </div>
@@ -1675,16 +1722,33 @@ export class DashboardPage extends Component {
 
         const devicesCard = html`
             <div class="${colClass}">
-                <div class="card">
+                <div class="card card-hover">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
-                            <div class="subheader">Active Endpoints</div>
-                            <div class="ms-auto lh-1"><a href="#!/devices" class="text-muted">View All</a></div>
+                            <div class="subheader">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <rect x="3" y="4" width="18" height="12" rx="1"/>
+                                    <line x1="7" y1="20" x2="17" y2="20"/>
+                                    <line x1="9" y1="16" x2="9" y2="20"/>
+                                    <line x1="15" y1="16" x2="15" y2="20"/>
+                                </svg>
+                                Active Endpoints
+                            </div>
+                            <div class="ms-auto lh-1"><a href="#!/devices" class="btn btn-sm btn-ghost-primary">View All</a></div>
                         </div>
-                        <div class="h1 mb-3">${deviceStats.active} <span class="text-muted fs-4 fw-normal">/ ${deviceStats.total}</span></div>
-                        <div class="d-flex mb-2">
-                            <span class="text-${deviceStats.blocked > 0 ? 'danger' : 'success'}">${deviceStats.blocked} Blocked</span>
-                            <span class="ms-auto text-muted">${deviceStats.disabled} Disabled</span>
+                        <div class="d-flex align-items-baseline">
+                            <div class="h1 mb-0 me-2">${deviceStats.active}</div>
+                            <div class="text-muted h3 mb-0">/ ${deviceStats.total}</div>
+                        </div>
+                        <div class="d-flex mb-2 mt-2">
+                            <div>
+                                <span class="status-dot ${deviceStats.blocked > 0 ? 'status-red' : 'status-green'} me-1"></span>
+                                <span class="text-${deviceStats.blocked > 0 ? 'danger' : 'success'} small">${deviceStats.blocked} Blocked</span>
+                            </div>
+                            <div class="ms-auto">
+                                <span class="text-muted small">${deviceStats.disabled} Disabled</span>
+                            </div>
                         </div>
                         <div class="progress progress-sm">
                             <div class="progress-bar bg-primary" style="width: ${deviceStats.total ? (deviceStats.active / deviceStats.total * 100) : 0}%" role="progressbar"></div>
@@ -1695,16 +1759,35 @@ export class DashboardPage extends Component {
 
         const coverageCard = html`
             <div class="${colClass}">
-                <div class="card">
+                <div class="card card-hover">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
-                            <div class="subheader">Telemetry</div>
+                            <div class="subheader">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <circle cx="12" cy="12" r="2"/>
+                                    <path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7"/>
+                                </svg>
+                                Telemetry Coverage
+                            </div>
                         </div>
-                        <div class="h1 mb-3">${coverage.healthy}/${coverage.total || 0}</div>
-                        <div class="d-flex mb-2">
-                            <span class="text-success me-2">Healthy</span>
-                            <span class="text-warning">${coverage.stale} Stale</span>
-                            <span class="ms-auto text-danger">${coverage.offline} Offline</span>
+                        <div class="d-flex align-items-baseline">
+                            <div class="h1 mb-0 me-2">${coverage.healthy}</div>
+                            <div class="text-muted h3 mb-0">/ ${coverage.total || 0}</div>
+                        </div>
+                        <div class="d-flex mb-2 mt-2 gap-2">
+                            <div>
+                                <span class="status-dot status-dot-animated status-green me-1"></span>
+                                <span class="text-success small">${coverage.healthy} Healthy</span>
+                            </div>
+                            <div>
+                                <span class="status-dot status-yellow me-1"></span>
+                                <span class="text-warning small">${coverage.stale} Stale</span>
+                            </div>
+                            <div>
+                                <span class="status-dot status-red me-1"></span>
+                                <span class="text-danger small">${coverage.offline} Offline</span>
+                            </div>
                         </div>
                         <div class="progress progress-sm">
                             <div class="progress-bar bg-success" style="width: ${coverage.total ? (coverage.healthy / coverage.total * 100) : 0}%" role="progressbar"></div>
@@ -1715,18 +1798,33 @@ export class DashboardPage extends Component {
 
         const creditsCard = html`
             <div class="${colClass}">
-                <div class="card">
+                <div class="card card-hover">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
-                            <div class="subheader">Credits</div>
+                            <div class="subheader">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <circle cx="9" cy="12" r="1"/>
+                                    <circle cx="15" cy="12" r="1"/>
+                                    <path d="M9 7c0 2.667 1 4 3 4s3 -1.333 3 -4"/>
+                                    <path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9 -9 9 -9 -1.8 -9 -9 1.8 -9 9 -9z"/>
+                                </svg>
+                                License Credits
+                            </div>
+                            <div class="ms-auto lh-1">
+                                <span class="badge ${licenseInfo?.status === 'Active' ? 'bg-success' : 'bg-warning'}">${licenseInfo?.status || 'Unknown'}</span>
+                            </div>
                         </div>
-                        <div class="h1 mb-3">${licenseInfo?.remainingCredits ?? 0}</div>
-                        <div class="d-flex mb-2">
-                            <span class="text-muted">Seats used ${licenseInfo?.usedSeats ?? 0}/${licenseInfo?.seats ?? 0}</span>
-                            <span class="ms-auto badge ${licenseInfo?.status === 'Active' ? 'bg-success-lt text-success' : 'bg-warning-lt text-warning'}">${licenseInfo?.status || 'Unknown'}</span>
+                        <div class="d-flex align-items-baseline">
+                            <div class="h1 mb-0 me-2">${licenseInfo?.remainingCredits ?? 0}</div>
+                            <div class="text-muted small">days remaining</div>
+                        </div>
+                        <div class="d-flex mb-2 mt-2">
+                            <span class="text-muted small">Seats: ${licenseInfo?.usedSeats ?? 0}/${licenseInfo?.seats ?? 0}</span>
+                            <span class="ms-auto text-muted small">${Math.round(licenseInfo?.creditUtilization ?? 0)}% used</span>
                         </div>
                         <div class="progress progress-sm">
-                            <div class="progress-bar bg-azure" style="width: ${licenseInfo?.creditUtilization ?? 0}%" role="progressbar"></div>
+                            <div class="progress-bar ${(licenseInfo?.creditUtilization ?? 0) > 80 ? 'bg-danger' : (licenseInfo?.creditUtilization ?? 0) > 50 ? 'bg-warning' : 'bg-success'}" style="width: ${licenseInfo?.creditUtilization ?? 0}%" role="progressbar"></div>
                         </div>
                     </div>
                 </div>

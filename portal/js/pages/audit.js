@@ -1587,10 +1587,12 @@ export function AuditPage() {
                 </div>
             </div>
 
-            <!-- Timeline -->
+            <!-- Vertical Timeline -->
             ${paginatedEvents.length === 0 ? html`
                 <div class="empty">
-                    <div class="empty-icon"><i class="ti ti-history"></i></div>
+                    <div class="empty-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 8l0 4l2 2" /><circle cx="12" cy="12" r="9" /></svg>
+                    </div>
                     <p class="empty-title">No audit events found</p>
                     <p class="empty-subtitle text-muted">
                         ${filters.eventType !== 'all' || filters.search || filters.dateFrom || filters.dateTo

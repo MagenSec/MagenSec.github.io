@@ -185,19 +185,32 @@ class LicensesPage extends Component {
         }
 
         return html`
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h3 class="card-title">Licenses</h3>
-                    <div class="btn-list">
-                        <button class="btn btn-secondary" onClick=${() => this.loadLicenses()} title="Refresh Licenses">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
-                            Refresh
-                        </button>
-                        ${isSiteAdmin && html`
-                            <button class="btn btn-primary" onClick=${() => this.setState({ showCreateModal: true })}>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                Create License
-                            </button>
+            <div class="page-header d-print-none">
+                <div class="container-xl">
+                    <div class="row g-2 align-items-center">
+                        <div class="col">
+                            <h2 class="page-title">Licenses</h2>
+                            <div class="page-subtitle">
+                                <div class="d-flex gap-2">
+                                    <span class="badge bg-blue-lt text-blue">${licenses.length} license${licenses.length !== 1 ? 's' : ''}</span>
+                                    <span class="badge bg-success-lt text-success">${licenses.filter(l => !l.isDisabled).length} active</span>
+                                    ${licenses.filter(l => l.isDisabled).length > 0 ? html`
+                                        <span class="badge bg-secondary-lt text-secondary">${licenses.filter(l => l.isDisabled).length} disabled</span>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-auto ms-auto d-print-none">
+                            <div class="btn-list">
+                                <button class="btn" onClick=${() => this.loadLicenses()} title="Refresh Licenses">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                                    Refresh
+                                </button>
+                                ${isSiteAdmin && html`
+                                    <button class="btn btn-primary" onClick=${() => this.setState({ showCreateModal: true })}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                        Create License
+                                    </button>
                         `}
                     </div>
                 </div>
@@ -231,7 +244,7 @@ class LicensesPage extends Component {
                                                 <code>${license.serialKey || license.licenseKey}</code>
                                                 ${license.rotatedAt && html`<br/><small class="text-muted">Rotated: ${new Date(license.rotatedAt).toLocaleDateString()}</small>`}
                                             </td>
-                                            <td><span class="badge ${license.licenseType === 'Business' ? 'bg-blue' : 'bg-green'}">${license.licenseType}</span></td>
+                                            <td><span class="badge ${license.licenseType === 'Business' ? 'bg-blue' : 'bg-green'} text-white">${license.licenseType}</span></td>
                                             <td>${license.seats || 'N/A'}</td>
                                             <td>
                                                 <span class="text-muted">${license.remainingCredits || 0} / ${license.totalCredits || 0}</span>
@@ -241,8 +254,8 @@ class LicensesPage extends Component {
                                             </td>
                                             <td>
                                                 ${license.isDisabled ? 
-                                                    html`<span class="badge bg-red">Disabled</span>` : 
-                                                    html`<span class="badge bg-green">Active</span>`
+                                                    html`<span class="badge bg-red text-white">Disabled</span>` : 
+                                                    html`<span class="badge bg-green text-white">Active</span>`
                                                 }
                                             </td>
                                             <td><small class="text-muted">${new Date(license.createdAt).toLocaleDateString()}</small></td>

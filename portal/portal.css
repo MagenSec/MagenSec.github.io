@@ -1,0 +1,560 @@
+/**
+ * MagenSec Portal Styles - Tabler.io Design System
+ * Phase 1: Visual Polish
+ * Based on: Tabler v1.4.0 (https://tabler.io)
+ * Last Updated: January 18, 2026
+ */
+
+/* ========================================
+   Tabler Color Variables
+   ======================================== */
+
+:root {
+  /* Severity colors (Tabler palette) */
+  --tblr-red: #d63939;
+  --tblr-orange: #f76707;
+  --tblr-yellow: #f59f00;
+  --tblr-green: #2fb344;
+  --tblr-blue: #0054a6;
+  --tblr-purple: #ae3ec9;
+  
+  /* Status colors */
+  --tblr-primary: #0054a6;
+  --tblr-secondary: #626976;
+  --tblr-success: #2fb344;
+  --tblr-info: #4299e1;
+  --tblr-warning: #f76707;
+  --tblr-danger: #d63939;
+  --tblr-muted: #667;
+  
+  /* Light variants (for badges) */
+  --tblr-danger-lt: #ffe5e5;
+  --tblr-warning-lt: #fff3e0;
+  --tblr-info-lt: #e3f2fd;
+  --tblr-success-lt: #e8f5e9;
+  
+  /* Spacing scale */
+  --tblr-gutter: 1rem;
+  --tblr-gutter-sm: 0.5rem;
+  --tblr-gutter-lg: 1.5rem;
+}
+
+/* ========================================
+   Status Dots
+   ======================================== */
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.status-green {
+  background: var(--tblr-green);
+}
+
+.status-yellow {
+  background: var(--tblr-yellow);
+}
+
+.status-red {
+  background: var(--tblr-red);
+}
+
+.status-dot-animated {
+  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ========================================
+   Badge Enhancements
+   ======================================== */
+
+.badge-sm {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.badge.bg-danger-lt {
+  background: var(--tblr-danger-lt) !important;
+  color: var(--tblr-danger) !important;
+}
+
+.badge.bg-warning-lt {
+  background: var(--tblr-warning-lt) !important;
+  color: var(--tblr-warning) !important;
+}
+
+.badge.bg-info-lt {
+  background: var(--tblr-info-lt) !important;
+  color: var(--tblr-info) !important;
+}
+
+.badge.bg-success-lt {
+  background: var(--tblr-success-lt) !important;
+  color: var(--tblr-success) !important;
+}
+
+/* ========================================
+   Card Enhancements
+   ======================================== */
+
+.card-stamp {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 7rem;
+  height: 7rem;
+  border-radius: 0 var(--bs-border-radius) 0 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.card-stamp-icon {
+  position: absolute;
+  top: -1rem;
+  right: -1rem;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.1;
+}
+
+.card-actions {
+  margin-left: auto;
+}
+
+.card-header.bg-light {
+  background: #f8f9fa !important;
+  border-bottom: 1px solid #dee2e6;
+}
+
+/* ========================================
+   Table Enhancements
+   ======================================== */
+
+.table-vcenter td,
+.table-vcenter th {
+  vertical-align: middle;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* ========================================
+   Avatar Component
+   ======================================== */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--tblr-primary);
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.avatar-sm {
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.75rem;
+}
+
+.avatar-xs {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.625rem;
+}
+
+.avatar.bg-blue-lt {
+  background: var(--tblr-info-lt) !important;
+  color: var(--tblr-blue) !important;
+}
+
+/* ========================================
+   Empty State
+   ======================================== */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.empty-icon {
+  margin-bottom: 1rem;
+  color: var(--tblr-muted);
+  opacity: 0.5;
+}
+
+.empty-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.empty-subtitle {
+  color: var(--tblr-muted);
+  margin-bottom: 1.5rem;
+}
+
+/* ========================================
+   Progress Bar Enhancements
+   ======================================== */
+
+.progress-sm {
+  height: 0.375rem;
+}
+
+/* ========================================
+   Typography Utilities
+   ======================================== */
+
+.subheader {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tblr-muted);
+  font-weight: 600;
+}
+
+.font-weight-medium {
+  font-weight: 500;
+}
+
+/* ========================================
+   Spacing Utilities
+   ======================================== */
+
+.gap-3 {
+  gap: 1rem !important;
+}
+
+/* ========================================
+   Trend Indicators
+   ======================================== */
+
+.trend-up {
+  color: var(--tblr-success);
+}
+
+.trend-down {
+  color: var(--tblr-danger);
+}
+
+.trend-neutral {
+  color: var(--tblr-secondary);
+}
+
+.trend-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 0.25rem;
+}
+
+/* ========================================
+   KPI Card Enhancements
+   ======================================== */
+
+.kpi-card .card-body {
+  padding: 1.5rem;
+}
+
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  gap: 0.25rem;
+}
+
+.kpi-label {
+  font-size: 0.875rem;
+  color: var(--tblr-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+/* ========================================
+   Chart Sparkline Container
+   ======================================== */
+
+.chart-sparkline {
+  height: 40px;
+  margin-top: 0.5rem;
+}
+
+/* ========================================
+   Email Report Styles (inline fallbacks)
+   ======================================== */
+
+/* These are reference styles - actual email HTML uses inline styles */
+.email-gradient-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 30px;
+  text-align: center;
+  color: white;
+}
+
+.email-score-card {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin: 20px;
+}
+
+.email-device-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.email-device-table thead tr {
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.email-device-table tbody tr {
+  border-bottom: 1px solid #dee2e6;
+}
+
+/* ========================================
+   Report Header Gradient
+   ======================================== */
+
+.report-header-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: 1.5rem;
+}
+
+.report-header-gradient h1,
+.report-header-gradient h2,
+.report-header-gradient h3 {
+  color: white;
+  margin-bottom: 0.5rem;
+}
+
+.report-header-gradient .text-muted {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* ========================================
+   Device Row Enhancements
+   ======================================== */
+
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.device-row .avatar {
+  flex-shrink: 0;
+}
+
+.device-row .device-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.device-row .device-name {
+  font-weight: 500;
+  color: var(--tblr-primary);
+  text-decoration: none;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.device-row .device-name:hover {
+  text-decoration: underline;
+}
+
+.device-row .device-meta {
+  font-size: 0.875rem;
+  color: var(--tblr-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ========================================
+   Responsive Adjustments
+   ======================================== */
+
+@media (max-width: 768px) {
+  .kpi-value {
+    font-size: 1.5rem;
+  }
+  
+  .avatar {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.75rem;
+  }
+  
+  .device-row {
+    gap: 0.5rem;
+  }
+}
+
+/* ========================================
+   Timeline Component
+   ======================================== */
+
+.timeline {
+  position: relative;
+  padding-left: 2rem;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 0.875rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--tblr-border-color, #dee2e6);
+}
+
+.timeline-item {
+  position: relative;
+  padding-bottom: 1.5rem;
+}
+
+.timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.timeline-badge {
+  position: absolute;
+  left: -1.5rem;
+  top: 0.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+.timeline-content {
+  margin-left: 1rem;
+}
+
+/* ========================================
+   Toggle Switch Component
+   ======================================== */
+
+.form-switch {
+  padding-left: 2.5rem;
+}
+
+.form-switch .form-check-input {
+  width: 2.25rem;
+  margin-left: -2.5rem;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='rgba(0,0,0,0.25)'/%3e%3c/svg%3e");
+  background-position: left center;
+  border-radius: 2rem;
+  cursor: pointer;
+}
+
+.form-switch .form-check-input:checked {
+  background-position: right center;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+}
+
+/* ========================================
+   Input Group Enhancements
+   ======================================== */
+
+.input-group-flat {
+  border-radius: var(--bs-border-radius, 4px);
+}
+
+.input-group-flat .input-group-text {
+  background: transparent;
+  border-right: 0;
+}
+
+.input-group-flat .form-control {
+  border-left: 0;
+}
+
+.input-group-flat .form-control:focus {
+  box-shadow: none;
+}
+
+.input-icon {
+  position: relative;
+}
+
+.input-icon .form-control {
+  padding-left: 2.5rem;
+}
+
+.input-icon-addon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  color: var(--tblr-muted, #667);
+  pointer-events: none;
+}
+
+/* ========================================
+   Dark Mode Support (Future)
+   ======================================== */
+
+[data-theme="dark"] {
+  --tblr-primary: #4299e1;
+  --tblr-secondary: #cbd5e0;
+  --tblr-success: #48bb78;
+  --tblr-danger: #f56565;
+  --tblr-warning: #ed8936;
+  --tblr-muted: #a0aec0;
+}

@@ -133,6 +133,16 @@ export class AnalystPage extends Component {
         localStorage.removeItem('magensec_analyst_history');
     }
 
+    getUserInitials() {
+        const user = auth.getUser();
+        if (!user || !user.email) return 'U';
+        const parts = user.email.split('@')[0].split('.');
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+        return user.email.substring(0, 2).toUpperCase();
+    }
+
     async handleSubmit(event) {
         event.preventDefault();
         const { prompt, forceRecompute, selectedOrgId } = this.state;
@@ -341,20 +351,47 @@ export class AnalystPage extends Component {
         const devices = Array.isArray(report.DevicesAtRisk) ? report.DevicesAtRisk.slice(0, CONSTANTS.MAX_DEVICES_AT_RISK) : [];
         const analysisText = report.Analysis || report.AnalysisText || report.DetailedAnalysis || '';
         const mitigated = summary.MitigatedThreats || summary.ResolvedThreats;
+        const userInitials = this.getUserInitials();
 
-        return html`<div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h3 class="card-title">${label || 'Analysis Results'}</h3>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-sm ${feedback.rating === 'ThumbsUp' ? 'btn-success' : 'btn-outline-success'}" 
-                        onClick=${() => this.submitFeedback('ThumbsUp')} title="Helpful">👍</button>
-                    <button type="button" class="btn btn-sm ${feedback.rating === 'ThumbsDown' ? 'btn-danger' : 'btn-outline-danger'}" 
-                        onClick=${() => this.submitFeedback('ThumbsDown')} title="Not helpful">👎</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" 
-                        onClick=${() => this.submitFeedback('comment')} title="Add comment">💬</button>
+        return html`
+            <!-- User Prompt Bubble -->
+            <div class="d-flex justify-content-end mb-3">
+                <div class="d-flex align-items-start" style="max-width: 80%;">
+                    <div class="card bg-primary-lt" style="border-radius: 1rem 1rem 0 1rem;">
+                        <div class="card-body py-2 px-3">
+                            <div class="text-muted small mb-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-xs me-1" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="7" r="4" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
+                                You
+                            </div>
+                            <div>${this.state.prompt}</div>
+                        </div>
+                    </div>
+                    <span class="avatar avatar-sm ms-2 bg-blue">${userInitials}</span>
                 </div>
             </div>
-            <div class="card-body">
+            
+            <!-- AI Response Bubble -->
+            <div class="d-flex mb-4">
+                <span class="avatar avatar-sm me-2 bg-azure">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M18 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M6 18m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M18 18m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M8 6h8" /><path d="M8 18h8" /><path d="M6 8v8" /><path d="M18 8v8" /></svg>
+                </span>
+                <div style="max-width: 80%;">
+                    <div class="card" style="border-radius: 1rem 1rem 1rem 0;">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon text-azure me-2" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M12 3l0 3" /><path d="M12 18l0 3" /><path d="M3 12l3 0" /><path d="M18 12l3 0" /></svg>
+                                <span class="text-muted small">AI Analyst</span>
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn ${feedback.rating === 'ThumbsUp' ? 'btn-success' : 'btn-ghost-secondary'}" 
+                                    onClick=${() => this.submitFeedback('ThumbsUp')} title="Helpful">👍</button>
+                                <button type="button" class="btn ${feedback.rating === 'ThumbsDown' ? 'btn-danger' : 'btn-ghost-secondary'}" 
+                                    onClick=${() => this.submitFeedback('ThumbsDown')} title="Not helpful">👎</button>
+                                <button type="button" class="btn btn-ghost-secondary" 
+                                    onClick=${() => this.submitFeedback('comment')} title="Add comment">💬</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
                 ${report.ExecutiveSummary && html`<div class="mb-4">
                     <h4>Executive Summary</h4>
                     <div class="markdown" dangerouslySetInnerHTML=${{ __html: this.renderMarkdown(report.ExecutiveSummary) }}></div>

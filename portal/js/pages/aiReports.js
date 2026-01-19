@@ -229,17 +229,42 @@ export default class AIReportsPage extends Component {
             ),
 
             error && html`
-                <div class="alert alert-danger alert-dismissible">
-                    <h4 class="alert-title">Error</h4>
-                    <div class="text-secondary">${error}</div>
-                    <button type="button" class="btn-close" onClick=${() => this.setState({ error: null })}></button>
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <div class="d-flex">
+                        <div>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <circle cx="12" cy="12" r="9"/>
+                                <line x1="12" y1="8" x2="12" y2="12"/>
+                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 class="alert-title">Error</h4>
+                            <div class="text-secondary">${error}</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" onClick=${() => this.setState({ error: null })}></button>
                 </div>
             `,
 
             // Generation Panel
-            h('div', { class: 'card mb-4' },
+            h('div', { class: 'card mb-4 card-hover' },
+                h('div', { class: 'card-stamp card-stamp-lg' },
+                    h('div', { class: 'card-stamp-icon bg-primary' },
+                        html`
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M8 9h8"/>
+                                <path d="M8 13h6"/>
+                                <path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z"/>
+                            </svg>
+                        `
+                    )
+                ),
                 h('div', { class: 'card-header' },
-                    h('h3', null, 'Generate New Report')
+                    h('h3', { class: 'card-title' }, 'Generate New Report'),
+                    h('div', { class: 'card-subtitle' }, 'AI-powered security analysis and recommendations')
                 ),
                 h('div', { class: 'card-body' },
                     h('div', { class: 'form-group' },
