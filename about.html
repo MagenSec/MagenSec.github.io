@@ -27,11 +27,8 @@
     <link rel="canonical" href="https://magensec.gigabits.co.in/about.html"/>
     
     <!-- Tabler CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet"/>
     <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css" rel="stylesheet"/>
-    
-    <!-- Plyr.io Video Player CSS -->
-    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     
     <!-- MagenSec Custom Styles -->
     <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
@@ -458,46 +455,14 @@
                                             <p class="text-white-75 mb-0 small">: See how quickly vulnerabilities turn into active threats</p>
                                         </div>
                                         <div class="card-body p-0">
-                                            <!-- MagenSec Attack Timeline Video -->
-                                            <div class="video-wrapper" id="about-video-wrapper">
-                                                <!-- Collapsed State (Click to Expand) -->
-                                                <div class="video-collapsed d-none" id="about-video-collapsed">
-                                                    <div class="video-preview" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; color: white; cursor: pointer;" onclick="expandVideo('about')">
-                                                        <div class="text-center">
-                                                            <div class="play-button-large mb-3">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="64" height="64" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                    <path d="M7 4v16l13 -8z"/>
-                                                                </svg>
-                                                            </div>
-                                                            <h4 class="mb-2">Watch: The Cyber Attack Timeline</h4>
-                                                            <p class="mb-0">See how quickly vulnerabilities turn into active threats</p>
-                                                            <div class="mt-3">
-                                                                <span class="badge bg-white text-primary me-2">60 Seconds</span>
-                                                                <span class="badge bg-white text-primary me-2">Visual Timeline</span>
-                                                                <span class="badge bg-white text-primary">Real Statistics</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                
-                                                <!-- Expanded State (Video Playing - Default) -->
-                                                <div class="video-expanded" id="about-video-expanded">
-                                                    <div class="video-controls-header">
-                                                        <div class="d-flex justify-content-between align-items-center p-2 bg-dark text-white">
-                                                            <span class="small">Cyber Attack Timeline - Why Every Minute Counts</span>
-                                                            <button class="btn btn-sm btn-outline-light" onclick="collapseVideo('about')" title="Collapse Video">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                                                    <path d="M18 6l-12 12"/><path d="M6 6l12 12"/>
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div class="plyr__video-embed" id="about-video-player">
-                                                        <iframe src="" data-video-id="8z1vNSBEelQ" allowfullscreen allowtransparency title="Cyber Attack Timeline - Why Every Minute Counts" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" loading="lazy"></iframe>
-                                                    </div>
-                                                </div>
+                                            <!-- Native YouTube Embed (Reliable, No JavaScript Required) -->
+                                            <div class="ratio ratio-16x9">
+                                                <iframe src="https://www.youtube.com/embed/8z1vNSBEelQ?rel=0&modestbranding=1&showinfo=0" 
+                                                        title="Cyber Attack Timeline - Why Every Minute Counts" 
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                                        allowfullscreen 
+                                                        loading="lazy" 
+                                                        style="border: 0;"></iframe>
                                             </div>
                                         </div>
                                         <div class="card-footer bg-light">
@@ -616,9 +581,6 @@
 
     <!-- Tabler Core -->
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
-    
-    <!-- Plyr.io Video Player JS -->
-    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     
     <!-- Initialize Plyr Video Players -->
     <script>
