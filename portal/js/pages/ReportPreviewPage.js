@@ -212,11 +212,19 @@ class ReportPreviewPage extends Component {
         return html`
             <div className=${containerClass}>
                 ${!embedded && html`
-                    <div className="page-header">
-                        <h1>Security Report Preview</h1>
-                        <p className="page-subtitle">
-                            Visualize email reports that ${orgData?.name || 'your organization'} will receive
-                        </p>
+                    <div class="page-header d-print-none mb-3">
+                        <div class="container-xl">
+                            <h2 class="page-title">
+                                <svg class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
+                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                                </svg>
+                                Report Preview
+                            </h2>
+                            <div class="page-subtitle">
+                                <span class="text-muted">Preview ${selectedTier || 'security'} tier email reports for ${orgData?.name || 'your organization'}</span>
+                            </div>
+                        </div>
                     </div>
                 `}
 

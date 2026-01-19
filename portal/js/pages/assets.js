@@ -61,11 +61,11 @@ export class AssetsPage extends Component {
 
     getRiskBadgeClass(risk) {
         switch (risk?.toLowerCase()) {
-            case 'critical': return 'bg-danger';
-            case 'high': return 'bg-warning';
-            case 'medium': return 'bg-warning'; // Orange usually, but using warning for now
-            case 'low': return 'bg-success';
-            default: return 'bg-secondary';
+            case 'critical': return 'bg-danger text-white';
+            case 'high': return 'bg-warning text-white';
+            case 'medium': return 'bg-info text-white';
+            case 'low': return 'bg-success text-white';
+            default: return 'bg-secondary text-white';
         }
     }
 
@@ -131,10 +131,16 @@ export class AssetsPage extends Component {
 
         if (loading) {
             return html`
-                <div class="page-header d-print-none">
+                <div class="page-header d-print-none mb-3">
                     <div class="row align-items-center">
                         <div class="col">
-                            <h2 class="page-title">Application Inventory</h2>
+                            <h2 class="page-title">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>
+                                Application Inventory
+                            </h2>
+                            <div class="page-subtitle">
+                                <span class="text-muted">Track installed software, versions, and vulnerabilities across devices</span>
+                            </div>
                         </div>
                     </div>
                 </div>

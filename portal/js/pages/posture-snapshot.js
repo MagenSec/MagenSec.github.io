@@ -370,13 +370,23 @@ export class PosturePage extends Component {
         const generatedAt = this.state.snapshot.timestamp ? new Date(this.state.snapshot.timestamp).toLocaleString() : 'Unknown';
 
         return html`
-            <div class="container py-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h2 class="mb-0">Security Posture</h2>
-                        <div class="text-muted">Generated: ${generatedAt}</div>
+            <div class="page-header d-print-none mb-3">
+                <div class="container">
+                    <div class="row g-2 align-items-center">
+                        <div class="col">
+                            <h2 class="page-title">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+                                Security Posture
+                            </h2>
+                            <div class="page-subtitle">
+                                <span class="text-muted">Generated: ${generatedAt}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="container py-4">
 
                 ${this.renderHero()}
 

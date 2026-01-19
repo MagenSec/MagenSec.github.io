@@ -192,12 +192,17 @@ export class SecurityDashboardPage extends Component {
         const displayDate = selectedDate ? `${selectedDate.substring(0, 4)}-${selectedDate.substring(4, 6)}-${selectedDate.substring(6, 8)}` : '';
 
         return html`
-            <div class="page-header d-print-none">
+            <div class="page-header d-print-none mb-3">
+                <div class="container-xl">
                     <div class="row align-items-center">
                         <div class="col">
-                            <h2 class="page-title">Security Posture Report</h2>
-                            <div class="text-secondary mt-1">
-                                ${currentOrg ? currentOrg.name || currentOrg.orgId : 'No organization selected'}
+                            <h2 class="page-title">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="19" x2="20" y2="19" /><polyline points="4 15 8 9 12 11 16 6 20 10" /></svg>
+                                Security Posture Report
+                            </h2>
+                            <div class="page-subtitle">
+                                <span class="text-muted">${currentOrg ? currentOrg.name || currentOrg.orgId : 'No organization selected'}</span>
+                            </div>
                             </div>
                         </div>
                         <div class="col-auto ms-auto d-print-none">

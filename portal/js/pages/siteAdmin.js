@@ -470,11 +470,16 @@ export function SiteAdminPage() {
 
     return html`
         <div class="container-xl">
-            <div class="page-header d-print-none">
+            <div class="page-header d-print-none mb-3">
                 <div class="row align-items-center">
                     <div class="col">
-                        <h2 class="page-title">Site Administration</h2>
-                        <div class="text-muted mt-1">Manage organizations, accounts, and system activity</div>
+                        <h2 class="page-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+                            Site Administration
+                        </h2>
+                        <div class="page-subtitle">
+                            <span class="text-muted">Manage organizations, accounts, and system activity</span>
+                        </div>
                     </div>
                 </div>
             </div>

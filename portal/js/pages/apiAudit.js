@@ -592,15 +592,17 @@ export function ApiAuditPage() {
     }
 
     return html`
-        <div class="container-xl">
-            <div class="page-header d-print-none">
+        <div class="page-header d-print-none mb-3">
+            <div class="container-xl">
                 <div class="row g-2 align-items-center">
                     <div class="col">
                         <h2 class="page-title">
-                            <i class="ti ti-api me-2"></i>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
                             API Audit
                         </h2>
-                        <div class="text-muted mt-1">View all API calls with request/response details</div>
+                        <div class="page-subtitle">
+                            <span class="text-muted">View all API calls with request/response details</span>
+                        </div>
                     </div>
                     <div class="col-auto ms-auto">
                         <div class="d-flex gap-2">
@@ -627,7 +629,9 @@ export function ApiAuditPage() {
                     </div>
                 </div>
             </div>
+        </div>
 
+        <div class="container-xl">
             <!-- Charts (Side by Side) -->
             <div class="card mb-3">
                 <div class="row g-0">

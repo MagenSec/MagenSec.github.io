@@ -202,7 +202,23 @@ export function CronActivityPage({ cronStatus }) {
     });
 
     return html`
-        <div>
+        <div class="page-header d-print-none mb-3">
+            <div class="container-xl">
+                <div class="row g-2 align-items-center">
+                    <div class="col">
+                        <h2 class="page-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 15" /></svg>
+                            Cron Activity
+                        </h2>
+                        <div class="page-subtitle">
+                            <span class="text-muted">View cron job executions and report email activity</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-xl">
             <div class="mb-3">
                 <h4>Activity Details & Filters</h4>
                 <p class="text-muted small">

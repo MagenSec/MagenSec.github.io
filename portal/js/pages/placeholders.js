@@ -101,7 +101,7 @@ export class SoftwareInventoryPage extends Component {
                         <td>${app.version}</td>
                         <td>${app.vendor}</td>
                         <td>${app.deviceCount}</td>
-                        <td><span class="badge bg-${app.riskScore === 'High' ? 'danger' : app.riskScore === 'Medium' ? 'warning' : 'success'}">${app.riskScore || 'Low'}</span></td>
+                        <td><span class="badge bg-${app.riskScore === 'High' ? 'danger' : app.riskScore === 'Medium' ? 'warning' : 'success'} text-white">${app.riskScore || 'Low'}</span></td>
                       </tr>
                     `)}
                   </tbody>
@@ -142,10 +142,18 @@ export class HardwareInventoryPage extends Component {
     const { loading, hardware, error } = this.state;
 
     return html`
-      <div class="page-header d-print-none">
+      <div class="page-header d-print-none mb-3">
         <div class="container-xl">
           <div class="row g-2 align-items-center">
-            <div class="col"><h2 class="page-title">Hardware Inventory</h2></div>
+            <div class="col">
+              <h2 class="page-title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="5" y="5" width="14" height="14" rx="1" /><rect x="9" y="9" width="6" height="6" rx="1" /><line x1="3" y1="10" x2="5" y2="10" /><line x1="3" y1="14" x2="5" y2="14" /><line x1="10" y1="3" x2="10" y2="5" /><line x1="14" y1="3" x2="14" y2="5" /><line x1="19" y1="10" x2="21" y2="10" /><line x1="19" y1="14" x2="21" y2="14" /><line x1="10" y1="19" x2="10" y2="21" /><line x1="14" y1="19" x2="14" y2="21" /></svg>
+                Hardware Inventory
+              </h2>
+              <div class="page-subtitle">
+                <span class="text-muted">View device hardware specifications and configurations</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -232,11 +240,17 @@ export class ComplianceReportPage extends Component {
     const { loading, report, error, framework } = this.state;
 
     return html`
-      <div class="page-header d-print-none">
+      <div class="page-header d-print-none mb-3">
         <div class="container-xl">
           <div class="row g-2 align-items-center">
             <div class="col">
-              <h2 class="page-title">Compliance Reports</h2>
+              <h2 class="page-title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 12l2 2l4 -4" /><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+                Compliance Reports
+              </h2>
+              <div class="page-subtitle">
+                <span class="text-muted">Assess compliance against security frameworks</span>
+              </div>
             </div>
             <div class="col-auto">
               <select class="form-select" value=${framework} onChange=${e => this.onFrameworkChange(e)}>
@@ -460,10 +474,18 @@ export class PlatformInsightsPage extends Component {
     const { loading, insights, error } = this.state;
 
     return html`
-      <div class="page-header d-print-none">
+      <div class="page-header d-print-none mb-3">
         <div class="container-xl">
           <div class="row g-2 align-items-center">
-            <div class="col"><h2 class="page-title">Platform Insights</h2></div>
+            <div class="col">
+              <h2 class="page-title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="12" width="6" height="8" rx="1" /><rect x="9" y="8" width="6" height="12" rx="1" /><rect x="15" y="4" width="6" height="16" rx="1" /><line x1="4" y1="20" x2="18" y2="20" /></svg>
+                Platform Insights
+              </h2>
+              <div class="page-subtitle">
+                <span class="text-muted">System-wide analytics and performance metrics</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -392,7 +392,23 @@ export function DeviceActivityPage() {
     const uniqueDeviceIds = [...new Set(events.map(e => extractDeviceId(e.targetId)).filter(id => id !== 'N/A'))].sort();
 
     return html`
-        <div>
+        <div class="page-header d-print-none mb-3">
+            <div class="container-xl">
+                <div class="row g-2 align-items-center">
+                    <div class="col">
+                        <h2 class="page-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
+                            Device Activity
+                        </h2>
+                        <div class="page-subtitle">
+                            <span class="text-muted">Monitor device heartbeats and connection status</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-xl">
             <!-- Filters -->
             <div class="card mb-3">
                 <div class="card-body">
