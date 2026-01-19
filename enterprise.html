@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>Managed Cyber Defense for Enterprise | MagenSec by Gigabits</title>
+    <meta name="description" content="24/7 AI-powered SOC, compliance audit preparation, and managed security services for growing businesses and enterprises."/>
+    
+    <!-- Tabler CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous"/>
+    
+    <!-- MagenSec Custom Styles -->
+    <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
+    
+    <!-- Custom Styles -->
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            color: white;
+            padding: 5rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 70% 30%, rgba(102, 126, 234, 0.15) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .benefit-icon {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            margin-bottom: 1.5rem;
+        }
+
+        .process-step {
+            position: relative;
+            padding-left: 3rem;
+            margin-bottom: 2rem;
+        }
+
+        .process-step::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e2e8f0;
+        }
+
+        .process-step::after {
+            content: attr(data-step);
+            position: absolute;
+            left: -14px;
+            top: 0;
+            width: 30px;
+            height: 30px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+        }
+
+        .pricing-card.enterprise {
+            border: 2px solid #667eea;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.15);
+        }
+    </style>
+    
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="page">
+        <!-- Shared Navbar -->
+        <div id="navbar-placeholder"></div>
+        <script src="assets/js/navbar.js"></script>
+        <script>
+            loadNavbar({
+                active: 'business',
+                mode: 'enterprise',
+                relativePath: ''
+            });
+        </script>
+
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <div class="container-xl">
+                <div class="row align-items-center">
+                    <div class="col-lg-6">
+                        <span class="badge bg-white text-dark mb-3">Enterprise & Managed Services</span>
+                        <h1 class="display-4 fw-bold mb-4">Your Virtual S.O.C. Team <br><span class="text-primary-light" style="color: #667eea;">Without the Headcount</span></h1>
+                        <p class="lead mb-5 text-white-75">We handle the monitoring, threat hunting, and compliance audits so you can focus on growing your business. Enterprise-grade security for a fraction of the cost.</p>
+                        <div class="d-flex gap-3">
+                            <a href="#audit-prep" class="btn btn-light btn-lg">View Audit Services</a>
+                            <a href="#contact-sales" class="btn btn-outline-light btn-lg">Schedule Consultation</a>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 d-none d-lg-block">
+                        <div style="background: rgba(255,255,255,0.05); border-radius: 20px; padding: 2rem; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);">
+                            <div class="d-flex align-items-center mb-4">
+                                <div class="avatar bg-success text-white me-3">✓</div>
+                                <div>
+                                    <h4 class="mb-0">Audit Preparation Complete</h4>
+                                    <small class="text-white-50">Generated 2 mins ago</small>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center mb-4">
+                                <div class="avatar bg-danger text-white me-3">!</div>
+                                <div>
+                                    <h4 class="mb-0">Threat Neutralized</h4>
+                                    <small class="text-white-50">Ransomware pattern blocked on Workstation-42</small>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar bg-primary text-white me-3">ℹ</div>
+                                <div>
+                                    <h4 class="mb-0">Monthly Report Ready</h4>
+                                    <small class="text-white-50">Executive summary for board meeting</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Services Section -->
+        <div class="section-padding py-5" id="audit-prep">
+            <div class="container-xl">
+                <div class="row text-center mb-5">
+                    <div class="col-lg-8 mx-auto">
+                        <h2 class="display-6 fw-bold">Comprehensive Managed Defense</h2>
+                        <p class="text-muted">Fill the gap between basic antivirus and a full in-house security team.</p>
+                    </div>
+                </div>
+                
+                <div class="row g-4">
+                    <!-- Service 1 -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body p-4">
+                                <div class="benefit-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/><path d="M9 15l2 2l4 -4"/></svg>
+                                </div>
+                                <h3>Compliance & Audit Prep</h3>
+                                <p class="text-muted">We generate the evidence, reports, and documentation you need for ISO, SOC2, HIPAA, and cyber insurance audits. No last-minute scrambling.</p>
+                                <ul class="list-unstyled mt-3">
+                                    <li class="mb-2">✅ Monthly Compliance Reports</li>
+                                    <li class="mb-2">✅ Evidence Collection</li>
+                                    <li class="mb-2">✅ Policy Gap Analysis</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Service 2 -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body p-4">
+                                <div class="benefit-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M12 12l0 2.5"/></svg>
+                                </div>
+                                <h3>Managed Detection (MDR)</h3>
+                                <p class="text-muted">Our AI and human analysts monitor your MagenSec telemetry 24/7. We identify sophisticated threats that bypass standard antivirus.</p>
+                                <ul class="list-unstyled mt-3">
+                                    <li class="mb-2">✅ 24/7 Threat Monitoring</li>
+                                    <li class="mb-2">✅ Human Threat Hunting</li>
+                                    <li class="mb-2">✅ False Positive Triage</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Service 3 -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body p-4">
+                                <div class="benefit-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 21l18 0"/><path d="M5 21v-14l8 -4l8 4v14"/><path d="M19 10a2 2 0 0 0 -2 -2a2 2 0 0 0 -2 2"/><path d="M9 21v-4a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v4"/></svg>
+                                </div>
+                                <h3>Virtual CISO Services</h3>
+                                <p class="text-muted">Get strategic guidance without hiring a full-time executive. We help you plan security budgets, roadmaps, and vendor risk assessments.</p>
+                                <ul class="list-unstyled mt-3">
+                                    <li class="mb-2">✅ Security Roadmap Planning</li>
+                                    <li class="mb-2">✅ Vendor Risk Assessment</li>
+                                    <li class="mb-2">✅ Incident Response Planning</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- How It Works Section -->
+        <div class="section-padding bg-light py-5">
+            <div class="container-xl">
+                <div class="row align-items-center">
+                    <div class="col-lg-5">
+                        <h2 class="display-6 fw-bold mb-4">How We Partner With You</h2>
+                        <p class="text-muted mb-4">We integrate seamlessly with your existing IT team or operate as your complete security department.</p>
+                        <div class="alert alert-info">
+                            <strong>⚡ Fast Onboarding:</strong> Most clients are fully monitored within 48 hours of signing.
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="process-step" data-step="1">
+                            <h4>Deploy MagenSec Agents</h4>
+                            <p class="text-muted mb-0">Install our lightweight agent on your fleet using your RMM or GPO. Immediate visibility into vulnerabilities and assets.</p>
+                        </div>
+                        <div class="process-step" data-step="2">
+                            <h4>Baseline & Tuning</h4>
+                            <p class="text-muted mb-0">Our analysts tune detection rules for your specific environment to eliminate noise and false positives.</p>
+                        </div>
+                        <div class="process-step" data-step="3">
+                            <h4>Continuous Watch</h4>
+                            <p class="text-muted mb-0">We monitor 24/7. When a critical entry appears, we investigate and notify you with clear remediation steps.</p>
+                        </div>
+                        <div class="process-step" data-step="4">
+                            <h4>Audit Reporting</h4>
+                            <p class="text-muted mb-0">Receive monthly executive reports proving your security posture to stakeholders and auditors.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Table -->
+        <div class="section-padding py-5">
+            <div class="container-xl">
+                <h2 class="text-center mb-5">ROI Analysis</h2>
+                <div class="table-responsive">
+                    <table class="table table-vcenter">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th class="text-center">Hiring In-House</th>
+                                <th class="text-center">Traditional MSSP</th>
+                                <th class="text-center table-primary">MagenSec Managed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Setup Cost</td>
+                                <td class="text-center text-muted">$15,000+ (Hiring/Tools)</td>
+                                <td class="text-center text-muted">$5,000+ Onboarding</td>
+                                <td class="text-center fw-bold text-primary">Included</td>
+                            </tr>
+                            <tr>
+                                <td>Annual Cost</td>
+                                <td class="text-center text-muted">$100k+ (Salary)</td>
+                                <td class="text-center text-muted">$25k+</td>
+                                <td class="text-center fw-bold text-primary">Starts at $5k/yr</td>
+                            </tr>
+                            <tr>
+                                <td>Audit Prep</td>
+                                <td class="text-center text-muted">Manual Effort</td>
+                                <td class="text-center text-muted">Extra Fees</td>
+                                <td class="text-center fw-bold text-primary">Automated & Included</td>
+                            </tr>
+                            <tr>
+                                <td>Coverage</td>
+                                <td class="text-center text-muted">8/5 Business Hours</td>
+                                <td class="text-center text-muted">24/7</td>
+                                <td class="text-center fw-bold text-primary">24/7 AI + Human</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Section -->
+        <div id="contact-sales" class="section-padding bg-dark text-white py-5">
+            <div class="container-xl">
+                <div class="row justify-content-center text-center">
+                    <div class="col-lg-8">
+                        <h2 class="display-6 fw-bold mb-4">Get Your Compliance Quote</h2>
+                        <p class="lead mb-4">Tell us about your organization and compliance needs. We'll build a custom plan for you.</p>
+                        <div class="text-start bg-white p-4 rounded text-dark">
+                            <p class="mb-3">
+                                Please email our team at
+                                <a href="mailto:MagenSec@Gigabits.co.in">MagenSec@Gigabits.co.in</a>
+                                with your organization details. Include your company name, team size, and compliance needs, and we'll reply within 24 hours.
+                            </p>
+                            <div class="btn-list">
+                                <a class="btn btn-primary btn-lg w-100"
+                                   href="mailto:MagenSec@Gigabits.co.in?subject=Enterprise%20Compliance%20Consultation&body=Hi%20MagenSec%20Team,%0D%0A%0D%0ACompany:%20%0D%0AContact%20Name:%20%0D%0APhone:%20%0D%0ACompliance%20Needs:%20(ISO%2027001,%20SOC%202,%20HIPAA,%20Cyber%20Insurance,%20General%20Monitoring)%0D%0A%0D%0AThanks!">
+                                    Email MagenSec@Gigabits.co.in
+                                </a>
+                            </div>
+                            <div class="mt-3 small text-muted">
+                                If the email button doesn't open, copy the address:
+                                <span id="sales-email">MagenSec@Gigabits.co.in</span>
+                                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="navigator.clipboard.writeText('MagenSec@Gigabits.co.in')">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- Tabler Core -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+</body>
+</html>

@@ -162,75 +162,16 @@
 </head>
 <body>
     <div class="page">
-        <!-- Navbar -->
-        <header class="navbar navbar-expand-md navbar-light d-print-none">
-            <div class="container-xl">
-                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-                    <a href="index.html" class="text-decoration-none d-flex align-items-center">
-                        <picture class="me-2">
-                            <source srcset="assets/logo.webp" type="image/webp">
-                            <img src="assets/logo.png" alt="MagenSec" style="height: 32px; width: auto;">
-                        </picture>
-                        <div>
-                            <strong>MagenSec</strong>
-                            <span class="text-muted small d-block" style="font-size: 0.7rem; line-height: 1;">by Gigabits</span>
-                        </div>
-                    </a>
-                </h1>
-                <div class="navbar-nav flex-row order-md-last">
-                    <div class="nav-item d-none d-md-flex me-3">
-                        <div class="btn-list">
-                            <a href="#download" class="btn btn-primary">
-                                📥 Download Free Trial
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="collapse navbar-collapse" id="navbar-menu">
-                    <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
-                        <ul class="navbar-nav">
-                            <li class="nav-item">
-                                <a class="nav-link" href="#how-it-works">How It Works</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="#features">Features</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="#pricing">Pricing</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="about.html">About</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="FixIt.html">Security Guide</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="#contact">Contact</a>
-                            </li>
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">                                <div class="nav-link-icon d-md-none d-lg-inline-block">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-layout-dashboard" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
-                                </div>
-                                    Admin Tools
-                                </a>
-                                <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="portal/" target="_blank">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 7v5l3 3"/></svg>
-                                        Security Portal
-                                        <span class="badge bg-success text-white ms-auto">Live</span>
-                                    </a>
-                                    <div class="dropdown-divider"></div>
-                                    <h6 class="dropdown-header">For Organizations</h6>
-                                    <p class="dropdown-item text-muted small mb-0">
-                                        Multi-device security management, reports, and threat intelligence dashboard for IT administrators.
-                                    </p>
-                                </div>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </header>
+        <!-- Shared Navbar -->
+        <div id="navbar-placeholder"></div>
+        <script src="assets/js/navbar.js"></script>
+        <script>
+            loadNavbar({
+                active: 'personal',
+                mode: 'personal',
+                relativePath: ''
+            });
+        </script>
 
         <!-- Hero Section -->
         <div class="hero-section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #667eea 100%); background-size: 200% 200%; animation: gradient-shift 15s ease infinite; position: relative; overflow: hidden;">
@@ -238,11 +179,11 @@
                 <div class="row align-items-center">
                     <div class="col-lg-6">
                         <h1 class="display-4 fw-bold mb-4 text-center text-lg-start">
-                            🛡️ Audit-Ready Security<br/>
-                            <span class="text-dark">Without the Enterprise Price Tag</span>
+                            🛡️ Meet Your AI SOC Analyst<br/>
+                            <span class="text-dark">Automated Intelligence. Audit-Ready Compliance.</span>
                         </h1>
                         <p class="lead mb-4">
-                            Whether you're a family protecting personal data, a school securing student information, or a startup showing investors you're serious about security - MagenSec makes compliance simple and affordable.
+                            Vulnerability detection, AV orchestration, and software inventory analysis in one platform. We analyze your telemetry so you don't need a security team.
                         </p>
                         <div class="alert mb-4" style="background: rgba(255,255,255,0.95); border: 2px solid #ffc107; color: #212529;">
                             <div class="d-flex align-items-center">
@@ -250,7 +191,7 @@
                                     <span style="font-size: 3rem;">⚠️</span>
                                 </div>
                                 <div>
-                                    <strong>Reality Check:</strong> One compliance violation fine averages <strong>$25,000+</strong>. Security consultants charge <strong>$15,000+</strong> per audit. MagenSec costs less than a coffee per month.
+                                    <strong>Reality Check:</strong> One compliance violation fine averages <strong>$25,000+</strong>. Security consultants charge <strong>$15,000+</strong>. MagenSec is your automated analyst for less than a coffee per month.
                                 </div>
                             </div>
                         </div>
@@ -303,7 +244,7 @@
                         <div style="background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%); border-radius: 20px; padding: 2rem; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);">
                             <picture>
                                 <source srcset="assets/black_shield.webp" type="image/webp">
-                                <img src="assets/black_shield.png" alt="MagenSec Security Shield" class="img-fluid" loading="lazy" style="max-width: 300px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3)); background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.1) 70%); border-radius: 15px; padding: 1rem;">
+                                <img src="assets/black_shield.png" alt="MagenSec Security Shield" width="300" height="300" class="img-fluid" loading="lazy" style="max-width: 300px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3)); background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.1) 70%); border-radius: 15px; padding: 1rem;">
                             </picture>
                             <div class="mt-3">
                                 <span class="badge bg-success text-white fs-6 px-3 py-2">
@@ -564,13 +505,14 @@
                                 <div style="background: white; border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
                                     <picture>
                                         <source srcset="assets/red_shield.webp" type="image/webp">
-                                        <img src="assets/red_shield.png" alt="Find Problems" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
+                                        <img src="assets/red_shield.png" alt="Find Problems" width="60" height="60" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
                                     </picture>
                                 </div>
-                                <h4 class="card-title">🔍 Finds Hidden Problems</h4>
-                                <p class="card-text">Like a health checkup for your computer - we find security problems before hackers do. No technical knowledge needed!</p>
+                                <h4 class="card-title"><a href="features/vulnerability.html" class="text-reset text-decoration-none">🔍 AI Vulnerability Analyst</a></h4>
+                                <p class="card-text">We analyze telemetry to detect hidden vulnerabilities (CVEs) before hackers do. Prioritized risk scoring helps you fix critical issues first.</p>
+                                <a href="features/vulnerability.html" class="btn btn-link px-0">Learn More →</a>
                                 <div class="mt-3">
-                                    <span class="badge bg-success text-white">Automatic Scanning</span>
+                                    <span class="badge bg-success text-white">Auto-Detection</span>
                                 </div>
                             </div>
                         </div>
@@ -581,13 +523,13 @@
                                 <div style="background: white; border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
                                     <picture>
                                         <source srcset="assets/green_shield.webp" type="image/webp">
-                                        <img src="assets/green_shield.png" alt="Uses Built-in Security" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
+                                        <img src="assets/green_shield.png" alt="Uses Built-in Security" width="60" height="60" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
                                     </picture>
                                 </div>
-                                <h4 class="card-title">💡 Makes Windows Defender Smarter</h4>
-                                <p class="card-text">Instead of buying expensive antivirus, we make your built-in Windows security work like a pro. Save money, get better protection!</p>
+                                <h4 class="card-title">💡 AV Orchestration</h4>
+                                <p class="card-text">Don't just install AV—orchestrate it. We ensure Windows Defender is active, updated, and configured correctly across your entire fleet.</p>
                                 <div class="mt-3">
-                                    <span class="badge bg-primary text-white">Save on AV Licenses</span>
+                                    <span class="badge bg-primary text-white">Security Management</span>
                                 </div>
                             </div>
                         </div>
@@ -598,13 +540,14 @@
                                 <div style="background: white; border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
                                     <picture>
                                         <source srcset="assets/black_shield.webp" type="image/webp">
-                                        <img src="assets/black_shield.png" alt="Keeps Everything Updated" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
+                                        <img src="assets/black_shield.png" alt="Keeps Everything Updated" width="60" height="60" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
                                     </picture>
                                 </div>
-                                <h4 class="card-title">🔄 Never Miss Updates Again</h4>
-                                <p class="card-text">We automatically schedule scans and keep your security signatures updated. The boring stuff happens while you sleep!</p>
+                                <h4 class="card-title">� Software Inventory & Auditor</h4>
+                                <p class="card-text">Complete visibility of every installed application. Easily spot unlicensed software, unauthorized tools, or shadow IT in your network.</p>
+                                <a href="features/software-inventory.html" class="btn btn-link px-0">Learn More →</a>
                                 <div class="mt-3">
-                                    <span class="badge bg-warning text-white">Set & Forget</span>
+                                    <span class="badge bg-warning text-white">License Audit</span>
                                 </div>
                             </div>
                         </div>
@@ -613,12 +556,13 @@
                         <div class="card feature-card h-100" style="transition: all 0.3s ease; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(0,84,166,0.3)'; this.style.borderColor='rgba(0,84,166,0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''; this.style.borderColor='transparent';">
                             <div class="card-body text-center">
                                 <div class="avatar avatar-xl mb-3 mx-auto" style="background: var(--tblr-primary-lt);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock text-primary" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 7v5l3 3"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-file-check text-primary" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 15l2 2l4 -4" /></svg>
                                 </div>
-                                <h4 class="card-title">👥 Supports Your Whole Family</h4>
-                                <p class="card-text">One license protects ALL your devices - your laptop, kids' computers, parents' tablets. Perfect for families and small businesses.</p>
+                                <h4 class="card-title"><a href="features/compliance.html" class="text-reset text-decoration-none">📜 Industry Compliance</a></h4>
+                                <p class="card-text">Generate audit-ready reports instantly. Prove your security posture for cyber insurance, regulatory standards, and client requirements.</p>
+                                <a href="features/compliance.html" class="btn btn-link px-0">Learn More →</a>
                                 <div class="mt-3">
-                                    <span class="badge bg-info text-white">Multi-Device</span>
+                                    <span class="badge bg-info text-white">Audit-Ready</span>
                                 </div>
                             </div>
                         </div>
@@ -627,12 +571,13 @@
                         <div class="card feature-card h-100" style="transition: all 0.3s ease; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(47,179,68,0.3)'; this.style.borderColor='rgba(47,179,68,0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''; this.style.borderColor='transparent';">
                             <div class="card-body text-center">
                                 <div class="avatar avatar-xl mb-3 mx-auto" style="background: var(--tblr-success-lt);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-bulb text-success" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 21l1.65 -3.8a9 9 0 1 1 9.35 0l1.65 3.8"/><path d="M9 10a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-headset text-success" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 14v-3a8 8 0 1 1 16 0v3" /><path d="M18 19c0 1.657 -2.686 3 -6 3" /><path d="M4 14a2 2 0 0 1 2 -2h1a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-1a2 2 0 0 1 -2 -2v-3z" /><path d="M15 14a2 2 0 0 1 2 -2h1a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-1a2 2 0 0 1 -2 -2v-3z" /></svg>
                                 </div>
-                                <h4 class="card-title">🌍 24/7 Global Support</h4>
-                                <p class="card-text">Our expert teams in India, Germany, and USA are always ready to help. Get human support when you need it most.</p>
+                                <h4 class="card-title"><a href="enterprise.html" class="text-reset text-decoration-none">🌍 Managed SOC Services</a></h4>
+                                <p class="card-text">Don't have the bandwidth? Our expert teams can monitor your dashboard, analyze threats, and manage your security for you.</p>
+                                <a href="enterprise.html" class="btn btn-link px-0">Learn More →</a>
                                 <div class="mt-3">
-                                    <span class="badge bg-success text-white">3 Continents</span>
+                                    <span class="badge bg-success text-white">Managed Service</span>
                                 </div>
                             </div>
                         </div>
@@ -959,28 +904,10 @@
                 </div>
                 <div class="row justify-content-center">
                     <div class="col-lg-4 col-md-6 mb-4">
-                        <div class="card pricing-card">
-                            <div class="card-body text-center p-4">
-                                <h5 class="card-title">🆓 Free Trial</h5>
-                                <div class="display-6 fw-bold mb-3">$0</div>
-                                <p class="text-muted">7 days • No credit card needed</p>
-                                <ul class="list-unstyled mb-4 text-start">
-                                    <li class="mb-2">✅ Find all security vulnerabilities</li>
-                                    <li class="mb-2">✅ Smart Windows Defender setup</li>
-                                    <li class="mb-2">✅ Automatic updates & scans</li>
-                                    <li class="mb-2">✅ Protection for unlimited devices</li>
-                                    <li class="mb-2">✅ Basic email support</li>
-                                </ul>
-                                <a href="#download" class="btn btn-outline-primary w-100 btn-lg">Start Free Trial</a>
-                                <small class="text-muted d-block mt-2">Cancel anytime during trial</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6 mb-4">
                         <div class="card pricing-card featured">
                             <div class="pricing-badge">👥 Families</div>
                             <div class="card-body text-center p-4">
-                                <h5 class="card-title">🏠 Personal & Family</h5>
+                                <h5 class="card-title">🏠 Personal</h5>
                                 <div class="display-6 fw-bold mb-1">
                                     <span class="text-decoration-line-through text-muted">$19.99</span>
                                     <span class="text-success">$9.99</span>
@@ -1004,14 +931,14 @@
                     <div class="col-lg-4 col-md-6 mb-4">
                         <div class="card pricing-card">
                             <div class="card-body text-center p-4">
-                                <h5 class="card-title">🚀 Schools & Startups</h5>
+                                <h5 class="card-title">🚀 Business</h5>
                                 <div class="display-6 fw-bold mb-1">
                                     <span class="text-decoration-line-through text-muted">$3.99</span>
                                     <span class="text-success">$1.99</span>
                                 </div>
                                 <p class="text-muted">per user per month</p>
                                 <div class="alert alert-info py-2 mb-3">
-                                    <small><strong>Perfect for:</strong> Show investors, parents, or auditors you're serious about security without breaking the budget</small>
+                                    <small><strong>Perfect for:</strong> Show investors, or auditors you're serious about security without breaking the budget</small>
                                 </div>
                                 <ul class="list-unstyled mb-4 text-start">
                                     <li class="mb-2">✅ Everything in Personal plan</li>
@@ -1021,48 +948,56 @@
                                     <li class="mb-2">✅ Multi-device team management</li>
                                     <li class="mb-2">✅ Grant-application friendly pricing</li>
                                 </ul>
-                                <a href="#contact" class="btn btn-outline-primary w-100 btn-lg">Get School/Startup Pricing</a>
+                                <a href="#contact" class="btn btn-outline-primary w-100 btn-lg">Get Business Pricing</a>
                                 <small class="text-muted d-block mt-2">Perfect for 5-50 people • Saves $2/user/year</small>
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Enterprise Option -->
-                <div class="row justify-content-center mt-4">
-                    <div class="col-lg-8">
-                        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card pricing-card">
                             <div class="card-body text-center p-4">
-                                <h5 class="card-title text-white mb-3">🏭 Enterprise & Managed Compliance</h5>
-                                <p class="mb-4">Let our experts handle your audit prep while you focus on your business. One failed audit costs more than 10 years of this service.</p>
-                                <div class="row justify-content-center">
-                                    <div class="col-md-5 mb-3">
-                                        <div class="text-start">
-                                            <h5 class="text-white mb-3 fw-bold">💼 What You Get:</h5>
-                                            <ul class="list-unstyled">
-                                                <li class="mb-2">• Audit-ready documentation delivered monthly</li>
-                                                <li class="mb-2">• 24/7 compliance monitoring by experts</li>
-                                                <li class="mb-2">• Custom security reviews & recommendations</li>
-                                                <li class="mb-2">• Regulator-friendly reports & dashboards</li>
-                                            </ul>
+                                <h5 class="card-title">🌍 Managed Services</h5>
+                                <div class="display-6 fw-bold mb-3">Custom</div>
+                                <p class="text-muted">For Enterprise & Audit Needs</p>
+                                <div class="alert alert-warning py-2 mb-3">
+                                    <small><strong>Perfect for:</strong> Teams that want us to handle security monitoring and audit prep for them</small>
+                                </div>
+                                <ul class="list-unstyled mb-4 text-start">
+                                    <li class="mb-2">✅ <strong>24/7 Expert SOC Monitoring</strong></li>
+                                    <li class="mb-2">✅ Regulator-ready reports delivered monthly</li>
+                                    <li class="mb-2">✅ Custom security reviews & remediation</li>
+                                    <li class="mb-2">✅ Dedicated account manager</li>
+                                    <li class="mb-2">✅ Priority incident response</li>
+                                </ul>
+                                <a href="enterprise.html" class="btn btn-outline-dark w-100 btn-lg">Get Quote</a>
+                                <small class="text-muted d-block mt-2">Fraction of typical consultant costs</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Free Trial Horizontal Card -->
+                <div class="row justify-content-center mt-2 mb-4">
+                    <div class="col-lg-10">
+                        <div class="card bg-white border-2" style="border-color: #f76707;">
+                            <div class="card-body p-4">
+                                <div class="row align-items-center">
+                                    <div class="col-md-7">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <div class="avatar bg-orange-lt me-3">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon text-orange" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01"/><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75"/></svg>
+                                            </div>
+                                            <h4 class="mb-0">Not ready to commit? Start with a Free Trial</h4>
                                         </div>
+                                        <p class="text-muted mb-0 ms-sm-5 ps-sm-2">Get full access to all Premium & Business features for 7 days. No credit card required, instant cancellation anytime.</p>
                                     </div>
-                                    <div class="col-md-5 mb-3">
-                                        <div class="text-start">
-                                            <h5 class="text-white mb-3 fw-bold">🎯 Who This Helps:</h5>
-                                            <ul class="list-unstyled">
-                                                <li class="mb-2">• Companies facing compliance audits</li>
-                                                <li class="mb-2">• Healthcare & finance organizations</li>
-                                                <li class="mb-2">• Growing businesses (50+ employees)</li>
-                                                <li class="mb-2">• Teams without dedicated IT security</li>
-                                            </ul>
-                                        </div>
+                                    <div class="col-md-5 text-center mt-3 mt-md-0">
+                                        <a href="#download" class="btn btn-orange w-100 btn-lg">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+                                            Start 7-Day Free Trial
+                                        </a>
                                     </div>
                                 </div>
-                                <div class="alert alert-light text-dark mb-3">
-                                    <small><strong>💰 ROI Reality Check:</strong> Compliance consultants charge $150-300/hour. One audit prep project costs $15,000+. We do this ongoing for a fraction of that cost.</small>
-                                </div>
-                                <a href="#contact" class="btn btn-light btn-lg mt-2">Get Custom Compliance Quote</a>
                             </div>
                         </div>
                     </div>
@@ -1077,7 +1012,7 @@
                                 <p class="text-muted">Scan to activate your Personal/Family license instantly</p>
                                 <picture>
                                     <source srcset="assets/MagenSec-qrcode.webp" type="image/webp">
-                                    <img src="assets/MagenSec-qrcode.png" alt="Payment QR Code" class="img-fluid" loading="lazy" style="max-width: 200px;">
+                                    <img src="assets/MagenSec-qrcode.png" alt="Payment QR Code" width="200" height="200" class="img-fluid" loading="lazy" style="max-width: 200px;">
                                 </picture>
                                 <p class="small text-muted mt-2">Or <a href="https://www.paypal.com/ncp/payment/EZP5AJQHDDVM8" target="_blank">click here to pay online</a></p>
                             </div>
@@ -1487,7 +1422,7 @@
                     <div class="col-lg-6 text-center">
                         <picture>
                             <source srcset="assets/GoldShield.webp" type="image/webp">
-                            <img src="assets/gold_shield.png" alt="About MagenSec" class="img-fluid" loading="lazy" style="max-width: 400px;">
+                            <img src="assets/gold_shield.png" alt="About MagenSec" width="400" height="400" class="img-fluid" loading="lazy" style="max-width: 400px;">
                         </picture>
                     </div>
                 </div>
@@ -1561,7 +1496,7 @@
                         <ul class="list-unstyled">
                             <li><a href="FixIt.html#vulnerability-types" class="link-secondary text-decoration-none">Vulnerability Types</a></li>
                             <li><a href="FixIt.html#protection-strategies" class="link-secondary text-decoration-none">Protection Guide</a></li>
-                            <li><a href="diag/admin/" class="link-secondary text-decoration-none" target="_blank">Admin Tools</a></li>
+                            <li><a href="portal/" class="link-secondary text-decoration-none" target="_blank">Admin Tools</a></li>
                         </ul>
                     </div>
                     <div class="col-md-3 mb-3">

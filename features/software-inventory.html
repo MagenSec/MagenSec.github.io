@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Real-time Software Inventory | MagenSec</title>
+    <meta name="description" content="Instant visibility into installed software, versions, and shadow IT across your organization."/>
+    
+    <!-- Tabler CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet"/>
+    
+    <style>
+        .hero-inventory {
+            background: linear-gradient(135deg, #206bc4 0%, #154a8a 100%);
+            color: white;
+            padding: 4rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Shared Navbar -->
+        <div id="navbar-placeholder"></div>
+        <script src="../assets/js/navbar.js"></script>
+        <script>
+            loadNavbar({
+                active: 'features',
+                mode: 'personal',
+                relativePath: '../'
+            });
+        </script>
+
+        <div class="hero-inventory">
+            <div class="container-xl text-center">
+                <h1 class="display-4 fw-bold mb-3">Live Software Inventory</h1>
+                <p class="lead">Eliminate Shadow IT. Know exactly what is running on every endpoint.</p>
+            </div>
+        </div>
+
+        <div class="section-padding py-5">
+            <div class="container-xl">
+                <div class="row g-4 align-items-center">
+                    <div class="col-md-6 order-md-2">
+                        <h2>More Than Just a List</h2>
+                        <p class="text-muted">Standard inventory tools perform scans once a week. MagenSec keeps a live ledger of every application change, uninstallation, and update.</p>
+                        <ul class="list-unstyled">
+                            <li class="mb-3">✅ <strong>Detect Unwanted Apps:</strong> Instantly spot Torrent clients, games, or unauthorized remote access tools.</li>
+                            <li class="mb-3">✅ <strong>License Tracking:</strong> Identify unused expensive software licenses.</li>
+                            <li class="mb-3">✅ <strong>Version Drift:</strong> See how many different versions of Zoom are running in your org.</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6 order-md-1">
+                        <div class="card">
+                            <div class="table-responsive">
+                                <table class="table table-vcenter card-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Software</th>
+                                            <th>Version</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Zoom Meetings</td>
+                                            <td>5.13.0</td>
+                                            <td><span class="badge bg-success">Current</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Adobe Reader</td>
+                                            <td>21.001</td>
+                                            <td><span class="badge bg-warning">Update Avail</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td>uTorrent</td>
+                                            <td>3.5.5</td>
+                                            <td><span class="badge bg-danger">Blacklisted</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-padding py-5 bg-light">
+            <div class="container-xl text-center">
+                <h2>Gain visibility today</h2>
+                <a href="../index.html#download" class="btn btn-primary btn-lg mt-3">Start Free Discovery</a>
+            </div>
+        </div>
+        
+        <footer class="footer footer-transparent d-print-none py-4 text-center">
+            <div class="container-xl">
+               <a href="../index.html">← Back to Home</a>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>
