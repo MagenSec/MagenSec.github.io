@@ -140,18 +140,26 @@ export class PosturePage extends Component {
 
         return html`
             <div class="list-group list-group-flush">
-                ${actions.slice(0, 6).map((action) => html`
+                ${actions.slice(0, 6).map((action) => {
+                    // Task 4: Show affected apps/devices list
+                    const devices = action.affectedDevices || [];
+                    const displayDevices = devices.slice(0, 3).join(', ');
+                    const moreCount = Math.max(0, devices.length - 3);
+                    const deviceList = displayDevices + (moreCount > 0 ? `, ...${moreCount} more` : '');
+                    
+                    return html`
                     <div class="list-group-item d-flex flex-column flex-lg-row align-items-start align-items-lg-center gap-2">
                         <div class="flex-grow-1">
                             <div class="fw-semibold">${action.title}</div>
                             <div class="text-muted small">Priority: ${action.priority} · Effort: ${action.effort} · Risk Reduction: ${action.riskReduction}</div>
+                            ${deviceList ? html`<div class="text-muted small mt-1"><strong>Devices:</strong> ${deviceList}</div>` : ''}
                         </div>
                         <div class="d-flex gap-2">
-                            <span class="badge bg-primary text-white">${action.affectedCount} affected</span>
+                            <span class="badge bg-primary text-white">${action.affectedCount || devices.length || 0} affected</span>
                             <span class="badge bg-outline-secondary border">SLA: ${action.sla}</span>
                         </div>
                     </div>
-                `)}
+                `})}
             </div>
         `;
     }
@@ -170,20 +178,31 @@ export class PosturePage extends Component {
                             <th scope="col">Finding</th>
                             <th scope="col">Domain</th>
                             <th scope="col">Severity</th>
-                            <th scope="col">Affected</th>
+                            <th scope="col">Affected Apps/Devices</th>
                             <th scope="col">Aging (days)</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${findings.map(item => html`
+                        ${findings.map(item => {
+                            // Task 5: Show affected apps/devices instead of just count
+                            const entities = item.affectedEntities || [];
+                            const displayEntities = entities.slice(0, 3).join(', ');
+                            const moreCount = Math.max(0, entities.length - 3);
+                            const entityList = displayEntities + (moreCount > 0 ? `, ...${moreCount} more` : '');
+                            const count = item.affectedCount || entities.length || 0;
+                            
+                            return html`
                             <tr>
                                 <td class="fw-semibold">${item.title}</td>
                                 <td>${item.domain}</td>
                                 <td><span class="badge bg-${this.severityToColor(item.severity)} text-white">${item.severity}</span></td>
-                                <td>${item.affectedCount}</td>
+                                <td>
+                                    <span class="badge bg-primary-lt">${count} affected</span>
+                                    ${entityList ? html`<div class="text-muted small mt-1">${entityList}</div>` : ''}
+                                </td>
                                 <td>${item.agingDays}</td>
                             </tr>
-                        `)}
+                        `})}
                     </tbody>
                 </table>
             </div>

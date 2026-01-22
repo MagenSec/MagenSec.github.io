@@ -3910,8 +3910,14 @@ export class DeviceDetailPage extends window.Component {
                                                 ${app.matchType === 'absolute' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 L12 3 L21 12 Z"/></svg>` : ''}
                                                 ${app.matchType === 'heuristic' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l3 4.5l-3 4.5h-6l-3 -4.5z"/><path d="M9 4v9"/><path d="M15 4v9"/></svg>` : ''}
                                                 <span class="fw-semibold">${worstSeverity}</span>
-                                                <span class=${`badge ${this.getSeverityColor(worstSeverity)}`}>${cves.length}</span>
+                                                <span class=${`badge ${this.getSeverityColor(worstSeverity)}`}>${cves.length} CVE${cves.length > 1 ? 's' : ''}</span>
                                             </button>
+                                            <div class="text-muted small mt-1">
+                                                ${cves.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical').length > 0 ? html`<span class="badge badge-sm bg-danger me-1">${cves.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical').length} Critical</span>` : ''}
+                                                ${cves.filter(c => c.severity === 'HIGH' || c.severity === 'High').length > 0 ? html`<span class="badge badge-sm bg-warning me-1">${cves.filter(c => c.severity === 'HIGH' || c.severity === 'High').length} High</span>` : ''}
+                                                ${cves.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? html`<span class="badge badge-sm bg-info me-1">${cves.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length} Med</span>` : ''}
+                                                ${cves.filter(c => c.severity === 'LOW' || c.severity === 'Low').length > 0 ? html`<span class="badge badge-sm bg-success-lt">${cves.filter(c => c.severity === 'LOW' || c.severity === 'Low').length} Low</span>` : ''}
+                                            </div>
                                         ` : html`
                                             <span class="badge bg-success-lt">No CVEs</span>
                                         `}
