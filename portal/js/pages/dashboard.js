@@ -65,6 +65,8 @@ export class DashboardPage extends Component {
             clearInterval(this.state.refreshInterval);
         }
         this.destroyCharts();
+        if (this.deviceSparklineChart) this.deviceSparklineChart.destroy();
+        if (this.scoreSparklineChart) this.scoreSparklineChart.destroy();
     }
 
     componentDidUpdate(prevProps, prevState) {
@@ -78,6 +80,8 @@ export class DashboardPage extends Component {
             this.renderCoveragePolar(this.state.coverage);
             this.renderPostureRadar();
             this.renderPostureSummaryDonuts();
+            this.renderDeviceSparkline();
+            this.renderScoreSparkline();
         }
     }
 
@@ -188,6 +192,13 @@ export class DashboardPage extends Component {
         if (score >= 60) return 'B';
         if (score >= 40) return 'C';
         return 'D';
+    }
+
+    getRemediationSpeedBadge(score) {
+        if (score >= 80) return 'bg-success';
+        if (score >= 60) return 'bg-info';
+        if (score >= 40) return 'bg-warning';
+        return 'bg-danger';
     }
 
     calculateTrend(currentValue, previousValue) {
@@ -1316,7 +1327,9 @@ export class DashboardPage extends Component {
                                     ${action.affectedDevice || action.affectedApplication ? html`
                                         <div style="margin-top: 4px;">
                                             ${action.affectedDevice ? html`
-                                                <span class="badge bg-secondary text-white" style="margin-right: 4px;">${action.affectedDevice}</span>
+                                                <a href="#!/devices/${action.affectedDevice}" class="badge bg-secondary text-white" style="margin-right: 4px; text-decoration: none;">
+                                                    ${action.affectedDeviceName || action.affectedDevice}
+                                                </a>
                                             ` : ''}
                                             ${action.affectedApplication ? html`
                                                 <span class="badge bg-info text-white">App: ${action.affectedApplication}</span>
@@ -1821,9 +1834,123 @@ export class DashboardPage extends Component {
         `;
     }
 
+    calculateTrend(currentValue, previousValue) {
+        if (!previousValue || previousValue === 0) return 0;
+        return Math.round(((currentValue - previousValue) / previousValue) * 100);
+    }
+
+    getTrendArrow(trend) {
+        if (trend === 0) return '';
+        const isUp = trend > 0;
+        return html`
+            <span class="${isUp ? 'text-success' : 'text-danger'} d-inline-flex align-items-center lh-1 ms-2">
+                ${Math.abs(trend)}%
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm ms-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    ${isUp ? html`
+                        <path d="M3 17l6-6l4 4l8-8M14 7h7v7"/>
+                    ` : html`
+                        <path d="M3 7l6 6l4-4l8 8M14 17h7v-7"/>
+                    `}
+                </svg>
+            </span>
+        `;
+    }
+
+    renderDeviceSparkline() {
+        // Mock data - replace with real historical device count data
+        const sparklineData = [28, 29, 30, 29, 31, 32, this.state.deviceStats?.active || 32];
+        
+        // Wait for next tick to ensure canvas is rendered
+        setTimeout(() => {
+            const canvas = document.getElementById('device-sparkline');
+            if (!canvas) return;
+            
+            // Destroy existing chart if any
+            if (this.deviceSparklineChart) {
+                this.deviceSparklineChart.destroy();
+            }
+            
+            this.deviceSparklineChart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        data: sparklineData,
+                        borderColor: '#0054a6',
+                        backgroundColor: 'rgba(0, 84, 166, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false }
+                    },
+                    interaction: { mode: 'index', intersect: false }
+                }
+            });
+        }, 100);
+    }
+
+    renderScoreSparkline() {
+        // Mock data - replace with real historical security score data
+        const sparklineData = [75, 78, 82, 80, 85, 87, this.state.dashboardData?.securityScore || 85];
+        
+        setTimeout(() => {
+            const canvas = document.getElementById('score-sparkline');
+            if (!canvas) return;
+            
+            if (this.scoreSparklineChart) {
+                this.scoreSparklineChart.destroy();
+            }
+            
+            this.scoreSparklineChart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        data: sparklineData,
+                        borderColor: '#2fb344',
+                        backgroundColor: 'rgba(47, 179, 68, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false }
+                    },
+                    interaction: { mode: 'index', intersect: false }
+                }
+            });
+        }, 100);
+    }
+
     renderKPICards(role, riskScore, riskColor, compact = false) {
         const { deviceStats, licenseInfo, coverage, securityGrade, lastScan, complianceSummary } = this.state;
         const riskLabel = this.getRiskLabel(riskScore);
+        
+        // Calculate trends (mock previous values - in real implementation, fetch from history)
+        const scoreTrend = this.calculateTrend(riskScore, riskScore - 5);
+        const deviceTrend = this.calculateTrend(deviceStats.active, deviceStats.active - 2);
         const colClass = compact ? 'col-6' : 'col-sm-6 col-lg-3';
 
         const scoreCard = html`
@@ -1848,13 +1975,17 @@ export class DashboardPage extends Component {
                         <div class="d-flex align-items-baseline">
                             <div class="h1 mb-0 me-2"><span class="text-${riskColor}">${riskScore}</span></div>
                             <div class="text-muted h3 mb-0">/100</div>
+                            ${this.getTrendArrow(scoreTrend)}
                         </div>
                         <div class="d-flex mb-2 mt-2">
                             <div class="text-muted small">${riskLabel}</div>
                             <div class="ms-auto text-muted small">Last: ${lastScan}</div>
                         </div>
-                        <div class="progress progress-sm">
+                        <div class="progress progress-sm mb-2">
                             <div class="progress-bar bg-${riskColor}" style="width: ${riskScore}%" role="progressbar" aria-valuenow="${riskScore}" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <div style="height: 40px;">
+                            <canvas id="score-sparkline"></canvas>
                         </div>
                     </div>
                 </div>
@@ -1880,6 +2011,7 @@ export class DashboardPage extends Component {
                         <div class="d-flex align-items-baseline">
                             <div class="h1 mb-0 me-2">${deviceStats.active}</div>
                             <div class="text-muted h3 mb-0">/ ${deviceStats.total}</div>
+                            ${this.getTrendArrow(deviceTrend)}
                         </div>
                         <div class="d-flex mb-2 mt-2">
                             <div>
@@ -1890,8 +2022,11 @@ export class DashboardPage extends Component {
                                 <span class="text-muted small">${deviceStats.disabled} Disabled</span>
                             </div>
                         </div>
-                        <div class="progress progress-sm">
+                        <div class="progress progress-sm mb-2">
                             <div class="progress-bar bg-primary" style="width: ${deviceStats.total ? (deviceStats.active / deviceStats.total * 100) : 0}%" role="progressbar"></div>
+                        </div>
+                        <div style="height: 40px;">
+                            <canvas id="device-sparkline"></canvas>
                         </div>
                     </div>
                 </div>
@@ -1936,6 +2071,48 @@ export class DashboardPage extends Component {
                 </div>
             </div>`;
 
+        // Remediation Metrics Card (Sprint 3.5 Phase 2)
+        const remediationMetrics = this.state.dashboardData?.remediationMetrics;
+        const remediationCard = remediationMetrics ? html`
+            <div class="${colClass}">
+                <div class="card card-hover">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                    <path d="M9 12l2 2l4-4"/>
+                                </svg>
+                                Remediation Speed
+                            </div>
+                            <div class="ms-auto lh-1">
+                                <span class="badge ${this.getRemediationSpeedBadge(remediationMetrics.remediationSpeedScore)}">
+                                    ${remediationMetrics.remediationSpeedScore}/100
+                                </span>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-baseline">
+                            <div class="h1 mb-0 me-2">${remediationMetrics.avgTimeToRemediateDays.toFixed(1)}</div>
+                            <div class="text-muted h3 mb-0">days</div>
+                        </div>
+                        <div class="d-flex mb-2 mt-2">
+                            <div class="text-muted small">Avg remediation time</div>
+                            <div class="ms-auto">
+                                <span class="text-success small">${remediationMetrics.remediatedCount}/${remediationMetrics.totalTrackedCount} fixed</span>
+                            </div>
+                        </div>
+                        <div class="progress progress-sm">
+                            <div class="progress-bar bg-success" style="width: ${remediationMetrics.percentageRemediatedUnder7Days}%" role="progressbar"></div>
+                            <div class="progress-bar bg-warning" style="width: ${remediationMetrics.percentageRemediatedUnder14Days - remediationMetrics.percentageRemediatedUnder7Days}%" role="progressbar"></div>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            ${remediationMetrics.percentageRemediatedUnder7Days.toFixed(0)}% under 7 days
+                        </div>
+                    </div>
+                </div>
+            </div>` : '';
+
         const creditsCard = html`
             <div class="${colClass}">
                 <div class="card card-hover">
@@ -1970,7 +2147,13 @@ export class DashboardPage extends Component {
                 </div>
             </div>`;
 
-        return html`${scoreCard}${devicesCard}${coverageCard}${creditsCard}`;
+        return html`
+            ${scoreCard}
+            ${devicesCard}
+            ${coverageCard}
+            ${remediationCard}
+            ${remediationCard ? '' : creditsCard}
+        `;
     }
 
     renderPostureWidget() {
