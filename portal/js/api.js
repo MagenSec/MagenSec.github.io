@@ -304,8 +304,14 @@ export class ApiClient {
         return this.get(`/api/v1/devices/${deviceId}`);
     }
 
-    async updateDeviceState(deviceId, state) {
-        return this.put(`/api/v1/devices/${deviceId}/state`, { state });
+    // Consolidated device state update (replaces separate block/enable endpoints)
+    async updateDeviceState(orgId, deviceId, state, options = {}) {
+        const { deleteTelemetry = false, reason } = options;
+        return this.put(`/api/v1/orgs/${orgId}/devices/${deviceId}/state`, {
+            state,
+            deleteTelemetry,
+            reason
+        });
     }
 
     async deleteDevice(deviceId) {
@@ -314,6 +320,18 @@ export class ApiClient {
 
     async getDeviceTelemetry(deviceId, params = {}) {
         return this.get(`/api/v1/devices/${deviceId}/telemetry`, params);
+    }
+
+    // Unified device detail (combines device + telemetry + apps + cves in one call)
+    async getDeviceDetailUnified(orgId, deviceId, options = {}) {
+        const { include = 'telemetry,apps,cves', telemetryHistoryDays = 180, appLimit = 500, cveLimit = 500, telemetryHistoryLimit = 50 } = options;
+        return this.get(`/api/v1/orgs/${orgId}/devices/${deviceId}/detail`, {
+            include,
+            telemetryHistoryDays,
+            appLimit,
+            cveLimit,
+            telemetryHistoryLimit
+        });
     }
 
     // === LICENSES ===
@@ -472,6 +490,15 @@ export class ApiClient {
 
     async adminUpdateTelemetryConfig(orgId, config) {
         return this.put(`/api/v1/admin/telemetry/config/${orgId}`, config);
+    }
+
+    // === ADMIN - CRON MANAGEMENT ===
+    async adminTriggerCron(taskId) {
+        return this.post('/api/v1/admin/cron/trigger', { taskId });
+    }
+
+    async adminResetRemediation(orgId, resetApps = true, resetCves = true) {
+        return this.post('/api/v1/admin/remediation/reset', { orgId, resetApps, resetCves });
     }
 
     // === SECURITY ===

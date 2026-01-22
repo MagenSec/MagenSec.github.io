@@ -49,7 +49,8 @@ class DevicesPage extends window.Component {
             highlightedCve: null,
             showRiskExplanationModal: false,
             riskExplanationDevice: null,
-            filteredDevices: []
+            filteredDevices: [],
+            selectedDevices: []
         };
         this.KNOWN_EXPLOITS_CACHE = { data: null, loadedAt: null, TTL_HOURS: 24 };
         this.DEVICES_CACHE = {};
@@ -93,6 +94,104 @@ class DevicesPage extends window.Component {
         } else if (summariesChanged) {
             this.renderTableApexCharts();
         }
+    }
+
+    toggleSelectDevice(deviceId) {
+        this.setState(prev => {
+            const selected = prev.selectedDevices.includes(deviceId)
+                ? prev.selectedDevices.filter(id => id !== deviceId)
+                : [...prev.selectedDevices, deviceId];
+            return { selectedDevices: selected };
+        });
+    }
+
+    toggleSelectAll() {
+        const filtered = this.getFilteredDevices();
+        const allSelected = filtered.length > 0 && filtered.every(d => this.state.selectedDevices.includes(d.id));
+        this.setState({ selectedDevices: allSelected ? [] : filtered.map(d => d.id) });
+    }
+
+    clearSelection() {
+        this.setState({ selectedDevices: [] });
+    }
+
+    async scanSelected() {
+        const { selectedDevices } = this.state;
+        if (selectedDevices.length === 0) return;
+        
+        console.log('Scanning devices:', selectedDevices);
+        // TODO: Implement bulk scan API call
+        alert(`Scan triggered for ${selectedDevices.length} device(s)`);
+        this.clearSelection();
+    }
+
+    async blockSelected() {
+        const { selectedDevices } = this.state;
+        if (selectedDevices.length === 0) return;
+        
+        if (!confirm(`Block ${selectedDevices.length} device(s)? They will be removed from active monitoring.`)) {
+            return;
+        }
+        
+        console.log('Blocking devices:', selectedDevices);
+        // TODO: Implement bulk block API call
+        alert(`${selectedDevices.length} device(s) marked for blocking`);
+        this.clearSelection();
+    }
+
+    async exportSelected() {
+        const { selectedDevices, devices } = this.state;
+        if (selectedDevices.length === 0) return;
+        
+        const selected = devices.filter(d => selectedDevices.includes(d.id));
+        const csv = this.devicesToCSV(selected);
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `devices-export-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.clearSelection();
+    }
+
+    devicesToCSV(devices) {
+        const headers = ['Device Name', 'State', 'Risk Score', 'Last Heartbeat', 'OS', 'License'];
+        const rows = devices.map(d => [
+            d.name,
+            d.state,
+            this.state.enrichedScores[d.id]?.riskScore || 'N/A',
+            d.lastHeartbeat || 'Never',
+            `${d.telemetry.osEdition || ''} ${d.telemetry.osVersion || ''}`.trim(),
+            d.licenseKey || 'N/A'
+        ]);
+        return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    }
+
+    getDeviceInitials(name) {
+        if (!name) return '??';
+        const words = name.split(/[\s-_]+/).filter(Boolean);
+        if (words.length >= 2) {
+            return (words[0][0] + words[1][0]).toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    }
+
+    getStatusDot(lastHeartbeat) {
+        if (!lastHeartbeat) return 'status-red';
+        const hours = (Date.now() - new Date(lastHeartbeat)) / 3600000;
+        if (hours < 6) return 'status-dot-animated status-green';
+        if (hours < 24) return 'status-yellow';
+        return 'status-red';
+    }
+
+    getStatusText(lastHeartbeat) {
+        if (!lastHeartbeat) return 'Never seen';
+        const hours = Math.floor((Date.now() - new Date(lastHeartbeat)) / 3600000);
+        if (hours < 1) return 'Online';
+        if (hours < 6) return `${hours}h ago`;
+        if (hours < 24) return 'Today';
+        return `${Math.floor(hours / 24)}d ago`;
     }
 
     componentWillUnmount() {
@@ -829,7 +928,10 @@ class DevicesPage extends window.Component {
         if (!orgId) return;
 
         try {
-            const response = await api.put(`/api/v1/orgs/${orgId}/devices/${deviceId}/enable`);
+            // Use consolidated state endpoint
+            const response = await api.updateDeviceState(orgId, deviceId, 'ENABLED', {
+                reason: 'Admin enabled via Portal'
+            });
 
             if (response.success) {
                 this.optimisticSetDeviceState(deviceId, 'Enabled');
@@ -855,8 +957,13 @@ class DevicesPage extends window.Component {
         if (!orgId) return;
 
         try {
-            const url = `/api/v1/orgs/${orgId}/devices/${deviceId}/block?deleteTelemetry=${deleteTelemetry ? 'true' : 'false'}`;
-            const response = await api.put(url);
+            // Use consolidated state endpoint
+            const response = await api.updateDeviceState(orgId, deviceId, 'BLOCKED', {
+                deleteTelemetry,
+                reason: deleteTelemetry 
+                    ? 'Admin blocked device with telemetry deletion via Portal'
+                    : 'Admin blocked device via Portal'
+            });
 
             if (response.success) {
                 this.optimisticSetDeviceState(deviceId, 'Blocked');
@@ -1262,11 +1369,24 @@ class DevicesPage extends window.Component {
     }
 
     // Compute enriched application inventory status and join CVE counts
+    /**
+     * Normalize app name for comparison by removing architecture suffix in parentheses
+     * Examples:
+     * - "Microsoft .NET AppHost Pack - 9.0.11 (x64)" → "Microsoft .NET AppHost Pack - 9.0.11"
+     * - "Some App (x64_arm64)" → "Some App"
+     * - "Simple App" → "Simple App"
+     */
+    normalizeAppName(appName) {
+        if (!appName || typeof appName !== 'string') return '';
+        // Remove anything in parentheses at the end (architecture suffixes)
+        return appName.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase().trim();
+    }
+
     computeAppStatus(apps, cves = []) {
         // Group by appName+vendor
         const groups = {};
         for (const a of apps) {
-            const key = `${(a.appName||'').toLowerCase()}|${(a.vendor||'').toLowerCase()}`;
+            const key = `${this.normalizeAppName(a.appName)}|${(a.vendor||'').toLowerCase()}`;
             if (!groups[key]) groups[key] = [];
             groups[key].push(a);
         }
@@ -1294,7 +1414,8 @@ class DevicesPage extends window.Component {
             if (!current.isInstalled && prevInstalled) {
                 status = 'uninstalled';
             }
-            const relatedCves = cves.filter(c => (c.appName||'').toLowerCase() === (current.appName||'').toLowerCase());
+            const normalizedCurrentAppName = this.normalizeAppName(current.appName);
+            const relatedCves = cves.filter(c => this.normalizeAppName(c.appName) === normalizedCurrentAppName);
             const cveCount = relatedCves.length;
             const worstSeverity = relatedCves.reduce((acc, c) => Math.max(acc, this.severityWeight(c.severity)), 0);
 
@@ -1613,12 +1734,12 @@ class DevicesPage extends window.Component {
             else if (sev === 'HIGH') high++;
             else if (sev === 'MEDIUM') medium++;
             else if (sev === 'LOW') low++;
-            if (c.appName) appNamesWithCves.add(c.appName.toLowerCase());
+            if (c.appName) appNamesWithCves.add(this.normalizeAppName(c.appName));
         }
 
         const totalCves = activeCves.length;
         const appCount = activeApps.length;
-        const vulnerableApps = activeApps.filter(a => a.appName && appNamesWithCves.has(a.appName.toLowerCase())).length;
+        const vulnerableApps = activeApps.filter(a => a.appName && appNamesWithCves.has(this.normalizeAppName(a.appName))).length;
         const worstSev = this.severityLabelFromWeight(worstWeight);
         const score = Math.min(100, Math.max(0, totalCves * 2 + worstWeight * 10));
 
@@ -1811,6 +1932,57 @@ class DevicesPage extends window.Component {
 
         stats.avgRisk = riskCount > 0 ? Math.round(totalRisk / riskCount) : 0;
         return stats;
+    }
+
+    renderBulkActionsBar() {
+        const { html } = window;
+        const { selectedDevices } = this.state;
+        
+        if (selectedDevices.length === 0) return null;
+        
+        return html`
+            <div class="bulk-actions-bar">
+                <div class="d-flex align-items-center">
+                    <div class="me-auto">
+                        <strong>${selectedDevices.length}</strong> device${selectedDevices.length > 1 ? 's' : ''} selected
+                    </div>
+                    <div class="btn-list">
+                        <button class="btn btn-sm btn-primary" onclick=${() => this.scanSelected()}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                                <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+                            </svg>
+                            Scan All
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick=${() => this.exportSelected()}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+                                <polyline points="7 11 12 16 17 11" />
+                                <line x1="12" y1="4" x2="12" y2="16" />
+                            </svg>
+                            Export
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick=${() => this.blockSelected()}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <circle cx="12" cy="12" r="9" />
+                                <line x1="5.7" y1="5.7" x2="18.3" y2="18.3" />
+                            </svg>
+                            Block All
+                        </button>
+                        <button class="btn btn-sm btn-ghost-secondary" onclick=${() => this.clearSelection()}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     renderSecurityDashboard(stats) {
@@ -2194,11 +2366,20 @@ class DevicesPage extends window.Component {
                                     </div>
                                 </div>
                             ` : this.state.viewMode === 'tiles' ? this.renderTiles(filteredDevices) : html`
+                                ${this.renderBulkActionsBar()}
                                 <div class="card">
                                     <div class="table-responsive">
                                         <table class="table table-vcenter card-table">
                                             <thead>
                                                 <tr>
+                                                    <th class="w-1">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            class="form-check-input m-0" 
+                                                            checked=${filteredDevices.length > 0 && filteredDevices.every(d => this.state.selectedDevices.includes(d.id))}
+                                                            onchange=${() => this.toggleSelectAll()}
+                                                        />
+                                                    </th>
                                                     <th style="width: 130px; cursor: pointer;" onclick=${() => this.setSortField('risk')} title="Click to sort by risk score (higher = more vulnerable)">
                                                         <div class="d-flex align-items-center justify-content-center gap-1">
                                                             Risk %
@@ -2227,6 +2408,14 @@ class DevicesPage extends window.Component {
                                             <tbody>
                                                 ${filteredDevices.map(device => html`
                                                     <tr key=${device.id}>
+                                                        <td>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                class="form-check-input m-0" 
+                                                                checked=${this.state.selectedDevices.includes(device.id)}
+                                                                onchange=${() => this.toggleSelectDevice(device.id)}
+                                                            />
+                                                        </td>
                                                         ${(() => {
                                                             const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                                                             const enriched = this.state.enrichedScores[device.id];

@@ -8,6 +8,8 @@ import { api } from './api.js';
 import { orgContext } from './orgContext.js';
 import { initRouter } from './router.js';
 import { logger } from './config.js';
+import keyboardShortcuts from './services/keyboardShortcuts.js';
+import themeService from './services/themeService.js';
 import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard.js';
 import DevicesPage from './pages/devices.js';
@@ -234,6 +236,23 @@ async function init() {
     
     // Initialize router
     initRouter(renderApp);
+    
+    // Initialize keyboard shortcuts
+    keyboardShortcuts.initialize();
+    
+    // Initialize theme service
+    themeService.initialize();
+    
+    // Add theme toggle to navbar (if exists)
+    const navbar = document.querySelector('.navbar-nav');
+    if (navbar) {
+        const themeToggle = themeService.createToggleButton();
+        themeToggle.classList.add('nav-link');
+        const li = document.createElement('li');
+        li.className = 'nav-item';
+        li.appendChild(themeToggle);
+        navbar.appendChild(li);
+    }
     
     // Listen for auth changes
     auth.onChange((session) => {

@@ -78,6 +78,13 @@ export function SiteAdminPage() {
     const [cronStatus, setCronStatus] = useState(null);
     const [loadingCron, setLoadingCron] = useState(false);
 
+    // Admin Actions State
+    const [triggeringCron, setTriggeringCron] = useState(null);
+    const [cronResult, setCronResult] = useState(null);
+    const [resetOrgId, setResetOrgId] = useState('');
+    const [resettingRemediation, setResettingRemediation] = useState(false);
+    const [resetResult, setResetResult] = useState(null);
+
     // Email validation helper
     const isValidEmail = (email) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -152,6 +159,53 @@ export function SiteAdminPage() {
         }
     };
 
+    const onTriggerCron = async (taskId) => {
+        setTriggeringCron(taskId);
+        setCronResult(null);
+        try {
+            const res = await api.adminTriggerCron(taskId);
+            if (res.success) {
+                setCronResult({ success: true, taskId, data: res.data });
+                showToast(`Successfully triggered ${taskId}`, 'success');
+            } else {
+                setCronResult({ success: false, taskId, error: res.message });
+                showToast(res.message || `Failed to trigger ${taskId}`, 'error');
+            }
+        } catch (error) {
+            logger.error('[SiteAdmin] Error triggering cron:', error);
+            setCronResult({ success: false, taskId, error: error.message });
+            showToast(`Failed to trigger ${taskId}`, 'error');
+        } finally {
+            setTriggeringCron(null);
+        }
+    };
+
+    const onResetRemediation = async () => {
+        if (!resetOrgId) {
+            showToast('Please select an organization', 'warning');
+            return;
+        }
+        
+        setResettingRemediation(true);
+        setResetResult(null);
+        try {
+            const res = await api.adminResetRemediation(resetOrgId, true, true);
+            if (res.success) {
+                setResetResult({ success: true, data: res.data });
+                showToast('Remediation status reset successfully', 'success');
+            } else {
+                setResetResult({ success: false, error: res.message });
+                showToast(res.message || 'Failed to reset remediation status', 'error');
+            }
+        } catch (error) {
+            logger.error('[SiteAdmin] Error resetting remediation:', error);
+            setResetResult({ success: false, error: error.message });
+            showToast('Failed to reset remediation status', 'error');
+        } finally {
+            setResettingRemediation(false);
+        }
+    };
+
     const handleSelectOrg = async (orgId) => {
         setSelectedOrgId(orgId);
         const org = orgs.find(o => o.orgId === orgId);
@@ -196,6 +250,12 @@ export function SiteAdminPage() {
             return;
         }
 
+        // Validate org name length (minimum 4 characters for proper license key generation)
+        if (newOrgName.trim().length < 4) {
+            showToast('Organization name must be at least 4 characters long for proper license key generation', 'warning');
+            return;
+        }
+
         try {
             const payload = {
                 orgName: newOrgName,
@@ -233,6 +293,12 @@ export function SiteAdminPage() {
 
     const onUpdateOrg = async () => {
         if (!selectedOrgId || !updateOrgName) return;
+
+        // Validate org name length (minimum 4 characters)
+        if (updateOrgName.trim().length < 4) {
+            showToast('Organization name must be at least 4 characters long', 'warning');
+            return;
+        }
 
         try {
             const res = await api.put(`/api/v1/admin/orgs/${selectedOrgId}`, {
@@ -561,6 +627,16 @@ export function SiteAdminPage() {
                                         <span class="badge bg-blue-lt ms-2">${accounts.length}</span>
                                     </a>
                                 </li>
+                                <li class="nav-item">
+                                    <a 
+                                        class="nav-link ${activeTab === 'admin-actions' ? 'active' : ''}"
+                                        href="#"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('admin-actions'); }}
+                                    >
+                                        <i class="ti ti-bolt me-2"></i>
+                                        Admin Actions
+                                    </a>
+                                </li>
                             </ul>
                             <button class="btn btn-sm btn-primary" onClick=${async () => { setRefreshing(true); await loadData(); setRefreshing(false); }} disabled=${refreshing}>
                                 ${refreshing ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-refresh me-1"></i>`}
@@ -634,11 +710,18 @@ export function SiteAdminPage() {
                                                 <label class="form-label">Organization Name <span class="text-danger">*</span></label>
                                                 <input 
                                                     type="text" 
-                                                    class="form-control" 
+                                                    class=${`form-control ${newOrgName && newOrgName.trim().length < 4 ? 'is-invalid' : ''}`}
                                                     placeholder="Acme Corp" 
                                                     value=${newOrgName} 
-                                                    onInput=${(e) => setNewOrgName(e.target.value)} 
+                                                    onInput=${(e) => setNewOrgName(e.target.value)}
+                                                    minlength="4"
                                                 />
+                                                <small class="form-text text-muted">Minimum 4 characters required for proper license key generation</small>
+                                                ${newOrgName && newOrgName.trim().length < 4 ? html`
+                                                    <div class="invalid-feedback d-block">
+                                                        Organization name must be at least 4 characters long
+                                                    </div>
+                                                ` : ''}
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label">Owner Email <span class="text-danger">*</span></label>
@@ -805,7 +888,7 @@ export function SiteAdminPage() {
                                                 <button 
                                                     class="btn btn-primary" 
                                                     onClick=${onCreateOrg}
-                                                    disabled=${!newOrgName || !newOwnerEmail || !isValidEmail(newOwnerEmail)}
+                                                    disabled=${!newOrgName || newOrgName.trim().length < 4 || !newOwnerEmail || !isValidEmail(newOwnerEmail)}
                                                 >
                                                     <i class="ti ti-plus me-2"></i>
                                                     Create Organization
@@ -1006,7 +1089,18 @@ export function SiteAdminPage() {
                                             <div class="row g-3">
                                                 <div class="col-md-6">
                                                     <label class="form-label">Organization Name</label>
-                                                    <input class="form-control" value=${updateOrgName} onInput=${(e) => setUpdateOrgName(e.target.value)} />
+                                                    <input 
+                                                        class=${`form-control ${updateOrgName && updateOrgName.trim().length < 4 ? 'is-invalid' : ''}`}
+                                                        value=${updateOrgName} 
+                                                        onInput=${(e) => setUpdateOrgName(e.target.value)}
+                                                        minlength="4"
+                                                    />
+                                                    <small class="form-text text-muted">Minimum 4 characters required</small>
+                                                    ${updateOrgName && updateOrgName.trim().length < 4 ? html`
+                                                        <div class="invalid-feedback d-block">
+                                                            Organization name must be at least 4 characters long
+                                                        </div>
+                                                    ` : ''}
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label">Owner Email</label>
@@ -1201,7 +1295,11 @@ export function SiteAdminPage() {
                                                 ` : null}
 
                                                 <div class="col-12">
-                                                    <button class="btn btn-primary" onClick=${onUpdateOrg}>
+                                                    <button 
+                                                        class="btn btn-primary" 
+                                                        onClick=${onUpdateOrg}
+                                                        disabled=${!updateOrgName || updateOrgName.trim().length < 4}
+                                                    >
                                                         <i class="ti ti-device-floppy me-2"></i>
                                                         Update Organization
                                                     </button>
@@ -1451,6 +1549,182 @@ export function SiteAdminPage() {
                                     </table>
                                 </div>
                             `}
+                        </div>
+                    `}
+
+                    ${mainSection === 'overview' && activeTab === 'admin-actions' && html`
+                        <div class="row g-3">
+                            <!-- Cron Job Triggers -->
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="ti ti-clock me-2"></i>
+                                            Manual Cron Job Triggers
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted mb-3">
+                                            Manually trigger cron jobs for testing or immediate execution. Results will be logged to audit telemetry.
+                                        </p>
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <button 
+                                                    class="btn btn-primary w-100"
+                                                    onClick=${() => onTriggerCron('AppRemediationDetection')}
+                                                    disabled=${triggeringCron === 'AppRemediationDetection'}
+                                                >
+                                                    ${triggeringCron === 'AppRemediationDetection' ? html`
+                                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                                        Triggering...
+                                                    ` : html`
+                                                        <i class="ti ti-refresh me-2"></i>
+                                                        Trigger App Remediation Detection
+                                                    `}
+                                                </button>
+                                                <small class="text-muted d-block mt-1">
+                                                    Detects app updates and marks CVEs as remediated
+                                                </small>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button 
+                                                    class="btn btn-primary w-100"
+                                                    onClick=${() => onTriggerCron('ThreatIntelEnrichment')}
+                                                    disabled=${triggeringCron === 'ThreatIntelEnrichment'}
+                                                >
+                                                    ${triggeringCron === 'ThreatIntelEnrichment' ? html`
+                                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                                        Triggering...
+                                                    ` : html`
+                                                        <i class="ti ti-shield me-2"></i>
+                                                        Trigger Threat Intel Enrichment
+                                                    `}
+                                                </button>
+                                                <small class="text-muted d-block mt-1">
+                                                    Enriches CVEs with EPSS scores and exploit data
+                                                </small>
+                                            </div>
+                                        </div>
+                                        
+                                        ${cronResult && html`
+                                            <div class="alert ${cronResult.success ? 'alert-success' : 'alert-danger'} mt-3" role="alert">
+                                                <div class="d-flex align-items-center">
+                                                    <div>
+                                                        <i class="${cronResult.success ? 'ti ti-check' : 'ti ti-alert-circle'} me-2"></i>
+                                                        <strong>${cronResult.taskId}</strong>: ${cronResult.success ? 'Completed successfully' : 'Failed'}
+                                                    </div>
+                                                    <button 
+                                                        type="button" 
+                                                        class="btn-close ms-auto" 
+                                                        onClick=${() => setCronResult(null)}
+                                                    ></button>
+                                                </div>
+                                                ${cronResult.data && html`
+                                                    <div class="mt-2 small">
+                                                        ${cronResult.data.itemsProcessed !== undefined && html`
+                                                            <div>Items Processed: <strong>${cronResult.data.itemsProcessed}</strong></div>
+                                                        `}
+                                                        ${cronResult.data.duration && html`
+                                                            <div>Duration: <strong>${cronResult.data.duration}</strong></div>
+                                                        `}
+                                                    </div>
+                                                `}
+                                                ${cronResult.error && html`
+                                                    <div class="mt-2 small text-danger">${cronResult.error}</div>
+                                                `}
+                                            </div>
+                                        `}
+
+                                        <div class="mt-3">
+                                            <a href="#" onClick=${(e) => { e.preventDefault(); setMainSection('activity'); setActiveTab('cron-jobs'); loadCronStatus(); }} class="btn btn-link">
+                                                <i class="ti ti-external-link me-1"></i>
+                                                View Cron Job Details & History
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Remediation Reset -->
+                            <div class="col-12">
+                                <div class="card border-warning">
+                                    <div class="card-header bg-warning-lt">
+                                        <h3 class="card-title">
+                                            <i class="ti ti-restore me-2"></i>
+                                            Reset Remediation Status
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-warning mb-3">
+                                            <i class="ti ti-alert-triangle me-2"></i>
+                                            <strong>Warning:</strong> This action resets AppStatus and RemediatedOn timestamps in both AppTelemetry and CVETelemetry tables. Use for testing remediation detection logic.
+                                        </div>
+                                        
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Organization</label>
+                                                <select 
+                                                    class="form-select" 
+                                                    value=${resetOrgId}
+                                                    onChange=${(e) => setResetOrgId(e.target.value)}
+                                                    disabled=${resettingRemediation}
+                                                >
+                                                    <option value="">Select organization...</option>
+                                                    ${orgs.map(org => html`
+                                                        <option value=${org.orgId}>${org.orgName || org.name || org.orgId}</option>
+                                                    `)}
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 align-self-end">
+                                                <button 
+                                                    class="btn btn-warning w-100"
+                                                    onClick=${onResetRemediation}
+                                                    disabled=${resettingRemediation || !resetOrgId}
+                                                >
+                                                    ${resettingRemediation ? html`
+                                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                                        Resetting...
+                                                    ` : html`
+                                                        <i class="ti ti-restore me-2"></i>
+                                                        Reset Remediation Status
+                                                    `}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        ${resetResult && html`
+                                            <div class="alert ${resetResult.success ? 'alert-success' : 'alert-danger'} mt-3" role="alert">
+                                                <div class="d-flex align-items-center">
+                                                    <div>
+                                                        <i class="${resetResult.success ? 'ti ti-check' : 'ti ti-alert-circle'} me-2"></i>
+                                                        ${resetResult.success ? 'Remediation status reset successfully' : 'Failed to reset remediation status'}
+                                                    </div>
+                                                    <button 
+                                                        type="button" 
+                                                        class="btn-close ms-auto" 
+                                                        onClick=${() => setResetResult(null)}
+                                                    ></button>
+                                                </div>
+                                                ${resetResult.data && html`
+                                                    <div class="mt-2 small">
+                                                        <div>App Records Reset: <strong>${resetResult.data.appRecordsReset || 0}</strong></div>
+                                                        <div>CVE Records Reset: <strong>${resetResult.data.cveRecordsReset || 0}</strong></div>
+                                                    </div>
+                                                `}
+                                                ${resetResult.error && html`
+                                                    <div class="mt-2 small text-danger">${resetResult.error}</div>
+                                                `}
+                                            </div>
+                                        `}
+
+                                        <div class="mt-3">
+                                            <p class="text-muted small mb-0">
+                                                <strong>Effect:</strong> Sets AppStatus='installed' and RemediatedOn=null for all apps and CVEs in the organization. Next remediation job will re-detect updates.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     `}
 

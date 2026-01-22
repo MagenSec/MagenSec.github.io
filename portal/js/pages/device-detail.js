@@ -40,6 +40,9 @@ export class DeviceDetailPage extends window.Component {
             cveFilterApp: null,
             appSortKey: 'appName',
             appSortDir: 'asc',
+            appStatusFilter: 'installed',
+            appSummary: null,
+            appViewMode: 'vendor',
             expandedVendors: new Set(),
             expandedApps: new Set(),
             deviceSessions: null,
@@ -392,26 +395,30 @@ export class DeviceDetailPage extends window.Component {
                 throw new Error('Invalid device id');
             }
 
-            // Get device details with summary
-            const deviceResp = await api.get(`/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}?include=summary`);
-            if (!deviceResp.success) {
-                throw new Error(deviceResp.message || 'Failed to load device');
+            // USE UNIFIED DEVICE DETAIL ENDPOINT (reduces 4 API calls → 1 call)
+            // Fetch device + telemetry + apps + cves in single call
+            const detailResp = await api.getDeviceDetailUnified(currentOrg.orgId, this.state.deviceId, {
+                include: 'telemetry,apps,cves',
+                telemetryHistoryDays: 365,
+                telemetryHistoryLimit: 100,
+                appLimit: 1000,
+                cveLimit: 500
+            });
+
+            if (!detailResp.success) {
+                throw new Error(detailResp.message || 'Failed to load device detail');
             }
+
+            const { device: deviceData, telemetry: telemetryData, apps: appsData, cves: cvesData } = detailResp.data;
 
             // Decrypt PII fields from device
             const decryptedDevice = {
-                ...deviceResp.data,
-                DeviceName: PiiDecryption.decryptIfEncrypted(deviceResp.data.DeviceName || deviceResp.data.deviceName || ''),
-                deviceName: PiiDecryption.decryptIfEncrypted(deviceResp.data.DeviceName || deviceResp.data.deviceName || ''),
+                ...deviceData,
+                DeviceName: PiiDecryption.decryptIfEncrypted(deviceData.DeviceName || deviceData.deviceName || ''),
+                deviceName: PiiDecryption.decryptIfEncrypted(deviceData.DeviceName || deviceData.deviceName || ''),
                 // Ensure FirstHeartbeat is available for Registered date display
-                FirstHeartbeat: deviceResp.data.FirstHeartbeat || deviceResp.data.firstHeartbeat || deviceResp.data.RegisteredAt || deviceResp.data.registeredAt
+                FirstHeartbeat: deviceData.FirstHeartbeat || deviceData.firstHeartbeat || deviceData.RegisteredAt || deviceData.registeredAt
             };
-
-            // Get telemetry history and diffs
-            const telemetryResp = await api.get(
-                `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/telemetry?historyLimit=100&lastDays=365`
-            );
-            const telemetryData = telemetryResp.success ? telemetryResp.data : null;
 
             // If device name is missing (or equals deviceId), infer from telemetry hostname
             const inferredHostname = telemetryData?.latest?.fields?.Hostname
@@ -432,16 +439,25 @@ export class DeviceDetailPage extends window.Component {
                 }
             }
 
-            // Get app inventory and decrypt fields
-            const appsResp = await api.get(
-                `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/apps?limit=1000`
-            );
-            const appPayload = appsResp.success 
-                ? (appsResp.data?.items || appsResp.data?.apps || appsResp.data?.list || appsResp.data || [])
-                : [];
+            // Decrypt app inventory fields
+            const appPayload = appsData?.items || appsData || [];
+            const normalizedApps = this.computeAppStatus(appPayload);
+            const backendSummary = appsData?.summary || {};
+            const computedSummary = {
+                total: normalizedApps.length,
+                installed: normalizedApps.filter(a => (a.status || '').toLowerCase() === 'installed').length,
+                updated: normalizedApps.filter(a => (a.status || '').toLowerCase() === 'updated').length,
+                uninstalled: normalizedApps.filter(a => (a.status || '').toLowerCase() === 'uninstalled').length
+            };
+            const appSummary = {
+                total: backendSummary.total ?? backendSummary.appCount ?? backendSummary.count ?? computedSummary.total,
+                installed: backendSummary.installed ?? backendSummary.installedCount ?? computedSummary.installed,
+                updated: backendSummary.updated ?? backendSummary.updatedCount ?? computedSummary.updated,
+                uninstalled: backendSummary.uninstalled ?? backendSummary.uninstalledCount ?? computedSummary.uninstalled
+            };
             const appList = appPayload.map(x => ({
                     appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
-                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || ''),
+                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || x.appVendor || ''),
                     version: x.applicationVersion || x.ApplicationVersion,
                     matchType: x.matchType || x.MatchType,
                     isInstalled: x.isInstalled ?? x.IsInstalled,
@@ -449,37 +465,32 @@ export class DeviceDetailPage extends window.Component {
                     firstSeen: x.firstSeen || x.FirstSeen
                 }));
 
-            // Get CVEs and decrypt fields
-            const cvesResp = await api.get(
-                `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/cves?limit=1000`
-            );
-            const cvePayload = cvesResp.success 
-                ? (cvesResp.data?.cves || cvesResp.data?.items || cvesResp.data?.list || [])
-                : [];
-            const mitigatedCvePayload = cvesResp.success 
-                ? (cvesResp.data?.mitigatedCves || [])
-                : [];
+            // Process CVE data from unified response
+            const cvePayload = cvesData?.items || cvesData?.cves || cvesData || [];
+            const mitigatedCvePayload = cvesData?.mitigatedCves || [];
                 
             const cveList = cvePayload.map(x => ({
                     appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
-                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || ''),
+                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || x.appVendor || ''),
                     cveId: x.cveId || x.CveId,
                     severity: x.severity || x.Severity,
-                    epss: x.epss || x.EPSS,
-                    score: x.score || x.Score || x.cvss,
-                    lastSeen: x.lastSeen || x.LastSeen,
-                    appStatus: x.appStatus || 'installed'
+                    epss: x.epssProbability || x.epss || x.EPSS,
+                    score: x.cvssScore || x.score || x.Score || x.cvss,
+                    lastSeen: x.lastDetected || x.lastSeen || x.LastSeen,
+                    appStatus: x.appStatus || 'installed',
+                    appRowKey: x.appRowKey || x.rowKey || ''
                 }));
                 
             const mitigatedCveList = mitigatedCvePayload.map(x => ({
                     appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
-                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || ''),
+                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || x.appVendor || ''),
                     cveId: x.cveId || x.CveId,
                     severity: x.severity || x.Severity,
-                    epss: x.epss || x.EPSS,
-                    score: x.score || x.Score || x.cvss,
-                    lastSeen: x.lastSeen || x.LastSeen,
-                    appStatus: x.appStatus || 'updated'
+                    epss: x.epssProbability || x.epss || x.EPSS,
+                    score: x.cvssScore || x.score || x.Score || x.cvss,
+                    lastSeen: x.lastDetected || x.lastSeen || x.LastSeen,
+                    appStatus: x.appStatus || 'updated',
+                    appRowKey: x.appRowKey || x.rowKey || ''
                 }));
 
             // Build timeline from telemetry changes
@@ -493,18 +504,28 @@ export class DeviceDetailPage extends window.Component {
                 deviceSummary = this.normalizeSummary(summaryData);
             }
 
+            // Deduplicate CVEs by cveId + appRowKey (prevent duplicate entries)
+            const uniqueCves = Array.from(
+                new Map(cveList.map(c => [`${c.cveId}|${c.appRowKey}`, c])).values()
+            );
+            const uniqueMitigatedCves = Array.from(
+                new Map(mitigatedCveList.map(c => [`${c.cveId}|${c.appRowKey}`, c])).values()
+            );
+
             this.setState({
                 device: decryptedDevice,
                 telemetryDetail: telemetryData,
                 appInventory: appList,
-                cveInventory: cveList,
-                mitigatedCveInventory: mitigatedCveList,
+                appSummary,
+                cveInventory: uniqueCves,
+                mitigatedCveInventory: uniqueMitigatedCves,
                 telemetryHistory: telemetryData?.history || [],
                 timeline,
                 deviceSummary,
                 deviceSessions: null,
                 loading: false,
-                showAllIps: false
+                showAllIps: false,
+                appStatusFilter: 'installed'
             });
             this.destroySessionChart();
             
@@ -739,8 +760,12 @@ export class DeviceDetailPage extends window.Component {
         );
     }
 
-    getCvesByApp(appName) {
-        return this.state.cveInventory.filter(c => c.appName === appName);
+    getCvesByApp(appRowKey) {
+        // CVEs are linked to apps via appRowKey field extracted from CVE RowKey
+        if (!appRowKey) return [];
+        return this.state.cveInventory.filter(c => 
+            c.appRowKey && c.appRowKey === appRowKey
+        );
     }
 
     getSeverityStyles(severity) {
@@ -843,12 +868,25 @@ export class DeviceDetailPage extends window.Component {
         });
     }
 
+    /**
+     * Normalize app name for comparison by removing architecture suffix in parentheses
+     * Examples:
+     * - "Microsoft .NET AppHost Pack - 9.0.11 (x64)" → "Microsoft .NET AppHost Pack - 9.0.11"
+     * - "Some App (x64_arm64)" → "Some App"
+     * - "Simple App" → "Simple App"
+     */
+    normalizeAppName(appName) {
+        if (!appName || typeof appName !== 'string') return '';
+        // Remove anything in parentheses at the end (architecture suffixes)
+        return appName.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase().trim();
+    }
+
     getActiveCves() {
         const activeAppNames = new Set(
-            this.getActiveApps().map(app => (app.appName || '').toLowerCase())
+            this.getActiveApps().map(app => this.normalizeAppName(app.appName))
         );
         return this.state.cveInventory.filter(cve => {
-            const cveAppName = (cve.appName || '').toLowerCase();
+            const cveAppName = this.normalizeAppName(cve.appName);
             return activeAppNames.has(cveAppName);
         });
     }
@@ -861,10 +899,10 @@ export class DeviceDetailPage extends window.Component {
         
         // Fallback to client-side computation for backward compatibility
         const activeAppNames = new Set(
-            this.getActiveApps().map(app => (app.appName || '').toLowerCase())
+            this.getActiveApps().map(app => this.normalizeAppName(app.appName))
         );
         return this.state.cveInventory.filter(cve => {
-            const cveAppName = (cve.appName || '').toLowerCase();
+            const cveAppName = this.normalizeAppName(cve.appName);
             return !activeAppNames.has(cveAppName);
         });
     }
@@ -1741,6 +1779,136 @@ export class DeviceDetailPage extends window.Component {
         return result;
     }
 
+    /**
+     * Block device from device detail page
+     * @param {boolean} deleteTelemetry - Whether to delete telemetry data
+     */
+    async blockDevice(deleteTelemetry = false) {
+        const { device } = this.state;
+        if (!device) {
+            console.error('[DeviceDetail] Cannot block: device not loaded');
+            return;
+        }
+
+        const deviceId = device.DeviceId || device.deviceId;
+        const deviceName = device.DeviceName || device.deviceName || deviceId;
+        const currentOrg = orgContext.getCurrentOrg();
+        
+        if (!currentOrg || !currentOrg.orgId) {
+            console.error('[DeviceDetail] Cannot block: no org context');
+            alert('Error: Organization context not available');
+            return;
+        }
+
+        const confirmMessage = deleteTelemetry
+            ? `Block device "${deviceName}" and delete its telemetry?\n\nDevice will remove license and terminate. Seat will be released.\nTelemetry deletion cannot be undone.`
+            : `Block device "${deviceName}"?\n\nDevice will remove license and terminate. Seat will be released.`;
+
+        if (!confirm(confirmMessage)) {
+            console.info('[DeviceDetail] Block device cancelled by user');
+            return;
+        }
+
+        console.info('[DeviceDetail] Blocking device:', { deviceId, deviceName, deleteTelemetry, orgId: currentOrg.orgId });
+
+        try {
+            const response = await api.updateDeviceState(currentOrg.orgId, deviceId, 'BLOCKED', {
+                deleteTelemetry,
+                reason: deleteTelemetry 
+                    ? 'Admin blocked device with telemetry deletion via Device Detail page'
+                    : 'Admin blocked device via Device Detail page'
+            });
+
+            console.info('[DeviceDetail] Block device response:', response);
+
+            if (response.success) {
+                // Update local state optimistically
+                this.setState({
+                    device: {
+                        ...this.state.device,
+                        DeviceState: 'BLOCKED',
+                        State: 'BLOCKED',
+                        state: 'BLOCKED'
+                    }
+                });
+
+                alert(deleteTelemetry 
+                    ? 'Device blocked successfully. Seat released. Telemetry deleted.' 
+                    : 'Device blocked successfully. Seat released.');
+                
+                // BUG FIX #1: Redirect to devices list so user sees updated badge immediately
+                setTimeout(() => {
+                    route('/#!/devices');
+                }, 1000);
+            } else {
+                throw new Error(response.message || response.error || 'Failed to block device');
+            }
+        } catch (error) {
+            console.error('[DeviceDetail] Block device failed:', error);
+            alert(`Failed to block device: ${error.message}`);
+        }
+    }
+
+    /**
+     * Enable (resurrect) blocked device from device detail page
+     */
+    async enableDevice() {
+        const { device } = this.state;
+        if (!device) {
+            console.error('[DeviceDetail] Cannot enable: device not loaded');
+            return;
+        }
+
+        const deviceId = device.DeviceId || device.deviceId;
+        const deviceName = device.DeviceName || device.deviceName || deviceId;
+        const currentOrg = orgContext.getCurrentOrg();
+        
+        if (!currentOrg || !currentOrg.orgId) {
+            console.error('[DeviceDetail] Cannot enable: no org context');
+            alert('Error: Organization context not available');
+            return;
+        }
+
+        const confirmMessage = `Enable device "${deviceName}"?\n\nDevice must re-register (license validation + heartbeat) before becoming ACTIVE again.`;
+
+        if (!confirm(confirmMessage)) {
+            console.info('[DeviceDetail] Enable device cancelled by user');
+            return;
+        }
+
+        console.info('[DeviceDetail] Enabling device:', { deviceId, deviceName, orgId: currentOrg.orgId });
+
+        try {
+            const response = await api.updateDeviceState(currentOrg.orgId, deviceId, 'ENABLED', {
+                reason: 'Admin enabled via Device Detail page'
+            });
+
+            console.info('[DeviceDetail] Enable device response:', response);
+
+            if (response.success) {
+                // Update local state optimistically
+                this.setState({
+                    device: {
+                        ...this.state.device,
+                        DeviceState: 'ENABLED',
+                        State: 'ENABLED',
+                        state: 'ENABLED'
+                    }
+                });
+
+                alert('Device enabled successfully. Re-registration required.');
+                
+                // Reload device data to get fresh state
+                await this.loadDeviceData();
+            } else {
+                throw new Error(response.message || response.error || 'Failed to enable device');
+            }
+        } catch (error) {
+            console.error('[DeviceDetail] Enable device failed:', error);
+            alert(`Failed to enable device: ${error.message}`);
+        }
+    }
+
     isPrivateIp(ip) {
         /**
          * Check if IP is in private ranges per RFC 1918
@@ -1856,7 +2024,13 @@ export class DeviceDetailPage extends window.Component {
         }
 
         const enrichedApps = this.computeAppStatus(this.state.appInventory);
-        let filteredApps = this.filterApps(enrichedApps, searchQuery);
+        const statusFilter = this.state.appStatusFilter || 'installed';
+        const statusFilteredApps = enrichedApps.filter(app => {
+            const status = (app.status || '').toLowerCase();
+            if (statusFilter === 'all') return true;
+            return status === statusFilter;
+        });
+        let filteredApps = this.filterApps(statusFilteredApps, searchQuery);
         // Apply sorting for Applications tab
         filteredApps = filteredApps.slice().sort((a,b) => {
             if (this.state.appSortKey === 'appName') {
@@ -1864,14 +2038,14 @@ export class DeviceDetailPage extends window.Component {
                 return this.state.appSortDir === 'asc' ? r : -r;
             }
             if (this.state.appSortKey === 'severity') {
-                const aw = Math.max(...this.getCvesByApp(a.appName).map(c => this.severityWeight(c.severity)), 0);
-                const bw = Math.max(...this.getCvesByApp(b.appName).map(c => this.severityWeight(c.severity)), 0);
+                const aw = Math.max(...this.getCvesByApp(a.appRowKey).map(c => this.severityWeight(c.severity)), 0);
+                const bw = Math.max(...this.getCvesByApp(b.appRowKey).map(c => this.severityWeight(c.severity)), 0);
                 const r = aw - bw;
                 return this.state.appSortDir === 'asc' ? r : -r;
             }
             if (this.state.appSortKey === 'cveCount') {
-                const ac = this.getCvesByApp(a.appName).length;
-                const bc = this.getCvesByApp(b.appName).length;
+                const ac = this.getCvesByApp(a.appRowKey).length;
+                const bc = this.getCvesByApp(b.appRowKey).length;
                 const r = ac - bc;
                 return this.state.appSortDir === 'asc' ? r : -r;
             }
@@ -2040,9 +2214,13 @@ export class DeviceDetailPage extends window.Component {
                                                     Update Client
                                                 </a>
                                                 <div class="dropdown-divider"></div>
-                                                <a class="dropdown-item text-danger" href="#" onclick=${(e) => { e.preventDefault(); console.info('Block device requested'); }}>
+                                                <a class="dropdown-item text-danger" href="#" onclick=${(e) => { e.preventDefault(); this.blockDevice(false); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M5.7 5.7l12.6 12.6" /></svg>
                                                     Block Device
+                                                </a>
+                                                <a class="dropdown-item text-danger" href="#" onclick=${(e) => { e.preventDefault(); this.blockDevice(true); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 6l3 18h12l3 -18h-18" /><path d="M8 6v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" /></svg>
+                                                    Block + Delete Telemetry
                                                 </a>
                                             </div>
                                         </div>
@@ -2326,8 +2504,11 @@ export class DeviceDetailPage extends window.Component {
                                         const isActive = activeTab === key;
                                         if (key === 'riskAssessment') return `nav-link rounded-pill fw-semibold ${isActive ? 'active bg-danger text-white shadow-sm' : 'border border-danger text-danger bg-transparent'}`;
                                         if (key === 'inventory') return `nav-link rounded-pill fw-semibold ${isActive ? 'active bg-primary text-white shadow-sm' : 'border border-primary text-primary bg-transparent'}`;
-                                        return `nav-link rounded-pill fw-semibold ${isActive ? 'active bg-yellow text-dark shadow-sm' : 'border border-warning text-warning bg-transparent'}`;
+                                        if (key === 'telemetry') return `nav-link rounded-pill fw-semibold ${isActive ? 'active bg-info text-white shadow-sm' : 'border border-info text-info bg-transparent'}`;
+                                        return `nav-link rounded-pill fw-semibold ${isActive ? 'active bg-warning text-dark shadow-sm' : 'border border-warning text-warning bg-transparent'}`;
                                     };
+
+                                    const telemetryHistoryLength = this.state.telemetryHistory?.length || 0;
 
                                     return html`
                                         <ul class="nav nav-pills nav-fill card-header-tabs" role="tablist">
@@ -2345,6 +2526,15 @@ export class DeviceDetailPage extends window.Component {
                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>
                                                         <span>Applications</span>
                                                         <span class="badge bg-primary-lt text-primary">${enrichedApps.length}</span>
+                                                    </span>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class=${tabClass('telemetry')} href="#" onclick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'telemetry' }); }} role="tab">
+                                                    <span class="d-flex align-items-center justify-content-center gap-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3" /><line x1="12" y1="12" x2="20" y2="7.5" /><line x1="12" y1="12" x2="12" y2="21" /><line x1="12" y1="12" x2="4" y2="7.5" /></svg>
+                                                        <span>Telemetry</span>
+                                                        ${telemetryHistoryLength > 0 ? html`<span class="badge bg-info-lt text-info">${telemetryHistoryLength}</span>` : ''}
                                                     </span>
                                                 </a>
                                             </li>
@@ -2367,6 +2557,9 @@ export class DeviceDetailPage extends window.Component {
                                 
                                 <!-- Inventory Tab -->
                                 ${activeTab === 'inventory' ? this.renderInventoryTab(enrichedApps, filteredApps) : ''}
+                                
+                                <!-- Telemetry Tab -->
+                                ${activeTab === 'telemetry' ? this.renderTelemetryTab() : ''}
                                 
                                 <!-- CVEs Tab -->
                                 ${activeTab === 'risks' ? this.renderRisksTab() : ''}
@@ -2660,9 +2853,16 @@ export class DeviceDetailPage extends window.Component {
         const { appViewMode } = this.state;
         const detectionBuckets = this.getDetectionBuckets(this.state.cveInventory);
         const goToCves = () => this.setState({ activeTab: 'risks' }, () => this.scrollToCveTable());
+        const appSummary = this.state.appSummary || {
+            total: enrichedApps.length,
+            installed: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'installed').length,
+            updated: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'updated').length,
+            uninstalled: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'uninstalled').length
+        };
+        const statusFilter = this.state.appStatusFilter || 'installed';
         
         return html`
-            <div class="mb-3 d-flex justify-content-between align-items-center">
+            <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div class="input-group" style="max-width: 400px;">
                     <span class="input-group-text">
                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
@@ -2678,12 +2878,26 @@ export class DeviceDetailPage extends window.Component {
                     </button>
                 </div>
             </div>
+            <div class="mb-3 d-flex flex-wrap gap-2">
+                <button class="btn btn-sm ${statusFilter === 'installed' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ appStatusFilter: 'installed' })}>
+                    Installed <span class="badge bg-white text-primary ms-1">${appSummary.installed ?? 0}</span>
+                </button>
+                <button class="btn btn-sm ${statusFilter === 'updated' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ appStatusFilter: 'updated' })}>
+                    Updated <span class="badge bg-white text-primary ms-1">${appSummary.updated ?? 0}</span>
+                </button>
+                <button class="btn btn-sm ${statusFilter === 'uninstalled' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ appStatusFilter: 'uninstalled' })}>
+                    Uninstalled <span class="badge bg-white text-primary ms-1">${appSummary.uninstalled ?? 0}</span>
+                </button>
+                <button class="btn btn-sm ${statusFilter === 'all' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ appStatusFilter: 'all' })}>
+                    All <span class="badge bg-white text-primary ms-1">${appSummary.total ?? enrichedApps.length}</span>
+                </button>
+            </div>
             <div class="row row-cards mb-3">
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body text-center">
                             <div class="text-muted small">Total Applications</div>
-                            <div class="h3">${enrichedApps.length}</div>
+                            <div class="h3">${appSummary.total ?? enrichedApps.length}</div>
                         </div>
                     </div>
                 </div>
@@ -2691,7 +2905,7 @@ export class DeviceDetailPage extends window.Component {
                     <div class="card">
                         <div class="card-body text-center">
                             <div class="text-muted small">Updated</div>
-                            <div class="h3"><span class="badge bg-warning-lt text-dark">${enrichedApps.filter(a => a.status === 'updated').length}</span></div>
+                            <div class="h3"><span class="badge bg-warning-lt text-dark">${appSummary.updated ?? enrichedApps.filter(a => a.status === 'updated').length}</span></div>
                         </div>
                     </div>
                 </div>
@@ -2699,7 +2913,7 @@ export class DeviceDetailPage extends window.Component {
                     <div class="card">
                         <div class="card-body text-center">
                             <div class="text-muted small">Uninstalled</div>
-                            <div class="h3"><span class="badge bg-success-lt text-dark">${enrichedApps.filter(a => a.status === 'uninstalled').length}</span></div>
+                            <div class="h3"><span class="badge bg-success-lt text-dark">${appSummary.uninstalled ?? enrichedApps.filter(a => a.status === 'uninstalled').length}</span></div>
                         </div>
                     </div>
                 </div>
@@ -2707,7 +2921,7 @@ export class DeviceDetailPage extends window.Component {
                     <div class="card">
                         <div class="card-body text-center">
                             <div class="text-muted small">With CVEs</div>
-                            <div class="h3 text-info">${enrichedApps.filter(a => this.getCvesByApp(a.appName).length > 0).length}</div>
+                            <div class="h3 text-info">${enrichedApps.filter(a => this.getCvesByApp(a.appRowKey).length > 0).length}</div>
                         </div>
                     </div>
                 </div>
@@ -2737,7 +2951,7 @@ export class DeviceDetailPage extends window.Component {
                     const vendorApps = vendorGroups[vendorName];
                     const isExpanded = this.state.expandedVendors.has(vendorName);
                     const appGroups = this.groupAppVersions(vendorApps);
-                    const vendorCves = vendorApps.reduce((sum, app) => sum.concat(this.getCvesByApp(app.appName)), []);
+                    const vendorCves = vendorApps.reduce((sum, app) => sum.concat(this.getCvesByApp(app.appRowKey)), []);
                     const totalCves = vendorCves.length;
                     const vendorDetection = this.getDetectionBuckets(vendorCves);
 
@@ -2766,7 +2980,7 @@ export class DeviceDetailPage extends window.Component {
                                         const hasMultipleVersions = appGroup.versions.length > 1;
                                         const appKey = appGroup.appName.toLowerCase();
                                         const isVersionsExpanded = this.state.expandedApps.has(appKey);
-                                        const cves = this.getCvesByApp(appGroup.appName);
+                                        const cves = this.getCvesByApp(latestVersion.appRowKey);
                                         const worstSeverity = cves.some(c => c.severity === 'CRITICAL') ? 'CRITICAL' : 
                                                              cves.some(c => c.severity === 'HIGH') ? 'HIGH' : 
                                                              cves.some(c => c.severity === 'MEDIUM') ? 'MEDIUM' : 
@@ -3652,7 +3866,7 @@ export class DeviceDetailPage extends window.Component {
                     </thead>
                     <tbody>
                         ${filteredApps.map(app => {
-                            const cves = this.getCvesByApp(app.appName);
+                            const cves = this.getCvesByApp(app.appRowKey);
                             const worstSeverity = cves.some(c => c.severity === 'CRITICAL' || c.severity === 'Critical') ? 'CRITICAL' : 
                                                  cves.some(c => c.severity === 'HIGH' || c.severity === 'High') ? 'HIGH' : 
                                                  cves.some(c => c.severity === 'MEDIUM' || c.severity === 'Medium') ? 'MEDIUM' : 
@@ -3717,6 +3931,214 @@ export class DeviceDetailPage extends window.Component {
                     </div>
                 ` : ''}
             </div>
+        `;
+    }
+
+    renderTelemetryTab() {
+        const { html } = window;
+        
+        const telemetryData = this.state.telemetryDetail;
+        const telemetryHistory = this.state.telemetryHistory || [];
+        const changes = telemetryData?.changes || [];
+        
+        if (!telemetryData || (!telemetryHistory.length && !changes.length)) {
+            return html`
+                <div class="alert alert-info">
+                    <svg class="icon me-2" width="20" height="20"><path stroke="currentColor" stroke-width="2" fill="none" d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z"/><path d="M12 7v5"/><circle cx="12" cy="16" r="1"/></svg>
+                    No telemetry history available
+                </div>
+            `;
+        }
+        
+        // Build timeline from history and changes
+        const timeline = [];
+        
+        // Add history snapshots
+        (telemetryHistory || []).forEach((snapshot, idx) => {
+            timeline.push({
+                type: 'snapshot',
+                timestamp: snapshot.timestamp || snapshot.Timestamp,
+                snapshot: snapshot,
+                index: idx
+            });
+        });
+        
+        // Add field-level changes
+        (changes || []).forEach((change, idx) => {
+            timeline.push({
+                type: 'change',
+                timestamp: change.timestamp,
+                field: change.fieldName,
+                oldValue: change.oldValue,
+                newValue: change.newValue,
+                index: idx
+            });
+        });
+        
+        // Sort by timestamp descending (newest first)
+        timeline.sort((a, b) => {
+            const aTime = new Date(a.timestamp || 0).getTime();
+            const bTime = new Date(b.timestamp || 0).getTime();
+            return bTime - aTime;
+        });
+        
+        const formatDate = (dateStr) => {
+            try {
+                return new Date(dateStr).toLocaleString();
+            } catch {
+                return dateStr;
+            }
+        };
+        
+        const formatValue = (val) => {
+            if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+            if (!val) return '—';
+            if (typeof val === 'object') return JSON.stringify(val);
+            return String(val).substring(0, 100);
+        };
+        
+        return html`
+            <div class="telemetry-timeline">
+                <div class="mb-3">
+                    <div class="text-muted small">
+                        <strong>${telemetryHistory.length}</strong> telemetry snapshots · 
+                        <strong>${changes.length}</strong> field changes detected
+                    </div>
+                </div>
+                
+                <div class="timeline-container">
+                    ${timeline.slice(0, 50).map((item, idx) => {
+                        if (item.type === 'snapshot') {
+                            const snapshot = item.snapshot;
+                            const fields = snapshot.fields || snapshot || {};
+                            const timestamp = snapshot.timestamp || snapshot.Timestamp || new Date().toISOString();
+                            
+                            return html`
+                                <div class="timeline-item mb-3" key=${idx}>
+                                    <div class="timeline-marker">
+                                        <div class="timeline-dot" style="background: #4299e1;"></div>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <div class="card">
+                                            <div class="card-header py-2">
+                                                <div class="d-flex align-items-center justify-content-between">
+                                                    <div class="small">
+                                                        <strong>Telemetry Snapshot</strong>
+                                                        <div class="text-muted">${formatDate(timestamp)}</div>
+                                                    </div>
+                                                    <span class="badge bg-info-lt text-info">Snapshot</span>
+                                                </div>
+                                            </div>
+                                            <div class="card-body py-2">
+                                                <div class="row g-2 small">
+                                                    ${Object.entries(fields).slice(0, 6).map(([key, val]) => html`
+                                                        <div class="col-6">
+                                                            <div class="text-muted">${key}</div>
+                                                            <div class="font-weight-medium text-truncate" title=${String(val)}>
+                                                                ${formatValue(val)}
+                                                            </div>
+                                                        </div>
+                                                    `)}
+                                                </div>
+                                                ${Object.keys(fields).length > 6 ? html`
+                                                    <div class="mt-2 text-muted small">
+                                                        +${Object.keys(fields).length - 6} more fields
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        } else if (item.type === 'change') {
+                            const severity = item.newValue === 'Critical' || item.newValue === 'High' ? 'danger' : 'info';
+                            
+                            return html`
+                                <div class="timeline-item mb-3" key=${idx}>
+                                    <div class="timeline-marker">
+                                        <div class="timeline-dot" style="background: #f76707;"></div>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <div class="card border-${severity}">
+                                            <div class="card-header py-2">
+                                                <div class="d-flex align-items-center justify-content-between">
+                                                    <div class="small">
+                                                        <strong>${item.field}</strong>
+                                                        <div class="text-muted">${formatDate(item.timestamp)}</div>
+                                                    </div>
+                                                    <span class="badge bg-warning-lt text-warning">Change</span>
+                                                </div>
+                                            </div>
+                                            <div class="card-body py-2">
+                                                <div class="row g-2 small">
+                                                    <div class="col-6">
+                                                        <div class="text-muted">From</div>
+                                                        <div class="font-weight-medium text-truncate text-danger" title=${String(item.oldValue)}>
+                                                            ${formatValue(item.oldValue)}
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="text-muted">To</div>
+                                                        <div class="font-weight-medium text-truncate text-success" title=${String(item.newValue)}>
+                                                            ${formatValue(item.newValue)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    })}
+                </div>
+                
+                ${timeline.length > 50 ? html`
+                    <div class="alert alert-info small mt-3">
+                        Showing first 50 items of ${timeline.length} total
+                    </div>
+                ` : ''}
+            </div>
+            
+            <style>
+                .timeline-container {
+                    position: relative;
+                    padding-left: 20px;
+                }
+                
+                .timeline-item {
+                    position: relative;
+                    padding-left: 20px;
+                }
+                
+                .timeline-item::before {
+                    content: '';
+                    position: absolute;
+                    left: -3px;
+                    top: 30px;
+                    bottom: -30px;
+                    width: 1px;
+                    background: #e0e0e0;
+                }
+                
+                .timeline-item:last-child::before {
+                    display: none;
+                }
+                
+                .timeline-marker {
+                    position: absolute;
+                    left: -10px;
+                    top: 5px;
+                }
+                
+                .timeline-dot {
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 50%;
+                    border: 2px solid white;
+                    box-shadow: 0 0 0 2px #e0e0e0;
+                }
+            </style>
         `;
     }
 
