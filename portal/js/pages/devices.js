@@ -119,10 +119,31 @@ class DevicesPage extends window.Component {
         const { selectedDevices } = this.state;
         if (selectedDevices.length === 0) return;
         
-        console.log('Scanning devices:', selectedDevices);
-        // TODO: Implement bulk scan API call
-        alert(`Scan triggered for ${selectedDevices.length} device(s)`);
-        this.clearSelection();
+        const org = orgContext.getCurrentOrg();
+        if (!org) return;
+
+        try {
+            this.setState({ bulkOperationInProgress: true });
+            console.log('[DevicesPage] Bulk scan triggered for:', selectedDevices);
+            
+            const response = await api.post(`/api/v1/orgs/${org.orgId}/devices/bulk/scan`, {
+                deviceIds: selectedDevices
+            });
+
+            if (response.success) {
+                const { scannedCount, skippedDevices } = response.data;
+                alert(`Scan triggered for ${scannedCount} device(s)` + 
+                      (skippedDevices.length > 0 ? `. Failed: ${skippedDevices.length}` : ''));
+                this.clearSelection();
+            } else {
+                alert(`Bulk scan failed: ${response.message}`);
+            }
+        } catch (err) {
+            console.error('[DevicesPage] Bulk scan error:', err);
+            alert(`Error triggering scan: ${err.message}`);
+        } finally {
+            this.setState({ bulkOperationInProgress: false });
+        }
     }
 
     async blockSelected() {
@@ -132,11 +153,34 @@ class DevicesPage extends window.Component {
         if (!confirm(`Block ${selectedDevices.length} device(s)? They will be removed from active monitoring.`)) {
             return;
         }
-        
-        console.log('Blocking devices:', selectedDevices);
-        // TODO: Implement bulk block API call
-        alert(`${selectedDevices.length} device(s) marked for blocking`);
-        this.clearSelection();
+
+        const org = orgContext.getCurrentOrg();
+        if (!org) return;
+
+        try {
+            this.setState({ bulkOperationInProgress: true });
+            console.log('[DevicesPage] Bulk block triggered for:', selectedDevices);
+            
+            const response = await api.post(`/api/v1/orgs/${org.orgId}/devices/bulk/block`, {
+                deviceIds: selectedDevices,
+                deleteTelemetry: false
+            });
+
+            if (response.success) {
+                const { blockedCount, failedDevices } = response.data;
+                alert(`${blockedCount} device(s) blocked successfully` + 
+                      (failedDevices.length > 0 ? `. Failed: ${failedDevices.length}` : ''));
+                this.clearSelection();
+                await this.loadDevices(); // Refresh list
+            } else {
+                alert(`Bulk block failed: ${response.message}`);
+            }
+        } catch (err) {
+            console.error('[DevicesPage] Bulk block error:', err);
+            alert(`Error blocking devices: ${err.message}`);
+        } finally {
+            this.setState({ bulkOperationInProgress: false });
+        }
     }
 
     async exportSelected() {

@@ -1093,12 +1093,13 @@ export class DashboardPage extends Component {
         // Parse device data from snapshot.risk.topDeviceRisks
         const devices = snapshot.risk?.topDeviceRisks || [];
         
-        if (devices.length === 0) {
+        // Task 6 Fix: Check if topDeviceRisks exists and has items
+        if (!Array.isArray(devices) || devices.length === 0) {
             return html`
                 <div class="mb-4">
                     <h4 class="mb-3">Device Risk Distribution</h4>
                     <div class="alert alert-info">
-                        <strong>No Device Data:</strong> No devices with risk scores available yet.
+                        <strong>No Data:</strong> Device risk scores will appear here after your first security scan completes.
                     </div>
                 </div>
             `;
@@ -1316,41 +1317,73 @@ export class DashboardPage extends Component {
             <div class="mb-3">
                 <h4 class="mb-3">Prioritized Actions</h4>
                 <div class="list-group">
-                    ${actions.map((action, idx) => html`
-                        <div class="list-group-item">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <span class="badge badge-pill bg-primary">${idx + 1}</span>
-                                </div>
-                                <div class="col">
-                                    <strong>${action.title || action.action}</strong>
-                                    ${action.affectedDevice || action.affectedApplication ? html`
-                                        <div style="margin-top: 4px;">
-                                            ${action.affectedDevice ? html`
-                                                <a href="#!/devices/${action.affectedDevice}" class="badge bg-secondary text-white" style="margin-right: 4px; text-decoration: none;">
-                                                    ${action.affectedDeviceName || action.affectedDevice}
-                                                </a>
-                                            ` : ''}
+                    ${actions.map((action, idx) => {
+                        // Format device list: "a, b, c, ...more"
+                        const deviceList = this.formatDeviceList(action.affectedDevices || []);
+                        const hasMultipleDevices = action.affectedCount > 1;
+                        
+                        return html`
+                            <div class="list-group-item">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="badge badge-pill bg-primary">${idx + 1}</span>
+                                    </div>
+                                    <div class="col">
+                                        <div>
+                                            <strong>${action.title || action.action}</strong>
                                             ${action.affectedApplication ? html`
-                                                <span class="badge bg-info text-white">App: ${action.affectedApplication}</span>
+                                                <span class="badge bg-warning text-white ms-2">App: ${action.affectedApplication}</span>
                                             ` : ''}
                                         </div>
-                                    ` : ''}
-                                    ${action.description ? html`
-                                        <div class="text-muted small" style="margin-top: 4px;">${action.description}</div>
-                                    ` : ''}
-                                </div>
-                                <div class="col-auto">
-                                    <span class=${`badge bg-${this.getSeverityColor(action.priority || action.severity)} text-white`}>
-                                        ${action.priority || action.severity || 'Medium'}
-                                    </span>
+                                        ${deviceList.text ? html`
+                                            <div class="text-muted small mt-1">
+                                                <strong>Affected:</strong> ${deviceList.links.map((link, i) => html`
+                                                    ${i > 0 ? ', ' : ''}
+                                                    ${link.href ? html`
+                                                        <a href="${link.href}" class="text-primary">${link.name}</a>
+                                                    ` : html`<span>${link.name}</span>`}
+                                                `)}${deviceList.hasMore ? html`, <span class="text-muted">...${deviceList.remaining} more</span>` : ''}
+                                            </div>
+                                        ` : ''}
+                                        ${action.description ? html`
+                                            <div class="text-muted small mt-1">${action.description}</div>
+                                        ` : ''}
+                                    </div>
+                                    <div class="col-auto">
+                                        <span class=${`badge bg-${this.getSeverityColor(action.priority || action.severity)} text-white`}>
+                                            ${action.priority || action.severity || 'Medium'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    `)}
+                        `;
+                    })}
                 </div>
             </div>
         `;
+    }
+
+    formatDeviceList(devices) {
+        if (!devices || devices.length === 0) {
+            return { text: '', links: [], hasMore: false, remaining: 0 };
+        }
+
+        const maxDisplay = 3;
+        const displayDevices = devices.slice(0, maxDisplay);
+        const remaining = devices.length - maxDisplay;
+        const hasMore = devices.length > maxDisplay;
+
+        const links = displayDevices.map(d => ({
+            name: d.deviceName || d.deviceId,
+            href: d.deviceId ? `#!/devices/${d.deviceId}` : null
+        }));
+
+        return {
+            text: displayDevices.map(d => d.deviceName || d.deviceId).join(', '),
+            links,
+            hasMore,
+            remaining
+        };
     }
 
     render() {
