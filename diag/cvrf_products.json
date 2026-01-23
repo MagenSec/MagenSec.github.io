@@ -1,35 +1,5 @@
 [
   {
-    "ProductId": "19614-17084",
-    "Name": "azl3 libtpms 0.9.6-8 on Azure Linux 3.0",
-    "UpdateId": "2026-Jan",
-    "UpdateTitle": "January 2026 Security Updates",
-    "UpdateReleaseDate": "2026-01-22T08:00:00Z",
-    "Cpe": "cpe:2.3:a:microsoft:azl3_libtpms_0.9.6-8:*:*:*:*:*:*:*:*",
-    "CvssBaseScore": 5.5,
-    "CvssTemporalScore": 5.5,
-    "CvssVector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
-    "ThreatSeverity": "Moderate",
-    "ThreatImpact": null,
-    "Url": null,
-    "FixedBuild": null
-  },
-  {
-    "ProductId": "20725-17084",
-    "Name": "azl3 kernel 6.6.117.1-1 on Azure Linux 3.0",
-    "UpdateId": "2026-Jan",
-    "UpdateTitle": "January 2026 Security Updates",
-    "UpdateReleaseDate": "2026-01-22T08:00:00Z",
-    "Cpe": "cpe:2.3:a:microsoft:azl3_kernel_6.6.117.1-1:*:*:*:*:*:*:*:*",
-    "CvssBaseScore": 7.1,
-    "CvssTemporalScore": 7.1,
-    "CvssVector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:H",
-    "ThreatSeverity": "Important, Moderate",
-    "ThreatImpact": null,
-    "Url": null,
-    "FixedBuild": null
-  },
-  {
     "ProductId": "9312",
     "Name": "Windows Server 2008 for 32-bit Systems Service Pack 2",
     "UpdateId": "2026-Jan",
@@ -1138,5 +1108,35 @@
     "ThreatImpact": "Remote Code Execution",
     "Url": "https://www.microsoft.com/en-in/download/details.aspx?id=49117&msockid=35f9adb0e74b61392038b90de6fe608c",
     "FixedBuild": "16.0.19426.20170"
+  },
+  {
+    "ProductId": "19614-17084",
+    "Name": "azl3 libtpms 0.9.6-8 on Azure Linux 3.0",
+    "UpdateId": "2026-Jan",
+    "UpdateTitle": "January 2026 Security Updates",
+    "UpdateReleaseDate": "2026-01-22T08:00:00Z",
+    "Cpe": "cpe:2.3:a:microsoft:azl3_libtpms_0.9.6-8:*:*:*:*:*:*:*:*",
+    "CvssBaseScore": 5.5,
+    "CvssTemporalScore": 5.5,
+    "CvssVector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+    "ThreatSeverity": "Moderate",
+    "ThreatImpact": null,
+    "Url": null,
+    "FixedBuild": null
+  },
+  {
+    "ProductId": "20725-17084",
+    "Name": "azl3 kernel 6.6.117.1-1 on Azure Linux 3.0",
+    "UpdateId": "2026-Jan",
+    "UpdateTitle": "January 2026 Security Updates",
+    "UpdateReleaseDate": "2026-01-22T08:00:00Z",
+    "Cpe": "cpe:2.3:a:microsoft:azl3_kernel_6.6.117.1-1:*:*:*:*:*:*:*:*",
+    "CvssBaseScore": 7.1,
+    "CvssTemporalScore": 7.1,
+    "CvssVector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:H",
+    "ThreatSeverity": "Important, Moderate",
+    "ThreatImpact": null,
+    "Url": null,
+    "FixedBuild": null
   }
 ]
