@@ -8,6 +8,7 @@ import { CronActivityPage } from './cronActivity.js';
 import { AiReportsAnalysisPage } from './aiReportsAnalysis.js';
 import ReportPreviewPage from './ReportPreviewPage.js';
 import { LicenseAdjustmentDialog } from '../components/LicenseAdjustmentDialog.js';
+import { BusinessMatrixPage } from './businessMatrix.js';
 
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
@@ -24,7 +25,7 @@ const showToast = (message, type) => toast.show(message, type);
 
 export function SiteAdminPage() {
     const [mainSection, setMainSection] = useState('overview'); // 'overview', 'activity', or 'preview'
-    const [activeTab, setActiveTab] = useState('organizations');
+    const [activeTab, setActiveTab] = useState('business-matrix');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [orgs, setOrgs] = useState([]);
@@ -607,6 +608,16 @@ export function SiteAdminPage() {
                             <ul class="nav nav-tabs card-header-tabs">
                                 <li class="nav-item">
                                     <a 
+                                        class="nav-link ${activeTab === 'business-matrix' ? 'active' : ''}"
+                                        href="#"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('business-matrix'); }}
+                                    >
+                                        <i class="ti ti-chart-dots-2 me-2"></i>
+                                        Business Matrix
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a 
                                         class="nav-link ${activeTab === 'organizations' ? 'active' : ''}"
                                         href="#"
                                         onClick=${(e) => { e.preventDefault(); setActiveTab('organizations'); }}
@@ -692,6 +703,10 @@ export function SiteAdminPage() {
                     ` : html``}
                 </div>
                 <div class="card-body">
+                    ${mainSection === 'overview' && activeTab === 'business-matrix' && html`
+                        <${BusinessMatrixPage} />
+                    `}
+
                     ${mainSection === 'overview' && activeTab === 'organizations' && html`
                         <div class="row g-3">
                             <div class="col-12">
