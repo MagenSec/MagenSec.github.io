@@ -409,7 +409,7 @@ export class DeviceDetailPage extends window.Component {
                 throw new Error(detailResp.message || 'Failed to load device detail');
             }
 
-            const { device: deviceData, telemetry: telemetryData, apps: appsData, cves: cvesData } = detailResp.data;
+            const { device: deviceData, telemetry: telemetryData, apps: appsData, cves: cvesData, TelemetryStatus: telemetryStatus } = detailResp.data;
 
             // Decrypt PII fields from device
             const decryptedDevice = {
@@ -459,10 +459,12 @@ export class DeviceDetailPage extends window.Component {
                     appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
                     vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || x.appVendor || ''),
                     version: x.applicationVersion || x.ApplicationVersion,
-                    matchType: x.matchType || x.MatchType,
+                    matchType: x.matchType ?? x.MatchType ?? 0,
                     isInstalled: x.isInstalled ?? x.IsInstalled,
                     lastSeen: x.lastSeen || x.LastSeen,
-                    firstSeen: x.firstSeen || x.FirstSeen
+                    firstSeen: x.firstSeen || x.FirstSeen,
+                    appRowKey: x.appRowKey || x.RowKey || x.rowKey || '',
+                    appStatus: x.appStatus || x.AppStatus || 'installed'
                 }));
 
             // Process CVE data from unified response
@@ -478,7 +480,8 @@ export class DeviceDetailPage extends window.Component {
                     score: x.cvssScore || x.score || x.Score || x.cvss,
                     lastSeen: x.lastDetected || x.lastSeen || x.LastSeen,
                     appStatus: x.appStatus || 'installed',
-                    appRowKey: x.appRowKey || x.rowKey || ''
+                    appRowKey: x.appRowKey || x.rowKey || '',
+                    detectionMethod: x.detectionMethod || x.DetectionMethod || x.howFound || x.HowFound || x.source || x.Source || x.detectedBy || x.DetectedBy || 'database'
                 }));
                 
             const mitigatedCveList = mitigatedCvePayload.map(x => ({
@@ -490,7 +493,8 @@ export class DeviceDetailPage extends window.Component {
                     score: x.cvssScore || x.score || x.Score || x.cvss,
                     lastSeen: x.lastDetected || x.lastSeen || x.LastSeen,
                     appStatus: x.appStatus || 'updated',
-                    appRowKey: x.appRowKey || x.rowKey || ''
+                    appRowKey: x.appRowKey || x.rowKey || '',
+                    detectionMethod: x.detectionMethod || x.DetectionMethod || x.howFound || x.HowFound || x.source || x.Source || x.detectedBy || x.DetectedBy || 'database'
                 }));
 
             // Build timeline from telemetry changes
@@ -523,6 +527,7 @@ export class DeviceDetailPage extends window.Component {
                 timeline,
                 deviceSummary,
                 deviceSessions: null,
+                telemetryStatus: telemetryStatus || null,
                 loading: false,
                 showAllIps: false,
                 appStatusFilter: 'installed'
@@ -1471,6 +1476,7 @@ export class DeviceDetailPage extends window.Component {
                                 <div class="kpi-label">Heartbeat / Telemetry</div>
                                 <div class="kpi-value">${this.escapeHtml(model?.telemetry?.lastHeartbeat || 'N/A')}</div>
                                 <div class="text-muted">Last telemetry: ${this.escapeHtml(model?.telemetry?.lastTelemetry || 'N/A')}</div>
+                                ${this.renderTelemetryHealthBadge()}
                             </div>
                         </div>
                     </div>
@@ -4602,5 +4608,57 @@ export class DeviceDetailPage extends window.Component {
                 `}
             </div>
         `;
+    }
+
+    renderTelemetryHealthBadge() {
+        const status = this.state.telemetryStatus;
+        if (!status) return '';
+
+        const lastTelemetry = status.LastTelemetry ? new Date(status.LastTelemetry).getTime() : null;
+        const lastHeartbeat = status.LastHeartbeat ? new Date(status.LastHeartbeat).getTime() : null;
+        const consecutiveFailures = status.ConsecutiveFailures || 0;
+        const errors = status.Errors || '';
+        const now = Date.now();
+        const oneDayMs = 24 * 60 * 60 * 1000;
+
+        // Check staleness (>24 hours)
+        const telemStale = lastTelemetry ? (now - lastTelemetry) > oneDayMs : true;
+        const hbStale = lastHeartbeat ? (now - lastHeartbeat) > oneDayMs : true;
+
+        // 1. Both stale → Device offline
+        if (telemStale && hbStale) {
+            return html`<span class="badge bg-secondary mt-1">⚠ Device Offline</span>`;
+        }
+
+        // 2. Telemetry fresh, heartbeat stale → API endpoint issue (rare)
+        if (!telemStale && hbStale) {
+            return html`<span class="badge bg-warning mt-1">⚠ API Issue</span>`;
+        }
+
+        // 3. Telemetry stale, heartbeat fresh → Telemetry upload issue
+        if (telemStale && !hbStale) {
+            const hoursStale = lastTelemetry ? Math.floor((now - lastTelemetry) / 3600000) : 0;
+
+            if (errors.includes('NETWORK')) {
+                return html`<span class="badge bg-warning mt-1" title="Network connectivity issue">⚠ Network Issue (${hoursStale}h)</span>`;
+            }
+
+            if (errors.includes('AUTH')) {
+                const waitHours = Math.max(0, 6 - hoursStale);
+                if (waitHours > 0) {
+                    return html`<span class="badge bg-info mt-1" title="Authentication issue - may resolve automatically">⚠ Auth Issue (wait ${waitHours}h)</span>`;
+                }
+                return html`<span class="badge bg-warning mt-1" title="Authentication issue persists">⚠ Contact Support</span>`;
+            }
+
+            if (consecutiveFailures >= 6) {
+                return html`<span class="badge bg-danger mt-1" title="${consecutiveFailures} consecutive failures">⚠ Contact Support</span>`;
+            }
+
+            return html`<span class="badge bg-warning mt-1" title="Telemetry upload delayed">⚠ Telemetry Delayed</span>`;
+        }
+
+        // 4. Both fresh → Healthy
+        return html`<span class="badge bg-success mt-1">✓ Telemetry Healthy</span>`;
     }
 }
