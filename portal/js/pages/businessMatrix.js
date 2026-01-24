@@ -459,7 +459,43 @@ export function BusinessMatrixPage() {
         }
         return '$' + value.toFixed(2);
     };
+    // Calculate trend from historical data
+    const calculateTrend = (currentValue, trends, metricKey) => {
+        if (!trends || trends.length < 2) return null;
+        
+        // Get the previous data point (1 week ago or most recent available)
+        const previousPoint = trends.length > 1 ? trends[trends.length - 2] : null;
+        if (!previousPoint) return null;
 
+        const previousValue = previousPoint[metricKey];
+        if (!previousValue || previousValue === 0) return null;
+
+        const change = ((currentValue - previousValue) / previousValue) * 100;
+        return {
+            percentage: Math.abs(change).toFixed(1),
+            isPositive: change > 0,
+            isNegative: change < 0
+        };
+    };
+
+    // Render trend indicator
+    const renderTrendIndicator = (trend, reverseColors = false) => {
+        if (!trend) return null;
+
+        // For costs, red = up (bad), green = down (good)
+        // For revenue/devices, green = up (good), red = down (bad)
+        const colorClass = reverseColors 
+            ? (trend.isPositive ? 'text-danger' : 'text-success')
+            : (trend.isPositive ? 'text-success' : 'text-danger');
+        
+        const arrow = trend.isPositive ? '↑' : '↓';
+
+        return html`
+            <div class="${colorClass} small mt-1">
+                <strong>${arrow} ${trend.percentage}%</strong> vs last week
+            </div>
+        `;
+    };
     const toggleCurrency = () => {
         const newCurrency = currency === 'USD' ? 'INR' : 'USD';
         setCurrency(newCurrency);
@@ -604,7 +640,8 @@ export function BusinessMatrixPage() {
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">Monthly Recurring Revenue</div>
                             <div class="h2 mb-0 text-success">${formatCurrency(platformSummary.mrr || 0)}</div>
-                            <div class="text-body-secondary small">ARR: ${formatCurrency((platformSummary.mrr || 0) * 12)}</div>
+                            ${renderTrendIndicator(calculateTrend(platformSummary.mrr || 0, platformSummary.trends, 'mrr'), false)}
+                            <div class="text-body-secondary small mt-2">ARR: ${formatCurrency((platformSummary.mrr || 0) * 12)}</div>
                         </div>
                     </div>
                 </div>
@@ -613,7 +650,8 @@ export function BusinessMatrixPage() {
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">Azure Monthly Cost</div>
                             <div class="h2 mb-0 text-danger">${formatCurrency(platformSummary.actualMonthlyAzureCost || 0)}</div>
-                            <div class="text-body-secondary small">Infrastructure</div>
+                            ${renderTrendIndicator(calculateTrend(platformSummary.actualMonthlyAzureCost || 0, platformSummary.trends, 'actualMonthlyAzureCost'), true)}
+                            <div class="text-body-secondary small mt-2">Infrastructure</div>
                         </div>
                     </div>
                 </div>
@@ -652,7 +690,8 @@ export function BusinessMatrixPage() {
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">Organizations & Devices</div>
                             <div class="h2 mb-0">${platformSummary.totalOrgs || 0} <span class="h4 text-body-secondary">orgs</span></div>
-                            <div class="text-body-secondary small">
+                            ${renderTrendIndicator(calculateTrend(platformSummary.totalOrgs || 0, platformSummary.trends, 'totalOrgs'), false)}
+                            <div class="text-body-secondary small mt-2">
                                 ${deviceHealth.activeCount} Active · ${deviceHealth.disabledCount} Disabled
                             </div>
                         </div>
