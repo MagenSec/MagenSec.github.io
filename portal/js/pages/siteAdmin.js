@@ -24,8 +24,8 @@ const ORG_DURATION_OPTIONS = [
 const showToast = (message, type) => toast.show(message, type);
 
 export function SiteAdminPage() {
-    const [mainSection, setMainSection] = useState('overview'); // 'overview', 'activity', or 'preview'
-    const [activeTab, setActiveTab] = useState('business-matrix');
+    const [mainSection, setMainSection] = useState('business-matrix'); // 'business-matrix', 'overview', 'activity', or 'preview'
+    const [activeTab, setActiveTab] = useState('organizations');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [orgs, setOrgs] = useState([]);
@@ -551,9 +551,22 @@ export function SiteAdminPage() {
                 </div>
             </div>
 
-            <!-- Main Section Navigation (Three-Level: Overview | Activity Reports | Preview) -->
+            <!-- Main Section Navigation (Four-Level: Business Matrix | Overview | Activity Reports | Preview) -->
             <div class="mb-3">
                 <ul class="nav nav-pills nav-fill">
+                    <li class="nav-item">
+                        <a 
+                            class="nav-link ${mainSection === 'business-matrix' ? 'active' : ''}"
+                            href="#"
+                            onClick=${(e) => { 
+                                e.preventDefault(); 
+                                setMainSection('business-matrix');
+                            }}
+                        >
+                            <i class="ti ti-chart-dots-2 me-2"></i>
+                            Business Matrix
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <a 
                             class="nav-link ${mainSection === 'overview' ? 'active' : ''}"
@@ -599,115 +612,58 @@ export function SiteAdminPage() {
                 </ul>
             </div>
 
+            <!-- Render Business Matrix Section -->
+            ${mainSection === 'business-matrix' && html`
+                <${BusinessMatrixPage} />
+            `}
+
             <!-- Card with Secondary Navigation (Sub-tabs) + Refresh Button -->
-            ${mainSection !== 'preview' && html`
+            ${mainSection === 'overview' && html`
             <div class="card mb-3">
                 <div class="card-header d-flex align-items-center justify-content-between">
-                    ${mainSection === 'overview' ? html`
-                        <div class="d-flex align-items-center justify-content-between w-100 gap-3">
-                            <ul class="nav nav-tabs card-header-tabs">
-                                <li class="nav-item">
-                                    <a 
-                                        class="nav-link ${activeTab === 'business-matrix' ? 'active' : ''}"
-                                        href="#"
-                                        onClick=${(e) => { e.preventDefault(); setActiveTab('business-matrix'); }}
-                                    >
-                                        <i class="ti ti-chart-dots-2 me-2"></i>
-                                        Business Matrix
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a 
-                                        class="nav-link ${activeTab === 'organizations' ? 'active' : ''}"
-                                        href="#"
-                                        onClick=${(e) => { e.preventDefault(); setActiveTab('organizations'); }}
-                                    >
-                                        <i class="ti ti-building me-2"></i>
-                                        Organizations
-                                        <span class="badge bg-blue-lt ms-2">${orgs.length}</span>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a 
-                                        class="nav-link ${activeTab === 'accounts' ? 'active' : ''}"
-                                        href="#"
-                                        onClick=${(e) => { e.preventDefault(); setActiveTab('accounts'); }}
-                                    >
-                                        <i class="ti ti-users me-2"></i>
-                                        Accounts
-                                        <span class="badge bg-blue-lt ms-2">${accounts.length}</span>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a 
-                                        class="nav-link ${activeTab === 'admin-actions' ? 'active' : ''}"
-                                        href="#"
-                                        onClick=${(e) => { e.preventDefault(); setActiveTab('admin-actions'); }}
-                                    >
-                                        <i class="ti ti-bolt me-2"></i>
-                                        Admin Actions
-                                    </a>
-                                </li>
-                            </ul>
-                            <button class="btn btn-sm btn-primary" onClick=${async () => { setRefreshing(true); await loadData(); setRefreshing(false); }} disabled=${refreshing}>
-                                ${refreshing ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-refresh me-1"></i>`}
-                                ${refreshing ? 'Refreshing...' : 'Refresh'}
-                            </button>
-                        </div>
-                    ` : mainSection === 'activity' ? html`
-                        <div class="d-flex align-items-center w-100">
-                            <ul class="nav nav-tabs card-header-tabs">
-                                <li class="nav-item">
-                                    <a 
-                                        class="nav-link ${activeTab === 'user-activity' ? 'active' : ''}"
-                                        href="#"
-                                        onClick=${(e) => { e.preventDefault(); setActiveTab('user-activity'); }}
-                                    >
-                                        <i class="ti ti-user-check me-2"></i>
-                                        User Activity
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a 
-                                        class="nav-link ${activeTab === 'device-activity' ? 'active' : ''}"
-                                        href="#"
-                                        onClick=${(e) => { e.preventDefault(); setActiveTab('device-activity'); }}
-                                    >
-                                        <i class="ti ti-device-desktop me-2"></i>
-                                        Device Activity
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a 
-                                        class="nav-link ${activeTab === 'ai-reports' ? 'active' : ''}"
-                                        href="#"
-                                        onClick=${(e) => { e.preventDefault(); setActiveTab('ai-reports'); }}
-                                    >
-                                        <i class="ti ti-brain me-2"></i>
-                                        AI Reports
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a 
-                                        class="nav-link ${activeTab === 'cron-jobs' ? 'active' : ''}"
-                                        href="#"
-                                        onClick=${(e) => { e.preventDefault(); setActiveTab('cron-jobs'); loadCronStatus(); }}
-                                    >
-                                        <i class="ti ti-clock me-2"></i>
-                                        Cron Jobs
-                                        ${cronStatus && !cronStatus.currentStatus.isHealthy ? html`<span class="badge bg-red-lt ms-2">!</span>` : ''}
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-                    ` : html``}
+                    <div class="d-flex align-items-center justify-content-between w-100 gap-3">
+                        <ul class="nav nav-tabs card-header-tabs">
+                            <li class="nav-item">
+                                <a 
+                                    class="nav-link ${activeTab === 'organizations' ? 'active' : ''}"
+                                    href="#"
+                                    onClick=${(e) => { e.preventDefault(); setActiveTab('organizations'); }}
+                                >
+                                    <i class="ti ti-building me-2"></i>
+                                    Organizations
+                                    <span class="badge bg-blue-lt ms-2">${orgs.length}</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a 
+                                    class="nav-link ${activeTab === 'accounts' ? 'active' : ''}"
+                                    href="#"
+                                    onClick=${(e) => { e.preventDefault(); setActiveTab('accounts'); }}
+                                >
+                                    <i class="ti ti-users me-2"></i>
+                                    Accounts
+                                    <span class="badge bg-blue-lt ms-2">${accounts.length}</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a 
+                                    class="nav-link ${activeTab === 'admin-actions' ? 'active' : ''}"
+                                    href="#"
+                                    onClick=${(e) => { e.preventDefault(); setActiveTab('admin-actions'); }}
+                                >
+                                    <i class="ti ti-bolt me-2"></i>
+                                    Admin Actions
+                                </a>
+                            </li>
+                        </ul>
+                        <button class="btn btn-sm btn-primary" onClick=${async () => { setRefreshing(true); await loadData(); setRefreshing(false); }} disabled=${refreshing}>
+                            ${refreshing ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-refresh me-1"></i>`}
+                            ${refreshing ? 'Refreshing...' : 'Refresh'}
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    ${mainSection === 'overview' && activeTab === 'business-matrix' && html`
-                        <${BusinessMatrixPage} />
-                    `}
-
-                    ${mainSection === 'overview' && activeTab === 'organizations' && html`
+                    ${activeTab === 'organizations' && html`
                         <div class="row g-3">
                             <div class="col-12">
                                 <div class="card">
@@ -1504,7 +1460,7 @@ export function SiteAdminPage() {
                         </div>
                     `}
 
-                    ${mainSection === 'overview' && activeTab === 'accounts' && html`
+                    ${activeTab === 'accounts' && html`
                         <div>
                             <div class="row g-2 mb-3">
                                 <div class="col-md-6">
@@ -1567,7 +1523,7 @@ export function SiteAdminPage() {
                         </div>
                     `}
 
-                    ${mainSection === 'overview' && activeTab === 'admin-actions' && html`
+                    ${activeTab === 'admin-actions' && html`
                         <div class="row g-3">
                             <!-- Cron Job Triggers -->
                             <div class="col-12">
@@ -1742,11 +1698,62 @@ export function SiteAdminPage() {
                             </div>
                         </div>
                     `}
+                </div>
+            </div>
+            `}
 
-                    ${mainSection === 'activity' && activeTab === 'user-activity' && html`<${ApiAuditPage} />`}
-                    ${mainSection === 'activity' && activeTab === 'device-activity' && html`<${DeviceActivityPage} />`}
-                    ${mainSection === 'activity' && activeTab === 'ai-reports' && html`<${AiReportsAnalysisPage} />`}
-                    ${mainSection === 'activity' && activeTab === 'cron-jobs' && html`
+            <!-- Activity Reports Section -->
+            ${mainSection === 'activity' && html`
+            <div class="card mb-3">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs">
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'user-activity' ? 'active' : ''}"
+                                href="#"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('user-activity'); }}
+                            >
+                                <i class="ti ti-user-check me-2"></i>
+                                User Activity
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'device-activity' ? 'active' : ''}"
+                                href="#"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('device-activity'); }}
+                            >
+                                <i class="ti ti-device-desktop me-2"></i>
+                                Device Activity
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'ai-reports' ? 'active' : ''}"
+                                href="#"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('ai-reports'); }}
+                            >
+                                <i class="ti ti-brain me-2"></i>
+                                AI Reports
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a 
+                                class="nav-link ${activeTab === 'cron-jobs' ? 'active' : ''}"
+                                href="#"
+                                onClick=${(e) => { e.preventDefault(); setActiveTab('cron-jobs'); }}
+                            >
+                                <i class="ti ti-clock me-2"></i>
+                                Cron Jobs
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    ${activeTab === 'user-activity' && html`<${ApiAuditPage} />`}
+                    ${activeTab === 'device-activity' && html`<${DeviceActivityPage} />`}
+                    ${activeTab === 'ai-reports' && html`<${AiReportsAnalysisPage} />`}
+                    ${activeTab === 'cron-jobs' && html`
                         <div>
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h3 class="mb-0">Cron Jobs Status & Activity</h3>

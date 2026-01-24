@@ -13,16 +13,24 @@ export function BusinessMatrixPage() {
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [expandedOrgs, setExpandedOrgs] = useState(new Set());
+    const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'USD');
     
     // Chart refs
     const revenueChartRef = useRef(null);
     const mrrTrendChartRef = useRef(null);
     const marginBandChartRef = useRef(null);
+    const costTrendChartRef = useRef(null);
+    const costBreakdownChartRef = useRef(null);
     
     // Chart instances
     const [revenueChart, setRevenueChart] = useState(null);
     const [mrrTrendChart, setMrrTrendChart] = useState(null);
     const [marginBandChart, setMarginBandChart] = useState(null);
+    const [costTrendChart, setCostTrendChart] = useState(null);
+    const [costBreakdownChart, setCostBreakdownChart] = useState(null);
+
+    // Exchange rate: Hardcoded approximate INR/USD rate (Jan 2026)
+    const EXCHANGE_RATE = 83.5; // ₹83.5 per $1
 
     useEffect(() => {
         loadBusinessMetrics();
@@ -31,6 +39,8 @@ export function BusinessMatrixPage() {
             if (revenueChart) revenueChart.destroy();
             if (mrrTrendChart) mrrTrendChart.destroy();
             if (marginBandChart) marginBandChart.destroy();
+            if (costTrendChart) costTrendChart.destroy();
+            if (costBreakdownChart) costBreakdownChart.destroy();
         };
     }, []);
 
@@ -74,13 +84,21 @@ export function BusinessMatrixPage() {
         
         // Margin Band Distribution (Chart.js horizontal bar)
         renderMarginBandChart(data.revenueBreakdown);
+
+        // Cost Analytics Charts (if available)
+        if (data.costAnalytics) {
+            renderCostAnalytics(data.costAnalytics);
+        }
     };
 
     const renderRevenueChart = (breakdown) => {
         if (!revenueChartRef.current) return;
 
+        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
+        const currencySymbol = currency === 'INR' ? '₹' : '$';
+
         const options = {
-            series: [breakdown.personalRevenue, breakdown.businessRevenue],
+            series: [breakdown.personalRevenue * currencyMultiplier, breakdown.businessRevenue * currencyMultiplier],
             chart: {
                 type: 'donut',
                 height: 280
@@ -93,13 +111,13 @@ export function BusinessMatrixPage() {
             dataLabels: {
                 enabled: true,
                 formatter: function(val, opts) {
-                    return '$' + opts.w.globals.series[opts.seriesIndex].toFixed(0);
+                    return currencySymbol + opts.w.globals.series[opts.seriesIndex].toFixed(0);
                 }
             },
             tooltip: {
                 y: {
                     formatter: function(val) {
-                        return '$' + val.toFixed(2);
+                        return currencySymbol + val.toFixed(2);
                     }
                 }
             }
@@ -118,6 +136,8 @@ export function BusinessMatrixPage() {
         if (!mrrTrendChartRef.current || !trends || trends.length === 0) return;
 
         const ctx = mrrTrendChartRef.current.getContext('2d');
+        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
+        const currencySymbol = currency === 'INR' ? '₹' : '$';
 
         if (mrrTrendChart) {
             mrrTrendChart.destroy();
@@ -129,7 +149,7 @@ export function BusinessMatrixPage() {
                 labels: trends.map(t => new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
                 datasets: [{
                     label: 'MRR',
-                    data: trends.map(t => t.value),
+                    data: trends.map(t => t.value * currencyMultiplier),
                     borderColor: '#2fb344',
                     backgroundColor: 'rgba(47, 179, 68, 0.1)',
                     borderWidth: 3,
@@ -149,7 +169,7 @@ export function BusinessMatrixPage() {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return 'MRR: $' + context.parsed.y.toFixed(0);
+                                return 'MRR: ' + currencySymbol + context.parsed.y.toFixed(0);
                             }
                         }
                     }
@@ -159,7 +179,7 @@ export function BusinessMatrixPage() {
                         beginAtZero: false,
                         ticks: {
                             callback: function(value) {
-                                return '$' + value.toFixed(0);
+                                return currencySymbol + value.toFixed(0);
                             }
                         }
                     }
@@ -174,6 +194,8 @@ export function BusinessMatrixPage() {
         if (!marginBandChartRef.current) return;
 
         const ctx = marginBandChartRef.current.getContext('2d');
+        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
+        const currencySymbol = currency === 'INR' ? '₹' : '$';
 
         if (marginBandChart) {
             marginBandChart.destroy();
@@ -205,7 +227,7 @@ export function BusinessMatrixPage() {
                 labels: bandData.map(b => b.band),
                 datasets: [{
                     label: 'Revenue by Margin Band',
-                    data: bandData.map(b => b.value),
+                    data: bandData.map(b => b.value * currencyMultiplier),
                     backgroundColor: bandData.map(b => b.color),
                     borderWidth: 0
                 }]
@@ -221,7 +243,7 @@ export function BusinessMatrixPage() {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return '$' + context.parsed.x.toFixed(0);
+                                return currencySymbol + context.parsed.x.toFixed(0);
                             }
                         }
                     }
@@ -231,7 +253,7 @@ export function BusinessMatrixPage() {
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return '$' + value.toFixed(0);
+                                return currencySymbol + value.toFixed(0);
                             }
                         }
                     }
@@ -240,6 +262,147 @@ export function BusinessMatrixPage() {
         });
 
         setMarginBandChart(chart);
+    };
+
+    const renderCostAnalytics = (costAnalytics) => {
+        if (!costAnalytics || !costAnalytics.dailySnapshots || costAnalytics.dailySnapshots.length === 0) {
+            return;
+        }
+
+        renderCostTrendChart(costAnalytics.dailySnapshots);
+        renderCostBreakdownChart(costAnalytics.dailySnapshots);
+    };
+
+    const renderCostTrendChart = (snapshots) => {
+        if (!costTrendChartRef.current) return;
+
+        const ctx = costTrendChartRef.current.getContext('2d');
+
+        if (costTrendChart) {
+            costTrendChart.destroy();
+        }
+
+        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
+        const currencySymbol = currency === 'INR' ? '₹' : '$';
+
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: snapshots.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                datasets: [{
+                    label: 'Daily Cost',
+                    data: snapshots.map(s => s.totalCost * currencyMultiplier),
+                    borderColor: '#f76707',
+                    backgroundColor: 'rgba(247, 103, 7, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Cost: ' + currencySymbol + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return currencySymbol + value.toFixed(0);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        setCostTrendChart(chart);
+    };
+
+    const renderCostBreakdownChart = (snapshots) => {
+        if (!costBreakdownChartRef.current || snapshots.length === 0) return;
+
+        const ctx = costBreakdownChartRef.current.getContext('2d');
+
+        if (costBreakdownChart) {
+            costBreakdownChart.destroy();
+        }
+
+        // Get latest snapshot's cost breakdown
+        const latest = snapshots[snapshots.length - 1];
+        const costsByType = latest.costsByResourceType || {};
+
+        // Simplify resource type names and group
+        const simplified = {};
+        Object.entries(costsByType).forEach(([type, cost]) => {
+            let category = 'Other';
+            if (type.includes('Container')) category = 'Container Apps';
+            else if (type.includes('Registry')) category = 'Container Registry';
+            else if (type.includes('Storage')) category = 'Storage';
+            else if (type.includes('KeyVault')) category = 'Key Vault';
+            else if (type.includes('Bandwidth')) category = 'Bandwidth';
+            
+            simplified[category] = (simplified[category] || 0) + cost;
+        });
+
+        const labels = Object.keys(simplified);
+        const data = Object.values(simplified);
+        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
+        const currencySymbol = currency === 'INR' ? '₹' : '$';
+
+        const chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data.map(v => v * currencyMultiplier),
+                    backgroundColor: [
+                        '#0054a6',  // Container Apps
+                        '#f76707',  // Container Registry
+                        '#2fb344',  // Storage
+                        '#f59f00',  // Key Vault
+                        '#667eea'   // Other
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percent = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + currencySymbol + value.toFixed(2) + ' (' + percent + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        setCostBreakdownChart(chart);
     };
 
     const toggleOrgExpand = (orgId) => {
@@ -288,6 +451,23 @@ export function BusinessMatrixPage() {
             5: '#ffd700'   // Bliss (Gold)
         };
         return colors[bandNum] || '#6c757d';
+    };
+
+    const formatCurrency = (value) => {
+        if (currency === 'INR') {
+            return '₹' + (value * EXCHANGE_RATE).toFixed(0);
+        }
+        return '$' + value.toFixed(2);
+    };
+
+    const toggleCurrency = () => {
+        const newCurrency = currency === 'USD' ? 'INR' : 'USD';
+        setCurrency(newCurrency);
+        localStorage.setItem('currency', newCurrency);
+        // Re-render charts with new currency
+        if (metrics) {
+            setTimeout(() => renderCharts(metrics), 50);
+        }
     };
 
     const getMarginBadgeLightStyle = (band) => {
@@ -355,30 +535,63 @@ export function BusinessMatrixPage() {
             <!-- Hero Section with Platform Summary -->
             <div class="card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                 <div class="card-body p-4">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <h2 class="mb-2">Business Health  
-                                <span class="badge" style="background: ${getMarginBadgeStyle(platformSummary.marginBand)}; color: white;">
+                    <!-- Row 1: Business Health + Profit % + Currency Toggle -->
+                    <div class="row align-items-center mb-2">
+                        <div class="col-md-6">
+                            <h2 class="mb-0">Business Health 
+                                <span class="badge ms-2" style="background: ${getMarginBadgeStyle(platformSummary.marginBand)}; color: white; font-size: 1rem;">
+                                    <i class="bi bi-graph-up-arrow me-1"></i>
                                     ${getMarginBandText(platformSummary.marginBand)}
                                 </span>
                             </h2>
-                            <div class="mb-3">
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="display-4 mb-0">${(platformSummary.profitMargin || 0).toFixed(0)}%</div>
+                        </div>
+                        <div class="col-md-3 text-end">
+                            <!-- Currency Toggle Slider -->
+                            <div class="btn-group" role="group" style="background: rgba(255,255,255,0.2); border-radius: 20px; padding: 2px;">
+                                <button 
+                                    class="btn btn-sm ${currency === 'INR' ? 'btn-light' : ''}" 
+                                    style="border-radius: 18px; min-width: 50px; ${currency === 'INR' ? '' : 'background: transparent; border: none; color: white;'}"
+                                    onClick=${() => { if (currency !== 'INR') toggleCurrency(); }}
+                                >
+                                    ₹ INR
+                                </button>
+                                <button 
+                                    class="btn btn-sm ${currency === 'USD' ? 'btn-light' : ''}" 
+                                    style="border-radius: 18px; min-width: 50px; ${currency === 'USD' ? '' : 'background: transparent; border: none; color: white;'}"
+                                    onClick=${() => { if (currency !== 'USD') toggleCurrency(); }}
+                                >
+                                    $ USD
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Row 2: Metrics (aligned to match row 1 columns) -->
+                    <div class="row align-items-center mb-1">
+                        <div class="col-md-6">
+                            <div>
                                 <strong>Overall Profit Margin: ${platformSummary.profitMargin.toFixed(1)}%</strong>
                                 · ${platformSummary.totalOrgs} Organizations
                                 · ${deviceHealth.activeCount} Active Devices
                             </div>
-                            <div class="btn-group">
-                                <button class="btn btn-light btn-sm" onClick=${() => { setForceRefresh(true); loadBusinessMetrics(); }}>
-                                    <i class="bi bi-arrow-clockwise"></i> Refresh Now
-                                </button>
-                                <a href="#!/posture" class="btn btn-light btn-sm">
-                                    <i class="bi bi-graph-up"></i> View Security Posture
-                                </a>
-                            </div>
                         </div>
-                        <div class="col-md-4 text-center">
-                            <div class="display-4 mb-0">${(platformSummary.profitMargin || 0).toFixed(0)}%</div>
+                        <div class="col-md-3"></div>
+                        <div class="col-md-3"></div>
+                    </div>
+                    
+                    <!-- Row 3: Profit Margin Label + Refresh (aligned to match row 1 columns) -->
+                    <div class="row align-items-center">
+                        <div class="col-md-6"></div>
+                        <div class="col-md-3 text-center">
                             <div class="small opacity-75">Profit Margin</div>
+                        </div>
+                        <div class="col-md-3 text-end">
+                            <button class="btn btn-light btn-sm" onClick=${() => { setForceRefresh(true); loadBusinessMetrics(); }}>
+                                <i class="bi bi-arrow-clockwise"></i> Refresh Now
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -389,36 +602,59 @@ export function BusinessMatrixPage() {
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body text-center">
-                            <div class="text-muted small mb-2">Monthly Recurring Revenue</div>
-                            <div class="h2 mb-0 text-success">${(platformSummary.mrr || 0).toFixed(0)}</div>
-                            <div class="text-muted small">ARR: ${(platformSummary.arr || 0).toFixed(0)}</div>
+                            <div class="text-body-secondary small mb-2">Monthly Recurring Revenue</div>
+                            <div class="h2 mb-0 text-success">${formatCurrency(platformSummary.mrr || 0)}</div>
+                            <div class="text-body-secondary small">ARR: ${formatCurrency((platformSummary.mrr || 0) * 12)}</div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body text-center">
-                            <div class="text-muted small mb-2">Azure Monthly Cost</div>
-                            <div class="h2 mb-0 text-danger">${(platformSummary.actualMonthlyAzureCost || 0).toFixed(0)}</div>
-                            <div class="text-muted small">Infrastructure</div>
+                            <div class="text-body-secondary small mb-2">Azure Monthly Cost</div>
+                            <div class="h2 mb-0 text-danger">${formatCurrency(platformSummary.actualMonthlyAzureCost || 0)}</div>
+                            <div class="text-body-secondary small">Infrastructure</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card ${atRiskOrganizations && atRiskOrganizations.length > 0 ? 'border-warning' : ''}">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">
+                                <i class="bi bi-exclamation-triangle-fill text-warning"></i> Revenue Leak Alert
+                            </div>
+                            ${atRiskOrganizations && atRiskOrganizations.length > 0 ? html`
+                                <div class="h2 mb-0 text-warning">${atRiskOrganizations.length}</div>
+                                <div class="text-body-secondary small mb-2">
+                                    ${atRiskOrganizations.length === 1 ? 'Organization' : 'Organizations'} Need Attention
+                                </div>
+                                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                                    ${atRiskOrganizations.filter(o => o.daysToExpiry !== null && o.daysToExpiry < 30).length > 0 ? html`
+                                        <span class="badge bg-danger">
+                                            ${atRiskOrganizations.filter(o => o.daysToExpiry !== null && o.daysToExpiry < 30).length} Expiring
+                                        </span>
+                                    ` : ''}
+                                    ${atRiskOrganizations.filter(o => (o.marginPercent || 0) < 20).length > 0 ? html`
+                                        <span class="badge bg-warning">
+                                            ${atRiskOrganizations.filter(o => (o.marginPercent || 0) < 20).length} Low Margin
+                                        </span>
+                                    ` : ''}
+                                </div>
+                            ` : html`
+                                <div class="h2 mb-0 text-success">0</div>
+                                <div class="text-body-secondary small">All organizations healthy</div>
+                            `}
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body text-center">
-                            <div class="text-muted small mb-2">Active Devices</div>
-                            <div class="h2 mb-0 text-primary">${deviceHealth.activeCount}</div>
-                            <div class="text-muted small">${deviceHealth.disabledCount} Disabled · ${deviceHealth.blockedCount} Blocked</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <div class="text-muted small mb-2">Organizations</div>
-                            <div class="h2 mb-0">${platformSummary.totalOrgs || 0}</div>
-                            <div class="text-muted small">${platformSummary.totalDevices || 0} Total Devices</div>
+                            <div class="text-body-secondary small mb-2">Organizations & Devices</div>
+                            <div class="h2 mb-0">${platformSummary.totalOrgs || 0} <span class="h4 text-body-secondary">orgs</span></div>
+                            <div class="text-body-secondary small">
+                                ${deviceHealth.activeCount} Active · ${deviceHealth.disabledCount} Disabled
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -458,6 +694,80 @@ export function BusinessMatrixPage() {
                 </div>
             </div>
 
+            <!-- Cost Analytics Section -->
+            ${metrics.costAnalytics && metrics.costAnalytics.dailySnapshots && metrics.costAnalytics.dailySnapshots.length > 0 ? html`
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-graph-down-arrow"></i> Cost Analytics
+                            <span class="badge bg-light text-dark ms-2">${metrics.costAnalytics.availableDays} days data</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Cost Trend Chart -->
+                            <div class="col-md-8">
+                                <h6 class="text-body-secondary mb-3">Daily Azure Cost Trend</h6>
+                                <div style="height: 280px;">
+                                    <canvas ref=${costTrendChartRef}></canvas>
+                                </div>
+                            </div>
+                            <!-- Cost Breakdown Chart -->
+                            <div class="col-md-4">
+                                <h6 class="text-body-secondary mb-3">Cost by Resource Type</h6>
+                                <div style="height: 280px;">
+                                    <canvas ref=${costBreakdownChartRef}></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Per-Org Cost Allocation Table -->
+                        ${metrics.costAnalytics.latestOrgAllocations && Object.keys(metrics.costAnalytics.latestOrgAllocations).length > 0 ? html`
+                            <div class="mt-4">
+                                <h6 class="text-body-secondary mb-3">Yesterday's Per-Org Cost Allocation</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Organization</th>
+                                                <th class="text-end">Devices</th>
+                                                <th class="text-end">Telemetry Volume</th>
+                                                <th class="text-end">Fixed Cost</th>
+                                                <th class="text-end">Variable Cost</th>
+                                                <th class="text-end">Total Cost</th>
+                                                <th class="text-end">Cost/Device</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${Object.entries(metrics.costAnalytics.latestOrgAllocations)
+                                                .sort((a, b) => b[1].totalCost - a[1].totalCost)
+                                                .slice(0, 10)
+                                                .map(([orgId, alloc]) => html`
+                                                    <tr key=${orgId}>
+                                                        <td>
+                                                            <strong>${topOrganizations.find(o => o.orgId === orgId)?.orgName || orgId}</strong>
+                                                        </td>
+                                                        <td class="text-end">${alloc.activeDevices}</td>
+                                                        <td class="text-end">${(alloc.telemetryVolume / 1000).toFixed(1)}K</td>
+                                                        <td class="text-end">${formatCurrency(alloc.fixedCost)}</td>
+                                                        <td class="text-end">${formatCurrency(alloc.variableCost)}</td>
+                                                        <td class="text-end"><strong>${formatCurrency(alloc.totalCost)}</strong></td>
+                                                        <td class="text-end text-body-secondary">${formatCurrency(alloc.avgCostPerDevice)}</td>
+                                                    </tr>
+                                                `)}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-body-secondary small mt-2">
+                                    <i class="bi bi-info-circle"></i> 
+                                    Fixed costs (Registry, Key Vault) split equally; Variable costs (Compute, Storage) allocated by telemetry volume
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            ` : ''}
+
             <!-- Top Organizations Table with Expandable Device Rows -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -486,13 +796,13 @@ export function BusinessMatrixPage() {
                                         </td>
                                         <td>
                                             <strong>${org.orgName || org.orgId}</strong>
-                                            <div class="text-muted small">${org.licenseType} · ${org.seats} seats (${org.deviceCount} used)</div>
+                                            <div class="text-body-secondary small">${org.licenseType} · ${org.seats} seats (${org.deviceCount} used)</div>
                                         </td>
                                         <td class="text-end">${org.deviceCount || 0}</td>
-                                        <td class="text-end text-success">${(org.monthlyRevenue || 0).toFixed(2)}</td>
-                                        <td class="text-end text-danger">${(org.monthlyCost || 0).toFixed(2)}</td>
+                                        <td class="text-end text-success">${formatCurrency(org.monthlyRevenue || 0)}</td>
+                                        <td class="text-end text-danger">${formatCurrency(org.monthlyCost || 0)}</td>
                                         <td class="text-end ${(org.profit || 0) >= 0 ? 'text-success' : 'text-danger'}">
-                                            ${(org.profit || 0).toFixed(2)}
+                                            ${formatCurrency(org.profit || 0)}
                                         </td>
                                         <td class="text-center">
                                             <span class="badge" 
@@ -504,14 +814,14 @@ export function BusinessMatrixPage() {
                                         <td class="text-center">
                                             ${org.seats > org.deviceCount ? html`
                                                 <div class="d-flex flex-column align-items-center" 
-                                                     title="If all ${org.seats} seats were used: ${(org.projectedFullUtilizationMargin || 0).toFixed(1)}% margin, $${(org.projectedFullUtilizationProfit || 0).toFixed(2)} profit">
+                                                     title="If all ${org.seats} seats were used: ${(org.projectedFullUtilizationMargin || 0).toFixed(1)}% margin, ${formatCurrency(org.projectedFullUtilizationProfit || 0)} profit">
                                                     <span class="badge ${org.wouldBeProfitableAtFullUtilization ? 'badge-success' : 'badge-danger'}">
                                                         ${org.wouldBeProfitableAtFullUtilization ? '✓' : '✗'} ${(org.projectedFullUtilizationMargin || 0).toFixed(0)}%
                                                     </span>
-                                                    <small class="text-muted">$${(org.projectedFullUtilizationProfit || 0).toFixed(0)}</small>
+                                                    <small class="text-body-secondary">${formatCurrency(org.projectedFullUtilizationProfit || 0)}</small>
                                                 </div>
                                             ` : html`
-                                                <span class="text-muted small" title="All seats are currently in use">Full</span>
+                                                <span class="text-body-secondary small" title="All seats are currently in use">Full</span>
                                             `}
                                         </td>
                                     </tr>
@@ -541,7 +851,7 @@ export function BusinessMatrixPage() {
                                                                             ${device.state}
                                                                         </span>
                                                                     </td>
-                                                                    <td class="text-end">${(device.dailyCost || 0).toFixed(4)}</td>
+                                                                    <td class="text-end">${formatCurrency(device.dailyCost || 0)}</td>
                                                                 </tr>
                                                             `)}
                                                         </tbody>
@@ -616,11 +926,11 @@ export function BusinessMatrixPage() {
                                 ${costBreakdown.costByResourceType.map(item => html`
                                     <div class="mb-2 d-flex justify-content-between" key=${item.type}>
                                         <span>${item.type}</span>
-                                        <strong>$${(item.cost || 0).toFixed(4)} (${(item.percentage || 0).toFixed(1)}%)</strong>
+                                        <strong>${formatCurrency(item.cost || 0)} (${(item.percentage || 0).toFixed(1)}%)</strong>
                                     </div>
                                 `)}
                             ` : html`
-                                <div class="text-muted">No cost data available</div>
+                                <div class="text-body-secondary">No cost data available</div>
                             `}
                         </div>
                     </div>
