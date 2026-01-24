@@ -285,9 +285,22 @@ export function BusinessMatrixPage() {
             2: '#f59f00',  // Medium
             3: '#0054a6',  // Acceptable
             4: '#2fb344',  // Desirable
-            5: '#ae3ec9'   // Bliss
+            5: '#ffd700'   // Bliss (Gold)
         };
         return colors[bandNum] || '#6c757d';
+    };
+
+    const getMarginBadgeLightStyle = (band) => {
+        const bandNum = typeof band === 'number' ? band : 0;
+        const styles = {
+            0: { bg: '#ffe5e5', text: '#dc3545' },  // Critical
+            1: { bg: '#fff3e0', text: '#f76707' },  // Low
+            2: { bg: '#fff8e1', text: '#f59f00' },  // Medium
+            3: { bg: '#e3f2fd', text: '#0054a6' },  // Acceptable
+            4: { bg: '#e8f5e9', text: '#2fb344' },  // Desirable
+            5: { bg: '#fff9e6', text: '#b8860b' }   // Bliss (Gold with darker text)
+        };
+        return styles[bandNum] || { bg: '#f5f5f5', text: '#6c757d' };
     };
 
     if (loading) {
@@ -462,6 +475,7 @@ export function BusinessMatrixPage() {
                                     <th class="text-end">Monthly Cost</th>
                                     <th class="text-end">Profit</th>
                                     <th class="text-center">Margin</th>
+                                    <th class="text-center" title="What if all seats were used?">Full Util</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -472,7 +486,7 @@ export function BusinessMatrixPage() {
                                         </td>
                                         <td>
                                             <strong>${org.orgName || org.orgId}</strong>
-                                            <div class="text-muted small">${org.licenseType} · ${org.seats} seats</div>
+                                            <div class="text-muted small">${org.licenseType} · ${org.seats} seats (${org.deviceCount} used)</div>
                                         </td>
                                         <td class="text-end">${org.deviceCount || 0}</td>
                                         <td class="text-end text-success">${(org.monthlyRevenue || 0).toFixed(2)}</td>
@@ -481,9 +495,24 @@ export function BusinessMatrixPage() {
                                             ${(org.profit || 0).toFixed(2)}
                                         </td>
                                         <td class="text-center">
-                                            <span class="badge ${getMarginBadgeClass(org.marginBand)}">
-                                                ${(org.marginPercent || 0).toFixed(1)}% ${getMarginBandText(org.marginBand)}
+                                            <span class="badge" 
+                                                  style="background: ${getMarginBadgeLightStyle(org.marginBand).bg}; color: ${getMarginBadgeLightStyle(org.marginBand).text};" 
+                                                  title="${getMarginBandText(org.marginBand)}">
+                                                ${(org.marginPercent || 0).toFixed(1)}%
                                             </span>
+                                        </td>
+                                        <td class="text-center">
+                                            ${org.seats > org.deviceCount ? html`
+                                                <div class="d-flex flex-column align-items-center" 
+                                                     title="If all ${org.seats} seats were used: ${(org.projectedFullUtilizationMargin || 0).toFixed(1)}% margin, $${(org.projectedFullUtilizationProfit || 0).toFixed(2)} profit">
+                                                    <span class="badge ${org.wouldBeProfitableAtFullUtilization ? 'badge-success' : 'badge-danger'}">
+                                                        ${org.wouldBeProfitableAtFullUtilization ? '✓' : '✗'} ${(org.projectedFullUtilizationMargin || 0).toFixed(0)}%
+                                                    </span>
+                                                    <small class="text-muted">$${(org.projectedFullUtilizationProfit || 0).toFixed(0)}</small>
+                                                </div>
+                                            ` : html`
+                                                <span class="text-muted small" title="All seats are currently in use">Full</span>
+                                            `}
                                         </td>
                                     </tr>
                                     ${expandedOrgs.has(org.orgId) && org.devices && org.devices.length > 0 && html`
@@ -553,7 +582,9 @@ export function BusinessMatrixPage() {
                                             <td><strong>${org.orgName || org.orgId}</strong></td>
                                             <td class="text-end">${org.deviceCount || 0}</td>
                                             <td class="text-end">
-                                                <span class="badge ${getMarginBadgeClass(org.marginBand)}">
+                                                <span class="badge" 
+                                                      style="background: ${getMarginBadgeLightStyle(org.marginBand).bg}; color: ${getMarginBadgeLightStyle(org.marginBand).text};" 
+                                                      title="${getMarginBandText(org.marginBand)}">
                                                     ${(org.marginPercent || 0).toFixed(1)}%
                                                 </span>
                                             </td>
