@@ -3,7 +3,7 @@
  * Uses Tabler's page-center pattern for full-page login
  */
 
-import { auth } from '../auth.js';
+import { auth } from '@auth';
 
 export function LoginPage({ authenticating = false }) {
     const { html, preactHooks } = window;

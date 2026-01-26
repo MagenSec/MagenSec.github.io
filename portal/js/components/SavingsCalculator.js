@@ -18,7 +18,8 @@ export class SavingsCalculator extends Component {
     }
 
     componentDidUpdate(prevProps) {
-        if (prevProps.deviceCount !== this.props.deviceCount || 
+        if (prevProps.seats !== this.props.seats ||
+            prevProps.deviceCount !== this.props.deviceCount || 
             prevProps.vulnerabilities !== this.props.vulnerabilities ||
             prevProps.isPersonal !== this.props.isPersonal) {
             this.renderChart();
@@ -33,13 +34,13 @@ export class SavingsCalculator extends Component {
     }
 
     calculateSavings() {
-        const { deviceCount = 1, vulnerabilities = {}, isPersonal = false } = this.props;
+        const { seats = 1, deviceCount = 1, vulnerabilities = {}, isPersonal = false } = this.props;
         
         // MagenSec Pricing
-        // Business: $1.99/user/device/month = $23.88/user/device/year
+        // Business: $1.99/user/device/month = $23.88/user/device/year (use seats, not online devices)
         // Personal: $9.99/org/year (up to 5 devices)
-        const pricePerDeviceYear = isPersonal ? (9.99 / Math.min(deviceCount, 5)) : (1.99 * 12);
-        const annualLicenseCost = isPersonal ? 9.99 : (deviceCount * 1.99 * 12);
+        const pricePerSeatYear = 1.99 * 12; // $23.88
+        const annualLicenseCost = isPersonal ? 9.99 : (seats * pricePerSeatYear);
         
         // Industry average breach costs (IBM Cost of Data Breach 2024)
         const costPerCritical = 2400;  // $2,400 per critical CVE unpatched
@@ -63,7 +64,8 @@ export class SavingsCalculator extends Component {
             costAvoidance,
             roi,
             paybackDays,
-            pricePerDevice: pricePerDeviceYear
+            pricePerSeat: pricePerSeatYear,
+            seats
         };
     }
 
@@ -117,7 +119,7 @@ export class SavingsCalculator extends Component {
 
     render() {
         const savings = this.calculateSavings();
-        const { deviceCount = 1, isPersonal = false } = this.props;
+        const { seats = 1, isPersonal = false } = this.props;
         
         return html`
             <div class="card">
@@ -139,7 +141,7 @@ export class SavingsCalculator extends Component {
                         <div class="col-sm-6">
                             <div class="text-muted small text-uppercase fw-semibold">Annual License Cost</div>
                             <div class="h3 mb-0 text-danger">$${savings.annualLicenseCost.toFixed(2)}</div>
-                            <div class="text-muted small">${deviceCount} device${deviceCount !== 1 ? 's' : ''} × $${savings.pricePerDevice}/year</div>
+                            <div class="text-muted small">${isPersonal ? 'Personal license' : `${seats} seat${seats !== 1 ? 's' : ''} × $${savings.pricePerSeat.toFixed(2)}/year`}</div>
                         </div>
                         <div class="col-sm-6">
                             <div class="text-muted small text-uppercase fw-semibold">Potential Breach Cost Avoided</div>

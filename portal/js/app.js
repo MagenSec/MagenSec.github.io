@@ -11,19 +11,24 @@ import { logger } from './config.js';
 import keyboardShortcuts from './services/keyboardShortcuts.js';
 import themeService from './services/themeService.js';
 import { LoginPage } from './pages/login.js';
-import { DashboardPage } from './pages/dashboard.js';
-import DevicesPage from './pages/devices.js';
-import { DeviceDetailPage } from './pages/device-detail.js';
-import { AnalystPage } from './pages/analyst.js';
-import { PosturePage } from './pages/posture-snapshot.js';
-import { AIPosturePage } from './pages/posture-ai.js';
-// Removed: threatIntel, responseActions, vulnerabilities, alerts pages (unreachable/placeholder)
-import { AssetsPage } from './pages/assets.js';
+import { DashboardPage } from './pages/dashboard/Dashboard.js';
+import DevicesPage from './pages/devices/Devices.js';
+import { DeviceDetailPage } from './pages/device-detail/DeviceDetail.js';
+import { AnalystPage } from './pages/analyst/Analyst.js';
+import { PosturePage } from './pages/posture/Posture.js';
+import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
+// TEMPORARY: Wired up _unused/ pages for validation (will be removed or re-wired later)
+import { ThreatIntelPage } from './pages/_unused/threatIntel.js';
+import { VulnerabilitiesPage } from './pages/_unused/vulnerabilities.js';
+import { AlertsPage } from './pages/_unused/alerts.js';
+import { SecurityDashboardPage } from './pages/_unused/securityDashboard.js';
+import { ResponseActionsPage } from './pages/_unused/responseActions.js';
+import { AssetsPage } from './pages/inventory/Assets.js';
 import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
-import { SettingsPage } from './pages/settings.js';
-import { AuditPage } from './pages/audit.js';
-import { SiteAdminPage } from './pages/siteAdmin.js';
-import ReportPreviewPage from './pages/ReportPreviewPage.js';
+import { SettingsPage } from './pages/settings/Settings.js';
+import { AuditPage } from './pages/audit/Audit.js';
+import { SiteAdminPage } from './pages/siteAdmin/SiteAdmin.js';
+import ReportPreviewPage from './pages/siteAdmin/activity/ReportPreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
@@ -69,6 +74,17 @@ function App() {
             return html`<${PosturePage} />`;
         case 'posture-ai':
             return html`<${AIPosturePage} />`;
+        // TEMPORARY: _unused/ pages for validation
+        case 'threat-intel':
+            return html`<${ThreatIntelPage} />`;
+        case 'vulnerabilities':
+            return html`<${VulnerabilitiesPage} />`;
+        case 'alerts':
+            return html`<${AlertsPage} />`;
+        case 'security-dashboard':
+            return html`<${SecurityDashboardPage} />`;
+        case 'response-actions':
+            return html`<${ResponseActionsPage} />`;
         // Report Preview moved under Site Admin → Activity Reports (Preview tab)
         // case 'report-preview':
         //     return html`<${ReportPreviewPage} />`;

@@ -8,15 +8,15 @@
 import { auth } from '@auth';
 import { api } from '@api';
 import { config } from '@config';
-import { orgContext } from '../orgContext.js';
-import { SavingsCalculator } from '../components/SavingsCalculator.js';
+import { orgContext } from '@orgContext';
+import { SavingsCalculator } from '@components/SavingsCalculator.js';
 
 // Shared components
-import { StatusBadge, getConnectionStatus, StatusDot } from '../components/shared/StatusBadge.js';
-import { SeverityBadge, RiskScoreBadge, GradeBadge } from '../components/shared/Badges.js';
-import { LoadingSpinner, ErrorAlert, EmptyState, Card } from '../components/shared/CommonComponents.js';
-import { getDonutChartConfig, getRadarChartConfig, getScatterChartConfig, renderChart, destroyChart, severityColors, statusColors } from '../components/charts/ChartHelpers.js';
-import { formatTimestamp, formatRelativeTime, formatNumber, formatPercent, roundPercent, formatDeviceList, groupBy, sortBy, uniqueBy } from '../utils/dataHelpers.js';
+import { StatusBadge, getConnectionStatus, StatusDot } from '@components/shared/StatusBadge.js';
+import { SeverityBadge, RiskScoreBadge, GradeBadge } from '@components/shared/Badges.js';
+import { LoadingSpinner, ErrorAlert, EmptyState, Card } from '@components/shared/CommonComponents.js';
+import { getDonutChartConfig, getRadarChartConfig, getScatterChartConfig, renderChart, destroyChart, severityColors, statusColors } from '@components/charts/ChartHelpers.js';
+import { formatTimestamp, formatRelativeTime, formatNumber, formatPercent, roundPercent, formatDeviceList, groupBy, sortBy, uniqueBy } from '@utils/dataHelpers.js';
 
 const { html, Component } = window;
 
@@ -112,16 +112,21 @@ export class DashboardPage extends Component {
                                    (tabChanged && this.state.activeTab === 'overview');
         
         if (shouldRenderCharts) {
-            // Small delay to ensure DOM elements are rendered
-            setTimeout(() => {
+            // Use requestAnimationFrame for better performance
+            requestAnimationFrame(() => {
+                // Render critical charts first
                 this.renderThreatChart(this.state.threatSummary);
                 this.renderComplianceDonut(this.state.complianceSummary);
-                this.renderCoveragePolar(this.state.coverage);
-                this.renderPostureRadar();
-                this.renderPostureSummaryDonuts();
-                this.renderDeviceSparkline();
-                this.renderScoreSparkline();
-            }, 50);
+                
+                // Defer less critical charts to next frame
+                requestAnimationFrame(() => {
+                    this.renderCoveragePolar(this.state.coverage);
+                    this.renderPostureRadar();
+                    this.renderPostureSummaryDonuts();
+                    this.renderDeviceSparkline();
+                    this.renderScoreSparkline();
+                });
+            });
         }
     }
 
@@ -1281,8 +1286,8 @@ export class DashboardPage extends Component {
             high: this.safeNumber(d.high)
         }));
         
-        // Render chart after DOM update
-        setTimeout(() => {
+        // Render chart after DOM update using requestAnimationFrame
+        requestAnimationFrame(() => {
             const canvas = document.getElementById(chartId);
             if (!canvas) return;
             
@@ -1400,8 +1405,8 @@ export class DashboardPage extends Component {
             `;
         }
         
-        // Render chart after DOM update
-        setTimeout(() => {
+        // Render chart after DOM update using requestAnimationFrame
+        requestAnimationFrame(() => {
             const canvas = document.getElementById(chartId);
             if (!canvas) return;
             
@@ -2056,7 +2061,7 @@ export class DashboardPage extends Component {
 
                             ${threatCount > 0 ? html`<span class="badge bg-danger text-white">${threatCount} threat${threatCount > 1 ? 's' : ''}</span>` : ''}
                         </div>
-                        <div class="text-muted small">Last seen: ${this.formatTimestamp(lastSeen)}</div>
+                        <div class="text-muted small">Last seen: ${this.formatTimestamp(device.lastSeen || device.lastHeartbeat)}</div>
                     </div>
                     <div class="col-auto">
                         <a href="${deviceHref}" class="btn btn-sm btn-outline-primary">Details</a>
@@ -2132,8 +2137,8 @@ export class DashboardPage extends Component {
         // Mock data - replace with real historical device count data
         const sparklineData = [28, 29, 30, 29, 31, 32, this.state.deviceStats?.active || 32];
         
-        // Wait for next tick to ensure canvas is rendered
-        setTimeout(() => {
+        // Wait for next frame to ensure canvas is rendered
+        requestAnimationFrame(() => {
             const canvas = document.getElementById('device-sparkline');
             if (!canvas) return;
             
@@ -2177,7 +2182,7 @@ export class DashboardPage extends Component {
         // Mock data - replace with real historical security score data
         const sparklineData = [75, 78, 82, 80, 85, 87, this.state.dashboardData?.securityScore || 85];
         
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             const canvas = document.getElementById('score-sparkline');
             if (!canvas) return;
             

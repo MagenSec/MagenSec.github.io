@@ -25,6 +25,22 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/page@1.11.6/page.min.js" crossorigin="anonymous" integrity="sha384-I21flNc4c7wK3Q4Zxf/hz43oz5U8ks1jEK2NdsOPELdxzIs9XHBgvBulNBRklYVf"></script>
     
+    <!-- Import Maps: Path aliases to make imports location-independent -->
+    <script type="importmap">
+    {
+        "imports": {
+            "@/": "./js/",
+            "@auth": "./js/auth.js",
+            "@api": "./js/api.js",
+            "@config": "./js/config.js",
+            "@orgContext": "./js/orgContext.js",
+            "@toast": "./js/toast.js",
+            "@components/": "./js/components/",
+            "@utils/": "./js/utils/"
+        }
+    }
+    </script>
+    
     <style>
         /* Modal backdrop tweaks */
         .modal-root { position: fixed; inset: 0; z-index: 1040; }
@@ -231,58 +247,104 @@
                 <div class="navbar navbar-light">
                     <div class="container-xl">
                         <ul class="navbar-nav w-100">
+                            <!-- Home (renamed from Dashboard) -->
                             <li class="nav-item">
                                 <a class="nav-link" href="#!/dashboard">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
                                     </span>
-                                    <span class="nav-link-title">Dashboard</span>
+                                    <span class="nav-link-title">Home</span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="#!/posture-ai">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M14.5 9a3.5 4 0 1 0 0 6" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Security Insights Hub</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="#!/devices">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="7" y="4" width="10" height="16" rx="1" /><line x1="11" y1="5" x2="13" y2="5" /><line x1="12" y1="17" x2="12" y2="17.01" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Devices</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="#!/inventory">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 3l6 0" /><path d="M12 3l0 18" /><path d="M12 15l4 0" /><path d="M12 9l-4 0" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">App Inventory</span>
-                                </a>
-                            </li>
+                            
+                            <!-- Security (Coming Soon) -->
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12.01" y2="8" /><polyline points="11 12 12 12 12 16 13 16" /></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
                                     </span>
-                                    <span class="nav-link-title">More</span>
+                                    <span class="nav-link-title">Security</span>
                                 </a>
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="#!/settings">
-                                        <span class="me-2">⚙️</span>Settings
+                                    <a class="dropdown-item disabled" href="#">
+                                        <span class="me-2">📊</span>Overview <span class="badge bg-muted-lt ms-auto">Coming Soon</span>
                                     </a>
-                                    <a class="dropdown-item" href="#!/audit">
-                                        <span class="me-2">📋</span>Audit
-                                    </a>
-                                    <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item site-admin-only" href="#!/site-admin" style="display:none">
-                                        <span class="me-2">🛡️</span>Site Admin
+                                    <a class="dropdown-item disabled" href="#">
+                                        <span class="me-2">⚠️</span>Issues <span class="badge bg-muted-lt ms-auto">Coming Soon</span>
                                     </a>
                                 </div>
                             </li>
+                            
+                            <!-- Compliance -->
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><line x1="9" y1="12" x2="9.01" y2="12" /><line x1="13" y1="12" x2="15" y2="12" /><line x1="9" y1="16" x2="9.01" y2="16" /><line x1="13" y1="16" x2="15" y2="16" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Compliance</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/posture-ai">
+                                        <span class="me-2">📈</span>Overview
+                                    </a>
+                                    <a class="dropdown-item disabled" href="#">
+                                        <span class="me-2">📋</span>Requirements <span class="badge bg-muted-lt ms-auto">Coming Soon</span>
+                                    </a>
+                                </div>
+                            </li>
+                            
+                            <!-- Assets -->
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Assets</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/devices">
+                                        <span class="me-2">📱</span>Devices
+                                    </a>
+                                    <a class="dropdown-item" href="#!/inventory">
+                                        <span class="me-2">📦</span>Applications
+                                    </a>
+                                    <a class="dropdown-item disabled" href="#">
+                                        <span class="me-2">🔑</span>Licenses <span class="badge bg-muted-lt ms-auto">Coming Soon</span>
+                                    </a>
+                                </div>
+                            </li>
+                            
+                            <!-- Settings -->
+                            <li class="nav-item">
+                                <a class="nav-link" href="#!/settings">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Settings</span>
+                                </a>
+                            </li>
+                            
+                            <!-- Audit -->
+                            <li class="nav-item">
+                                <a class="nav-link" href="#!/audit">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 12l.01 0" /><path d="M13 12l2 0" /><path d="M9 16l.01 0" /><path d="M13 16l2 0" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Audit</span>
+                                </a>
+                            </li>
+                            
+                            <!-- Site Admin -->
+                            <li class="nav-item site-admin-only" style="display:none">
+                                <a class="nav-link" href="#!/site-admin">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 15l0 0" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Site Admin</span>
+                                </a>
+                            </li>
+                            
+                            <!-- AI Analyst (pushed to right) -->
                             <li class="nav-item nav-item-ai-analyst">
                                 <a class="nav-link" href="#!/analyst">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
@@ -291,7 +353,6 @@
                                     <span class="nav-link-title">AI Analyst</span>
                                 </a>
                             </li>
-                                    <!-- Report Preview moved under Site Admin → Preview tab -->
                         </ul>
                     </div>
                 </div>
@@ -413,11 +474,18 @@
                 // Load pages in parallel
                 await Promise.all([
                     loadModule('./js/pages/login.js'),
-                    loadModule('./js/pages/dashboard.js'),
-                    loadModule('./js/pages/devices.js'),
-                    loadModule('./js/pages/analyst.js'),
-                    loadModule('./js/pages/posture.js'),
-                    loadModule('./js/pages/ReportPreviewPage.js'),
+                    loadModule('./js/pages/dashboard/Dashboard.js'),
+                    loadModule('./js/pages/devices/Devices.js'),
+                    loadModule('./js/pages/analyst/Analyst.js'),
+                    loadModule('./js/pages/posture/Posture.js'),
+                    loadModule('./js/pages/posture-ai/PostureAI.js'),
+                    loadModule('./js/pages/device-detail/DeviceDetail.js'),
+                    loadModule('./js/pages/siteAdmin/activity/ReportPreviewPage.js'),
+                    loadModule('./js/pages/inventory/Assets.js'),
+                    loadModule('./js/pages/account/Account.js'),
+                    loadModule('./js/pages/siteAdmin/SiteAdmin.js'),
+                    loadModule('./js/pages/settings/Settings.js'),
+                    loadModule('./js/pages/audit/Audit.js'),
                     loadModule('./js/pages/placeholders.js')
                 ]);
                 

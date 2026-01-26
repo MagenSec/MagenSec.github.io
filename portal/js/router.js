@@ -92,11 +92,48 @@ export function initRouter(renderApp) {
         renderApp({ page: 'posture-ai', ctx });
     });
 
+    // TEMPORARY: _unused/ pages for validation (will be removed or re-wired later)
+    page('/threat-intel', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'threat-intel', ctx });
+    });
+
+    page('/vulnerabilities', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'vulnerabilities', ctx });
+    });
+
+    page('/alerts', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'alerts', ctx });
+    });
+
+    page('/response-actions', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'response-actions', ctx });
+    });
+
         // Report Preview moved under Site Admin → Activity Reports (Preview tab)
 
-    // Legacy alias: security-dashboard -> posture
+    // Legacy alias: security-dashboard -> _unused validation page (temporary)
     page('/security-dashboard', (ctx) => {
-        page.redirect('/posture');
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'security-dashboard', ctx });
     });
 
     // Security routes REMOVED - threatIntel, response, vulnerabilities are placeholder/unreachable

@@ -6,25 +6,27 @@ import { auth } from '@auth';
 import { api } from '@api';
 import { orgContext } from '@orgContext';
 import { config } from '@config';
-import { PiiDecryption } from '@utils/piiDecryption';
-import { getInstallerConfig, clearManifestCache, getCacheStatus } from '@utils/manifestCache';
-import { getKevSet } from '../utils/kevCache.js';
+import { PiiDecryption } from '@utils/piiDecryption.js';
+import { getInstallerConfig, clearManifestCache, getCacheStatus } from '@utils/manifestCache.js';
+import { getKevSet } from '@utils/kevCache.js';
 
 // Shared components
-import { StatusBadge, getConnectionStatus, StatusDot } from '../components/shared/StatusBadge.js';
-import { SeverityBadge, RiskScoreBadge, GradeBadge } from '../components/shared/Badges.js';
-import { LoadingSpinner, ErrorAlert, EmptyState, Card } from '../components/shared/CommonComponents.js';
-import { getDonutChartConfig, getRadarChartConfig, getScatterChartConfig, renderChart, destroyChart, severityColors } from '../components/charts/ChartHelpers.js';
-import { formatTimestamp, formatRelativeTime, formatNumber, formatPercent, roundPercent } from '../utils/dataHelpers.js';
+import { StatusBadge, getConnectionStatus, StatusDot } from '@components/shared/StatusBadge.js';
+import { SeverityBadge, RiskScoreBadge, GradeBadge } from '@components/shared/Badges.js';
+import { LoadingSpinner, ErrorAlert, EmptyState, Card } from '@components/shared/CommonComponents.js';
+import { getDonutChartConfig, getRadarChartConfig, getScatterChartConfig, renderChart, destroyChart, severityColors } from '@components/charts/ChartHelpers.js';
+import { formatTimestamp, formatRelativeTime, formatNumber, formatPercent, roundPercent } from '@utils/dataHelpers.js';
 
-// Devices page modules (extracted from refactoring)
-import { DeviceStatsService } from './devices/services/DeviceStatsService.js';
-import { DeviceFilterService } from './devices/services/DeviceFilterService.js';
-import { DeviceSummaryService } from './devices/services/DeviceSummaryService.js';
-import { RiskAnalysisService } from './devices/services/RiskAnalysisService.js';
-import { renderBulkActionsBar } from './devices/components/BulkActionsBar.js';
-import { renderDeviceModal } from './devices/modals/DeviceModal.js';
-import { renderRiskExplanationModal } from './devices/modals/RiskExplanationModal.js';
+// Utility modules (shared with device-detail)
+import { formatDate } from '../device-detail/utils/DateUtils.js';
+import { formatNetworkSpeed } from '../device-detail/utils/FormattingUtils.js';
+
+// Service modules
+import { DeviceStatsService } from './services/DeviceStatsService.js';
+import { DeviceFilterService } from './services/DeviceFilterService.js';
+
+// Component modules
+import { renderBulkActionsBar } from './components/BulkActionsBar.js';
 
 class DevicesPage extends window.Component {
     constructor(props) {
@@ -101,7 +103,7 @@ class DevicesPage extends window.Component {
             this.destroyApexCharts();
         }
 
-        const filteredNow = this.getFilteredDevices();
+        const filteredNow = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
         const prevIds = (prevState.filteredDevices || []).map(d => d.id).join('|');
         const currIds = filteredNow.map(d => d.id).join('|');
         const summariesChanged = prevState.deviceSummaries !== this.state.deviceSummaries || prevState.enrichedScores !== this.state.enrichedScores;
@@ -122,7 +124,7 @@ class DevicesPage extends window.Component {
     }
 
     toggleSelectAll() {
-        const filtered = this.getFilteredDevices();
+        const filtered = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
         const allSelected = filtered.length > 0 && filtered.every(d => this.state.selectedDevices.includes(d.id));
         this.setState({ selectedDevices: allSelected ? [] : filtered.map(d => d.id) });
     }
@@ -261,13 +263,333 @@ class DevicesPage extends window.Component {
     }
 
     // Modal rendering moved to render() method
-    // Modals rendered from extracted modules
     renderModal() {
-        return renderDeviceModal(this);
+        const { html } = window;
+        if (!this.state.showDeviceModal || !this.state.selectedDevice) return null;
+        return html`
+                    <div class="modal modal-blur fade show" style="display: block; z-index: 1055;" tabindex="-1">
+                        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                            <div class="modal-content" style="z-index: 1056;">
+                                <div class="modal-header">
+                                    <h5 class="modal-title d-flex align-items-center gap-2 flex-wrap">
+                                        <a href="#!/devices/${this.state.selectedDevice.id}" class="text-primary fw-600 text-decoration-none" onclick=${(e) => { e.preventDefault(); this.closeDeviceModal(); window.location.hash = `#!/devices/${this.state.selectedDevice.id}`; }}>${this.state.selectedDevice.name}</a>
+                                        ${this.state.selectedDevice.state ? window.html`<span class="badge ${this.getStateBadgeClass(this.state.selectedDevice.state)} text-white">${this.state.selectedDevice.state}</span>` : ''}
+                                    </h5>
+                                    <button type="button" class="btn-close" onclick=${(e) => { e.preventDefault(); this.closeDeviceModal(); }}></button>
+                                </div>
+                                <div class="modal-body">
+                                    ${this.state.telemetryLoading ? html`
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <div class="mt-3 text-muted">Loading telemetry...</div>
+                                        </div>
+                                    ` : this.state.telemetryError ? html`
+                                        <div class="alert alert-danger">${this.state.telemetryError}</div>
+                                    ` : this.state.telemetryDetail ? html`
+                                        <!-- Registered | Last Seen | User row -->
+                                        <div class="card mb-3">
+                                            <div class="card-body py-2">
+                                                <div class="row g-3 align-items-center text-center">
+                                                    <div class="col-md-4">
+                                                        <div class="text-muted small">Registered</div>
+                                                        <div class="fw-bold">${this.state.selectedDevice.firstHeartbeat ? formatDate(this.state.selectedDevice.firstHeartbeat) : this.state.selectedDevice.firstSeen ? formatDate(this.state.selectedDevice.firstSeen) : this.state.selectedDevice.createdAt ? formatDate(this.state.selectedDevice.createdAt) : '—'}</div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <div class="text-muted small">Last Seen</div>
+                                                        <div class="fw-bold">${this.state.selectedDevice.lastHeartbeat ? formatDate(this.state.selectedDevice.lastHeartbeat) : this.state.telemetryDetail?.history?.[0]?.timestamp ? formatDate(this.state.telemetryDetail.history[0].timestamp) : 'Never'}</div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <div class="text-muted small">User</div>
+                                                        ${(() => {
+                                                            const f = this.state.telemetryDetail?.history?.[0]?.fields || {};
+                                                            const encoded = f.UserName || f.Username || f.userName || f.LoggedOnUser || f.CurrentUser || null;
+                                                            if (!encoded) return html`<div class="fw-bold font-monospace small">N/A</div>`;
+                                                            const username = PiiDecryption.decryptIfEncrypted(String(encoded));
+                                                            return html`<div class="fw-bold">${username || 'N/A'}</div>`;
+                                                        })()}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 align-items-start">
+                                            <div class="col-md-5">
+                                                <h5>Current Specs</h5>
+                                                <ul class="list-unstyled text-muted small mb-0">
+                                                    <li><strong>OS:</strong> ${this.state.selectedDevice.telemetry?.osEdition || ''} ${this.state.selectedDevice.telemetry?.osVersion || ''} (${this.state.selectedDevice.telemetry?.osBuild || ''})</li>
+                                                    <li><strong>CPU:</strong> ${this.state.selectedDevice.telemetry?.cpuName || ''} ${this.state.selectedDevice.telemetry?.cpuCores ? '('+this.state.selectedDevice.telemetry.cpuCores+' cores)' : ''}</li>
+                                                    <li><strong>RAM:</strong> ${this.state.selectedDevice.telemetry?.totalRamMb ? Math.round(this.state.selectedDevice.telemetry.totalRamMb/1024)+' GB' : ''}</li>
+                                                    <li><strong>Disk:</strong> ${this.state.selectedDevice.telemetry?.totalDiskGb ? this.state.selectedDevice.telemetry.totalDiskGb+' GB' : ''} ${this.state.selectedDevice.telemetry?.systemDiskMediaType || ''} ${this.state.selectedDevice.telemetry?.systemDiskBusType || ''}</li>
+                                                    <li><strong>Network:</strong> ${this.state.selectedDevice.telemetry?.connectionType || ''} ${this.state.selectedDevice.telemetry?.networkSpeedMbps ? this.state.selectedDevice.telemetry.networkSpeedMbps+' Mbps' : ''}</li>
+                                                    <li><strong>IP:</strong> ${(() => {
+                                                        const raw = this.state.selectedDevice.telemetry?.ipAddresses || this.state.selectedDevice.telemetry?.IPAddresses;
+                                                        const ips = Array.isArray(raw)
+                                                            ? raw
+                                                            : (typeof raw === 'string'
+                                                                ? (() => {
+                                                                    try {
+                                                                        const parsed = JSON.parse(raw);
+                                                                        if (Array.isArray(parsed)) return parsed;
+                                                                    } catch (e) { /* fallback to delimiter split */ }
+                                                                    return raw.split(/[;,\s]+/).filter(Boolean);
+                                                                })()
+                                                                : []);
+                                                        if (!ips || ips.length === 0) return 'No IP';
+                                                        const primary = ips[0];
+                                                        const count = ips.length;
+                                                        if (count > 1) {
+                                                            return html`${primary} <span class="badge badge-sm bg-azure-lt ms-1">(+${count - 1})</span>`;
+                                                        }
+                                                        return primary;
+                                                    })()}</li>
+                                                </ul>
+                                            </div>
+                                            <div class="col-md-5">
+                                                <h5>Security Status</h5>
+                                                ${(() => {
+                                                    const summary = this.state.deviceSummaries[this.state.selectedDevice.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
+                                                    const displayScore = (this.state.enrichedScores[this.state.selectedDevice.id]?.score ?? summary.score ?? 0);
+                                                    const scoreColor = displayScore >= 80 ? '#d63939' : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : '#2fb344';
+                                                    const totalCves = (summary.criticalCves || 0) + (summary.highCves || 0) + (summary.mediumCves || 0) + (summary.lowCves || 0);
+                                                    return html`
+                                                            <div class="d-flex flex-column gap-3">
+                                                            <div class="d-flex align-items-start gap-3 flex-wrap" style="cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(this.state.selectedDevice); }} title="Click to see what drives this risk score">
+                                                                                                <div style="width: 88px; height: 88px;" ref=${(el) => { this.riskChartEl = el; }}></div>
+                                                                                                <div class="d-flex flex-column gap-1 align-items-start" style="min-width: 140px;">
+                                                                                                    <div class="d-flex align-items-center gap-2">
+                                                                                                        <span class="text-muted small">Risk Score:</span>
+                                                                                                        <span class="badge ${summary.worstSeverity === 'CRITICAL' ? 'bg-danger-lt' : summary.worstSeverity === 'HIGH' ? 'bg-warning-lt' : summary.worstSeverity === 'MEDIUM' ? 'bg-secondary-lt' : 'bg-success-lt'}">${summary.worstSeverity}</span>
+                                                                                                    </div>
+                                                                                                    <div class="text-muted small">Click for details</div>
+                                                                                                </div>
+                                                                                            </div>
+                                                            <div class="d-flex gap-4 justify-content-center">
+                                                                <div class="text-center">
+                                                                    <div style="width: 68px; height: 68px;" ref=${(el) => { this.appsChartEl = el; }}></div>
+                                                                    <div class="text-muted small">Apps</div>
+                                                                </div>
+                                                                <div class="text-center">
+                                                                    <div style="width: 68px; height: 68px;" ref=${(el) => { this.cvesChartEl = el; }}></div>
+                                                                    <div class="text-muted small">CVEs</div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    `;
+                                                })()}
+                                            </div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <h5>Recent Changes</h5>
+                                            ${this.state.telemetryDetail?.changes && this.state.telemetryDetail.changes.length > 0 ? html`
+                                                <div class="timeline timeline-simple">
+                                                    ${this.state.telemetryDetail.changes.slice(0,5).map(change => html`
+                                                        <div class="timeline-event">
+                                                            <div class="timeline-event-icon bg-yellow-lt"></div>
+                                                            <div class="timeline-event-content">
+                                                                <div class="text-muted small">${formatDate(change.at)}</div>
+                                                                <div class="text-sm">${Object.keys(change.delta).join(', ')}</div>
+                                                            </div>
+                                                        </div>
+                                                    `)}
+                                                </div>
+                                            ` : html`<div class="text-muted small">No recent hardware changes</div>`}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="modal-footer d-flex justify-content-between">
+                                    <div class="text-muted small">Open full view for apps, risks, and timeline details.</div>
+                                    <a class="btn btn-primary" href="#!/devices/${this.state.selectedDevice.id}" onclick=${(e) => { e.preventDefault(); this.closeDeviceModal(); window.location.hash = `#!/devices/${this.state.selectedDevice.id}`; }}>
+                                        Open Device Details
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-backdrop fade show" style="z-index: 1054;"></div>
+                `;
     }
 
     renderRiskExplanationModal() {
-        return renderRiskExplanationModal(this);
+        const { html } = window;
+        if (!this.state.showRiskExplanationModal || !this.state.riskExplanationDevice) return null;
+
+        const device = this.state.riskExplanationDevice;
+        const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
+        const enriched = this.state.enrichedScores[device.id] || { score: summary.score, constituents: summary.constituents || {} };
+        const constituents = enriched.constituents || summary.constituents || {};
+        const exploitInfo = this.deriveKnownExploitInfo(constituents);
+        const knownExploitCount = exploitInfo.count;
+        const hasKnownExploit = exploitInfo.has;
+        const derivedCvss = this.deriveCvss(constituents, summary);
+        const networkExposure = this.deriveNetworkExposure(this.state.telemetryDetail);
+        const cvssBadgeClass = derivedCvss !== null
+            ? (derivedCvss >= 9 ? 'bg-danger-lt' : derivedCvss >= 7 ? 'bg-warning-lt' : derivedCvss >= 4 ? 'bg-info-lt' : 'bg-success-lt')
+            : '';
+
+        return html`
+            <div class="modal modal-blur fade show" style="display: block; z-index: 2055;" tabindex="-1" role="dialog" aria-modal="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                    <div class="modal-content" style="z-index: 2056;">
+                        <div class="modal-header bg-light">
+                            <h5 class="modal-title">Risk Score Analysis</h5>
+                            <button type="button" class="btn-close" onclick=${() => this.closeRiskExplanationModal()}></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-4">
+                                <h5 class="text-muted">Overall Risk: <strong>${Math.round(enriched.score || 0)}/100</strong></h5>
+                                <div class="progress mb-3" style="height: 8px;">
+                                    <div class="progress-bar ${enriched.score >= 80 ? 'bg-success' : enriched.score >= 60 ? 'bg-info' : enriched.score >= 40 ? 'bg-warning' : 'bg-danger'}" style="width: ${Math.min(enriched.score || 0, 100)}%"></div>
+                                </div>
+                                <p class="text-muted small">
+                                    This risk score combines vulnerability data from installed applications with network and deployment factors.
+                                    A higher score indicates greater security risk and need for remediation.
+                                </p>
+                            </div>
+
+                            <div class="mb-4">
+                                <h5>What Contributes to This Risk?</h5>
+                                <div class="list-group list-group-flush">
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <div class="text-sm fw-bold">Vulnerability Severity</div>
+                                                <div class="text-muted small">Highest CVSS score from identified CVEs</div>
+                                            </div>
+                                            <div class="text-end">
+                                                ${derivedCvss !== null ? html`
+                                                    <span class="badge ${cvssBadgeClass}">
+                                                        ${(derivedCvss).toFixed(1)}/10.0
+                                                    </span>
+                                                ` : html`<span class="text-muted">None detected</span>`}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <div class="text-sm fw-bold">Vulnerable Applications</div>
+                                                <div class="text-muted small">Number of apps with known vulnerabilities</div>
+                                            </div>
+                                            <div class="text-end">
+                                                ${summary.vulnerableApps ? html`<span class="badge bg-warning-lt">${summary.vulnerableApps} apps</span>` : html`<span class="text-muted">None found</span>`}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <div class="text-sm fw-bold">Total CVEs</div>
+                                                <div class="text-muted small">All identified CVEs across apps</div>
+                                            </div>
+                                            <div class="text-end">
+                                                ${summary.criticalCves + summary.highCves + summary.mediumCves + summary.lowCves > 0 ? html`
+                                                    <div>
+                                                        ${summary.criticalCves > 0 ? html`<span class="badge bg-danger-lt me-1">${summary.criticalCves} Critical</span>` : ''}
+                                                        ${summary.highCves > 0 ? html`<span class="badge bg-orange-lt me-1">${summary.highCves} High</span>` : ''}
+                                                        ${summary.mediumCves > 0 ? html`<span class="badge bg-yellow-lt me-1">${summary.mediumCves} Medium</span>` : ''}
+                                                        ${summary.lowCves > 0 ? html`<span class="badge bg-azure-lt me-1">${summary.lowCves} Low</span>` : ''}
+                                                    </div>
+                                                ` : html`<span class="text-muted">No CVEs</span>`}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <div class="text-sm fw-bold">Exploit Probability (EPSS)</div>
+                                                <div class="text-muted small">Likelihood CVEs are actively exploited</div>
+                                            </div>
+                                            <div class="text-end">
+                                                ${constituents.maxEpssStored ? html`
+                                                    <span class="badge ${constituents.maxEpssStored > 0.5 ? 'bg-danger-lt' : constituents.maxEpssStored > 0.3 ? 'bg-warning-lt' : 'bg-info-lt'}">
+                                                        ${(constituents.maxEpssStored * 100).toFixed(0)}%
+                                                    </span>
+                                                ` : html`<span class="text-muted">Unknown</span>`}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <div class="text-sm fw-bold">Known Exploits</div>
+                                                <div class="text-muted small">CVEs with publicly available exploits</div>
+                                            </div>
+                                            <div class="text-end">
+                                                ${hasKnownExploit ? html`<span class="badge bg-danger-lt">${knownExploitCount > 0 ? `${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}` : '1+ Exploits'}</span>` : html`<span class="text-muted">None known</span>`}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <div class="text-sm fw-bold">Network Exposure</div>
+                                                <div class="text-muted small">Device network configuration and IP type</div>
+                                            </div>
+                                            <div class="text-end">
+                                                <span class="badge ${networkExposure.badgeClass}">${networkExposure.label}</span>
+                                            </div>
+                                        </div>
+                                        ${networkExposure.reasons && networkExposure.reasons.length ? html`
+                                            <div class="text-muted small mt-1">
+                                                ${networkExposure.reasons.join(' • ')}
+                                            </div>
+                                        ` : ''}
+                                        <div class="text-muted small mt-1" title="Firewall status, inbound ports, endpoint protection require admin privileges to collect">
+                                            Missing signals (admin required): ${networkExposure.missingAdmin.join(', ')}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <h5>How to Reduce This Risk</h5>
+                                <ol class="small">
+                                    ${summary.vulnerableApps > 0 ? html`
+                                        <li class="mb-2">
+                                            <strong>Patch Vulnerable Applications</strong><br />
+                                            <span class="text-muted">Update ${summary.vulnerableApps} application(s) to the latest versions. This is the most effective way to reduce risk.</span>
+                                        </li>
+                                    ` : ''}
+                                    ${summary.criticalCves > 0 || summary.highCves > 0 ? html`
+                                        <li class="mb-2">
+                                            <strong>Prioritize Critical/High CVEs</strong><br />
+                                            <span class="text-muted">Address the ${summary.criticalCves + summary.highCves} most severe vulnerabilities first.</span>
+                                        </li>
+                                    ` : ''}
+                                    <li class="mb-2">
+                                        <strong>Restrict Network Access</strong><br />
+                                        <span class="text-muted">Limit exposure by using VPN, firewalls, or network segmentation to reduce attack surface.</span>
+                                    </li>
+                                    <li class="mb-2">
+                                        <strong>Keep System Updated</strong><br />
+                                        <span class="text-muted">Enable automatic Windows and application updates to receive patches quickly.</span>
+                                    </li>
+                                    <li class="mb-2">
+                                        <strong>Monitor Device Activity</strong><br />
+                                        <span class="text-muted">Review telemetry regularly and watch for unusual network or system behavior.</span>
+                                    </li>
+                                </ol>
+                            </div>
+
+                            <div class="alert alert-info small">
+                                <strong>Note:</strong> This score is calculated using a proprietary risk model that considers vulnerability severity, exploit probability, attack surface, and other factors. The exact formula is not disclosed to prevent gaming the system.
+                            </div>
+                        </div>
+                        <div class="modal-footer d-flex justify-content-between align-items-center">
+                            <button type="button" class="btn btn-secondary" onclick=${() => this.closeRiskExplanationModal()}>Close</button>
+                            <a href="#!/devices/${device.id}" class="btn btn-primary" onclick=${(e) => { e.preventDefault(); this.closeRiskExplanationModal(); window.location.hash = `#!/devices/${device.id}`; }}>
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-backdrop fade show" style="z-index: 2054;"></div>
+        `;
     }
 
     renderApexCharts() {
@@ -515,6 +837,46 @@ class DevicesPage extends window.Component {
         if (this.cvesChartEl) this.cvesChartEl.innerHTML = '';
     }
 
+    enrichDeviceScore(summary) {
+        const constituents = summary.constituents;
+        if (!constituents || constituents.cveCount === 0) {
+            return { score: summary.score, constituents, enrichmentFactors: {} };
+        }
+        
+        // Base calculation: CVSS × EPSS
+        let riskFactor = constituents.maxCvssNormalized * constituents.maxEpssStored;
+        
+        // Check if any CVE is a known exploit (would need CVE details in summary for this)
+        const hasKnownExploit = false; // Updated when we have CVE details
+        const exploitFactor = hasKnownExploit ? 1.5 : 1.0;
+        
+        // Time decay: EPSS degrades over time
+        const epssDate = new Date(constituents.epssDate);
+        const daysSinceEpss = (Date.now() - epssDate) / (1000 * 60 * 60 * 24);
+        const timeDecayFactor = Math.max(0.1, 1.0 - (daysSinceEpss / 365));
+        
+        // Final score with all factors
+        const finalRisk = (
+            riskFactor *
+            constituents.exposureFactor *
+            constituents.privilegeFactor *
+            exploitFactor *
+            timeDecayFactor
+        ) * 100;
+        
+        const enrichedScore = Math.round(finalRisk * 100) / 100;
+        
+        return {
+            score: enrichedScore,
+            constituents,
+            enrichmentFactors: {
+                hasKnownExploit,
+                timeDecayFactor: Math.round(timeDecayFactor * 10000) / 10000,
+                daysSinceEpss: Math.round(daysSinceEpss)
+            }
+        };
+    }
+
     async loadKnownExploitsAsync() {
         try {
             const kevSet = await getKevSet();
@@ -733,7 +1095,7 @@ class DevicesPage extends window.Component {
             for (const device of devices) {
                 const summary = summaries[device.id];
                 if (summary && summary.constituents) {
-                    enriched[device.id] = DeviceSummaryService.enrichDeviceScore(summary);
+                    enriched[device.id] = this.enrichDeviceScore(summary);
                 }
             }
             if (Object.keys(enriched).length > 0) {
@@ -778,7 +1140,7 @@ class DevicesPage extends window.Component {
             // Transform API response to expected format
             const summariesFromApi = {};
             const devices = (response.data?.devices || []).map(device => {
-                const summary = DeviceSummaryService.normalizeSummary(device.summary || device.Summary);
+                const summary = this.normalizeSummary(device.summary || device.Summary);
 
                 // Mask license key - only show last 8 characters
                 let maskedKey = null;
@@ -853,7 +1215,7 @@ class DevicesPage extends window.Component {
                     selectedDevice: updatedSelected || prev.selectedDevice
                 };
             }, () => {
-                const filteredNow = this.getFilteredDevices();
+                const filteredNow = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
                 this.setState({ filteredDevices: filteredNow }, () => this.renderTableApexCharts());
             });
             
@@ -907,6 +1269,114 @@ class DevicesPage extends window.Component {
         else if (counts.total > 0) { badgeClass = 'bg-primary-lt'; label = 'Low Risk'; }
 
         return { counts, badgeClass, label };
+    }
+
+    isPrivateIp(ip) {
+        if (!ip) return false;
+        const v4 = ip.split('.');
+        if (v4.length === 4) {
+            const [a, b] = v4.map(Number);
+            if (a === 10) return true;
+            if (a === 172 && b >= 16 && b <= 31) return true;
+            if (a === 192 && b === 168) return true;
+            if (a === 127) return true;
+            return false;
+        }
+        // IPv6 unique local fc00::/7
+        return ip.startsWith('fc') || ip.startsWith('Fd') || ip.startsWith('fd');
+    }
+
+    deriveNetworkExposure(telemetryDetail) {
+        const fields = telemetryDetail?.history?.[0]?.fields || telemetryDetail?.latest?.fields || {};
+        const rawExposure = fields.NetworkExposureJson || fields.networkExposureJson;
+        const ipRaw = fields.IPAddresses || fields.ipAddresses;
+        let parsed = null;
+        if (rawExposure) {
+            try { parsed = JSON.parse(rawExposure); } catch (e) { parsed = null; }
+        }
+
+        const ips = (() => {
+            if (Array.isArray(ipRaw)) return ipRaw;
+            if (typeof ipRaw === 'string') {
+                try {
+                    const parsedIps = JSON.parse(ipRaw);
+                    if (Array.isArray(parsedIps)) return parsedIps;
+                } catch (err) { /* fall back */ }
+                return ipRaw.split(/[;,\s]+/).filter(Boolean);
+            }
+            return [];
+        })();
+
+        const exposure = {
+            label: 'Unknown',
+            badgeClass: 'bg-secondary-lt',
+            reasons: [],
+            missingAdmin: [
+                'Firewall status',
+                'Inbound RDP/SMB exposure',
+                'Endpoint protection status'
+            ]
+        };
+
+        const hasAnyData = parsed !== null || (ips && ips.length > 0);
+        if (!hasAnyData) {
+            exposure.reasons.push('No network telemetry available');
+            return exposure;
+        }
+
+        const data = parsed || {};
+        const publicIpCount = data.PublicIpCount ?? data.publicIpCount ?? ips.filter(ip => !this.isPrivateIp(ip)).length;
+        const privateIpCount = data.PrivateIpCount ?? data.privateIpCount ?? ips.filter(ip => this.isPrivateIp(ip)).length;
+        const vpnInterfaces = data.VpnInterfaces ?? data.vpnInterfaces ?? 0;
+        const wirelessInterfaces = data.WirelessInterfaces ?? data.wirelessInterfaces ?? 0;
+        const ethernetInterfaces = data.EthernetInterfaces ?? data.ethernetInterfaces ?? 0;
+        const apipaPresent = data.ApipaPresent ?? data.apipaPresent ?? false;
+        const gatewayCount = data.GatewayCount ?? data.gatewayCount ?? null;
+        const uniqueIpCount = data.UniqueIpCount ?? data.uniqueIpCount ?? ips.length;
+        const isMetered = data.IsMetered ?? data.isMetered ?? fields.IsMeteredConnection ?? fields.isMeteredConnection;
+
+        if (publicIpCount > 0) {
+            exposure.label = 'High';
+            exposure.badgeClass = 'bg-danger-lt';
+            exposure.reasons.push('Public IP detected');
+        } else if (vpnInterfaces > 0) {
+            exposure.label = 'Lower';
+            exposure.badgeClass = 'bg-success-lt';
+            exposure.reasons.push('VPN interface active');
+        } else if (wirelessInterfaces > 0 && privateIpCount > 0) {
+            exposure.label = 'Medium';
+            exposure.badgeClass = 'bg-warning-lt';
+            exposure.reasons.push('Wireless connection detected');
+        } else if (ethernetInterfaces > 0) {
+            exposure.label = 'Medium';
+            exposure.badgeClass = 'bg-info-lt';
+            exposure.reasons.push('Wired connection detected');
+        }
+
+        if (apipaPresent) {
+            exposure.reasons.push('APIPA detected (DHCP issues)');
+        }
+
+        if (isMetered) {
+            exposure.reasons.push('Metered connection');
+        }
+
+        if (gatewayCount === 0) {
+            exposure.reasons.push('No gateway (likely isolated)');
+        }
+
+        if (exposure.reasons.length === 0) {
+            exposure.reasons.push('Standard private network detected');
+            exposure.label = exposure.label === 'Unknown' ? 'Low' : exposure.label;
+            exposure.badgeClass = exposure.badgeClass === 'bg-secondary-lt' ? 'bg-success-lt' : exposure.badgeClass;
+        }
+
+        // Add context on IP diversity if available
+        if (uniqueIpCount > 3) {
+            exposure.reasons.push('Multiple IPs observed (mobility)');
+        }
+
+        return exposure;
     }
 
     async openDeviceModal(device) {
@@ -1009,7 +1479,7 @@ class DevicesPage extends window.Component {
             const normalizedCurrentAppName = this.normalizeAppName(current.appName);
             const relatedCves = cves.filter(c => this.normalizeAppName(c.appName) === normalizedCurrentAppName);
             const cveCount = relatedCves.length;
-            const worstSeverity = relatedCves.reduce((acc, c) => Math.max(acc, DeviceSummaryService.severityWeight(c.severity)), 0);
+            const worstSeverity = relatedCves.reduce((acc, c) => Math.max(acc, this.severityWeight(c.severity)), 0);
 
             enriched.push({
                 appName: current.appName,
@@ -1117,7 +1587,7 @@ class DevicesPage extends window.Component {
             if (s === 'enabled') stats.enabled++;
             if (s === 'blocked') stats.blocked++;
             if (s === 'deleted') stats.deleted++;
-            if (this.isDeviceInactive(d)) stats.offline++; else stats.online++;
+            if (DeviceStatsService.isDeviceInactive(d)) stats.offline++; else stats.online++;
         }
 
         return stats;
@@ -1151,7 +1621,7 @@ class DevicesPage extends window.Component {
 
         const matchesConnection = (device) => {
             if (deviceFilters.connection === 'all') return true;
-            const offline = this.isDeviceInactive(device);
+            const offline = DeviceStatsService.isDeviceInactive(device);
             return deviceFilters.connection === 'online' ? !offline : offline;
         };
 
@@ -1241,9 +1711,65 @@ class DevicesPage extends window.Component {
         return 'LOW';
     }
 
-    // Risk/Summary utility methods moved to service modules:
-    // - DeviceSummaryService: normalizeSummary, enrichDeviceScore, severityWeight
-    // - RiskAnalysisService: deriveCvss, deriveKnownExploitInfo, deriveNetworkExposure, isPrivateIp
+    normalizeSummary(summary) {
+        if (!summary) return null;
+        const critical = summary.criticalCveCount ?? summary.critical ?? summary.criticalCves ?? 0;
+        const high = summary.highCveCount ?? summary.high ?? summary.highCves ?? 0;
+        const medium = summary.mediumCveCount ?? summary.medium ?? summary.mediumCves ?? 0;
+        const low = summary.lowCveCount ?? summary.low ?? summary.lowCves ?? 0;
+        const cveCount = summary.cveCount ?? (critical + high + medium + low);
+        const vulnerableApps = summary.vulnerableAppCount ?? summary.appsWithCves ?? summary.appWithVulnCount ?? 0;
+        const knownExploitCount = summary.knownExploitCount ?? summary.exploitedCveCount ?? summary.exploitCount ?? 0;
+        const knownExploitIds = summary.knownExploitIds ?? summary.exploitedCveIds ?? [];
+        const worstSeverity = (summary.highestRiskBucket || '').toUpperCase() ||
+            (critical > 0 ? 'CRITICAL' : high > 0 ? 'HIGH' : medium > 0 ? 'MEDIUM' : low > 0 ? 'LOW' : 'LOW');
+        const derivedWeight = this.severityWeight(worstSeverity);
+        
+        // Use provided risk score if available, otherwise calculate heuristic
+        let baseScore = summary.riskScore;
+        if (baseScore === undefined || baseScore === null) {
+             baseScore = (cveCount * 2) + (derivedWeight * 10);
+        }
+
+        const baseConstituents = summary.riskScoreConstituents || {};
+        let cveIds = (summary.cveIds || summary.topCveIds || summary.recentCveIds || []).filter(Boolean);
+        if ((!cveIds || cveIds.length === 0) && Array.isArray(summary.cves)) {
+            cveIds = summary.cves
+                .map(c => c?.cveId || c?.cveID)
+                .filter(id => typeof id === 'string' && id.length > 0);
+        }
+        const maxCvssNormalized = summary.maxCvssNormalized ?? summary.maxCvss ?? summary.highestCvssNormalized ?? summary.highestCvss ?? baseConstituents.maxCvssNormalized ?? baseConstituents.maxCvss;
+        
+        // Fallback: If score is 0 but we have vulnerable apps/CVEs, calculate a heuristic score
+        let finalScore = Math.min(100, Math.max(0, Math.round(baseScore ?? 0)));
+        
+        // Force a minimum score if there are vulnerabilities or high severity
+        if (finalScore === 0) {
+            if (vulnerableApps > 0 || cveCount > 0 || derivedWeight > 0) {
+                const heuristicScore = (cveCount * 2) + (derivedWeight * 10) + (vulnerableApps * 5);
+                finalScore = Math.min(100, Math.max(10, heuristicScore)); // Ensure at least 10 if vuln exists
+            }
+        }
+
+        return {
+            apps: summary.appCount ?? summary.apps ?? null,
+            cves: cveCount ?? null,
+            vulnerableApps,
+            criticalCves: critical,
+            highCves: high,
+            mediumCves: medium,
+            lowCves: low,
+            worstSeverity,
+            score: finalScore,
+            constituents: {
+                ...baseConstituents,
+                knownExploitCount,
+                knownExploitIds,
+                cveIds,
+                maxCvssNormalized
+            }
+        };
+    }
 
     updateDeviceSummaryCache(deviceId, apps, cves) {
         // Filter out old uninstalled apps (older than 30 days)
@@ -1263,7 +1789,7 @@ class DevicesPage extends window.Component {
         let critical = 0, high = 0, medium = 0, low = 0;
         const appNamesWithCves = new Set();
         for (const c of activeCves) {
-            const weight = DeviceSummaryService.severityWeight(c.severity);
+            const weight = this.severityWeight(c.severity);
             if (weight > worstWeight) worstWeight = weight;
             const sev = (c.severity || '').toUpperCase();
             if (sev === 'CRITICAL') critical++;
@@ -1362,7 +1888,7 @@ class DevicesPage extends window.Component {
             cvss = Math.max(0, Math.min(10, cvss));
         }
         if (cvss === null) {
-            cvss = DeviceSummaryService.cvssFromWorstSeverity(s.worstSeverity);
+            cvss = this.cvssFromWorstSeverity(s.worstSeverity);
         }
         return cvss;
     }
@@ -1468,7 +1994,7 @@ class DevicesPage extends window.Component {
             stats.vulnerableApps += (summary.vulnerableApps || 0);
             stats.criticalCves += (summary.criticalCves || 0);
             
-            if (!this.isDeviceInactive(d)) stats.online++;
+            if (!DeviceStatsService.isDeviceInactive(d)) stats.online++;
         }
 
         stats.avgRisk = riskCount > 0 ? Math.round(totalRisk / riskCount) : 0;
@@ -1747,9 +2273,9 @@ class DevicesPage extends window.Component {
         const { html } = window;
         const { loading, devices, error, manifestError } = this.state;
 
-        const filteredDevices = (this.state.filteredDevices && this.state.filteredDevices.length > 0) ? this.state.filteredDevices : this.getFilteredDevices();
-        const stats = this.computeDeviceStats(filteredDevices);
-        const securityStats = this.computeSecurityStats(filteredDevices);
+        const filteredDevices = (this.state.filteredDevices && this.state.filteredDevices.length > 0) ? this.state.filteredDevices : DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
+        const stats = DeviceStatsService.computeDeviceStats(filteredDevices);
+        const securityStats = DeviceStatsService.computeSecurityStats(filteredDevices, this.state.enrichedScores, this.state.deviceSummaries);
 
         return html`
             ${manifestError ? html`<div class="alert alert-danger mt-2">${manifestError}</div>` : null}
@@ -1910,7 +2436,7 @@ class DevicesPage extends window.Component {
                                     </div>
                                 </div>
                             ` : this.state.viewMode === 'tiles' ? this.renderTiles(filteredDevices) : html`
-                                ${this.renderBulkActionsBar()}
+                                ${renderBulkActionsBar(this)}
                                 <div class="card">
                                     <div class="table-responsive">
                                         <table class="table table-vcenter card-table">
@@ -2060,12 +2586,12 @@ class DevicesPage extends window.Component {
                                                             <td>
                                                                 <div class="d-flex flex-column gap-1">
                                                                     <div class="d-flex align-items-center gap-2">
-                                                                        ${this.isDeviceInactive(device) ? html`<span class="badge bg-secondary-lt">Offline</span>` : html`<span class="badge bg-success-lt">Online</span>`}
+                                                                        ${DeviceStatsService.isDeviceInactive(device) ? html`<span class="badge bg-secondary-lt">Offline</span>` : html`<span class="badge bg-success-lt">Online</span>`}
                                                                         <span class="text-muted small">${device.telemetry?.osEdition || 'Unknown OS'}</span>
                                                                     </div>
                                                                     <div class="text-muted small">
                                                                         ${device.telemetry?.connectionType || 'Unknown Network'} 
-                                                                        ${device.telemetry?.networkSpeedMbps ? `(${this.formatNetworkSpeed(device.telemetry.networkSpeedMbps)})` : ''}
+                                                                        ${device.telemetry?.networkSpeedMbps ? `(${formatNetworkSpeed(device.telemetry.networkSpeedMbps)})` : ''}
                                                                     </div>
                                                                     <div class="text-muted small">
                                                                         Last seen ${this.formatLastSeen(device.lastHeartbeat)}
