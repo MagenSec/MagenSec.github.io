@@ -1710,11 +1710,8 @@ class DevicesPage extends window.Component {
                                         </div>
                                         <div class="d-flex align-items-center justify-content-center gap-2">
                                             <div class="d-flex align-items-center">
-                                                <span class="status-dot ${this.getStatusDot(device.lastSeen)} me-2"></span>
-                                                ${(() => {
-                                                    const connStatus = getConnectionStatus(device);
-                                                    return window.html`<span class="badge ${connStatus.color} text-white">${connStatus.icon} ${connStatus.status}</span>`;
-                                                })()}
+                                                <span class="badge bg-info-lt">${device.status || 'Unknown'} (License)</span>
+                                                <!-- TEMP: Showing license state for debugging -->
                                             </div>
                                         </div>
                                     </div>
@@ -2022,16 +2019,11 @@ class DevicesPage extends window.Component {
                                                                         ${isOutdated ? html`<span class="badge bg-warning badge-notification" style="position:absolute; top:-4px; right:-4px;"></span>` : ''}
                                                                     </span>
                                                                     ${(() => {
-                                                                        const connStatus = getConnectionStatus(device);
                                                                         return html`
-                                                                            <span class="badge ${connStatus.color} text-white d-inline-flex align-items-center justify-content-center gap-1 text-start" style="min-width: 120px;">
-                                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                                                                                    <circle cx="12" cy="12" r="9" />
-                                                                                    <path d="M12 8v4l2 2" />
-                                                                                </svg>
-                                                                                ${connStatus.icon} ${connStatus.status}
+                                                                            <span class="badge bg-info-lt" style="min-width: 120px;">
+                                                                                ${device.status || 'Unknown'} (License)
                                                                             </span>
+                                                                            <!-- TEMP: Showing license state for debugging -->
                                                                         `;
                                                                     })()}
                                                                 </div>

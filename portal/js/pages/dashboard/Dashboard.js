@@ -2057,8 +2057,8 @@ export class DashboardPage extends Component {
                             <a class="fw-semibold" href="${deviceHref}">${deviceName}</a>
                         </div>
                         <div class="text-muted small mt-1">
-                            ${StatusBadge({ status: status.status, size: 'sm' })}
-
+                            <span class="badge bg-info-lt">License: ${device.status || 'Unknown'}</span>
+                            <!-- TEMP: Showing license state for debugging -->
                             ${threatCount > 0 ? html`<span class="badge bg-danger text-white">${threatCount} threat${threatCount > 1 ? 's' : ''}</span>` : ''}
                         </div>
                         <div class="text-muted small">Last seen: ${this.formatTimestamp(device.lastSeen || device.lastHeartbeat)}</div>
