@@ -172,7 +172,7 @@ export class ResponseActionsPage extends Component {
             `;
         }
 
-        const activeDevices = devices.filter(d => d.state === 'Active');
+        const activeDevices = (devices || []).filter(d => d.state === 'Active');
 
         return html`
             <div class="page-header d-print-none mb-3">

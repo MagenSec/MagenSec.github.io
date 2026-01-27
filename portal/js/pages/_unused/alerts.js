@@ -98,10 +98,10 @@ export class AlertsPage extends Component {
                             <h2 class="page-title">Security Alerts</h2>
                             <div class="page-subtitle">
                                 <div class="d-flex gap-2 flex-wrap">
-                                    <span class="badge bg-danger text-white">${alerts.filter(a => a.severity?.toLowerCase() === 'critical').length} Critical</span>
-                                    <span class="badge bg-warning text-white">${alerts.filter(a => a.severity?.toLowerCase() === 'high').length} High</span>
-                                    <span class="badge bg-info text-white">${alerts.filter(a => a.severity?.toLowerCase() === 'medium').length} Medium</span>
-                                    <span class="badge bg-success text-white">${alerts.filter(a => a.severity?.toLowerCase() === 'low').length} Low</span>
+                                    <span class="badge bg-danger text-white">${(alerts || []).filter(a => a.severity?.toLowerCase() === 'critical').length} Critical</span>
+                                    <span class="badge bg-warning text-white">${(alerts || []).filter(a => a.severity?.toLowerCase() === 'high').length} High</span>
+                                    <span class="badge bg-info text-white">${(alerts || []).filter(a => a.severity?.toLowerCase() === 'medium').length} Medium</span>
+                                    <span class="badge bg-success text-white">${(alerts || []).filter(a => a.severity?.toLowerCase() === 'low').length} Low</span>
                                 </div>
                             </div>
                         </div>

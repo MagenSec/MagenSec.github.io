@@ -18,11 +18,12 @@ import { AnalystPage } from './pages/analyst/Analyst.js';
 import { PosturePage } from './pages/posture/Posture.js';
 import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
 // TEMPORARY: Wired up _unused/ pages for validation (will be removed or re-wired later)
-import { ThreatIntelPage } from './pages/_unused/threatIntel.js';
-import { VulnerabilitiesPage } from './pages/_unused/vulnerabilities.js';
-import { AlertsPage } from './pages/_unused/alerts.js';
-import { SecurityDashboardPage } from './pages/_unused/securityDashboard.js';
-import { ResponseActionsPage } from './pages/_unused/responseActions.js';
+// DISABLED: Causing 404 in production - _unused folder not deployed
+// import { ThreatIntelPage } from './pages/_unused/threatIntel.js';
+// import { VulnerabilitiesPage } from './pages/_unused/vulnerabilities.js';
+// import { AlertsPage } from './pages/_unused/alerts.js';
+// import { SecurityDashboardPage } from './pages/_unused/securityDashboard.js';
+// import { ResponseActionsPage } from './pages/_unused/responseActions.js';
 import { AssetsPage } from './pages/inventory/Assets.js';
 import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
 import { SettingsPage } from './pages/settings/Settings.js';
@@ -75,16 +76,17 @@ function App() {
         case 'posture-ai':
             return html`<${AIPosturePage} />`;
         // TEMPORARY: _unused/ pages for validation
-        case 'threat-intel':
-            return html`<${ThreatIntelPage} />`;
-        case 'vulnerabilities':
-            return html`<${VulnerabilitiesPage} />`;
-        case 'alerts':
-            return html`<${AlertsPage} />`;
-        case 'security-dashboard':
-            return html`<${SecurityDashboardPage} />`;
-        case 'response-actions':
-            return html`<${ResponseActionsPage} />`;
+        // DISABLED: Routes commented out - pages not deployed to production
+        // case 'threat-intel':
+        //     return html`<${ThreatIntelPage} />`;
+        // case 'vulnerabilities':
+        //     return html`<${VulnerabilitiesPage} />`;
+        // case 'alerts':
+        //     return html`<${AlertsPage} />`;
+        // case 'security-dashboard':
+        //     return html`<${SecurityDashboardPage} />`;
+        // case 'response-actions':
+        //     return html`<${ResponseActionsPage} />`;
         // Report Preview moved under Site Admin → Activity Reports (Preview tab)
         // case 'report-preview':
         //     return html`<${ReportPreviewPage} />`;
