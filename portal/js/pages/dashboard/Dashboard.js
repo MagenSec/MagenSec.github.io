@@ -229,10 +229,10 @@ export class DashboardPage extends Component {
     }
 
     getGradeBadge(score) {
-        if (score >= 80) return 'bg-success';
-        if (score >= 60) return 'bg-info';
-        if (score >= 40) return 'bg-warning';
-        return 'bg-danger';
+        if (score >= 80) return 'bg-success-lt text-success';
+        if (score >= 60) return 'bg-info-lt text-info';
+        if (score >= 40) return 'bg-warning-lt text-warning';
+        return 'bg-danger-lt text-danger';
     }
 
     getGrade(score) {
@@ -243,10 +243,10 @@ export class DashboardPage extends Component {
     }
 
     getRemediationSpeedBadge(score) {
-        if (score >= 80) return 'bg-success';
-        if (score >= 60) return 'bg-info';
-        if (score >= 40) return 'bg-warning';
-        return 'bg-danger';
+        if (score >= 80) return 'bg-success-lt text-success';
+        if (score >= 60) return 'bg-info-lt text-info';
+        if (score >= 40) return 'bg-warning-lt text-warning';
+        return 'bg-danger-lt text-danger';
     }
 
     calculateTrend(currentValue, previousValue) {
@@ -375,7 +375,7 @@ export class DashboardPage extends Component {
         const exact = Math.max(0, Math.round(this.safeNumber(days)));
 
         let label = `${exact} days`;
-        let badgeClass = 'bg-success';
+        let badgeClass = 'bg-success-lt text-success';
 
         if (exact >= 730) {
             label = '2+ years';
@@ -386,13 +386,13 @@ export class DashboardPage extends Component {
         }
 
         if (exact === 0) {
-            badgeClass = 'bg-danger text-white';
+            badgeClass = 'bg-danger-lt text-danger';
         } else if (exact <= 30) {
-            badgeClass = 'bg-danger';
+            badgeClass = 'bg-danger-lt text-danger';
         } else if (exact <= 60) {
-            badgeClass = 'bg-orange';
+            badgeClass = 'bg-warning-lt text-warning';
         } else if (exact <= 90) {
-            badgeClass = 'bg-warning';
+            badgeClass = 'bg-warning-lt text-warning';
         }
 
         return {
@@ -1006,7 +1006,7 @@ export class DashboardPage extends Component {
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                                     Refresh
                                 </button>
-                                <span class="badge bg-${riskColor} text-white">${snapshot.risk?.orgScore || riskScore}/100</span>
+                                <span class="badge bg-${riskColor}-lt text-${riskColor}">${snapshot.risk?.orgScore || riskScore}/100</span>
                             </div>
                         </div>
                         <div class="card-body">
@@ -1183,7 +1183,7 @@ export class DashboardPage extends Component {
                                                     <div class="small">
                                                         ${finding.affectedDevices.map((deviceName, i) => html`
                                                             ${i > 0 ? ', ' : ''}
-                                                            <span class="badge bg-light text-dark border border-1">${deviceName}</span>
+                                                            <span class="badge bg-secondary-lt text-secondary">${deviceName}</span>
                                                         `)}
                                                         ${finding.affectedDevices.length > 2 ? html`<span class="text-muted"> +${finding.affectedDevices.length - 2} more</span>` : ''}
                                                     </div>
@@ -1499,7 +1499,7 @@ export class DashboardPage extends Component {
                             <div class="list-group-item">
                                 <div class="row align-items-center">
                                     <div class="col-auto">
-                                        <span class="badge badge-pill bg-primary">${idx + 1}</span>
+                                        <span class="badge badge-pill bg-primary-lt text-primary">${idx + 1}</span>
                                     </div>
                                     <div class="col">
                                         <div>
@@ -2035,8 +2035,8 @@ export class DashboardPage extends Component {
                                         <div class="text-reset d-block font-weight-medium">${app.appName}</div>
                                         <div class="text-muted small mt-1">
                                             <strong>${cveCount}</strong> CVEs · 
-                                            ${criticalCount > 0 ? html`<span class="badge badge-sm bg-danger me-1">${criticalCount} Critical</span>` : ''}
-                                            ${highCount > 0 ? html`<span class="badge badge-sm bg-warning">${highCount} High</span>` : ''}
+                                            ${criticalCount > 0 ? html`<span class="badge badge-sm bg-danger-lt text-danger me-1">${criticalCount} Critical</span>` : ''}
+                                            ${highCount > 0 ? html`<span class="badge badge-sm bg-warning-lt text-warning">${highCount} High</span>` : ''}
                                         </div>
                                     </div>
                                     <div class="col-auto text-end">
@@ -2606,7 +2606,7 @@ export class DashboardPage extends Component {
                                 License Days
                             </div>
                             <div class="ms-auto lh-1">
-                                <span class="badge ${licenseInfo?.status === 'Active' ? 'bg-success' : 'bg-warning'}">${licenseInfo?.status || 'Unknown'}</span>
+                                <span class="badge ${licenseInfo?.status === 'Active' ? 'bg-success-lt text-success' : 'bg-warning-lt text-warning'}">${licenseInfo?.status || 'Unknown'}</span>
                             </div>
                         </div>
                         <div class="d-flex align-items-baseline" title=${licenseDaysDisplay.tooltip}>
