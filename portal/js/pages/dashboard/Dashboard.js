@@ -1121,7 +1121,7 @@ export class DashboardPage extends Component {
                         <div class="card-header">
                             <h3 class="card-title">Top Security Findings</h3>
                             <div class="ms-auto">
-                                <span class="badge bg-secondary">${findings.length} findings</span>
+                                <span class="badge bg-secondary-lt text-secondary">${findings.length} findings</span>
                             </div>
                         </div>
                         <div class="table-responsive">
@@ -1157,12 +1157,12 @@ export class DashboardPage extends Component {
                                     ` : findings.map(finding => html`
                                         <tr>
                                             <td>
-                                                <span class=${`badge bg-${this.getSeverityColor(finding.severity)} text-white`}>
+                                                <span class=${`badge bg-${this.getSeverityColor(finding.severity)}-lt text-${this.getSeverityColor(finding.severity)}`}>
                                                     ${finding.severity}
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="badge bg-secondary text-white">${finding.domain || 'Unknown'}</span>
+                                                <span class="badge bg-secondary-lt text-secondary">${finding.domain || 'Unknown'}</span>
                                             </td>
                                             <td>
                                                 <div>${finding.title || finding.description || 'No title'}</div>
@@ -1505,7 +1505,7 @@ export class DashboardPage extends Component {
                                         <div>
                                             <strong>${action.title || action.action}</strong>
                                             ${action.affectedApplication ? html`
-                                                <span class="badge bg-warning text-white ms-2">App: ${action.affectedApplication}</span>
+                                                <span class="badge bg-blue-lt text-primary ms-2">${action.affectedApplication}</span>
                                             ` : ''}
                                         </div>
                                         ${deviceList.text ? html`
@@ -1523,7 +1523,7 @@ export class DashboardPage extends Component {
                                         ` : ''}
                                     </div>
                                     <div class="col-auto">
-                                        <span class=${`badge bg-${this.getSeverityColor(action.priority || action.severity)} text-white`}>
+                                        <span class=${`badge bg-${this.getSeverityColor(action.priority || action.severity)}-lt text-${this.getSeverityColor(action.priority || action.severity)}`}>
                                             ${action.priority || action.severity || 'Medium'}
                                         </span>
                                     </div>
@@ -1874,11 +1874,10 @@ export class DashboardPage extends Component {
     }
 
     renderActionList() {
-        // Prefer posture.actions.prioritized (detailed) over dashboard.actions (generic)
+        // Prefer dashboard.actions (backend-enriched with cveIds, devices, deadlines) over posture snapshot
         const { postureSnapshot, actions: dashboardActions } = this.state;
-        const postureActions = postureSnapshot?.actions?.prioritized || [];
-        const actions = postureActions.length > 0 ? postureActions : (dashboardActions || []);
-        const isPosture = postureActions.length > 0;
+        const actions = (dashboardActions && dashboardActions.length > 0) ? dashboardActions : [];
+        const isPosture = false;  // Dashboard actions are always preferred as they're fully enriched
 
         const severityToBadge = (severity) => {
             const s = String(severity || '').toLowerCase();
@@ -1935,15 +1934,22 @@ export class DashboardPage extends Component {
                         return html`
                             <div class="list-group-item">
                                 <div class="d-flex align-items-start">
-                                    <span class="badge bg-${severity === 'critical' ? 'danger' : severity === 'high' || severity === 'warning' ? 'warning' : severity === 'medium' ? 'info' : 'success'} me-3" style="min-width: 20px; height: 20px; padding: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">${index + 1}</span>
+                                    <span class="badge bg-${severity === 'critical' ? 'danger-lt' : severity === 'high' || severity === 'warning' ? 'warning-lt' : severity === 'medium' ? 'info-lt' : 'success-lt'} text-${severity === 'critical' ? 'danger' : severity === 'high' || severity === 'warning' ? 'warning' : severity === 'medium' ? 'info' : 'success'} me-3" style="min-width: 20px; height: 20px; padding: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">${index + 1}</span>
                                     <div class="flex-fill">
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                                            <div class="fw-semibold">${action.title}</div>
-                                            ${cveIds.length > 0 ? html`
+                                            <div class="fw-semibold">
+                                                ${action.title}
+                                                ${action.affectedApplication ? html`
+                                                    <span class="badge bg-blue-lt text-primary ms-2">${action.affectedApplication}</span>
+                                                ` : ''}
+                                            </div>
+                                            ${cveIds.length > 1 ? html`
+                                                <span class="badge bg-danger-lt text-danger" title="Multiple CVEs">${cveIds.length} CVEs</span>
+                                            ` : cveIds.length > 0 ? html`
                                                 <span class="badge bg-danger-lt text-danger">${cveIds[0]}</span>
                                             ` : ''}
                                             ${hasExploit ? html`
-                                                <span class="badge bg-danger text-white" title="Known exploit available">⚠️ Exploit</span>
+                                                <span class="badge bg-danger-lt text-danger" title="Known exploit available">⚠️ Exploit</span>
                                             ` : ''}
                                             ${epssScore !== null && epssScore > 0.5 ? html`
                                                 <span class="badge bg-warning-lt text-warning" title="EPSS: ${Math.round(epssScore * 100)}% exploitation probability">EPSS ${Math.round(epssScore * 100)}%</span>
@@ -1953,12 +1959,12 @@ export class DashboardPage extends Component {
                                         ${action.description ? html`
                                             <div class="text-muted small mt-1">${action.description}</div>
                                         ` : ''}
+                                        ${cveIds.length > 0 ? html`
+                                            <div class="text-muted small mt-1">
+                                                <strong>Addresses:</strong> ${cveIds.join(', ')}
+                                            </div>
+                                        ` : ''}
                                         <div class="d-flex gap-3 mt-2 flex-wrap">
-                                            ${action.affectedApplication ? html`
-                                                <div class="text-muted small">
-                                                    <strong>App:</strong> <span class="badge bg-blue-lt">${action.affectedApplication}</span>
-                                                </div>
-                                            ` : ''}
                                             ${deviceList.text ? html`
                                                 <div class="text-muted small">
                                                     <strong>Devices:</strong> ${deviceList.links.map((link, i) => html`
@@ -1972,11 +1978,6 @@ export class DashboardPage extends Component {
                                             ${deadline ? html`
                                                 <div class="text-muted small">
                                                     <strong>Deadline:</strong> <span class="text-${this.isOverdue(deadline) ? 'danger' : 'warning'}">${this.formatDeadline(deadline)}</span>${sla ? html` <span class="badge bg-muted-lt">${sla} SLA</span>` : ''}
-                                                </div>
-                                            ` : ''}
-                                            ${cveType ? html`
-                                                <div class="text-muted small">
-                                                    <strong>Type:</strong> <span class="badge bg-danger-lt">${cveType}</span>
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -2253,7 +2254,7 @@ export class DashboardPage extends Component {
                                     tooltip=${connectionStatus.tooltip}
                                 />`;
                             })()}
-                            ${threatCount > 0 ? html`<span class="badge bg-danger text-white ms-1">${threatCount} threat${threatCount > 1 ? 's' : ''}</span>` : ''}
+                            ${threatCount > 0 ? html`<span class="badge bg-danger-lt text-danger ms-1">${threatCount} threat${threatCount > 1 ? 's' : ''}</span>` : ''}
                         </div>
                         <div class="text-muted small">Last seen: ${this.formatTimestamp(device.lastSeen || device.lastHeartbeat)}</div>
                     </div>
