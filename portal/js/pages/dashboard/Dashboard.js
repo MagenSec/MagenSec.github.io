@@ -1558,6 +1558,23 @@ export class DashboardPage extends Component {
         };
     }
 
+    formatDeadline(deadline) {
+        const now = new Date();
+        const diff = deadline - now;
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        
+        if (days < 0) return `${Math.abs(days)} days overdue`;
+        if (days === 0) return 'Due today';
+        if (days === 1) return 'Due tomorrow';
+        if (days <= 7) return `Due in ${days} days`;
+        if (days <= 30) return `Due in ${Math.ceil(days / 7)} weeks`;
+        return deadline.toLocaleDateString();
+    }
+
+    isOverdue(deadline) {
+        return deadline < new Date();
+    }
+
     render() {
         const { loading, error, user, currentOrg, activeTab } = this.state;
         
@@ -1870,37 +1887,64 @@ export class DashboardPage extends Component {
                     </div>
                 </div>
                 <div class="list-group list-group-flush">
-                    ${sorted.map(action => {
+                    ${sorted.map((action, index) => {
                         const severity = action.severity || action.priority || 'info';
                         const deviceList = this.formatDeviceList(action.affectedDevices || []);
+                        const cveIds = action.cveIds || (action.cveId ? [action.cveId] : []);
+                        const deadline = action.deadline ? new Date(action.deadline) : null;
+                        const sla = action.sla || null;
+                        const epssScore = action.epssScore !== undefined ? action.epssScore : null;
+                        const hasExploit = action.hasExploit || false;
+                        const cveType = action.cveType || action.cveSeverity || null;
                         
                         return html`
                             <div class="list-group-item">
                                 <div class="d-flex align-items-start">
-                                    <span class="status-dot me-3 ${severityToBadge(severity)}"></span>
+                                    <span class="badge bg-${severity === 'critical' ? 'danger' : severity === 'high' || severity === 'warning' ? 'warning' : severity === 'medium' ? 'info' : 'success'} me-3" style="min-width: 20px; height: 20px; padding: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">${index + 1}</span>
                                     <div class="flex-fill">
-                                        <div class="d-flex align-items-center">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
                                             <div class="fw-semibold">${action.title}</div>
+                                            ${cveIds.length > 0 ? html`
+                                                <span class="badge bg-danger-lt text-danger">${cveIds[0]}</span>
+                                            ` : ''}
+                                            ${hasExploit ? html`
+                                                <span class="badge bg-danger text-white" title="Known exploit available">⚠️ Exploit</span>
+                                            ` : ''}
+                                            ${epssScore !== null && epssScore > 0.5 ? html`
+                                                <span class="badge bg-warning-lt text-warning" title="EPSS: ${Math.round(epssScore * 100)}% exploitation probability">EPSS ${Math.round(epssScore * 100)}%</span>
+                                            ` : ''}
                                             ${action.ctaLabel ? html`<a href="${action.ctaHref || '#'}" class="ms-auto small text-primary">${action.ctaLabel}</a>` : ''}
                                         </div>
                                         ${action.description ? html`
-                                            <div class="text-muted small">${action.description}</div>
+                                            <div class="text-muted small mt-1">${action.description}</div>
                                         ` : ''}
-                                        ${action.affectedApplication ? html`
-                                            <div class="text-muted small mt-1">
-                                                <strong>Application:</strong> ${action.affectedApplication}
-                                            </div>
-                                        ` : ''}
-                                        ${deviceList.text ? html`
-                                            <div class="text-muted small mt-1">
-                                                <strong>Devices:</strong> ${deviceList.links.map((link, i) => html`
-                                                    ${i > 0 ? ', ' : ''}
-                                                    ${link.href ? html`
-                                                        <a href="${link.href}" class="text-primary">${link.name}</a>
-                                                    ` : html`<span>${link.name}</span>`}
-                                                `)}${deviceList.hasMore ? html`, <span class="text-muted">...${deviceList.remaining} more</span>` : ''}
-                                            </div>
-                                        ` : ''}
+                                        <div class="d-flex gap-3 mt-2 flex-wrap">
+                                            ${action.affectedApplication ? html`
+                                                <div class="text-muted small">
+                                                    <strong>App:</strong> <span class="badge bg-blue-lt">${action.affectedApplication}</span>
+                                                </div>
+                                            ` : ''}
+                                            ${deviceList.text ? html`
+                                                <div class="text-muted small">
+                                                    <strong>Devices:</strong> ${deviceList.links.map((link, i) => html`
+                                                        ${i > 0 ? ', ' : ''}
+                                                        ${link.href ? html`
+                                                            <a href="${link.href}" class="text-primary">${link.name}</a>
+                                                        ` : html`<span>${link.name}</span>`}
+                                                    `)}${deviceList.hasMore ? html`, <span class="text-muted">...${deviceList.remaining} more</span>` : ''}
+                                                </div>
+                                            ` : ''}
+                                            ${deadline ? html`
+                                                <div class="text-muted small">
+                                                    <strong>Deadline:</strong> <span class="text-${this.isOverdue(deadline) ? 'danger' : 'warning'}">${this.formatDeadline(deadline)}</span>${sla ? html` <span class="badge bg-muted-lt">${sla} SLA</span>` : ''}
+                                                </div>
+                                            ` : ''}
+                                            ${cveType ? html`
+                                                <div class="text-muted small">
+                                                    <strong>Type:</strong> <span class="badge bg-danger-lt">${cveType}</span>
+                                                </div>
+                                            ` : ''}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1944,19 +1988,44 @@ export class DashboardPage extends Component {
         return html`
             <div class="card mb-3">
                 <div class="card-header">
-                    <h3 class="card-title">Telemetry coverage</h3>
+                    <h3 class="card-title">Health & Coverage</h3>
+                    <div class="card-actions">
+                        <span class="badge bg-muted-lt" title="Healthy: Recent heartbeat AND telemetry. Stale: Missing one. Offline: Missing both.">?
+</span>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex align-items-center mb-2" title=${healthyTooltip}>
-                        <div class="subheader">Healthy</div>
-                        <div class="ms-auto h4 mb-0">${healthy}</div>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="h2 mb-0">${healthyPct}%</div>
+                            <div class="text-muted small">Healthy devices</div>
+                        </div>
+                        <div class="ms-auto">
+                            <span class="badge bg-success-lt text-success">${healthy} of ${total}</span>
+                        </div>
                     </div>
                     <div class="progress progress-sm mb-3 progress-stacked">
-                        <div class="progress-bar bg-success" style=${`width: ${healthyPct}%`} role="progressbar"></div>
-                        <div class="progress-bar bg-warning" style=${`width: ${stalePct}%`} role="progressbar"></div>
-                        <div class="progress-bar bg-secondary" style=${`width: ${offlinePct}%`} role="progressbar"></div>
+                        <div class="progress-bar bg-success" style=${`width: ${healthyPct}%`} role="progressbar" title="${healthy} healthy (${healthyPct}%)"></div>
+                        <div class="progress-bar bg-warning" style=${`width: ${stalePct}%`} role="progressbar" title="${stale} stale (${stalePct}%)"></div>
+                        <div class="progress-bar bg-secondary" style=${`width: ${offlinePct}%`} role="progressbar" title="${offline} offline (${offlinePct}%)"></div>
                     </div>
-                    <div class="small text-muted">Stale: ${stale} · Offline: ${offline}</div>
+                    <div class="d-flex gap-3 small">
+                        <div>
+                            <span class="badge bg-warning-lt text-warning">${stale}</span>
+                            <span class="text-muted ms-1">Stale</span>
+                        </div>
+                        <div>
+                            <span class="badge bg-secondary-lt text-secondary">${offline}</span>
+                            <span class="text-muted ms-1">Offline</span>
+                        </div>
+                    </div>
+                    ${total > 0 && (stale > 0 || offline > 0) ? html`
+                        <div class="mt-3">
+                            <a href="#!/devices" class="btn btn-outline-primary btn-sm w-100">
+                                View All Devices
+                            </a>
+                        </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -2015,11 +2084,14 @@ export class DashboardPage extends Component {
                 <div class="card-header">
                     <h3 class="card-title">
                         <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2 text-primary" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
-                        Device Connection Status
+                        Recent Device Activity
                     </h3>
                     <div class="card-actions">
                         <a href="#!/devices" class="btn btn-primary btn-sm">View All</a>
                     </div>
+                </div>
+                <div class="card-body py-2">
+                    <div class="text-muted small">Health status and last seen time for recently active devices</div>
                 </div>
                 <div class="list-group list-group-flush">
                     ${devices.length ? devices.map(device => this.renderDeviceRow(device)) : html`<div class="list-group-item text-muted text-center py-3">No recent activity</div>`}
