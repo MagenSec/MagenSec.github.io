@@ -154,13 +154,40 @@ export function initRouter(renderApp) {
         renderApp({ page: 'inventory', ctx });
     });
 
-    // Site Admin (protected)
-    page('/site-admin', (ctx) => {
+    // Site Admin - Business (protected)
+    page('/siteadmin/business', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'site-admin', ctx });
+        renderApp({ page: 'siteadmin/business', ctx });
+    });
+
+    // Site Admin - Manage (protected)
+    page('/siteadmin/manage', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'siteadmin/manage', ctx });
+    });
+
+    // Site Admin - Activity (protected)
+    page('/siteadmin/activity', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'siteadmin/activity', ctx });
+    });
+
+    // Site Admin - Preview (protected)
+    page('/siteadmin/preview', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'siteadmin/preview', ctx });
     });
 
     // Audit (protected)

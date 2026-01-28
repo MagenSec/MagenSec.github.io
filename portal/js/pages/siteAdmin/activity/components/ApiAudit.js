@@ -18,6 +18,7 @@ export function ApiAuditPage() {
     logger.debug('[API Audit] Component rendering...');
     
     const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [events, setEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [filters, setFilters] = useState({
@@ -39,8 +40,27 @@ export function ApiAuditPage() {
     const [continuationToken, setContinuationToken] = useState(null);
     const [expandedEvent, setExpandedEvent] = useState(null);
     const chartRef = useRef(null);
+    const scrollObserverRef = useRef(null);
     const eventsPerPage = 100;
     const currentOrgId = orgContext.getCurrentOrg()?.orgId;
+
+    // Infinite scroll observer
+    useEffect(() => {
+        const observerTarget = scrollObserverRef.current;
+        if (!observerTarget) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+                    loadApiEvents(false);
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        observer.observe(observerTarget);
+        return () => observer.disconnect();
+    }, [hasMore, loading, loadingMore]);
 
     // Load API audit data
     useEffect(() => {
@@ -66,21 +86,27 @@ export function ApiAuditPage() {
 
     // Render chart when filtered events change
     useEffect(() => {
+        logger.debug('[API Audit] Chart useEffect triggered, filteredEvents.length:', filteredEvents.length);
         if (filteredEvents.length > 0 && chartRef.current && window.ApexCharts) {
             renderApiChart();
         }
-    }, [filteredEvents]);
+    }, [filteredEvents, filteredEvents.length]);
 
     // Render response codes/duration chart when filtered events change
     useEffect(() => {
+        logger.debug('[API Audit] Response chart useEffect triggered, filteredEvents.length:', filteredEvents.length);
         if (filteredEvents.length > 0 && window.ApexCharts) {
             renderResponseChart();
         }
-    }, [filteredEvents]);
+    }, [filteredEvents, filteredEvents.length]);
 
     async function loadApiEvents(reset = false) {
         logger.debug('[API Audit] loadApiEvents called, reset:', reset);
-        setLoading(true);
+        if (reset) {
+            setLoading(true);
+        } else {
+            setLoadingMore(true);
+        }
 
         try {
             const currentOrg = orgContext.getCurrentOrg();
@@ -130,7 +156,11 @@ export function ApiAuditPage() {
             toast.show('Failed to load API audit events', 'error');
             if (reset) setEvents([]);
         } finally {
-            setLoading(false);
+            if (reset) {
+                setLoading(false);
+            } else {
+                setLoadingMore(false);
+            }
         }
     }
 
@@ -284,6 +314,8 @@ export function ApiAuditPage() {
     }
 
     function renderApiChart() {
+        logger.debug('[API Audit] renderApiChart called with', filteredEvents.length, 'events');
+        
         if (!window.ApexCharts || !chartRef.current) {
             logger.warn('[API Audit] ApexCharts not loaded or chart ref not ready');
             return;
@@ -295,15 +327,12 @@ export function ApiAuditPage() {
             apiChartInstance = null;
         }
 
-        // Group by hour (last 24 hours) or by day (last 7 days)
-        const groupByHour = rangeDays <= 1;
+        // Always group by hour for better granularity
         const timeGroups = {};
 
         filteredEvents.forEach(event => {
             const timestamp = new Date(event.timestamp);
-            const key = groupByHour
-                ? `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')} ${String(timestamp.getHours()).padStart(2, '0')}:00`
-                : `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}`;
+            const key = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')} ${String(timestamp.getHours()).padStart(2, '0')}:00`;
 
             if (!timeGroups[key]) {
                 timeGroups[key] = { total: 0, success: 0, error: 0 };
@@ -347,7 +376,7 @@ export function ApiAuditPage() {
             ],
             xaxis: {
                 type: 'category',
-                labels: { rotate: -45, rotateAlways: groupByHour }
+                labels: { rotate: -45, rotateAlways: true }
             },
             yaxis: {
                 title: { text: 'API Calls' }
@@ -367,8 +396,11 @@ export function ApiAuditPage() {
     }
 
     function renderResponseChart() {
+        logger.debug('[API Audit] renderResponseChart called with', filteredEvents.length, 'events');
+        
         const responseChartRef = document.getElementById('responseChartRef');
         if (!window.ApexCharts || !responseChartRef) {
+            logger.warn('[API Audit] ApexCharts not loaded or responseChartRef not found');
             return;
         }
 
@@ -939,18 +971,24 @@ export function ApiAuditPage() {
                         </tbody>
                     </table>
                 </div>
-                ${hasMore ? html`
-                    <div class="card-footer">
-                        <button 
-                            class="btn btn-primary w-100" 
-                            onClick=${(e) => { e.preventDefault(); e.stopPropagation(); if (!loading) loadApiEvents(false); }}
-                            disabled=${loading}
-                        >
-                            ${loading ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-arrow-down me-1"></i>`}
-                            Load More
-                        </button>
+                
+                <!-- Infinite Scroll Sentinel -->
+                <div ref=${scrollObserverRef} style="height: 20px; margin: 20px 0;"></div>
+                
+                ${loadingMore ? html`
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading more...</span>
+                        </div>
+                        <div class="text-muted mt-2 small">Loading more events...</div>
                     </div>
-                ` : null}
+                ` : ''}
+                
+                ${!hasMore && events.length > 0 ? html`
+                    <div class="text-center text-muted py-2">
+                        <small>No more events to load</small>
+                    </div>
+                ` : ''}
             </div>
 
             <!-- Go to Top Button -->

@@ -82,7 +82,7 @@ export class OrgSwitcher extends Component {
                 >
                     ${availableOrgs.map(org => html`
                         <option value=${org.orgId} class="bg-gray-800 text-white">
-                            ${org.name} ${org.type === 'Individual' ? '(Personal)' : `(${org.role})`}
+                            ${org.name} ${org.type === 'Personal' ? '(Personal)' : `(${org.role})`}
                         </option>
                     `)}
                 </select>

@@ -4,11 +4,26 @@
  * @param {string} props.status - Online, Offline, Error, or Unknown
  * @param {boolean} props.showIcon - Whether to show icon
  * @param {string} props.size - sm, md, lg
+ * @param {boolean} props.showTooltip - Whether to show tooltip
+ * @param {string} props.tooltip - Custom tooltip text
  */
-export function StatusBadge({ status, showIcon = true, size = 'md' }) {
+export function StatusBadge({ status, showIcon = true, size = 'md', showTooltip = true, tooltip = null }) {
     const { html } = window;
     const config = getStatusConfig(status);
     const sizeClass = size === 'sm' ? 'badge-sm' : '';
+    const tooltipText = tooltip || config.tooltip;
+    
+    if (showTooltip && tooltipText) {
+        return html`
+            <span class="badge ${config.color} ${sizeClass}" 
+                  title="${tooltipText}" 
+                  data-bs-toggle="tooltip"
+                  style="cursor: help;">
+                ${showIcon ? html`${config.icon} ` : ''}
+                ${config.text}
+            </span>
+        `;
+    }
     
     return html`
         <span class="badge ${config.color} ${sizeClass}">
@@ -21,34 +36,70 @@ export function StatusBadge({ status, showIcon = true, size = 'md' }) {
 /**
  * Get connection status configuration
  * @param {Object} device - Device object with lastHeartbeat and lastTelemetry
- * @returns {Object} Status config with text, color, icon
+ * @returns {Object} Status config with text, color, icon, tooltip
  */
 export function getConnectionStatus(device) {
-    const lastSeen = device.lastSeen || device.lastHeartbeat;
+    const lastHeartbeat = device.lastSeen || device.lastHeartbeat;
     const lastTelemetry = device.lastTelemetry;
     
-    if (!lastSeen || !lastTelemetry) {
-        return { status: 'Error', color: 'bg-danger', icon: '⚠️' };
+    // Never connected or missing critical timestamps
+    if (!lastHeartbeat || !lastTelemetry) {
+        return { 
+            status: 'Error', 
+            color: 'bg-danger', 
+            icon: '⚠️',
+            tooltip: 'Device has not established connection. Contact Support if this persists for more than 6 hours.'
+        };
     }
     
-    const heartbeatMinutes = (Date.now() - new Date(lastSeen).getTime()) / 60000;
+    const heartbeatMinutes = (Date.now() - new Date(lastHeartbeat).getTime()) / 60000;
     const telemetryMinutes = (Date.now() - new Date(lastTelemetry).getTime()) / 60000;
     const heartbeatFresh = heartbeatMinutes < 30;
     const telemetryFresh = telemetryMinutes < 30;
     
+    // Heartbeat fresh but telemetry stale (upload issues)
     if (heartbeatFresh && !telemetryFresh) {
-        return { status: 'Error', color: 'bg-danger', icon: '⚠️' };
+        return { 
+            status: 'Error', 
+            color: 'bg-danger', 
+            icon: '⚠️',
+            tooltip: 'Device is connected but telemetry uploads are failing. Contact Support if this persists for more than 6 hours.'
+        };
     }
     
+    // Telemetry fresh but heartbeat stale (unusual - connection issues)
     if (!heartbeatFresh && telemetryFresh) {
-        return { status: 'Error', color: 'bg-danger', icon: '⚠️' };
+        return { 
+            status: 'Error', 
+            color: 'bg-danger', 
+            icon: '⚠️',
+            tooltip: 'Device connection is unstable. Contact Support if this persists for more than 6 hours.'
+        };
     }
     
+    // Both stale - device is offline
     if (!heartbeatFresh && !telemetryFresh) {
-        return { status: 'Offline', color: 'bg-warning', icon: '⊗' };
+        return { 
+            status: 'Offline', 
+            color: 'bg-warning', 
+            icon: '⊗',
+            tooltip: `Device was last seen ${formatDuration(heartbeatMinutes)} ago. Check if the device is powered on and connected to the network.`
+        };
     }
     
-    return { status: 'Online', color: 'bg-success', icon: '✓' };
+    // Both fresh - healthy
+    return { 
+        status: 'Online', 
+        color: 'bg-success', 
+        icon: '✓',
+        tooltip: 'Device is online and reporting telemetry normally.'
+    };
+}
+
+function formatDuration(minutes) {
+    if (minutes < 60) return `${Math.floor(minutes)} minutes`;
+    if (minutes < 1440) return `${Math.floor(minutes / 60)} hours`;
+    return `${Math.floor(minutes / 1440)} days`;
 }
 
 function getStatusConfig(status) {

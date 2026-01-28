@@ -41,11 +41,11 @@ export function filterAccounts(accounts, search) {
 }
 
 /**
- * Filter accounts for owner dropdown (only Business Admins and Individuals)
+ * Filter accounts for owner dropdown (only Individuals)
  */
 export function filterOwnerAccounts(accounts, search) {
     return accounts.filter(acc => 
-        (acc.userType === 'BusinessAdmin' || acc.userType === 'Individual') &&
+        (acc.userType === 'EndUser') &&
         (acc.email?.toLowerCase().includes(search.toLowerCase()) ||
          acc.userId?.toLowerCase().includes(search.toLowerCase()))
     );

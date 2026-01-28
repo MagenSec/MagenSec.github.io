@@ -335,13 +335,27 @@
                             </li>
                             
                             <!-- Site Admin -->
-                            <li class="nav-item site-admin-only" style="display:none">
-                                <a class="nav-link" href="#!/site-admin">
+                            <li class="nav-item dropdown site-admin-only" style="display:none">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 15l0 0" /></svg>
                                     </span>
                                     <span class="nav-link-title">Site Admin</span>
                                 </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/siteadmin/business">
+                                        <span class="me-2">📊</span>Business
+                                    </a>
+                                    <a class="dropdown-item" href="#!/siteadmin/manage">
+                                        <span class="me-2">⚙️</span>Manage
+                                    </a>
+                                    <a class="dropdown-item" href="#!/siteadmin/activity">
+                                        <span class="me-2">📈</span>Activity
+                                    </a>
+                                    <a class="dropdown-item" href="#!/siteadmin/preview">
+                                        <span class="me-2">👁️</span>Preview
+                                    </a>
+                                </div>
                             </li>
                             
                             <!-- AI Analyst (pushed to right) -->
@@ -480,10 +494,12 @@
                     loadModule('./js/pages/posture/Posture.js'),
                     loadModule('./js/pages/posture-ai/PostureAI.js'),
                     loadModule('./js/pages/device-detail/DeviceDetail.js'),
-                    loadModule('./js/pages/siteAdmin/activity/ReportPreviewPage.js'),
+                    loadModule('./js/pages/siteadmin/business/BusinessPage.js'),
+                    loadModule('./js/pages/siteadmin/manage/ManagePage.js'),
+                    loadModule('./js/pages/siteadmin/activity/ActivityPage.js'),
+                    loadModule('./js/pages/siteadmin/preview/PreviewPage.js'),
                     loadModule('./js/pages/inventory/Assets.js'),
                     loadModule('./js/pages/account/Account.js'),
-                    loadModule('./js/pages/siteAdmin/SiteAdmin.js'),
                     loadModule('./js/pages/settings/Settings.js'),
                     loadModule('./js/pages/audit/Audit.js'),
                     loadModule('./js/pages/placeholders.js')

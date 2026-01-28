@@ -130,7 +130,7 @@ export function SettingsPage() {
 
             // Check if user is Site Admin
             const user = auth.getUser();
-            const userType = user?.userType || 'Individual';
+            const userType = user?.userType || 'EndUser';
             setIsSiteAdmin(userType === 'SiteAdmin');
 
             // Fetch full org details from API for complete data

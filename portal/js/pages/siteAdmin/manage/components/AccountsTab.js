@@ -3,30 +3,71 @@
  * Extracted from SiteAdmin.js
  */
 
-import { filterAccounts } from '../utils/FilterUtils.js';
+import { filterAccounts } from '../../utils/FilterUtils.js';
 
 const { html } = window;
-const { useState } = window.preactHooks;
+const { useState, useEffect, useRef } = window.preactHooks;
 
 export function AccountsTab({ accounts, showToast, onChangeUserType }) {
+    const safeAccounts = Array.isArray(accounts) ? accounts : [];
     const [accountsSearch, setAccountsSearch] = useState('');
     const [selectedUser, setSelectedUser] = useState(null);
     const [newUserType, setNewUserType] = useState('');
     const [showChangeUserType, setShowChangeUserType] = useState(false);
     const [changingUserType, setChangingUserType] = useState(false);
 
-    const filteredAccounts = filterAccounts(accounts, accountsSearch);
+    const [visibleCount, setVisibleCount] = useState(30);
+    const loadMoreStep = 20;
+    const listRef = useRef(null);
+    const sentinelRef = useRef(null);
+
+    const filteredAccounts = filterAccounts(safeAccounts, accountsSearch) || [];
+    const currentAccounts = filteredAccounts.slice(0, visibleCount);
+
+    useEffect(() => {
+        setVisibleCount(30);
+    }, [accountsSearch, safeAccounts]);
+
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && visibleCount < filteredAccounts.length) {
+                    setVisibleCount(prev => Math.min(prev + loadMoreStep, filteredAccounts.length));
+                }
+            });
+        }, {
+            root: listRef.current,
+            rootMargin: '200px',
+            threshold: 0.1
+        });
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [filteredAccounts.length, visibleCount]);
 
     const handleChangeUserType = async () => {
         if (!selectedUser || !newUserType) return;
+        if (typeof onChangeUserType !== 'function') {
+            console.error('[AccountsTab] onChangeUserType not provided');
+            return;
+        }
 
         setChangingUserType(true);
         try {
-            await onChangeUserType(selectedUser, newUserType);
-            setShowChangeUserType(false);
-            setSelectedUser(null);
+            const res = await onChangeUserType(selectedUser.email || selectedUser.userId || selectedUser.UserId, newUserType);
+            if (res?.success) {
+                setShowChangeUserType(false);
+                setSelectedUser(null);
+            } else {
+                console.error('[AccountsTab] Error changing user type:', res?.message);
+                if (showToast) showToast(res?.message || 'Failed to change user type', 'error');
+            }
         } catch (error) {
             console.error('[AccountsTab] Error changing user type:', error);
+            if (showToast) showToast('Failed to change user type', 'error');
         } finally {
             setChangingUserType(false);
         }
@@ -45,7 +86,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                     />
                 </div>
                 <div class="col-md-6 text-end text-muted align-self-center">
-                    <small>${filteredAccounts.length} of ${(accounts || []).length} accounts</small>
+                    <small>${filteredAccounts.length} of ${safeAccounts.length} accounts</small>
                 </div>
             </div>
 
@@ -55,7 +96,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                     <p class="empty-title">No accounts found</p>
                 </div>
             ` : html`
-                <div class="table-responsive">
+                <div class="table-responsive" ref=${listRef} style="max-height: 70vh; overflow: auto;">
                     <table class="table table-sm table-hover">
                         <thead>
                             <tr>
@@ -67,10 +108,10 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${filteredAccounts.map(acc => html`
+                            ${currentAccounts.map(acc => html`
                                 <tr>
                                     <td><span class="fw-semibold">${acc.email}</span></td>
-                                    <td><span class="badge bg-primary-lt text-uppercase">${acc.userType || 'Individual'}</span></td>
+                                    <td><span class="badge bg-primary-lt text-uppercase">${acc.userType === 'SiteAdmin' ? 'SITEADMIN' : 'ENDUSER'}</span></td>
                                     <td class="text-muted">${acc.createdAt ? new Date(acc.createdAt).toLocaleString() : 'N/A'}</td>
                                     <td class="text-muted">${acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString() : 'Never'}</td>
                                     <td class="text-center">
@@ -78,7 +119,8 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                                             class="btn btn-sm btn-outline-primary"
                                             onClick=${() => {
                                                 setSelectedUser(acc);
-                                                setNewUserType(acc.userType === 'SiteAdmin' ? 'Individual' : 'SiteAdmin');
+                                                const currentType = acc.userType === 'SiteAdmin' ? 'SiteAdmin' : 'EndUser';
+                                                setNewUserType(currentType === 'SiteAdmin' ? 'EndUser' : 'SiteAdmin');
                                                 setShowChangeUserType(true);
                                             }}
                                         >
@@ -90,6 +132,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                             `)}
                         </tbody>
                     </table>
+                    <div ref=${sentinelRef} class="py-2 text-center text-muted small">${visibleCount < filteredAccounts.length ? 'Loading more…' : 'End of list'}</div>
                 </div>
             `}
 
@@ -109,7 +152,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Current Type</label>
-                                    <input type="text" class="form-control" value=${selectedUser.userType || 'Individual'} disabled />
+                                    <input type="text" class="form-control" value=${selectedUser.userType === 'SiteAdmin' ? 'SiteAdmin' : 'EndUser'} disabled />
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">New Type</label>
@@ -118,7 +161,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                                         value=${newUserType}
                                         onChange=${(e) => setNewUserType(e.target.value)}
                                     >
-                                        <option value="Individual">Individual</option>
+                                        <option value="EndUser">EndUser</option>
                                         <option value="SiteAdmin">SiteAdmin</option>
                                     </select>
                                 </div>

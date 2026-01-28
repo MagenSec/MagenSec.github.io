@@ -159,7 +159,7 @@ export function BusinessMatrixPage() {
                 labels: trends.map(t => new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
                 datasets: [{
                     label: 'MRR',
-                    data: trends.map(t => t.value * currencyMultiplier),
+                    data: trends.map(t => t.mrr * currencyMultiplier),
                     borderColor: '#2fb344',
                     backgroundColor: 'rgba(47, 179, 68, 0.1)',
                     borderWidth: 3,
@@ -691,9 +691,6 @@ export function BusinessMatrixPage() {
             ? html`<div class="row g-3">${renderServiceCostCards(dailyServiceCosts)}</div>`
             : html`
                 <div class="text-center py-5">
-                    <div class="text-body-secondary mb-3">
-                        <i class="bi bi-hourglass-split" style="font-size: 3rem; opacity: 0.3;"></i>
-                    </div>
                     <h5 class="text-body-secondary">Service Cost Data Collecting</h5>
                     <p class="text-body-secondary small mb-0">
                         Daily Azure service costs will appear here once the Cost Management API returns data.<br>
@@ -935,7 +932,17 @@ export function BusinessMatrixPage() {
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="card-title mb-0">MRR Trend (30 Days)</h5>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <h5 class="card-title mb-0">MRR Trend (30 Days)</h5>
+                                <span 
+                                    class="badge bg-info-lt cursor-help" 
+                                    data-bs-toggle="tooltip" 
+                                    data-bs-placement="bottom"
+                                    title="Monthly Recurring Revenue (MRR) represents your predictable monthly income from active subscriptions. Upward trend = growing user base; downward trend = lost customers or reduced activity."
+                                >
+                                    <i class="ti ti-info-circle"></i>
+                                </span>
+                            </div>
                         </div>
                         <div class="card-body" style="height: 280px;">
                             <canvas ref=${mrrTrendChartRef}></canvas>
@@ -954,81 +961,6 @@ export function BusinessMatrixPage() {
                 </div>
             </div>
 
-            <!-- Cost Analytics Section -->
-            ${metrics.costAnalytics && metrics.costAnalytics.dailySnapshots && metrics.costAnalytics.dailySnapshots.length > 0 ? html`
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-graph-down-arrow"></i> Cost Analytics
-                            <span class="badge bg-light text-dark ms-2">${metrics.costAnalytics.availableDays} days data</span>
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <!-- Cost Trend Chart -->
-                            <div class="col-md-8">
-                                <h6 class="text-body-secondary mb-3">Daily Azure Cost Trend</h6>
-                                <div style="height: 280px;">
-                                    <canvas ref=${costTrendChartRef}></canvas>
-                                </div>
-                            </div>
-                            <!-- Cost Breakdown Chart -->
-                            <div class="col-md-4">
-                                <h6 class="text-body-secondary mb-3">Cost by Resource Type</h6>
-                                <div style="height: 280px;">
-                                    <canvas ref=${costBreakdownChartRef}></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Per-Org Cost Allocation Table -->
-                        ${metrics.costAnalytics.latestOrgAllocations && Object.keys(metrics.costAnalytics.latestOrgAllocations).length > 0 ? html`
-                            <div class="mt-4">
-                                <h6 class="text-body-secondary mb-3">Yesterday's Per-Org Cost Allocation</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>Organization</th>
-                                                <th class="text-end">Devices</th>
-                                                <th class="text-end">Telemetry Volume</th>
-                                                <th class="text-end">Fixed Cost</th>
-                                                <th class="text-end">Variable Cost</th>
-                                                <th class="text-end">Total Cost</th>
-                                                <th class="text-end">Cost/Device</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${Object.entries(metrics.costAnalytics.latestOrgAllocations)
-                                                .sort((a, b) => b[1].totalCost - a[1].totalCost)
-                                                .slice(0, 10)
-                                                .map(([orgId, alloc]) => html`
-                                                    <tr key=${orgId}>
-                                                        <td>
-                                                            <strong>${topOrganizations.find(o => o.orgId === orgId)?.orgName || orgId}</strong>
-                                                        </td>
-                                                        <td class="text-end">${alloc.activeDevices}</td>
-                                                        <td class="text-end">${(alloc.telemetryVolume / 1000).toFixed(1)}K</td>
-                                                        <td class="text-end">${formatCurrency(alloc.fixedCost)}</td>
-                                                        <td class="text-end">${formatCurrency(alloc.variableCost)}</td>
-                                                        <td class="text-end"><strong>${formatCurrency(alloc.totalCost)}</strong></td>
-                                                        <td class="text-end text-body-secondary">${formatCurrency(alloc.avgCostPerDevice)}</td>
-                                                    </tr>
-                                                `)}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class="text-body-secondary small mt-2">
-                                    <i class="bi bi-info-circle"></i> 
-                                    Fixed costs (Registry, Key Vault) split equally; Variable costs (Compute, Storage) allocated by telemetry volume
-                                </div>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            ` : ''}
-
-            ${serviceCostTrendsSection}
 
             <!-- Top Organizations Table with Expandable Device Rows -->
             <div class="card mb-4">

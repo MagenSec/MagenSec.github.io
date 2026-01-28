@@ -23,6 +23,7 @@ export default class AIReportsPage extends Component {
         super(props);
         this.state = {
             loading: false,
+            loadingMore: false,
             error: null,
             reports: [],
             generating: false,
@@ -31,6 +32,7 @@ export default class AIReportsPage extends Component {
             continuationToken: null,
             hasMore: false
         };
+        this.scrollObserverRef = React.createRef();
         this.orgChangeListener = null;
     }
 
@@ -40,11 +42,32 @@ export default class AIReportsPage extends Component {
             this.loadReports();
         });
         this.loadReports();
+        
+        // Setup infinite scroll observer
+        this.setupInfiniteScroll();
+    }
+    
+    setupInfiniteScroll() {
+        if (!this.scrollObserverRef.current) return;
+        
+        this.observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && this.state.hasMore && !this.state.loading && !this.state.loadingMore) {
+                    this.loadMoreReports();
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+        
+        this.observer.observe(this.scrollObserverRef.current);
     }
 
     componentWillUnmount() {
         if (this.orgChangeListener) {
             this.orgChangeListener();
+        }
+        if (this.observer) {
+            this.observer.disconnect();
         }
     }
 
@@ -197,7 +220,7 @@ export default class AIReportsPage extends Component {
         const org = orgContext.getCurrentOrg();
         if (!org || !org.orgId || !this.state.continuationToken) return;
 
-        this.setState({ loading: true });
+        this.setState({ loadingMore: true });
 
         try {
             const response = await api.get(
@@ -209,11 +232,11 @@ export default class AIReportsPage extends Component {
                     reports: [...prevState.reports, ...(response.data.reports || [])],
                     continuationToken: response.data.continuationToken,
                     hasMore: !!response.data.continuationToken,
-                    loading: false
+                    loadingMore: false
                 }));
             }
         } catch (err) {
-            this.setState({ error: err.message, loading: false });
+            this.setState({ error: err.message, loadingMore: false });
         }
     }
 
@@ -385,14 +408,13 @@ export default class AIReportsPage extends Component {
                     ),
 
                     hasMore && h('div', { class: 'text-center mt-3' },
-                        h('button', {
-                            class: 'btn btn-outline-primary',
-                            onClick: () => this.loadMoreReports(),
-                            disabled: loading
-                        },
-                            loading 
-                                ? h('span', null, h('i', { class: 'fas fa-spinner fa-spin mr-2' }), 'Loading...')
-                                : 'Load More'
+                        !loading && !this.state.loadingMore && h('div', { 
+                            ref: this.scrollObserverRef, 
+                            style: 'height: 1px;' 
+                        }),
+                        this.state.loadingMore && h('div', { class: 'py-3' },
+                            h('span', { class: 'spinner-border spinner-border-sm me-2' }),
+                            h('span', { class: 'text-muted' }, 'Loading more reports...')
                         )
                     )
                 )

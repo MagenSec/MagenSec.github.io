@@ -1498,7 +1498,7 @@ export function SiteAdminPage() {
                                             ${filteredAccounts.map(acc => html`
                                                 <tr>
                                                     <td><span class="fw-semibold">${acc.email}</span></td>
-                                                    <td><span class="badge bg-primary-lt text-uppercase">${acc.userType || 'Individual'}</span></td>
+                                                    <td><span class="badge bg-primary-lt text-uppercase">${acc.userType || 'EndUser'}</span></td>
                                                     <td class="text-muted">${acc.createdAt ? new Date(acc.createdAt).toLocaleString() : 'N/A'}</td>
                                                     <td class="text-muted">${acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString() : 'Never'}</td>
                                                     <td class="text-center">
@@ -1506,7 +1506,7 @@ export function SiteAdminPage() {
                                                             class="btn btn-sm btn-outline-primary"
                                                             onClick=${() => {
                                                                 setSelectedUser(acc);
-                                                                setNewUserType(acc.userType === 'SiteAdmin' ? 'Individual' : 'SiteAdmin');
+                                                                setNewUserType(acc.userType === 'SiteAdmin' ? 'EndUser' : 'SiteAdmin');
                                                                 setShowChangeUserType(true);
                                                             }}
                                                         >
@@ -1872,7 +1872,7 @@ export function SiteAdminPage() {
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Current Type</label>
-                                    <input type="text" class="form-control" value=${selectedUser.userType || 'Individual'} disabled />
+                                    <input type="text" class="form-control" value=${selectedUser.userType || 'EndUser'} disabled />
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">New Type</label>
@@ -1881,7 +1881,7 @@ export function SiteAdminPage() {
                                         value=${newUserType}
                                         onChange=${(e) => setNewUserType(e.target.value)}
                                     >
-                                        <option value="Individual">Individual</option>
+                                        <option value="EndUser">EndUser</option>
                                         <option value="SiteAdmin">SiteAdmin</option>
                                     </select>
                                 </div>

@@ -28,8 +28,10 @@ import { AssetsPage } from './pages/inventory/Assets.js';
 import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
 import { SettingsPage } from './pages/settings/Settings.js';
 import { AuditPage } from './pages/audit/Audit.js';
-import { SiteAdminPage } from './pages/siteAdmin/SiteAdmin.js';
-import ReportPreviewPage from './pages/siteAdmin/activity/ReportPreviewPage.js';
+import { BusinessPage } from './pages/siteadmin/business/BusinessPage.js';
+import { ManagePage } from './pages/siteadmin/manage/ManagePage.js';
+import { ActivityPage } from './pages/siteadmin/activity/ActivityPage.js';
+import { PreviewPage } from './pages/siteadmin/preview/PreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
@@ -92,8 +94,14 @@ function App() {
         //     return html`<${ReportPreviewPage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
-        case 'site-admin':
-            return html`<${SiteAdminPage} />`;
+        case 'siteadmin/business':
+            return html`<${BusinessPage} />`;
+        case 'siteadmin/manage':
+            return html`<${ManagePage} />`;
+        case 'siteadmin/activity':
+            return html`<${ActivityPage} />`;
+        case 'siteadmin/preview':
+            return html`<${PreviewPage} />`;
         case 'settings':
             return html`<${SettingsPage} />`;
         case 'audit':

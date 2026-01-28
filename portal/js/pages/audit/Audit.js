@@ -31,7 +31,7 @@ import {
 } from './services/AuditAnalyticsService.js';
 
 const { html } = window;
-const { useState, useEffect } = window.preactHooks;
+const { useState, useEffect, useRef } = window.preactHooks;
 
 // Chart instance at module level to persist across component renders
 let auditChartInstance = null;
@@ -43,6 +43,8 @@ export function AuditPage() {
     const isSiteAdmin = currentUser?.userType === 'SiteAdmin';
 
     const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const scrollObserverRef = useRef(null);
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'timeline', 'user-activity', or 'device-activity'
     const [events, setEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
@@ -76,6 +78,33 @@ export function AuditPage() {
             window.removeEventListener('orgChanged', handler);
         };
     }, [currentOrgId, rangeDays]);
+    
+    // Infinite scroll observer (auto-load next page)
+    useEffect(() => {
+        const observerTarget = scrollObserverRef.current;
+        if (!observerTarget) return;
+
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && !loading && !loadingMore) {
+                    const totalPages = Math.ceil(filteredEvents.length / eventsPerPage);
+                    const currentPage = page;
+                    
+                    if (currentPage < totalPages) {
+                        setLoadingMore(true);
+                        setTimeout(() => {
+                            setPage(currentPage + 1);
+                            setLoadingMore(false);
+                        }, 300);
+                    }
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        observer.observe(observerTarget);
+        return () => observer.disconnect();
+    }, [filteredEvents.length]);
 
     useEffect(() => {
         if (activeTab === 'analytics' && analytics) {
@@ -1685,27 +1714,36 @@ export function AuditPage() {
                             </li>
                         </ul>
                     </div>
+                    <!-- Infinite Scroll Sentinel -->
+                    ${page < totalPages && !loading && !loadingMore ? html`
+                        <div ref=${scrollObserverRef} style="height: 1px; margin-top: -30px;"></div>
+                    ` : null}
+                    ${loadingMore ? html`
+                        <div class="text-center py-3">
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            <span class="text-muted">Loading more events...</span>
+                        </div>
+                    ` : null}
                 `}
             `}
         `;
     };
 
+    // Main render function
     try {
-        if (loading) {
-            return html`
-                <div class="container-xl">
-                    <div class="page-header d-print-none">
-                        <h2 class="page-title">Audit</h2>
-                    </div>
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="text-muted mt-2">Loading audit events...</p>
+        if (loading && filteredEvents.length === 0) {
+        return html`
+            <div class="container-xl">
+                <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
-            `;
-        }
+            </div>
+        `;
+    }
 
-        return html`
+    return html`
             <div class="container-xl">
                 <div class="page-header d-print-none">
                     <div class="row align-items-center">
@@ -1773,3 +1811,5 @@ export function AuditPage() {
         `;
     }
 }
+
+export default AuditPage;

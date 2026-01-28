@@ -242,7 +242,7 @@ class OrgContext {
      * Check if user is Individual User
      */
     isIndividualUser() {
-        return this.currentOrg?.type === 'Personal' || this.currentOrg?.type === 'Individual';
+        return this.currentOrg?.type === 'Personal';
     }
 
     /**

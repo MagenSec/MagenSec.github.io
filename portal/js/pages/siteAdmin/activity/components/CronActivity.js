@@ -8,18 +8,44 @@ import toast from '@toast';
 import { logger } from '@config';
 
 const { html } = window;
-const { useState, useEffect } = window.preactHooks;
+const { useState, useEffect, useRef } = window.preactHooks;
 
-export function CronActivityPage({ cronStatus }) {
+export function CronActivityPage({ cronStatus: propCronStatus }) {
     const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [events, setEvents] = useState([]);
     const [rangeDays, setRangeDays] = useState(7);
     const [hasMore, setHasMore] = useState(false);
     const [continuationToken, setContinuationToken] = useState(null);
+    const scrollObserverRef = useRef(null);
     const [filterJob, setFilterJob] = useState('all'); // 'all', 'CronExecution', 'ReportSent', 'ReportFailed', 'BatchComplete'
     const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'success', 'failed'
     const [filterOrg, setFilterOrg] = useState('');
     const [expandedEvents, setExpandedEvents] = useState(new Set());
+    const [cronStatus, setCronStatus] = useState(propCronStatus || null);
+    const [loadingCronStatus, setLoadingCronStatus] = useState(false);
+
+    // Infinite scroll observer
+    useEffect(() => {
+        const observerTarget = scrollObserverRef.current;
+        if (!observerTarget) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+                    loadMore();
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        observer.observe(observerTarget);
+        return () => observer.disconnect();
+    }, [hasMore, loading, loadingMore]);
+
+    useEffect(() => {
+        loadCronStatus();
+    }, []);
 
     useEffect(() => {
         loadCronEvents(true);
@@ -34,8 +60,39 @@ export function CronActivityPage({ cronStatus }) {
         };
     }, [rangeDays, filterJob, filterStatus, filterOrg]);
 
-    async function loadCronEvents(reset = false) {
-        setLoading(true);
+    // Load cron status (registered tasks, schedules, execution history)
+    async function loadCronStatus() {
+        setLoadingCronStatus(true);
+        try {
+            const res = await api.get('/api/v1/admin/cron/status');
+            if (res.success && res.data) {
+                setCronStatus(res.data);
+            } else {
+                logger.warn('[Cron Activity] Failed to load cron status:', res.message);
+                // Continue with events even if status fails
+            }
+        } catch (err) {
+            logger.error('[Cron Activity] Error loading cron status:', err);
+            // Continue with events even if status fails
+        } finally {
+            setLoadingCronStatus(false);
+        }
+    }
+
+    // Load more events (for infinite scroll)
+    async function loadMore() {
+        if (!continuationToken || !hasMore || loadingMore) return;
+        logger.debug('[Cron Activity] Loading more events...');
+        await loadCronEvents(false);
+    }
+
+    // Load cron events (initial or more)
+    async function loadCronEvents(reset = true) {
+        if (reset) {
+            setLoading(true);
+        } else {
+            setLoadingMore(true);
+        }
         try {
             const query = new URLSearchParams({
                 cronActivity: 'true',
@@ -66,7 +123,11 @@ export function CronActivityPage({ cronStatus }) {
             toast.show('Failed to load cron activity', 'error');
             if (reset) setEvents([]);
         } finally {
-            setLoading(false);
+            if (reset) {
+                setLoading(false);
+            } else {
+                setLoadingMore(false);
+            }
         }
     }
 
@@ -80,28 +141,34 @@ export function CronActivityPage({ cronStatus }) {
         let icon = 'ti-clock';
         
         if (e.eventType === 'CRONRUN') {
-            eventCategory = 'Cron Execution';
-            badgeClass = 'bg-blue-lt';
-            icon = 'ti-player-play';
-        } else if (e.eventType === 'SecurityReportEmailSent' || e.eventType === 'SECURITY_REPORT_SENT') {
-            eventCategory = 'Report Sent';
+            const isManual = e.subType === 'Manual';
+            eventCategory = isManual ? 'Manual Trigger' : 'Scheduled Run';
+            badgeClass = isManual ? 'bg-purple-lt' : 'bg-blue-lt';
+            icon = isManual ? 'ti-hand-click' : 'ti-player-play';
+        } else if (e.eventType === 'SECURITY_REPORT' || e.eventType === 'SecurityReportEmailSent' || e.eventType === 'SECURITY_REPORT_SENT') {
+            eventCategory = e.subType === 'BATCH' ? 'Report Batch' : 'Report Sent';
             badgeClass = 'bg-green-lt';
             icon = 'ti-mail-check';
-        } else if (e.eventType === 'SecurityReportEmailFailed' || e.eventType === 'SECURITY_REPORT_FAILED') {
+        } else if (e.eventType === 'SECURITY_REPORT_FAILED' || e.eventType === 'SecurityReportEmailFailed') {
             eventCategory = 'Report Failed';
             badgeClass = 'bg-red-lt';
             icon = 'ti-mail-x';
-        } else if (e.eventType === 'SECURITY_REPORT_BATCH') {
-            eventCategory = 'Batch Complete';
-            badgeClass = 'bg-cyan-lt';
-            icon = 'ti-package';
         }
         
         // Extract metadata for detailed view
         const meta = e.metadata || {};
         const recipientCount = meta.recipientCount || 0;
         const tier = meta.tier || '';
-        const duration = meta.duration || '';
+        // Task 2: Fix duration display - handle new durationSeconds (float seconds) and legacy DurationMs (int milliseconds)
+        const duration = meta.durationSeconds !== undefined
+            ? (meta.durationSeconds < 1 
+                ? `${Math.round(meta.durationSeconds * 1000)}ms` 
+                : `${parseFloat(meta.durationSeconds).toFixed(2)}s`)
+            : (meta.DurationMs !== undefined
+                ? (meta.DurationMs < 1000
+                    ? `${meta.DurationMs}ms`
+                    : `${(meta.DurationMs / 1000).toFixed(2)}s`)
+                : (meta.duration || ''));
         const itemsProcessed = meta.itemsProcessed || 0;
         const successful = meta.successful || 0;
         const failed = meta.failed || 0;
@@ -184,14 +251,14 @@ export function CronActivityPage({ cronStatus }) {
         if (filterJob !== 'all') {
             const jobMatch = 
                 (filterJob === 'CronExecution' && e.eventType === 'CRONRUN') ||
-                (filterJob === 'ReportSent' && (e.eventType === 'SecurityReportEmailSent' || e.eventType === 'SECURITY_REPORT_SENT')) ||
-                (filterJob === 'ReportFailed' && (e.eventType === 'SecurityReportEmailFailed' || e.eventType === 'SECURITY_REPORT_FAILED')) ||
-                (filterJob === 'BatchComplete' && e.eventType === 'SECURITY_REPORT_BATCH');
+                (filterJob === 'ReportSent' && (e.eventType === 'SecurityReportEmailSent' || (e.eventType === 'SECURITY_REPORT' && e.subType === 'SENT'))) ||
+                (filterJob === 'ReportFailed' && (e.eventType === 'SecurityReportEmailFailed' || (e.eventType === 'SECURITY_REPORT' && e.subType === 'FAILED'))) ||
+                (filterJob === 'BatchComplete' && (e.eventType === 'SECURITY_REPORT' && e.subType === 'BATCH'));
             if (!jobMatch) return false;
         }
         if (filterStatus !== 'all') {
             const statusMatch = 
-                (filterStatus === 'success' && (e.eventType.includes('Sent') || e.eventType.includes('SENT') || e.eventType === 'CRONRUN')) ||
+                (filterStatus === 'success' && (e.eventType === 'CRONRUN' && (e.subType === 'Scheduled' || (e.subType === 'Manual' && e.metadata?.status === 'Completed')) || (e.eventType === 'SECURITY_REPORT' && (e.subType === 'SENT' || e.subType === 'BATCH' && e.metadata?.failed === 0)) || e.eventType.includes('Sent'))) ||
                 (filterStatus === 'failed' && (e.eventType.includes('Failed') || e.eventType.includes('FAILED')));
             if (!statusMatch) return false;
         }
@@ -219,6 +286,76 @@ export function CronActivityPage({ cronStatus }) {
         </div>
 
         <div class="container-xl">
+            <!-- Summary Statistics -->
+            ${events.length > 0 && html`
+                <div class="row g-3 mb-3">
+                    ${(() => {
+                        const totalEvents = events.length;
+                        const successCount = events.filter(e => 
+                            e.eventType === 'CRONRUN' || 
+                            e.eventType === 'SecurityReportEmailSent' || 
+                            e.eventType === 'SECURITY_REPORT_SENT' ||
+                            e.eventType === 'SECURITY_REPORT_BATCH'
+                        ).length;
+                        const failureCount = events.filter(e => 
+                            e.eventType === 'SecurityReportEmailFailed' || 
+                            e.eventType === 'SECURITY_REPORT_FAILED'
+                        ).length;
+                        const successRate = totalEvents > 0 ? ((successCount / totalEvents) * 100).toFixed(1) : 0;
+                        const lastEvent = events[0];
+                        const lastEventTime = lastEvent?.timestamp ? new Date(lastEvent.timestamp).toLocaleString() : 'N/A';
+                        
+                        return html`
+                            <div class="col-md-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="text-muted small mb-2">Total Events</div>
+                                        <div class="h3 mb-0">${totalEvents}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="text-muted small mb-2">Success Rate</div>
+                                        <div class="h3 mb-0 text-success">${successRate}%</div>
+                                        <small class="text-muted">${successCount} successful</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="text-muted small mb-2">Failures</div>
+                                        <div class="h3 mb-0 ${failureCount > 0 ? 'text-danger' : 'text-success'}">${failureCount}</div>
+                                        ${failureCount > 0 ? html`<small class="text-danger">Requires attention</small>` : html`<small class="text-muted">All clear</small>`}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="text-muted small mb-2">Last Activity</div>
+                                        <div class="small mb-0">${lastEventTime}</div>
+                                        ${lastEvent && html`<span class="badge bg-${lastEvent.eventType.includes('Failed') ? 'danger' : 'success'}-lt mt-2 mt-sm-0">${(() => {
+                                            if (lastEvent.eventType === 'CRONRUN') {
+                                                return lastEvent.subType === 'Manual' 
+                                                    ? `Manual: ${lastEvent.metadata?.taskId || 'Unknown'}` 
+                                                    : 'Scheduled';
+                                            }
+                                            if (lastEvent.eventType.includes('Sent')) return 'Success';
+                                            if (lastEvent.eventType.includes('Failed')) return 'Failed';
+                                            if (lastEvent.eventType === 'SECURITY_REPORT_BATCH') return 'Batch';
+                                            return 'Other';
+                                        })()}</span>`}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    })()}
+                </div>
+            `}
+
             <div class="mb-3">
                 <h4>Activity Details & Filters</h4>
                 <p class="text-muted small">
@@ -434,14 +571,23 @@ export function CronActivityPage({ cronStatus }) {
                     </table>
                 </div>
 
-                ${hasMore && html`
-                    <div class="text-center mt-3">
-                        <button class="btn btn-outline-primary" disabled=${loading} onClick=${() => loadCronEvents(false)}>
-                            ${loading ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : ''}
-                            Load More
-                        </button>
+                <!-- Infinite Scroll Sentinel -->
+                <div ref=${scrollObserverRef} style="height: 20px; margin: 20px 0;"></div>
+                
+                ${loadingMore ? html`
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading more...</span>
+                        </div>
+                        <div class="text-muted mt-2 small">Loading more events...</div>
                     </div>
-                `}
+                ` : ''}
+                
+                ${!hasMore && events.length > 0 ? html`
+                    <div class="text-center text-muted py-2">
+                        <small>No more events to load</small>
+                    </div>
+                ` : ''}
             `}
         </div>
     `;

@@ -10,13 +10,14 @@ import { logger } from '@config';
 const { html } = window;
 const { useState, useEffect, useRef } = window.preactHooks;
 
-// ApexCharts instance for device timeline
+// Chart.js instance for device timeline
 let deviceTimelineChart = null;
 
 export function DeviceActivityPage() {
     logger.debug('[Device Activity] Component rendering...');
     
     const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [events, setEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [filters, setFilters] = useState({
@@ -24,6 +25,7 @@ export function DeviceActivityPage() {
         statusFilter: 'all', // all, success, error
         search: ''
     });
+    const scrollObserverRef = useRef(null);
 
     // Extract deviceId from endpoint path
     function extractDeviceId(targetId) {
@@ -34,9 +36,28 @@ export function DeviceActivityPage() {
     const [rangeDays, setRangeDays] = useState(7);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
+    const [continuationToken, setContinuationToken] = useState(null);
     const [expandedEvent, setExpandedEvent] = useState(null);
     const eventsPerPage = 100;
     const currentOrgId = orgContext.getCurrentOrg()?.orgId;
+
+    // Infinite scroll observer (auto-load more data from API)
+    useEffect(() => {
+        const observerTarget = scrollObserverRef.current;
+        if (!observerTarget) return;
+        
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+                    loadMore();
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        observer.observe(observerTarget);
+        return () => observer.disconnect();
+    }, [hasMore, loading, loadingMore]);
 
     // Load device activity (heartbeat) data
     useEffect(() => {
@@ -60,20 +81,165 @@ export function DeviceActivityPage() {
         applyFilters();
     }, [events, filters]);
 
-    // Render device timeline chart when device is selected
+    // Render device timeline chart when filteredEvents or device filter changes (Chart.js)
     useEffect(() => {
-        if (filters.deviceId !== 'all' && filteredEvents.length > 0 && window.ApexCharts) {
-            renderDeviceTimelineChart();
-        } else if (deviceTimelineChart) {
-            // Destroy chart when no device selected
-            deviceTimelineChart.destroy();
-            deviceTimelineChart = null;
-            const chartContainer = document.getElementById('deviceTimelineChart');
-            if (chartContainer) {
-                chartContainer.innerHTML = '<div class="text-muted text-center py-4">Select a device to view timeline</div>';
+        logger.debug('[Device Activity] Chart useEffect triggered, filteredEvents.length:', filteredEvents.length, 'timestamp:', Date.now());
+        
+        // Destroy existing chart first
+        if (deviceTimelineChart) {
+            try {
+                deviceTimelineChart.destroy();
+                deviceTimelineChart = null;
+                logger.debug('[Device Activity] Previous chart destroyed');
+            } catch (err) {
+                logger.error('[Device Activity] Error destroying chart:', err);
             }
         }
-    }, [filteredEvents, filters.deviceId]);
+        
+        if (filteredEvents.length === 0 || !window.Chart) {
+            logger.debug('[Device Activity] Skipping chart - no data or Chart.js not loaded');
+            return;
+        }
+
+        // Wait for DOM to be ready
+        const renderChart = () => {
+            const canvas = document.getElementById('deviceTimelineChart');
+            if (!canvas) {
+                logger.error('[Device Activity] Canvas element not found!');
+                return;
+            }
+
+            // Sort events by timestamp
+            const sortedEvents = [...filteredEvents].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            logger.debug('[Device Activity] Rendering chart with', sortedEvents.length, 'sorted events');
+
+            // Extract data points
+            const dataPoints = sortedEvents.map(evt => {
+                let metadata = {};
+                if (evt.metadata) {
+                    if (typeof evt.metadata === 'string') {
+                        try { metadata = JSON.parse(evt.metadata); } catch { }
+                    } else if (typeof evt.metadata === 'object') {
+                        metadata = evt.metadata;
+                    }
+                }
+
+                const duration = parseInt(metadata.DurationMs || '0');
+                const timestamp = new Date(evt.timestamp);
+                const statusCode = parseInt(metadata.StatusCode || '200');
+                const isSuccess = statusCode >= 200 && statusCode < 300;
+
+                return {
+                    x: timestamp,
+                    y: duration,
+                    deviceId: evt.deviceId || 'Unknown',
+                    status: statusCode,
+                    isSuccess
+                };
+            });
+
+            logger.debug('[Device Activity] Data points prepared:', dataPoints.length);
+
+            try {
+                deviceTimelineChart = new Chart(canvas, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'Response Time (ms)',
+                            data: dataPoints,
+                            backgroundColor: dataPoints.map(d => d.isSuccess ? 'rgba(75, 192, 192, 0.5)' : 'rgba(255, 99, 132, 0.5)'),
+                            borderColor: dataPoints.map(d => d.isSuccess ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)'),
+                            borderWidth: 1,
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'hour', tooltipFormat: 'MMM dd, HH:mm' },
+                                title: { display: true, text: 'Time' }
+                            },
+                            y: {
+                                type: 'linear',
+                                title: { display: true, text: 'Response Time (ms)' },
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx => {
+                                        const point = ctx.raw;
+                                        return [
+                                            `Device: ${point.deviceId}`,
+                                            `Response: ${point.y}ms`,
+                                            `Status: ${point.status}`
+                                        ];
+                                    }
+                                }
+                            },
+                            legend: { display: true }
+                        }
+                    }
+                });
+                logger.debug('[Device Activity] Chart created successfully!');
+            } catch (err) {
+                logger.error('[Device Activity] Error creating chart:', err);
+            }
+        };
+
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+            requestAnimationFrame(renderChart);
+        });
+
+        return () => {
+            if (deviceTimelineChart) {
+                try {
+                    deviceTimelineChart.destroy();
+                    deviceTimelineChart = null;
+                } catch (err) {
+                    logger.error('[Device Activity] Error in cleanup:', err);
+                }
+            }
+        }
+    }, [filteredEvents, filters.deviceId, filteredEvents.length]);
+
+    async function loadMore() {
+        if (!hasMore || loadingMore || !continuationToken) return;
+        logger.debug('[Device Activity] Loading more events...');
+        setLoadingMore(true);
+
+        try {
+            const currentOrg = orgContext.getCurrentOrg();
+            if (!currentOrg) return;
+
+            const query = new URLSearchParams({
+                deviceActivity: 'true',
+                pageSize: eventsPerPage.toString(),
+                days: rangeDays.toString(),
+                continuationToken: continuationToken
+            });
+
+            const res = await api.get(`/api/v1/admin/audit?${query.toString()}`);
+
+            if (res.success && res.data) {
+                const newEvents = res.data.events || [];
+                logger.debug('[Device Activity] Loaded more events:', newEvents.length);
+                setEvents(prev => [...prev, ...newEvents]);
+                setContinuationToken(res.data.continuationToken || null);
+                setHasMore(!!res.data.continuationToken);
+            }
+        } catch (error) {
+            logger.error('[Device Activity] Error loading more:', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    }
 
     async function loadHeartbeatEvents() {
         logger.debug('[Device Activity] loadHeartbeatEvents called');
@@ -100,7 +266,8 @@ export function DeviceActivityPage() {
                 const eventsData = res.data.events || [];
                 logger.debug('[Device Activity] Heartbeat events loaded:', eventsData.length);
                 setEvents(eventsData);
-                setHasMore(res.data.hasMore || false);
+                setContinuationToken(res.data.continuationToken || null);
+                setHasMore(!!res.data.continuationToken);
             } else {
                 logger.error('[Device Activity] API returned error:', res.message);
                 toast.show(res.message || 'Failed to load device activity', 'error');
@@ -150,131 +317,14 @@ export function DeviceActivityPage() {
         setPage(1);
     }
 
-    function renderDeviceTimelineChart() {
-        const chartContainer = document.getElementById('deviceTimelineChart');
-        if (!chartContainer || !window.ApexCharts) return;
-
-        // Destroy existing chart
-        if (deviceTimelineChart) {
-            deviceTimelineChart.destroy();
-            deviceTimelineChart = null;
-        }
-
-        // Sort events by timestamp
-        const sortedEvents = [...filteredEvents].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-        // Extract data points
-        const dataPoints = sortedEvents.map(evt => {
-            let metadata = {};
-            if (evt.metadata) {
-                if (typeof evt.metadata === 'string') {
-                    try {
-                        metadata = JSON.parse(evt.metadata);
-                    } catch { }
-                } else if (typeof evt.metadata === 'object') {
-                    metadata = evt.metadata;
-                }
-            }
-
-            const duration = parseInt(metadata.DurationMs || '0');
-            const timestamp = new Date(evt.timestamp);
-            const timeLabel = timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-            return { x: timeLabel, y: duration };
-        });
-
-        if (dataPoints.length === 0) {
-            chartContainer.innerHTML = '<div class="text-muted text-center py-4">No timeline data available</div>';
-            return;
-        }
-
-        const options = {
-            chart: {
-                type: 'bar',
-                height: 300,
-                toolbar: { show: true },
-                zoom: { enabled: true },
-                events: {
-                    dataPointSelection: function(event, chartContext, config) {
-                        const dataPointIndex = config.dataPointIndex;
-                        const selectedEvent = sortedEvents[dataPointIndex];
-                        if (selectedEvent && selectedEvent.eventId) {
-                            // Find and scroll to the event card
-                            const eventCard = document.querySelector(`[data-event-id="${selectedEvent.eventId}"]`);
-                            if (eventCard) {
-                                eventCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                // Highlight the card briefly
-                                eventCard.style.backgroundColor = '#fff3cd';
-                                setTimeout(() => {
-                                    eventCard.style.backgroundColor = '';
-                                }, 2000);
-                            }
-                        }
-                    }
-                }
-            },
-            series: [{
-                name: 'Response Time',
-                data: dataPoints
-            }],
-            plotOptions: {
-                bar: {
-                    columnWidth: '60%',
-                    borderRadius: 4,
-                    colors: {
-                        ranges: [{
-                            from: 0,
-                            to: 99999,
-                            color: '#0c63e4'
-                        }]
-                    }
-                }
-            },
-            title: {
-                text: 'Heartbeat Timeline',
-                align: 'center',
-                style: {
-                    fontSize: '16px',
-                    fontWeight: 600
-                }
-            },
-            xaxis: {
-                type: 'category',
-                labels: {
-                    rotate: -45,
-                    rotateAlways: true
-                },
-                title: {
-                    text: 'Time'
-                }
-            },
-            yaxis: {
-                title: {
-                    text: 'Duration (ms)'
-                },
-                min: 0,
-                labels: {
-                    formatter: (val) => Math.round(val) + 'ms'
-                }
-            },
-            dataLabels: {
-                enabled: false
-            },
-            tooltip: {
-                y: {
-                    formatter: (val) => Math.round(val) + 'ms'
-                }
-            },
-            colors: ['#0c63e4'],
-            grid: {
-                padding: {
-                    bottom: 20
-                }
-            }
-        };
-
-        deviceTimelineChart = new window.ApexCharts(chartContainer, options);
-        deviceTimelineChart.render();
+    function extractDeviceId(targetId) {
+        if (!targetId) return 'Unknown';
+        // Format: /orgs/{orgId}/devices/{deviceId}
+        const parts = targetId.split('/');
+        const deviceIndex = parts.indexOf('devices');
+        return deviceIndex >= 0 && parts.length > deviceIndex + 1 
+            ? parts[deviceIndex + 1] 
+            : targetId;
     }
 
     function renderEventRow(evt) {
@@ -384,9 +434,6 @@ export function DeviceActivityPage() {
     }
 
     const pageSize = 50;
-    const totalPages = Math.ceil(filteredEvents.length / pageSize);
-    const startIdx = (page - 1) * pageSize;
-    const paginatedEvents = filteredEvents.slice(startIdx, startIdx + pageSize);
     
     // Get unique device IDs
     const uniqueDeviceIds = [...new Set(events.map(e => extractDeviceId(e.targetId)).filter(id => id !== 'N/A'))].sort();
@@ -452,43 +499,104 @@ export function DeviceActivityPage() {
                 </div>
             </div>
 
-            <!-- Device Timeline Chart (shown when device selected) -->
-            ${filters.deviceId !== 'all' ? html`
+            <!-- Summary Statistics -->
+            ${filteredEvents.length > 0 ? html`
+                <div class="row row-cards mb-3">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="subheader">Total Events</div>
+                                </div>
+                                <div class="h1 mb-0">${filteredEvents.length}</div>
+                                <div class="text-muted mt-2">In selected range</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="subheader">Success Rate</div>
+                                </div>
+                                <div class="h1 mb-0 text-success">
+                                    ${filteredEvents.length > 0 ? Math.round((filteredEvents.filter(e => {
+                                        const meta = typeof e.metadata === 'string' ? JSON.parse(e.metadata || '{}') : e.metadata || {};
+                                        const status = parseInt(meta.StatusCode || '200');
+                                        return status >= 200 && status < 300;
+                                    }).length / filteredEvents.length) * 100) : 0}%
+                                </div>
+                                <div class="text-muted mt-2">2xx responses</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="subheader">Avg Response</div>
+                                </div>
+                                <div class="h1 mb-0">
+                                    ${filteredEvents.length > 0 ? Math.round(filteredEvents.reduce((sum, e) => {
+                                        const meta = typeof e.metadata === 'string' ? JSON.parse(e.metadata || '{}') : e.metadata || {};
+                                        return sum + parseInt(meta.DurationMs || '0');
+                                    }, 0) / filteredEvents.length) : 0}ms
+                                </div>
+                                <div class="text-muted mt-2">Response time</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="subheader">Error Count</div>
+                                </div>
+                                <div class="h1 mb-0 text-danger">
+                                    ${filteredEvents.filter(e => {
+                                        const meta = typeof e.metadata === 'string' ? JSON.parse(e.metadata || '{}') : e.metadata || {};
+                                        const status = parseInt(meta.StatusCode || '200');
+                                        return status >= 400;
+                                    }).length}
+                                </div>
+                                <div class="text-muted mt-2">4xx/5xx errors</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Timeline Chart -->
                 <div class="card mb-3">
                     <div class="card-body">
-                        <h3 class="card-title">Device Response Time Timeline</h3>
-                        <div id="deviceTimelineChart"></div>
+                        <h3 class="card-title">
+                            Device Response Time Timeline
+                            ${filters.deviceId !== 'all' ? html` - ${filters.deviceId}` : ''}
+                        </h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="deviceTimelineChart"></canvas>
+                        </div>
                     </div>
                 </div>
             ` : null}
 
             <!-- Events -->
             <div>
-                ${paginatedEvents.map(evt => renderEventRow(evt))}
+                ${filteredEvents.map(evt => renderEventRow(evt))}
             </div>
 
-            <!-- Pagination -->
-            ${totalPages > 1 ? html`
-                <div class="card-footer text-center">
-                    <nav>
-                        <ul class="pagination justify-content-center">
-                            <li class="page-item ${page === 1 ? 'disabled' : ''}">
-                                <a class="page-link" href="#" onClick=${() => setPage(Math.max(1, page - 1))}>Previous</a>
-                            </li>
-                            ${[...Array(Math.min(5, totalPages))].map((_, i) => {
-                                const pageNum = i + 1;
-                                return html`
-                                    <li class="page-item ${pageNum === page ? 'active' : ''}">
-                                        <a class="page-link" href="#" onClick=${() => setPage(pageNum)}>${pageNum}</a>
-                                    </li>
-                                `;
-                            })}
-                            ${totalPages > 5 ? html`<li class="page-item disabled"><span class="page-link">...</span></li>` : null}
-                            <li class="page-item ${page === totalPages ? 'disabled' : ''}">
-                                <a class="page-link" href="#" onClick=${() => setPage(Math.min(totalPages, page + 1))}>Next</a>
-                            </li>
-                        </ul>
-                    </nav>
+            <!-- Infinite Scroll Sentinel -->
+            ${hasMore && !loading && !loadingMore ? html`
+                <div ref=${scrollObserverRef} style="height: 1px; margin: 20px 0;"></div>
+            ` : null}
+            ${loadingMore ? html`
+                <div class="text-center py-3">
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    <span class="text-muted">Loading more events...</span>
+                </div>
+            ` : null}
+            ${!hasMore && filteredEvents.length > 0 ? html`
+                <div class="text-center py-3 text-muted">
+                    <i class="ti ti-check"></i> No more events
                 </div>
             ` : null}
             

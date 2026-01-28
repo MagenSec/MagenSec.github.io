@@ -161,7 +161,7 @@ export class SearchableOrgSwitcher extends Component {
     getOrgTypeIcon = (type, size = 20, color = 'currentColor') => {
         switch (type) {
             case 'Business': return Icons.Building({ size, color });
-            case 'Individual': return Icons.User({ size, color });
+            case 'Personal': return Icons.User({ size, color });
             default: return Icons.Building({ size, color });
         }
     }

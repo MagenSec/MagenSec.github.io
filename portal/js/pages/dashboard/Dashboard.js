@@ -203,7 +203,7 @@ export class DashboardPage extends Component {
         const currentOrg = orgContext.currentOrg;
         if (currentOrg?.role === 'SiteAdmin') return 'SiteAdmin';
         if (currentOrg?.role === 'Owner' || currentOrg?.role === 'ReadWrite') return 'Business';
-        return 'Individual';
+        return 'EndUser';
     }
 
     getRiskScore() {
@@ -900,7 +900,7 @@ export class DashboardPage extends Component {
 
     renderOverviewTab(role, riskScore, riskColor) {
         const { currentOrg, dashboardData, licenseInfo } = this.state;
-        const isPersonalOrg = currentOrg?.type === 'Personal' || currentOrg?.type === 'Individual';
+        const isPersonalOrg = currentOrg?.type === 'Personal';
         const deviceStats = dashboardData?.deviceStats || { total: 0, active: 0, disabled: 0 };
         const threatSummary = this.state.threatSummary || { critical: 0, high: 0, medium: 0, low: 0 };
         const seats = licenseInfo?.seats || 1;
@@ -2057,9 +2057,16 @@ export class DashboardPage extends Component {
                             <a class="fw-semibold" href="${deviceHref}">${deviceName}</a>
                         </div>
                         <div class="text-muted small mt-1">
-                            <span class="badge bg-info-lt">License: ${device.status || 'Unknown'}</span>
-                            <!-- TEMP: Showing license state for debugging -->
-                            ${threatCount > 0 ? html`<span class="badge bg-danger text-white">${threatCount} threat${threatCount > 1 ? 's' : ''}</span>` : ''}
+                            ${(() => {
+                                const connectionStatus = getConnectionStatus(device);
+                                return html`<${StatusBadge} 
+                                    status=${connectionStatus.status}
+                                    color=${connectionStatus.color}
+                                    icon=${connectionStatus.icon}
+                                    tooltip=${connectionStatus.tooltip}
+                                />`;
+                            })()}
+                            ${threatCount > 0 ? html`<span class="badge bg-danger text-white ms-1">${threatCount} threat${threatCount > 1 ? 's' : ''}</span>` : ''}
                         </div>
                         <div class="text-muted small">Last seen: ${this.formatTimestamp(device.lastSeen || device.lastHeartbeat)}</div>
                     </div>

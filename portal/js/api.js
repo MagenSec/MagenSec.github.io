@@ -493,6 +493,10 @@ export class ApiClient {
     }
 
     // === ADMIN - CRON MANAGEMENT ===
+    async adminGetAvailableCronTasks() {
+        return this.get('/api/v1/admin/cron/available-tasks');
+    }
+
     async adminTriggerCron(taskId) {
         return this.post('/api/v1/admin/cron/trigger', { taskId });
     }

@@ -35,11 +35,7 @@ export function getUserTypeBadgeClass(userType) {
     switch (userType) {
         case 'SiteAdmin':
             return 'bg-danger';
-        case 'BusinessAdmin':
-            return 'bg-primary';
-        case 'BusinessMember':
-            return 'bg-info';
-        case 'Individual':
+        case 'EndUser':
             return 'bg-success';
         default:
             return 'bg-secondary';
@@ -50,8 +46,8 @@ export function getUserTypeBadgeClass(userType) {
  * Get available user types for conversion
  */
 export function getAvailableUserTypes(currentType) {
-    // Only allow Individual <-> SiteAdmin conversions
-    return ['Individual', 'SiteAdmin'];
+    // Only allow EndUser <-> SiteAdmin conversions
+    return ['EndUser', 'SiteAdmin'];
 }
 
 /**
