@@ -929,6 +929,7 @@ export class DashboardPage extends Component {
                     <div class="vstack gap-3">
                         ${this.renderAIAnalystWidget()}
                         ${this.renderActionList()}
+                        ${this.renderTopVulnerableApps()}
                         
                         <!-- Security Savings Calculator -->
                         <${SavingsCalculator} 
@@ -1762,25 +1763,59 @@ export class DashboardPage extends Component {
         const { securityGrade, lastScan, nextScan, coverage, generatedAt } = this.state;
         const coverageTotal = coverage.total || 0;
         const coverageLabel = coverageTotal ? `${coverage.healthy}/${coverageTotal} healthy` : 'No devices yet';
+        
+        // Enhanced grade badge with gradient background
+        const gradeBadgeClass = this.getGradeBadge(riskScore);
 
         return html`
-            <div class="card bg-dark text-white">
-                <div class="card-body">
+            <div class="card mb-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                <div class="card-body text-white">
                     <div class="row align-items-center">
-                        <div class="col-lg-8">
-                            <div class="text-uppercase text-white-50 fw-semibold mb-1">Security posture</div>
-                            <div class="d-flex align-items-center">
-                                <div class="display-6 mb-0 me-3 text-${riskColor}">${riskScore}</div>
+                        <div class="col-lg-7">
+                            <div class="text-uppercase text-white-50 fw-semibold mb-2 small">Security Posture Summary</div>
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="display-4 mb-0 me-3" style="font-weight: 700;">${riskScore}</div>
                                 <div>
-                                    <div class="h3 mb-0">Grade ${securityGrade}</div>
-                                    <div class="text-white-70">Last scan: ${lastScan} · Next: ${nextScan}</div>
+                                    <div class="h1 mb-1">Grade <span class="badge ${gradeBadgeClass}" style="font-size: 1.5rem; padding: 0.5rem 1rem;">${securityGrade}</span></div>
+                                    <div class="text-white-70"><strong>${coverageTotal}</strong> devices monitored · Last scan: ${lastScan}</div>
                                 </div>
                             </div>
+                            <div class="btn-list mt-3">
+                                <a href="#!/posture" class="btn btn-white">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <rect x="3" y="4" width="18" height="8" rx="2"/>
+                                        <line x1="12" y1="4" x2="12" y2="12"/>
+                                        <path d="M8 11a4 4 0 1 0 8 0"/>
+                                        <rect x="8" y="15" width="8" height="4" rx="1"/>
+                                    </svg>
+                                    View Full Report
+                                </a>
+                                <button class="btn btn-outline-light" onclick="alert('Scan initiated')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                                        <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                                    </svg>
+                                    Scan Now
+                                </button>
+                            </div>
                         </div>
-                        <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
-                            <div class="text-white-50">Telemetry coverage</div>
-                            <div class="h4 mb-1">${coverageLabel}</div>
-                            <div class="text-white-50 small">Updated ${this.formatTimestamp(generatedAt)}</div>
+                        <div class="col-lg-5 mt-3 mt-lg-0">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="text-white-50 small text-uppercase mb-1">Telemetry Health</div>
+                                    <div class="h2 mb-0">${coverageLabel}</div>
+                                    <div class="progress progress-sm mt-2" style="background: rgba(255,255,255,0.2);">
+                                        <div class="progress-bar bg-white" style="width: ${this.getCoveragePercents().healthyPct}%"></div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-white-50 small text-uppercase mb-1">Next Scan</div>
+                                    <div class="h4 mb-0">${nextScan}</div>
+                                    <div class="text-white-50 small mt-2">Updated ${this.formatTimestamp(generatedAt)}</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1950,6 +1985,86 @@ export class DashboardPage extends Component {
                             </div>
                         `;
                     })}
+                </div>
+            </div>
+        `;
+    }
+
+    renderTopVulnerableApps() {
+        const { dashboardData } = this.state;
+        const topVulnerableApps = dashboardData?.topVulnerableApps || [];
+        
+        if (topVulnerableApps.length === 0) {
+            return null; // Don't show widget if no data
+        }
+
+        return html`
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M9 4h3l2 2h5a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
+                            <path d="M17 17v2a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2h2"/>
+                        </svg>
+                        Top Vulnerable Applications
+                    </h3>
+                    <div class="card-actions">
+                        <a href="#!/posture" class="btn btn-sm btn-ghost-primary">View All</a>
+                    </div>
+                </div>
+                <div class="list-group list-group-flush">
+                    ${topVulnerableApps.map((app, idx) => {
+                        const criticalCount = app.criticalCount || 0;
+                        const highCount = app.highCount || 0;
+                        const deviceCount = app.deviceCount || 0;
+                        const cveCount = app.cveCount || 0;
+                        const maxEpss = app.maxEpss || 0;
+                        const epssPercent = Math.round(maxEpss * 100);
+                        
+                        return html`
+                            <div class="list-group-item">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="avatar avatar-sm bg-blue-lt">
+                                            ${app.appName.substring(0, 2).toUpperCase()}
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="text-reset d-block font-weight-medium">${app.appName}</div>
+                                        <div class="text-muted small mt-1">
+                                            <strong>${cveCount}</strong> CVEs · 
+                                            ${criticalCount > 0 ? html`<span class="badge badge-sm bg-danger me-1">${criticalCount} Critical</span>` : ''}
+                                            ${highCount > 0 ? html`<span class="badge badge-sm bg-warning">${highCount} High</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="col-auto text-end">
+                                        <div class="text-muted small">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-xs text-muted" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                <rect x="3" y="4" width="18" height="12" rx="1"/>
+                                                <line x1="7" y1="20" x2="17" y2="20"/>
+                                                <line x1="9" y1="16" x2="9" y2="20"/>
+                                                <line x1="15" y1="16" x2="15" y2="20"/>
+                                            </svg>
+                                            ${deviceCount} ${deviceCount === 1 ? 'device' : 'devices'}
+                                        </div>
+                                        ${maxEpss >= 0.5 ? html`
+                                            <div class="badge bg-${maxEpss >= 0.8 ? 'danger' : 'warning'}-lt mt-1">
+                                                EPSS ${epssPercent}%
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    })}
+                </div>
+                <div class="card-footer">
+                    <div class="text-muted small">
+                        Applications with the most critical vulnerabilities across your devices. 
+                        Focus remediation efforts here for maximum security improvement.
+                    </div>
                 </div>
             </div>
         `;
