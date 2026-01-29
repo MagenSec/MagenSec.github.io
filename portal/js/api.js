@@ -527,6 +527,22 @@ export class ApiClient {
         return this.post(`/api/v1/vulnerabilities/${vulnId}/mitigate`, data);
     }
 
+    // === ORG INSIGHTS (CVE Details, Threat Analysis, etc.) ===
+    // Endpoint: GET /api/v1/orgs/{orgId}/detail?cves={cveId}
+    // Org access is enforced at routing level by OrgAccessMiddleware
+    async getOrgInsights(orgId, { cves = null } = {}) {
+        let url = `/api/v1/orgs/${orgId}/detail`;
+        if (cves) {
+            url += `?cves=${encodeURIComponent(cves)}`;
+        }
+        return this.get(url);
+    }
+
+    // Convenience method for getting CVE details for organization
+    async getCveDetails(cveId, orgId) {
+        return this.getOrgInsights(orgId, { cves: cveId });
+    }
+
     // === RESPONSE ACTIONS ===
     async getResponseActions(params) {
         return this.get('/api/v1/response-actions', params);

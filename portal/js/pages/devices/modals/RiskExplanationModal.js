@@ -80,10 +80,10 @@ export function renderRiskExplanationModal(component) {
                                         <div class="text-end">
                                             ${summary.criticalCves + summary.highCves + summary.mediumCves + summary.lowCves > 0 ? html`
                                                 <div>
-                                                    ${summary.criticalCves > 0 ? html`<span class="badge bg-danger-lt me-1">${summary.criticalCves} Critical</span>` : ''}
-                                                    ${summary.highCves > 0 ? html`<span class="badge bg-orange-lt me-1">${summary.highCves} High</span>` : ''}
-                                                    ${summary.mediumCves > 0 ? html`<span class="badge bg-yellow-lt me-1">${summary.mediumCves} Medium</span>` : ''}
-                                                    ${summary.lowCves > 0 ? html`<span class="badge bg-azure-lt me-1">${summary.lowCves} Low</span>` : ''}
+                                                    ${summary.criticalCves > 0 ? html`<span class="badge bg-danger-lt text-danger me-1">${summary.criticalCves} Critical</span>` : ''}
+                                                    ${summary.highCves > 0 ? html`<span class="badge bg-orange-lt text-warning me-1">${summary.highCves} High</span>` : ''}
+                                                    ${summary.mediumCves > 0 ? html`<span class="badge bg-yellow-lt text-warning me-1">${summary.mediumCves} Medium</span>` : ''}
+                                                    ${summary.lowCves > 0 ? html`<span class="badge bg-azure-lt text-info me-1">${summary.lowCves} Low</span>` : ''}
                                                 </div>
                                             ` : html`<span class="text-muted">No CVEs</span>`}
                                         </div>
@@ -98,7 +98,7 @@ export function renderRiskExplanationModal(component) {
                                         </div>
                                         <div class="text-end">
                                             ${constituents.maxEpssStored ? html`
-                                                <span class="badge ${constituents.maxEpssStored > 0.5 ? 'bg-danger-lt' : constituents.maxEpssStored > 0.3 ? 'bg-warning-lt' : 'bg-info-lt'}">
+                                                <span class="badge ${constituents.maxEpssStored > 0.5 ? 'bg-danger-lt text-danger' : constituents.maxEpssStored > 0.3 ? 'bg-warning-lt text-warning' : 'bg-info-lt text-info'}">
                                                     ${(constituents.maxEpssStored * 100).toFixed(0)}%
                                                 </span>
                                             ` : html`<span class="text-muted">Unknown</span>`}

@@ -2165,9 +2165,9 @@ export class DeviceDetailPage extends window.Component {
                                             <div class="col-md-3">
                                                 <div class="text-muted small font-weight-medium">Exposure</div>
                                                 <div class="d-flex align-items-center gap-2">
-                                                    <span class="badge ${networkRisk.publicIpPresent ? 'bg-warning-lt' : 'bg-success-lt'}">${networkRisk.publicIpPresent ? 'Internet-exposed' : 'Private'}</span>
-                                                    ${networkRisk.apipaPresent ? html`<span class="badge bg-danger-lt">APIPA</span>` : ''}
-                                                    ${mobileStatus.isMobile ? html`<span class="badge bg-info-lt">Mobile (${mobileStatus.uniqueIpCount})</span>` : ''}
+                                                    <span class="badge ${networkRisk.publicIpPresent ? 'bg-warning-lt text-warning' : 'bg-success-lt text-success'}">${networkRisk.publicIpPresent ? 'Internet-exposed' : 'Private'}</span>
+                                                    ${networkRisk.apipaPresent ? html`<span class="badge bg-danger-lt text-danger">APIPA</span>` : ''}
+                                                    ${mobileStatus.isMobile ? html`<span class="badge bg-info-lt text-info">Mobile (${mobileStatus.uniqueIpCount})</span>` : ''}
                                                 </div>
                                             </div>
                                         </div>
@@ -2247,8 +2247,8 @@ export class DeviceDetailPage extends window.Component {
                                                             <div>
                                                                 <div class="fw-semibold">Client Version</div>
                                                                 <div class="d-flex align-items-center gap-2">
-                                                                    <span class="badge ${updateAvailable ? 'bg-warning-lt' : 'bg-success-lt'}">${dv ? `v${dv}` : 'Unknown'}</span>
-                                                                    ${updateAvailable ? html`<span class="badge bg-azure-lt">v${latest} available</span>` : ''}
+                                                                    <span class="badge ${updateAvailable ? 'bg-warning-lt text-warning' : 'bg-success-lt text-success'}">${dv ? `v${dv}` : 'Unknown'}</span>
+                                                                    ${updateAvailable ? html`<span class="badge bg-azure-lt text-info">v${latest} available</span>` : ''}
                                                                 </div>
                                                                 <div class="text-muted small ${postureClass}">${postureLabel}${dv ? ` vs v${latest}` : ''}</div>
                                                             </div>
@@ -2296,7 +2296,7 @@ export class DeviceDetailPage extends window.Component {
                                         <div class="text-muted small">Known exploits</div>
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div class="h3 mb-0">${knownExploitCount}</div>
-                                            ${knownExploitCount > 0 ? html`<span class="badge bg-danger-lt">Action required</span>` : html`<span class="badge bg-success-lt">None</span>`}
+                                            ${knownExploitCount > 0 ? html`<span class="badge bg-danger-lt text-danger">Action required</span>` : html`<span class="badge bg-success-lt text-success">None</span>`}
                                         </div>
                                         <div class="text-muted small mt-1">KEV-mapped vulnerabilities on this device</div>
                                     </div>
@@ -2307,9 +2307,9 @@ export class DeviceDetailPage extends window.Component {
                                     <div class="card-body">
                                         <div class="text-muted small">Network signals</div>
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                                            ${networkRisk.publicIpPresent ? html`<span class="badge bg-warning-lt">Public IP</span>` : html`<span class="badge bg-success-lt">Private only</span>`}
-                                            ${networkRisk.apipaPresent ? html`<span class="badge bg-danger-lt">APIPA</span>` : ''}
-                                            ${networkRisk.suspiciousPatterns.length > 0 ? html`<span class="badge bg-yellow-lt">${networkRisk.suspiciousPatterns.length} alerts</span>` : html`<span class="badge bg-azure-lt">Stable</span>`}
+                                            ${networkRisk.publicIpPresent ? html`<span class="badge bg-warning-lt text-warning">Public IP</span>` : html`<span class="badge bg-success-lt text-success">Private only</span>`}
+                                            ${networkRisk.apipaPresent ? html`<span class="badge bg-danger-lt text-danger">APIPA</span>` : ''}
+                                            ${networkRisk.suspiciousPatterns.length > 0 ? html`<span class="badge bg-yellow-lt text-warning">${networkRisk.suspiciousPatterns.length} alerts</span>` : html`<span class="badge bg-azure-lt text-info">Stable</span>`}
                                         </div>
                                         <div class="text-muted small mt-1">${ipList.length || '0'} IPs observed; ${mobileStatus.isMobile ? 'roaming detected' : 'stationary'}</div>
                                     </div>

@@ -10,6 +10,7 @@ import { api } from '@api';
 import { config } from '@config';
 import { orgContext } from '@orgContext';
 import { SavingsCalculator } from '@components/SavingsCalculator.js';
+import { CveDetailsModal } from '@components/CveDetailsModal.js';
 
 // Shared components
 import { StatusBadge, getConnectionStatus, StatusDot } from '@components/shared/StatusBadge.js';
@@ -28,6 +29,8 @@ export class DashboardPage extends Component {
             error: null,
             user: null,
             currentOrg: null,
+            selectedCve: null,
+            cveModalOpen: false,
             dashboardData: null,
             deviceStats: { total: 0, active: 0, disabled: 0, blocked: 0 },
             threatSummary: { critical: 0, high: 0, medium: 0, low: 0, total: 0, mitigatedCritical: 0, mitigatedHigh: 0, mitigatedMedium: 0, mitigatedLow: 0, mitigatedTotal: 0 },
@@ -1602,6 +1605,7 @@ export class DashboardPage extends Component {
         const riskScore = this.getRiskScore();
         const riskColor = this.getRiskColor(riskScore);
         const orgName = currentOrg?.name || currentOrg?.orgId || user?.email || 'Your organization';
+        const orgId = currentOrg?.orgId || user?.email;
 
         return html`
             <div class="page-header d-print-none">
@@ -1661,6 +1665,14 @@ export class DashboardPage extends Component {
                     ${activeTab === 'findings' && this.renderFindingsTab()}
                 </div>
             </div>
+
+            <!-- CVE Details Modal -->
+            ${CveDetailsModal({
+                cveId: this.state.selectedCve,
+                orgId: orgId,
+                isOpen: this.state.cveModalOpen,
+                onClose: () => this.setState({ cveModalOpen: false, selectedCve: null })
+            })}
         `;
     }
 
@@ -1881,10 +1893,10 @@ export class DashboardPage extends Component {
 
         const severityToBadge = (severity) => {
             const s = String(severity || '').toLowerCase();
-            if (s === 'critical') return 'bg-danger';
-            if (s === 'warning' || s === 'high') return 'bg-warning';
-            if (s === 'success' || s === 'low') return 'bg-success';
-            return 'bg-info';
+            if (s === 'critical') return 'bg-danger-lt text-danger';
+            if (s === 'warning' || s === 'high') return 'bg-warning-lt text-warning';
+            if (s === 'success' || s === 'low') return 'bg-success-lt text-success';
+            return 'bg-info-lt text-info';
         };
 
         if (!Array.isArray(actions) || actions.length === 0) {
@@ -1893,7 +1905,7 @@ export class DashboardPage extends Component {
                     <div class="card-header">
                         <h3 class="card-title">Recommended actions</h3>
                         <div class="card-actions">
-                            <span class="badge bg-azure-lt">Landing page focus</span>
+                            <span class="badge bg-azure-lt text-info">Landing page focus</span>
                         </div>
                     </div>
                     <div class="list-group list-group-flush">
@@ -1916,7 +1928,7 @@ export class DashboardPage extends Component {
                 <div class="card-header">
                     <h3 class="card-title">Recommended actions</h3>
                     <div class="card-actions">
-                        <span class="badge ${isPosture ? 'bg-success-lt text-success' : 'bg-azure-lt'}">          ${isPosture ? 'Posture-driven' : 'Generic'}
+                        <span class="badge ${isPosture ? 'bg-success-lt text-success' : 'bg-azure-lt text-info'}">          ${isPosture ? 'Posture-driven' : 'Generic'}
                         </span>
                     </div>
                 </div>
@@ -1930,6 +1942,7 @@ export class DashboardPage extends Component {
                         const epssScore = action.epssScore !== undefined ? action.epssScore : null;
                         const hasExploit = action.hasExploit || false;
                         const cveType = action.cveType || action.cveSeverity || null;
+                        const affectedApps = action.affectedApps || (action.affectedApplication ? [action.affectedApplication] : []);
                         
                         return html`
                             <div class="list-group-item">
@@ -1939,8 +1952,14 @@ export class DashboardPage extends Component {
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
                                             <div class="fw-semibold">
                                                 ${action.title}
-                                                ${action.affectedApplication ? html`
-                                                    <span class="badge bg-blue-lt text-primary ms-2">${action.affectedApplication}</span>
+                                                ${affectedApps.length > 0 ? html`
+                                                    ${affectedApps.map(app => html`
+                                                        <a href=${`#!/inventory?filter=app:${encodeURIComponent(app)}`} 
+                                                           class="badge bg-blue-lt text-primary ms-2"
+                                                           title="View in Inventory">
+                                                            ${app}
+                                                        </a>
+                                                    `)}
                                                 ` : ''}
                                             </div>
                                             ${cveIds.length > 1 ? html`
@@ -1954,14 +1973,32 @@ export class DashboardPage extends Component {
                                             ${epssScore !== null && epssScore > 0.5 ? html`
                                                 <span class="badge bg-warning-lt text-warning" title="EPSS: ${Math.round(epssScore * 100)}% exploitation probability">EPSS ${Math.round(epssScore * 100)}%</span>
                                             ` : ''}
-                                            ${action.ctaLabel ? html`<a href="${action.ctaHref || '#'}" class="ms-auto small text-primary">${action.ctaLabel}</a>` : ''}
+                                            ${action.ctaLabel ? html`
+                                                <button 
+                                                    class="ms-auto small btn btn-link text-primary p-0"
+                                                    onClick=${() => {
+                                                        if (cveIds.length > 0) {
+                                                            this.setState({ selectedCve: cveIds[0], cveModalOpen: true });
+                                                        }
+                                                    }}
+                                                    style="text-decoration: none; border: none; background: none; cursor: pointer;"
+                                                >
+                                                    ${action.ctaLabel}
+                                                </button>
+                                            ` : ''}
                                         </div>
                                         ${action.description ? html`
                                             <div class="text-muted small mt-1">${action.description}</div>
                                         ` : ''}
                                         ${cveIds.length > 0 ? html`
                                             <div class="text-muted small mt-1">
-                                                <strong>Addresses:</strong> ${cveIds.join(', ')}
+                                                <strong>Addresses:</strong> ${cveIds.map((cve, i) => html`
+                                                    ${i > 0 ? ', ' : ''}
+                                                    <a href="#" onClick=${(e) => {
+                                                        e.preventDefault();
+                                                        this.setState({ selectedCve: cve, cveModalOpen: true });
+                                                    }} class="text-primary">${cve}</a>
+                                                `)}
                                             </div>
                                         ` : ''}
                                         <div class="d-flex gap-3 mt-2 flex-wrap">
@@ -1977,7 +2014,7 @@ export class DashboardPage extends Component {
                                             ` : ''}
                                             ${deadline ? html`
                                                 <div class="text-muted small">
-                                                    <strong>Deadline:</strong> <span class="text-${this.isOverdue(deadline) ? 'danger' : 'warning'}">${this.formatDeadline(deadline)}</span>${sla ? html` <span class="badge bg-muted-lt">${sla} SLA</span>` : ''}
+                                                    <strong>Deadline:</strong> <span class="text-${this.isOverdue(deadline) ? 'danger' : 'warning'}">${this.formatDeadline(deadline)}</span>${sla ? html` <span class="badge bg-muted-lt text-muted">${sla} </span>` : ''}
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -2032,7 +2069,15 @@ export class DashboardPage extends Component {
                                         </span>
                                     </div>
                                     <div class="col">
-                                        <div class="text-reset d-block font-weight-medium">${app.appName}</div>
+                                        <a class="text-reset d-block font-weight-medium" href=${`#!/inventory?filter=${encodeURIComponent(`app:${app.appName}`)}`} title="View in inventory">
+                                            ${app.appName}
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-xs ms-1 text-primary" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                                <path d="M9 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6" />
+                                                <path d="M11 13l9 -9" />
+                                                <path d="M15 4h5v5" />
+                                            </svg>
+                                        </a>
                                         <div class="text-muted small mt-1">
                                             <strong>${cveCount}</strong> CVEs · 
                                             ${criticalCount > 0 ? html`<span class="badge badge-sm bg-danger-lt text-danger me-1">${criticalCount} Critical</span>` : ''}
@@ -2051,7 +2096,7 @@ export class DashboardPage extends Component {
                                             ${deviceCount} ${deviceCount === 1 ? 'device' : 'devices'}
                                         </div>
                                         ${maxEpss >= 0.5 ? html`
-                                            <div class="badge bg-${maxEpss >= 0.8 ? 'danger' : 'warning'}-lt mt-1">
+                                            <div class="badge ${maxEpss >= 0.8 ? 'bg-danger-lt text-danger' : 'bg-warning-lt text-warning'} mt-1">
                                                 EPSS ${epssPercent}%
                                             </div>
                                         ` : ''}
@@ -2106,7 +2151,7 @@ export class DashboardPage extends Component {
                 <div class="card-header">
                     <h3 class="card-title">Health & Coverage</h3>
                     <div class="card-actions">
-                        <span class="badge bg-muted-lt" title="Healthy: Recent heartbeat AND telemetry. Stale: Missing one. Offline: Missing both.">?
+                        <span class="badge bg-muted-lt text-muted" title="Healthy: Recent heartbeat AND telemetry. Stale: Missing one. Offline: Missing both.">?
 </span>
                     </div>
                 </div>

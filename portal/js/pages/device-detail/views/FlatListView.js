@@ -67,9 +67,9 @@ export function renderFlatListView(component) {
                                 <td>${app.vendor || '—'}</td>
                                 <td><code class="text-sm">${app.version || '—'}</code></td>
                                 <td>
-                                                                            ${app.status === 'updated' ? html`<span class="badge bg-warning-lt text-dark">Updated${app.updatedFromVersion ? ` from v${app.updatedFromVersion}` : ''}</span>` : 
-                                                                                app.status === 'uninstalled' ? html`<span class="badge bg-success-lt text-dark">Uninstalled</span>` : 
-                                                                                html`<span class="badge bg-blue-lt text-dark">Installed</span>`}
+                                                                            ${app.status === 'updated' ? html`<span class="badge bg-warning-lt text-warning">Updated${app.updatedFromVersion ? ` from v${app.updatedFromVersion}` : ''}</span>` : 
+                                                                                app.status === 'uninstalled' ? html`<span class="badge bg-success-lt text-success">Uninstalled</span>` : 
+                                                                                html`<span class="badge bg-blue-lt text-info">Installed</span>`}
                                 </td>
                                 <td>
                                     ${cves.length > 0 ? html`
@@ -85,10 +85,10 @@ export function renderFlatListView(component) {
                                             ${cves.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical').length > 0 ? html`<span class="badge badge-sm bg-danger me-1">${cves.filter(c => c.severity === 'CRITICAL' || c.severity === 'Critical').length} Critical</span>` : ''}
                                             ${cves.filter(c => c.severity === 'HIGH' || c.severity === 'High').length > 0 ? html`<span class="badge badge-sm bg-warning me-1">${cves.filter(c => c.severity === 'HIGH' || c.severity === 'High').length} High</span>` : ''}
                                             ${cves.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length > 0 ? html`<span class="badge badge-sm bg-info me-1">${cves.filter(c => c.severity === 'MEDIUM' || c.severity === 'Medium').length} Med</span>` : ''}
-                                            ${cves.filter(c => c.severity === 'LOW' || c.severity === 'Low').length > 0 ? html`<span class="badge badge-sm bg-success-lt">${cves.filter(c => c.severity === 'LOW' || c.severity === 'Low').length} Low</span>` : ''}
+                                            ${cves.filter(c => c.severity === 'LOW' || c.severity === 'Low').length > 0 ? html`<span class="badge badge-sm bg-success-lt text-success">${cves.filter(c => c.severity === 'LOW' || c.severity === 'Low').length} Low</span>` : ''}
                                         </div>
                                     ` : html`
-                                        <span class="badge bg-success-lt">No CVEs</span>
+                                        <span class="badge bg-success-lt text-success">No CVEs</span>
                                     `}
                                 </td>
                                 <td class="text-muted small">

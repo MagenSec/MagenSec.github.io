@@ -74,7 +74,7 @@ export function renderInventoryTab(component) {
                 <div class="card">
                     <div class="card-body text-center">
                         <div class="text-muted small">Updated</div>
-                        <div class="h3"><span class="badge bg-warning-lt text-dark">${appSummary.updated ?? enrichedApps.filter(a => a.status === 'updated').length}</span></div>
+                        <div class="h3"><span class="badge bg-warning-lt text-warning">${appSummary.updated ?? enrichedApps.filter(a => a.status === 'updated').length}</span></div>
                     </div>
                 </div>
             </div>
@@ -82,7 +82,7 @@ export function renderInventoryTab(component) {
                 <div class="card">
                     <div class="card-body text-center">
                         <div class="text-muted small">Uninstalled</div>
-                        <div class="h3"><span class="badge bg-success-lt text-dark">${appSummary.uninstalled ?? enrichedApps.filter(a => a.status === 'uninstalled').length}</span></div>
+                        <div class="h3"><span class="badge bg-success-lt text-success">${appSummary.uninstalled ?? enrichedApps.filter(a => a.status === 'uninstalled').length}</span></div>
                     </div>
                 </div>
             </div>

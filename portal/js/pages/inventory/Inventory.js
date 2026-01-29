@@ -8,12 +8,19 @@ class InventoryPage extends Component {
       inventory: [],
       loading: true,
       error: null,
-      riskFilter: 'all'
+      riskFilter: 'all',
+      textFilter: ''
     };
   }
 
   componentDidMount() {
     this.loadInventory();
+    this.applyUrlFilters();
+    window.addEventListener('hashchange', this.handleHashChange);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('hashchange', this.handleHashChange);
   }
 
   async loadInventory() {
@@ -37,13 +44,75 @@ class InventoryPage extends Component {
     }
   }
 
+  handleHashChange = () => {
+    const textFilter = this.getFilterFromUrl();
+    if (textFilter !== this.state.textFilter) {
+      this.setState({ textFilter });
+    }
+  };
+
+  applyUrlFilters() {
+    const textFilter = this.getFilterFromUrl();
+    if (textFilter) {
+      this.setState({ textFilter });
+    }
+  }
+
+  getFilterFromUrl() {
+    const hash = window.location.hash || '';
+    const queryIndex = hash.indexOf('?');
+    if (queryIndex < 0) return '';
+
+    const query = hash.substring(queryIndex + 1);
+    const params = new URLSearchParams(query);
+    return (params.get('filter') || params.get('app') || '').trim();
+  }
+
+  parseFilterTokens(filter) {
+    const criteria = { app: [], vendor: [], version: [], any: [] };
+    if (!filter) return criteria;
+
+    const tokens = filter.split('|').map(t => t.trim()).filter(Boolean);
+    for (const token of tokens) {
+      const [rawKey, ...rest] = token.split(':');
+      const value = rest.join(':').trim();
+      if (!value) {
+        criteria.any.push(rawKey.toLowerCase());
+        continue;
+      }
+
+      const key = rawKey.toLowerCase();
+      if (key === 'app') criteria.app.push(value.toLowerCase());
+      else if (key === 'vendor') criteria.vendor.push(value.toLowerCase());
+      else if (key === 'version') criteria.version.push(value.toLowerCase());
+      else criteria.any.push(token.toLowerCase());
+    }
+
+    return criteria;
+  }
+
+  matchesFilter(item, criteria) {
+    const name = (item.name || '').toLowerCase();
+    const vendor = (item.vendor || '').toLowerCase();
+    const version = (item.version || '').toLowerCase();
+
+    if (criteria.app.length && !criteria.app.some(t => name.includes(t))) return false;
+    if (criteria.vendor.length && !criteria.vendor.some(t => vendor.includes(t))) return false;
+    if (criteria.version.length && !criteria.version.some(t => version.includes(t))) return false;
+    if (criteria.any.length && !criteria.any.some(t => name.includes(t) || vendor.includes(t) || version.includes(t))) return false;
+
+    return true;
+  }
+
   filterInventory() {
-    const { inventory, riskFilter } = this.state;
-    if (riskFilter === 'all') return inventory;
-    
+    const { inventory, riskFilter, textFilter } = this.state;
+    const criteria = this.parseFilterTokens(textFilter);
+
     return inventory.filter(item => {
       const risk = item.riskScore || 'None';
-      return risk.toLowerCase() === riskFilter.toLowerCase();
+      const riskMatches = riskFilter === 'all' || risk.toLowerCase() === riskFilter.toLowerCase();
+      const textMatches = !textFilter || this.matchesFilter(item, criteria);
+      return riskMatches && textMatches;
     });
   }
 
@@ -142,7 +211,7 @@ class InventoryPage extends Component {
                     <td>
                       <span class="badge bg-blue-lt">${item.deviceCount || 0} devices</span>
                     </td>
-                    <td>${item.cveCount > 0 ? html`<span class="badge bg-danger-lt">${item.cveCount} CVEs</span>` : html`<span class="text-muted">—</span>`}</td>
+                    <td>${item.cveCount > 0 ? html`<span class="badge bg-danger-lt text-danger">${item.cveCount} CVEs</span>` : html`<span class="text-muted">—</span>`}</td>
                     <td>
                       ${item.riskScore === 'Critical' ? html`<span class="badge bg-danger">Critical</span>` : ''}
                       ${item.riskScore === 'High' ? html`<span class="badge bg-warning">High</span>` : ''}

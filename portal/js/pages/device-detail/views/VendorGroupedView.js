@@ -123,7 +123,7 @@ export function renderVendorGroupedView(component) {
                                                                                 </div>
                                                                             </div>
                                                                             <div class="col-auto">
-                                                                                ${version.isInstalled ? html`<span class="badge bg-success-lt">Installed</span>` : html`<span class="badge bg-warning-lt">Disk</span>`}
+                                                                                ${version.isInstalled ? html`<span class="badge bg-success-lt text-success">Installed</span>` : html`<span class="badge bg-warning-lt text-warning">Disk</span>`}
                                                                             </div>
                                                                         </div>
                                                                     </div>

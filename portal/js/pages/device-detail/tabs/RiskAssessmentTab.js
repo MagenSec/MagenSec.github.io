@@ -26,7 +26,7 @@ export function renderRiskAssessment(component) {
         return set.size;
     })();
     const maxEpss = activeCves.reduce((max, c) => Math.max(max, Number(c.epss || 0)), 0);
-    const epssBadge = maxEpss >= 0.5 ? 'bg-danger-lt' : maxEpss >= 0.3 ? 'bg-warning-lt' : maxEpss > 0 ? 'bg-info-lt' : 'bg-secondary-lt';
+    const epssBadge = maxEpss >= 0.5 ? 'bg-danger-lt text-danger' : maxEpss >= 0.3 ? 'bg-warning-lt text-warning' : maxEpss > 0 ? 'bg-info-lt text-info' : 'bg-secondary-lt text-secondary';
 
     const latestFields = component.state.telemetryDetail?.latest?.fields || {};
     const ipRaw = latestFields.IPAddresses || latestFields.ipAddresses;
