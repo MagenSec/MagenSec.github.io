@@ -28,10 +28,10 @@ import { AssetsPage } from './pages/inventory/Assets.js';
 import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
 import { SettingsPage } from './pages/settings/Settings.js';
 import { AuditPage } from './pages/audit/Audit.js';
-import { BusinessPage } from './pages/siteadmin/business/BusinessPage.js';
-import { ManagePage } from './pages/siteadmin/manage/ManagePage.js';
-import { ActivityPage } from './pages/siteadmin/activity/ActivityPage.js';
-import { PreviewPage } from './pages/siteadmin/preview/PreviewPage.js';
+import { BusinessPage } from './pages/siteAdmin/business/BusinessPage.js';
+import { ManagePage } from './pages/siteAdmin/manage/ManagePage.js';
+import { ActivityPage } from './pages/siteAdmin/activity/ActivityPage.js';
+import { PreviewPage } from './pages/siteAdmin/preview/PreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 
 const { html, render } = window;
