@@ -485,25 +485,10 @@
                     loadModule('./js/components/ErrorBoundary.js')
                 ]);
                 
-                // Load pages in parallel
-                await Promise.all([
-                    loadModule('./js/pages/login.js'),
-                    loadModule('./js/pages/dashboard/Dashboard.js'),
-                    loadModule('./js/pages/devices/Devices.js'),
-                    loadModule('./js/pages/analyst/Analyst.js'),
-                    loadModule('./js/pages/posture/Posture.js'),
-                    loadModule('./js/pages/posture-ai/PostureAI.js'),
-                    loadModule('./js/pages/device-detail/DeviceDetail.js'),
-                    loadModule('./js/pages/siteadmin/business/BusinessPage.js'),
-                    loadModule('./js/pages/siteadmin/manage/ManagePage.js'),
-                    loadModule('./js/pages/siteadmin/activity/ActivityPage.js'),
-                    loadModule('./js/pages/siteadmin/preview/PreviewPage.js'),
-                    loadModule('./js/pages/inventory/Assets.js'),
-                    loadModule('./js/pages/account/Account.js'),
-                    loadModule('./js/pages/settings/Settings.js'),
-                    loadModule('./js/pages/audit/Audit.js'),
-                    loadModule('./js/pages/placeholders.js')
-                ]);
+                // Note: Page modules are NOT loaded separately here
+                // They are imported in app.js and loaded via the app's module system
+                // Attempting to load them as separate module scripts causes 404 errors
+                // in production when the relative paths don't resolve correctly
                 
                 // Load app last
                 await loadModule('./js/app.js');
