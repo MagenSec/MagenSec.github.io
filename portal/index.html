@@ -485,10 +485,11 @@
                     loadModule('./js/components/ErrorBoundary.js')
                 ]);
                 
-                // Note: Page modules are NOT loaded separately here
-                // They are imported in app.js and loaded via the app's module system
-                // Attempting to load them as separate module scripts causes 404 errors
-                // in production when the relative paths don't resolve correctly
+                // Note: Page modules (Login, Dashboard, Devices, SiteAdmin, etc.) are NOT
+                // pre-loaded separately here. They are imported in app.js (lines 12-35)
+                // and automatically loaded via ES6 module system when app.js loads.
+                // Pre-loading them as separate module scripts is unnecessary and could
+                // cause path resolution issues, especially on case-sensitive filesystems.
                 
                 // Load app last
                 await loadModule('./js/app.js');
