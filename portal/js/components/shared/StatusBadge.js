@@ -35,65 +35,53 @@ export function StatusBadge({ status, showIcon = true, size = 'md', showTooltip 
 
 /**
  * Get connection status configuration
- * @param {Object} device - Device object with lastHeartbeat and lastTelemetry
- * @returns {Object} Status config with text, color, icon, tooltip
+ * Trusts device.health object from API (status, reason, heartbeatMinutes, telemetryMinutes)
+ * @param {Object} device - Device object with health property
+ * @returns {Object} Status config with status, color, icon, tooltip
  */
 export function getConnectionStatus(device) {
-    const lastHeartbeat = device.lastSeen || device.lastHeartbeat;
-    const lastTelemetry = device.lastTelemetry;
-    
-    // Never connected or missing critical timestamps
-    if (!lastHeartbeat || !lastTelemetry) {
+    if (!device || !device.health) {
         return { 
             status: 'Error', 
-            color: 'bg-danger', 
+            color: 'bg-danger-lt text-danger', 
             icon: '⚠️',
-            tooltip: 'Device has not established connection. Contact Support if this persists for more than 6 hours.'
+            tooltip: 'Device health information unavailable.'
         };
     }
+
+    const health = device.health;
+    const healthStatus = (health.status || 'unknown').toLowerCase();
+    const reason = health.reason || 'Device health error.';
     
-    const heartbeatMinutes = (Date.now() - new Date(lastHeartbeat).getTime()) / 60000;
-    const telemetryMinutes = (Date.now() - new Date(lastTelemetry).getTime()) / 60000;
-    const heartbeatFresh = heartbeatMinutes < 30;
-    const telemetryFresh = telemetryMinutes < 30;
-    
-    // Heartbeat fresh but telemetry stale (upload issues)
-    if (heartbeatFresh && !telemetryFresh) {
-        return { 
-            status: 'Error', 
-            color: 'bg-danger', 
-            icon: '⚠️',
-            tooltip: 'Device is connected but telemetry uploads are failing. Contact Support if this persists for more than 6 hours.'
-        };
-    }
-    
-    // Telemetry fresh but heartbeat stale (unusual - connection issues)
-    if (!heartbeatFresh && telemetryFresh) {
-        return { 
-            status: 'Error', 
-            color: 'bg-danger', 
-            icon: '⚠️',
-            tooltip: 'Device connection is unstable. Contact Support if this persists for more than 6 hours.'
-        };
-    }
-    
-    // Both stale - device is offline
-    if (!heartbeatFresh && !telemetryFresh) {
-        return { 
-            status: 'Offline', 
-            color: 'bg-warning', 
+    // Map backend health.status to UI display config
+    const statusMap = {
+        'online': {
+            status: 'Online',
+            color: 'bg-success-lt text-success',
+            icon: '✓',
+            tooltip: 'Device is online and reporting telemetry normally.'
+        },
+        'offline': {
+            status: 'Offline',
+            color: 'bg-warning-lt text-warning',
             icon: '⊗',
-            tooltip: `Device was last seen ${formatDuration(heartbeatMinutes)} ago. Check if the device is powered on and connected to the network.`
-        };
-    }
-    
-    // Both fresh - healthy
-    return { 
-        status: 'Online', 
-        color: 'bg-success', 
-        icon: '✓',
-        tooltip: 'Device is online and reporting telemetry normally.'
+            tooltip: `Device is offline. Last seen ${formatDuration(health.heartbeatMinutes)} ago.`
+        },
+        'error': {
+            status: 'Error',
+            color: 'bg-danger-lt text-danger',
+            icon: '⚠️',
+            tooltip: reason
+        },
+        'unknown': {
+            status: 'Unknown',
+            color: 'bg-secondary-lt text-secondary',
+            icon: '?',
+            tooltip: 'Device status is unknown.'
+        }
     };
+
+    return statusMap[healthStatus] || statusMap['unknown'];
 }
 
 function formatDuration(minutes) {
@@ -107,13 +95,13 @@ function getStatusConfig(status) {
     
     switch (normalized) {
         case 'online':
-            return { text: 'Online', color: 'bg-success', icon: '✓' };
+            return { text: 'Online', color: 'bg-success-lt text-success', icon: '✓' };
         case 'offline':
-            return { text: 'Offline', color: 'bg-warning', icon: '⊗' };
+            return { text: 'Offline', color: 'bg-warning-lt text-warning', icon: '⊗' };
         case 'error':
-            return { text: 'Error', color: 'bg-danger', icon: '⚠️' };
+            return { text: 'Error', color: 'bg-danger-lt text-danger', icon: '⚠️' };
         default:
-            return { text: 'Unknown', color: 'bg-secondary', icon: '?' };
+            return { text: 'Unknown', color: 'bg-secondary-lt text-secondary', icon: '?' };
     }
 }
 
