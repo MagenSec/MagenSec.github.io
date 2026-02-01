@@ -901,3 +901,97 @@
     transform: none;
   }
 }
+
+/* ========================================
+   Unified Dashboard - Persona Navigation
+   ======================================== */
+
+/* Sticky bottom persona navigation */
+.persona-nav-sticky {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1030;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border-color);
+  padding: 0.5rem 0;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .persona-nav-sticky {
+  background: rgba(30, 41, 59, 0.95);
+}
+
+/* Status dots (for device health) */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.status-dot.status-green {
+  background-color: var(--tblr-green);
+}
+
+.status-dot.status-yellow {
+  background-color: var(--tblr-yellow);
+}
+
+.status-dot.status-red {
+  background-color: var(--tblr-red);
+}
+
+.status-dot.status-blue {
+  background-color: var(--tblr-blue);
+}
+
+.status-dot.status-gray {
+  background-color: var(--tblr-secondary);
+}
+
+/* Animated pulse for online devices */
+.status-dot-animated {
+  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Ensure content doesn't overlap with sticky nav */
+.container-fluid[style*="padding-bottom: 100px"] {
+  padding-bottom: 100px !important;
+}
+
+/* Rotate icon transition */
+.icon.rotate-180 {
+  transform: rotate(180deg);
+}
+
+/* Badge sizing */
+.badge-lg {
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Responsive adjustments for persona nav */
+@media (max-width: 768px) {
+  .persona-nav-sticky .btn {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .persona-nav-sticky .icon {
+    width: 16px;
+    height: 16px;
+  }
+}

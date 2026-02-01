@@ -12,6 +12,7 @@ import keyboardShortcuts from './services/keyboardShortcuts.js';
 import themeService from './services/themeService.js';
 import { LoginPage } from './pages/login.js';
 import { DashboardPage } from './pages/dashboard/Dashboard.js';
+import UnifiedDashboard from './pages/dashboard/UnifiedDashboard.js';
 import DevicesPage from './pages/devices/Devices.js';
 import { DeviceDetailPage } from './pages/device-detail/DeviceDetail.js';
 import { AnalystPage } from './pages/analyst/Analyst.js';
@@ -66,6 +67,8 @@ function App() {
             return html`<${LoginPage} />`;
         case 'dashboard':
             return html`<${DashboardPage} />`;
+        case 'unified-dashboard':
+            return html`<${UnifiedDashboard} />`;
         case 'devices':
             return html`<${DevicesPage} />`;
         case 'device-detail':

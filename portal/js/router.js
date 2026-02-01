@@ -47,6 +47,15 @@ export function initRouter(renderApp) {
         renderApp({ page: 'dashboard', ctx });
     });
 
+    // Unified Dashboard (protected) - Persona-driven dashboard
+    page('/unified-dashboard', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'unified-dashboard', ctx });
+    });
+
     // Devices (protected)
     page('/devices', (ctx) => {
         if (!ctx.isAuthenticated) {
