@@ -1,5 +1,3 @@
-import { h, Component } from 'preact';
-
 /**
  * PersonaNav - Sticky bottom persona navigation
  * 
@@ -14,7 +12,10 @@ export default class PersonaNav extends Component {
   render() {
     const { activePersona, onPersonaChange } = this.props;
 
-    return (
+    const { html } = window;
+    const adoption = activePersona === 'business' ? '80%' : activePersona === 'it' ? '15%' : '5%';
+
+    return html`
       <div class="persona-nav-sticky">
         <div class="container-fluid">
           <div class="card shadow-lg">
@@ -27,11 +28,11 @@ export default class PersonaNav extends Component {
                   <div class="btn-group w-100" role="group">
                     <button
                       type="button"
-                      class={`btn ${activePersona === 'business' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => onPersonaChange('business')}
+                      class="btn ${activePersona === 'business' ? 'btn-primary' : 'btn-outline-primary'}"
+                      onClick=${() => onPersonaChange('business')}
                     >
                       <svg class="icon icon-inline me-1" width="20" height="20" viewBox="0 0 24 24">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                         <rect x="3" y="4" width="18" height="4" rx="2" />
                         <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
                         <line x1="10" y1="12" x2="14" y2="12" />
@@ -39,13 +40,14 @@ export default class PersonaNav extends Component {
                       <span class="d-none d-sm-inline">Business Owner</span>
                       <span class="d-inline d-sm-none">Business</span>
                     </button>
+
                     <button
                       type="button"
-                      class={`btn ${activePersona === 'it' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => onPersonaChange('it')}
+                      class="btn ${activePersona === 'it' ? 'btn-primary' : 'btn-outline-primary'}"
+                      onClick=${() => onPersonaChange('it')}
                     >
                       <svg class="icon icon-inline me-1" width="20" height="20" viewBox="0 0 24 24">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                         <rect x="3" y="4" width="18" height="12" rx="1" />
                         <line x1="7" y1="20" x2="17" y2="20" />
                         <line x1="9" y1="16" x2="9" y2="20" />
@@ -54,13 +56,14 @@ export default class PersonaNav extends Component {
                       <span class="d-none d-sm-inline">IT Admin</span>
                       <span class="d-inline d-sm-none">IT</span>
                     </button>
+
                     <button
                       type="button"
-                      class={`btn ${activePersona === 'security' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => onPersonaChange('security')}
+                      class="btn ${activePersona === 'security' ? 'btn-primary' : 'btn-outline-primary'}"
+                      onClick=${() => onPersonaChange('security')}
                     >
                       <svg class="icon icon-inline me-1" width="20" height="20" viewBox="0 0 24 24">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                         <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
                       </svg>
                       <span class="d-none d-sm-inline">Security Pro</span>
@@ -69,15 +72,13 @@ export default class PersonaNav extends Component {
                   </div>
                 </div>
                 <div class="col-auto">
-                  <span class="badge bg-info">
-                    {activePersona === 'business' ? '80%' : activePersona === 'it' ? '15%' : '5%'}
-                  </span>
+                  <span class="badge bg-info text-white">${adoption}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    );
+    `;
   }
 }

@@ -6,6 +6,8 @@
 import { auth } from '@auth';
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import PersonaNav from './PersonaNav.js';
+import AiAnalystCard from './AiAnalystCard.js';
 
 const { html, Component } = window;
 
@@ -17,7 +19,8 @@ export default class UnifiedDashboard extends Component {
       error: null,
       data: null,
       activePersona: 'business', // business | it | security
-      aiExpanded: false
+      aiExpanded: false,
+      aiPrompt: ''
     };
   }
 
@@ -37,13 +40,7 @@ export default class UnifiedDashboard extends Component {
         window.location.hash = '#!/login';
         return;
       }
-
-      console.log('[UnifiedDashboard] Loading unified dashboard for org:', orgId);
-      console.log('[UnifiedDashboard] API URL:', `/api/v1/orgs/${orgId}/dashboard?format=unified`);
-
       const response = await api.get(`/api/v1/orgs/${orgId}/dashboard?format=unified`);
-      
-      console.log('[UnifiedDashboard] Response:', response);
 
       if (!response.success) {
         throw new Error(response.message || 'Failed to load dashboard');
@@ -68,8 +65,25 @@ export default class UnifiedDashboard extends Component {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  scrollToSection = (sectionId) => {
+    const el = document.getElementById(sectionId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   toggleAiExpanded = () => {
     this.setState({ aiExpanded: !this.state.aiExpanded });
+  };
+
+  handleAiPromptChange = (e) => {
+    this.setState({ aiPrompt: e?.target?.value ?? '' });
+  };
+
+  submitAiPrompt = (e) => {
+    if (e?.preventDefault) e.preventDefault();
+    const prompt = (this.state.aiPrompt || '').trim();
+    if (!prompt) return;
+    window.location.hash = `#!/analyst?q=${encodeURIComponent(prompt)}`;
   };
 
   getGradeClass(grade) {
@@ -102,22 +116,47 @@ export default class UnifiedDashboard extends Component {
     return html`
       <div class="card mb-3">
         <div class="card-body" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-          <div class="row align-items-center">
+          <div class="row align-items-center g-3">
             <div class="col-auto">
               <div class="display-1 fw-bold">${score.score}</div>
               <div class="text-white-50">Security Score</div>
             </div>
             <div class="col-auto">
-              <span class="badge badge-lg bg-${this.getGradeClass(score.grade)}" style="font-size: 2rem; padding: 0.5rem 1rem;">
+              <span class="badge bg-${this.getGradeClass(score.grade)} text-white" style="font-size: 2rem; padding: 0.5rem 1rem;">
                 ${score.grade}
               </span>
             </div>
+
             <div class="col">
+              <form onSubmit=${this.submitAiPrompt} class="mb-3">
+                <div class="input-group input-group-lg">
+                  <span class="input-group-text" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.2);">
+                    <svg class="icon" width="20" height="20" viewBox="0 0 24 24">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <circle cx="10" cy="10" r="7" />
+                      <line x1="21" y1="21" x2="15" y2="15" />
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    class="form-control"
+                    placeholder="Ask the AI Analyst: what should I fix first?"
+                    value=${this.state.aiPrompt}
+                    onInput=${this.handleAiPromptChange}
+                    style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.2);"
+                  />
+                  <button class="btn btn-light" type="submit">Ask</button>
+                </div>
+                <div class="small text-white-50 mt-1">
+                  Opens the AI Analyst workspace with your question.
+                </div>
+              </form>
+
               <div class="row g-2">
                 <div class="col-md-4">
                   <div class="card bg-white bg-opacity-10 border-0">
                     <div class="card-body p-3 text-center">
-                      <div class="display-6">${score.urgentActionCount || 0}</div>
+                      <div class="h2 mb-0">${score.urgentActionCount || 0}</div>
                       <div class="small text-white-50">Urgent Actions</div>
                     </div>
                   </div>
@@ -125,7 +164,7 @@ export default class UnifiedDashboard extends Component {
                 <div class="col-md-4">
                   <div class="card bg-white bg-opacity-10 border-0">
                     <div class="card-body p-3 text-center">
-                      <div class="display-6">${score.criticalCveCount || 0}</div>
+                      <div class="h2 mb-0">${score.criticalCveCount || 0}</div>
                       <div class="small text-white-50">Critical CVEs</div>
                     </div>
                   </div>
@@ -133,7 +172,7 @@ export default class UnifiedDashboard extends Component {
                 <div class="col-md-4">
                   <div class="card bg-white bg-opacity-10 border-0">
                     <div class="card-body p-3 text-center">
-                      <div class="display-6">${score.compliancePercent || 0}%</div>
+                      <div class="h2 mb-0">${score.compliancePercent || 0}%</div>
                       <div class="small text-white-50">Compliance</div>
                     </div>
                   </div>
@@ -163,9 +202,9 @@ export default class UnifiedDashboard extends Component {
                   <span class="status-dot status-green d-inline-block"></span>
                 </div>
               </div>
-              <div class="h2 mb-0">${stats.device?.total || 0}</div>
+              <div class="h2 mb-0">${stats.devices?.totalCount || 0}</div>
               <div class="text-muted small">
-                ${stats.device?.online || 0} online · ${stats.device?.critical || 0} critical
+                ${stats.devices?.activeCount || 0} active · ${stats.devices?.offlineCount || 0} offline
               </div>
             </div>
           </div>
@@ -176,9 +215,9 @@ export default class UnifiedDashboard extends Component {
               <div class="d-flex align-items-center">
                 <div class="subheader">Applications</div>
               </div>
-              <div class="h2 mb-0">${stats.app?.total || 0}</div>
+              <div class="h2 mb-0">${stats.apps?.trackedCount || 0}</div>
               <div class="text-muted small">
-                ${stats.app?.vulnerable || 0} vulnerable
+                ${stats.apps?.vulnerableCount || 0} vulnerable
               </div>
             </div>
           </div>
@@ -188,15 +227,15 @@ export default class UnifiedDashboard extends Component {
             <div class="card-body">
               <div class="d-flex align-items-center">
                 <div class="subheader">CVEs</div>
-                ${stats.cve?.kev > 0 ? html`
+                ${stats.cves?.exploitCount > 0 ? html`
                   <div class="ms-auto">
-                    <span class="badge bg-danger">${stats.cve.kev} KEV</span>
+                    <span class="badge bg-danger text-white">${stats.cves.exploitCount} KEV</span>
                   </div>
                 ` : ''}
               </div>
-              <div class="h2 mb-0">${stats.cve?.total || 0}</div>
+              <div class="h2 mb-0">${stats.cves?.totalCount || 0}</div>
               <div class="text-muted small">
-                ${stats.cve?.critical || 0} critical · ${stats.cve?.high || 0} high
+                ${stats.cves?.criticalCount || 0} critical · ${stats.cves?.highCount || 0} high
               </div>
             </div>
           </div>
@@ -207,9 +246,7 @@ export default class UnifiedDashboard extends Component {
               <div class="d-flex align-items-center">
                 <div class="subheader">License</div>
                 <div class="ms-auto">
-                  <span class="${this.getLicenseStatusClass(stats.license?.status)}">
-                    ${stats.license?.status || 'Unknown'}
-                  </span>
+                  <span class="badge bg-primary text-white">${stats.license?.licenseType || 'License'}</span>
                 </div>
               </div>
               <div class="h2 mb-0">${stats.license?.seatsUsed || 0}/${stats.license?.seatsTotal || 0}</div>
@@ -223,130 +260,122 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
-  renderBusinessOwnerView() {
-    const { data } = this.state;
-    if (!data?.businessOwner) return null;
+  renderNarrativeHeader() {
+    const { activePersona } = this.state;
+    const title = activePersona === 'business'
+      ? 'Executive View'
+      : activePersona === 'it'
+        ? 'IT Operations View'
+        : 'Security Operations View';
 
-    const bo = data.businessOwner;
+    const subtitle = activePersona === 'business'
+      ? 'Decisions, risk, and ROI — in one scroll'
+      : activePersona === 'it'
+        ? 'Health, rollout, and remediation focus'
+        : 'Threats, exploitability, and exposure focus';
 
     return html`
-      <div class="row">
-        <div class="col-md-8">
-          <div class="card mb-3">
-            <div class="card-header">
-              <h3 class="card-title">Top Priority Actions</h3>
-            </div>
-            <div class="card-body">
-              ${bo.topActions?.length ? bo.topActions.map((action, idx) => html`
-                <div class="mb-3 pb-3 ${idx < bo.topActions.length - 1 ? 'border-bottom' : ''}">
-                  <div class="d-flex align-items-start">
-                    <div class="me-3">
-                      <span class="badge ${action.urgency === 'critical' ? 'bg-danger' : action.urgency === 'high' ? 'bg-warning' : 'bg-info'}">
-                        ${action.urgency}
-                      </span>
-                    </div>
-                    <div class="flex-fill">
-                      <h4 class="mb-1">${action.title}</h4>
-                      <p class="text-muted mb-2">${action.description}</p>
-                      <div class="d-flex align-items-center text-muted small">
-                        <span class="me-3">📅 ${action.deadlineText || action.deadline}</span>
-                        <span>🖥️ ${action.deviceCount} devices</span>
-                      </div>
-                    </div>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+          <h2 class="mb-1">${title}</h2>
+          <div class="text-muted">${subtitle}</div>
+        </div>
+        <div class="d-none d-md-flex gap-2">
+          <a class="btn btn-outline-secondary btn-sm" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('summary'); }}>Summary</a>
+          <a class="btn btn-outline-secondary btn-sm" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('priority'); }}>Priority</a>
+          <a class="btn btn-outline-secondary btn-sm" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('exposure'); }}>Exposure</a>
+          <a class="btn btn-outline-secondary btn-sm" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('next'); }}>Next steps</a>
+        </div>
+      </div>
+    `;
+  }
+
+  renderPrioritySection() {
+    const { data, activePersona } = this.state;
+    if (!data) return null;
+
+    if (activePersona === 'business') {
+      const bo = data.businessOwner;
+      return html`
+        <div class="card mb-3">
+          <div class="card-header">
+            <h3 class="card-title">Priority actions</h3>
+          </div>
+          <div class="card-body">
+            ${bo?.topActions?.length ? bo.topActions.map((action, idx) => html`
+              <div class="mb-3 pb-3 ${idx < bo.topActions.length - 1 ? 'border-bottom' : ''}">
+                <div class="d-flex align-items-start">
+                  <div class="me-3">
+                    <span class="badge ${action.urgency === 'critical' ? 'bg-danger text-white' : action.urgency === 'high' ? 'bg-warning text-white' : 'bg-info text-white'}">
+                      ${action.urgency}
+                    </span>
+                  </div>
+                  <div class="flex-fill">
+                    <div class="font-weight-medium">${action.title}</div>
+                    <div class="text-muted">${action.description}</div>
+                    <div class="text-muted small mt-1">${action.deadlineText || ''}</div>
                   </div>
                 </div>
-              `) : html`<p class="text-muted">No urgent actions required</p>`}
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card mb-3">
-            <div class="card-header">
-              <h3 class="card-title">Compliance</h3>
-            </div>
-            <div class="card-body text-center">
-              <div class="display-3 mb-2">${bo.complianceCard?.percent || 0}%</div>
-              <div class="text-muted">${bo.complianceCard?.gapDescription || 'All compliant'}</div>
-            </div>
-          </div>
-          <div class="card mb-3">
-            <div class="card-header">
-              <h3 class="card-title">License</h3>
-            </div>
-            <div class="card-body text-center">
-              <div class="display-4 mb-2">${bo.licenseCard?.seatsUsed || 0}/${bo.licenseCard?.seatsTotal || 0}</div>
-              <div class="progress mb-2">
-                <div class="progress-bar" style="width: ${bo.licenseCard?.utilizationPercent || 0}%"></div>
               </div>
-              <div class="text-muted">${bo.licenseCard?.daysRemaining || 0} days remaining</div>
+            `) : html`<div class="text-muted">No urgent actions right now.</div>`}
+          </div>
+        </div>
+      `;
+    }
+
+    if (activePersona === 'it') {
+      const it = data.itAdmin;
+      return html`
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card mb-3">
+              <div class="card-header"><h3 class="card-title">Deployment status</h3></div>
+              <div class="card-body">
+                <div class="text-muted">
+                  ${it?.deploymentStatus?.pendingUpdates || 0} pending ·
+                  ${it?.deploymentStatus?.inProgressUpdates || 0} in progress ·
+                  ${it?.deploymentStatus?.completedToday || 0} completed today
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card mb-3">
+              <div class="card-header"><h3 class="card-title">Inventory summary</h3></div>
+              <div class="card-body">
+                <div class="text-muted">
+                  ${it?.inventory?.totalDevices || 0} devices ·
+                  ${it?.inventory?.totalApps || 0} apps ·
+                  ${it?.inventory?.uniqueAppCount || 0} vendors
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    `;
-  }
-
-  renderItAdminView() {
-    const { data } = this.state;
-    if (!data?.itAdmin) return null;
-
-    const it = data.itAdmin;
-
-    return html`
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">IT Admin Dashboard</h3>
-        </div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-6">
-              <h4>Deployment Status</h4>
-              <p class="text-muted">
-                ${it.deploymentStatus?.pending || 0} pending · 
-                ${it.deploymentStatus?.inProgress || 0} in progress · 
-                ${it.deploymentStatus?.completed || 0} completed
-              </p>
-            </div>
-            <div class="col-md-6">
-              <h4>Inventory Summary</h4>
-              <p class="text-muted">
-                ${it.inventory?.totalApps || 0} total apps · 
-                ${it.inventory?.uniqueAppCount || 0} unique vendors
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderSecurityProView() {
-    const { data } = this.state;
-    if (!data?.securityPro) return null;
+      `;
+    }
 
     const sec = data.securityPro;
-
+    const totalCves = (sec?.threatIntel?.criticalCveCount || 0) + (sec?.threatIntel?.highCveCount || 0);
     return html`
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Threat Intelligence</h3>
-        </div>
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title">Threat intelligence</h3></div>
         <div class="card-body">
           <div class="row">
             <div class="col-md-3">
-              <div class="h3 mb-0">${sec.threatIntel?.totalCves || 0}</div>
+              <div class="h2 mb-0">${totalCves}</div>
               <div class="text-muted">Total CVEs</div>
             </div>
             <div class="col-md-3">
-              <div class="h3 mb-0 text-danger">${sec.threatIntel?.criticalCves || 0}</div>
+              <div class="h2 mb-0 text-danger">${sec?.threatIntel?.criticalCveCount || 0}</div>
               <div class="text-muted">Critical</div>
             </div>
             <div class="col-md-3">
-              <div class="h3 mb-0 text-warning">${sec.threatIntel?.kevCount || 0}</div>
-              <div class="text-muted">KEV Exploits</div>
+              <div class="h2 mb-0 text-warning">${sec?.threatIntel?.exploitCount || 0}</div>
+              <div class="text-muted">KEV exploits</div>
             </div>
             <div class="col-md-3">
-              <div class="h3 mb-0 text-info">${sec.threatIntel?.epssHighRisk || 0}</div>
+              <div class="h2 mb-0 text-info">${sec?.threatIntel?.highEpssCount || 0}</div>
               <div class="text-muted">High EPSS</div>
             </div>
           </div>
@@ -355,51 +384,154 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
-  renderPersonaContent() {
-    const { activePersona } = this.state;
+  renderExposureSection() {
+    const { data, activePersona } = this.state;
+    if (!data) return null;
 
-    switch (activePersona) {
-      case 'business':
-        return this.renderBusinessOwnerView();
-      case 'it':
-        return this.renderItAdminView();
-      case 'security':
-        return this.renderSecurityProView();
-      default:
-        return null;
+    if (activePersona === 'business') {
+      const bo = data.businessOwner;
+      return html`
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-header"><h3 class="card-title">Compliance</h3></div>
+              <div class="card-body text-center">
+                <div class="display-3 mb-2">${bo?.complianceCard?.percent || 0}%</div>
+                <div class="text-muted">${bo?.complianceCard?.gapDescription || ''}</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-header"><h3 class="card-title">License</h3></div>
+              <div class="card-body text-center">
+                <div class="display-4 mb-2">${bo?.licenseCard?.seatsUsed || 0}/${bo?.licenseCard?.seatsTotal || 0}</div>
+                <div class="progress mb-2">
+                  <div class="progress-bar bg-primary" style="width: ${bo?.licenseCard?.utilizationPercent || 0}%"></div>
+                </div>
+                <div class="text-muted">${bo?.licenseCard?.daysRemaining || 0} days remaining</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-header"><h3 class="card-title">Risk summary</h3></div>
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                  <span class="badge bg-danger text-white me-2">${bo?.riskSummary?.overallRisk || 'unknown'}</span>
+                  <span class="text-muted small">Risk score: ${bo?.riskSummary?.riskScore || 0}</span>
+                </div>
+                ${bo?.riskSummary?.topRiskFactors?.length ? html`
+                  <ul class="text-muted mb-0">
+                    ${bo.riskSummary.topRiskFactors.slice(0, 3).map(f => html`<li>${f}</li>`) }
+                  </ul>
+                ` : html`<div class="text-muted">No risk factors available.</div>`}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
     }
-  }
 
-  renderPersonaNav() {
-    const { activePersona } = this.state;
+    if (activePersona === 'it') {
+      const it = data.itAdmin;
+      return html`
+        <div class="card mb-3">
+          <div class="card-header"><h3 class="card-title">Operational exposure</h3></div>
+          <div class="card-body">
+            <div class="text-muted">
+              Snapshot-backed Top-N device/app risk lists appear here when available.
+            </div>
+            ${it?.deviceHealth?.length ? html`
+              <div class="mt-3">
+                <div class="subheader mb-2">Devices needing attention</div>
+                <div class="list-group">
+                  ${it.deviceHealth.slice(0, 5).map(d => html`
+                    <div class="list-group-item">
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                          <div class="font-weight-medium">${d.deviceName || d.deviceId || 'Device'}</div>
+                          <div class="text-muted small">${d.reason || ''}</div>
+                        </div>
+                        <span class="badge bg-warning text-white">${d.risk || d.riskLevel || 'risk'}</span>
+                      </div>
+                    </div>
+                  `)}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
 
+    const sec = data.securityPro;
     return html`
-      <div class="persona-nav">
-        <div class="persona-nav-inner">
-          <button 
-            class="persona-pill ${activePersona === 'business' ? 'active' : ''}"
-            onClick=${() => this.handlePersonaChange('business')}
-          >
-            <span class="persona-icon">👔</span>
-            <span class="persona-label">Business</span>
-          </button>
-          <button 
-            class="persona-pill ${activePersona === 'it' ? 'active' : ''}"
-            onClick=${() => this.handlePersonaChange('it')}
-          >
-            <span class="persona-icon">💻</span>
-            <span class="persona-label">IT Admin</span>
-          </button>
-          <button 
-            class="persona-pill ${activePersona === 'security' ? 'active' : ''}"
-            onClick=${() => this.handlePersonaChange('security')}
-          >
-            <span class="persona-icon">🔒</span>
-            <span class="persona-label">Security Pro</span>
-          </button>
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title">Exposure & attack surface</h3></div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-4">
+              <div class="h2 mb-0">${sec?.attackSurface?.exposedServices || 0}</div>
+              <div class="text-muted">Exposed services</div>
+            </div>
+            <div class="col-md-4">
+              <div class="h2 mb-0 text-danger">${sec?.attackSurface?.criticalExposures || 0}</div>
+              <div class="text-muted">Critical exposures</div>
+            </div>
+            <div class="col-md-4">
+              <div class="h2 mb-0">${sec?.attackSurface?.layers?.length || 0}</div>
+              <div class="text-muted">Attack layers tracked</div>
+            </div>
+          </div>
         </div>
       </div>
     `;
+  }
+
+  renderNextStepsSection() {
+    return html`
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title">Next steps</h3></div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-primary" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/posture'; }}>
+              Open posture snapshot
+            </a>
+            <a class="btn btn-outline-primary" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/devices'; }}>
+              Review devices
+            </a>
+            <a class="btn btn-outline-secondary" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/analyst'; }}>
+              Ask the AI Analyst
+            </a>
+          </div>
+          <div class="text-muted mt-2">
+            Tip: switch persona below to reframe the same data.
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  buildAiCardData() {
+    const ai = this.state.data?.aiContext;
+    if (!ai) return null;
+
+    const quick = this.state.data?.quickStats;
+    const score = this.state.data?.securityScore;
+
+    return {
+      orgSummary: ai.orgSummary,
+      topConcerns: ai.topConcerns,
+      suggestedQueries: ai.suggestedQueries,
+      metricsForAi: {
+        totalDevices: quick?.devices?.totalCount,
+        totalCves: quick?.cves?.totalCount,
+        kevCount: quick?.cves?.exploitCount,
+        securityScore: score?.score,
+        maxScore: 100
+      }
+    };
   }
 
   render() {
@@ -431,25 +563,35 @@ export default class UnifiedDashboard extends Component {
       `;
     }
 
+    const aiCardData = this.buildAiCardData();
+
     return html`
       <div class="container-fluid p-4" style="padding-bottom: 100px !important;">
+        <div id="summary"></div>
         ${this.renderHeroBanner()}
+        ${this.renderNarrativeHeader()}
         ${this.renderQuickStats()}
-        
-        <div class="card mb-3">
-          <div class="card-header">
-            <h3 class="card-title">🤖 AI Security Analyst</h3>
-          </div>
-          <div class="card-body">
-            <p class="text-muted">Chat interface coming soon...</p>
-          </div>
-        </div>
 
-        <div class="mt-3">
-          ${this.renderPersonaContent()}
-        </div>
+        ${aiCardData ? html`
+          <div class="mb-3">
+            <${AiAnalystCard}
+              data=${aiCardData}
+              expanded=${this.state.aiExpanded}
+              onToggle=${this.toggleAiExpanded}
+            />
+          </div>
+        ` : ''}
 
-        ${this.renderPersonaNav()}
+        <div id="priority"></div>
+        ${this.renderPrioritySection()}
+
+        <div id="exposure"></div>
+        ${this.renderExposureSection()}
+
+        <div id="next"></div>
+        ${this.renderNextStepsSection()}
+
+        <${PersonaNav} activePersona=${this.state.activePersona} onPersonaChange=${this.handlePersonaChange} />
       </div>
     `;
   }
