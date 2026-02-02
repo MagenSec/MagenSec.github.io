@@ -16,7 +16,9 @@ export default class UnifiedDashboard extends Component {
     super(props);
     this.state = {
       loading: true,
+      refreshing: false,
       error: null,
+      refreshError: null,
       data: null,
       activePersona: 'business', // business | it | security
       aiExpanded: false,
@@ -28,9 +30,15 @@ export default class UnifiedDashboard extends Component {
     this.loadDashboard();
   }
 
-  async loadDashboard() {
+  async loadDashboard({ refresh } = {}) {
     try {
-      this.setState({ loading: true, error: null });
+      const isRefresh = !!refresh;
+      this.setState({
+        loading: !this.state.data && !isRefresh,
+        refreshing: isRefresh,
+        error: null,
+        refreshError: null
+      });
 
       const user = auth.getUser();
       const currentOrg = orgContext.getCurrentOrg();
@@ -40,7 +48,12 @@ export default class UnifiedDashboard extends Component {
         window.location.hash = '#!/login';
         return;
       }
-      const response = await api.get(`/api/v1/orgs/${orgId}/dashboard?format=unified`);
+
+      const url = isRefresh
+        ? `/api/v1/orgs/${orgId}/dashboard?format=unified&refresh=true`
+        : `/api/v1/orgs/${orgId}/dashboard?format=unified`;
+
+      const response = await api.get(url);
 
       if (!response.success) {
         throw new Error(response.message || 'Failed to load dashboard');
@@ -48,16 +61,37 @@ export default class UnifiedDashboard extends Component {
 
       this.setState({
         data: response.data,
-        loading: false
+        loading: false,
+        refreshing: false
       });
     } catch (err) {
       console.error('Failed to load unified dashboard:', err);
+
+      const message = err?.message || 'Failed to load dashboard data';
+      const isRefresh = !!refresh;
+
+      // If we already have data, keep showing it and surface a non-blocking refresh error.
+      if (isRefresh && this.state.data) {
+        this.setState({
+          refreshError: message,
+          loading: false,
+          refreshing: false
+        });
+        return;
+      }
+
       this.setState({
-        error: err.message || 'Failed to load dashboard data',
-        loading: false
+        error: message,
+        loading: false,
+        refreshing: false
       });
     }
   }
+
+  refreshDashboard = async () => {
+    if (this.state.refreshing) return;
+    await this.loadDashboard({ refresh: true });
+  };
 
   handlePersonaChange = (persona) => {
     this.setState({ activePersona: persona });
@@ -107,77 +141,113 @@ export default class UnifiedDashboard extends Component {
     return statusMap[status] || 'bg-secondary';
   }
 
-  renderHeroBanner() {
-    const { data } = this.state;
-    if (!data?.securityScore) return null;
+  getFreshnessInfo() {
+    const generatedAt = this.state.data?.generatedAt;
+    if (!generatedAt) return null;
 
-    const score = data.securityScore;
+    const dt = new Date(generatedAt);
+    if (isNaN(dt.getTime())) return null;
+
+    const ageMs = Date.now() - dt.getTime();
+    const ageMinutes = Math.max(0, Math.floor(ageMs / 60000));
+    const ageHours = Math.floor(ageMinutes / 60);
+
+    const isStale = ageMs > (25 * 60 * 60 * 1000);
+    const ageText = ageHours >= 24
+      ? `${Math.floor(ageHours / 24)}d ${ageHours % 24}h ago`
+      : ageHours >= 1
+        ? `${ageHours}h ${ageMinutes % 60}m ago`
+        : `${ageMinutes}m ago`;
+
+    return {
+      generatedAt: dt,
+      ageText,
+      isStale
+    };
+  }
+
+  getDeviceHealthDotClass(stats) {
+    const offline = Number(stats?.devices?.offlineCount || 0);
+    const total = Number(stats?.devices?.totalCount || 0);
+
+    if (total === 0) return 'status-gray';
+    if (offline <= 0) return 'status-green';
+    if (offline <= 2) return 'status-yellow';
+    return 'status-red';
+  }
+
+  renderRefreshBanner() {
+    const { refreshing, refreshError, data } = this.state;
+    if (!refreshing && !refreshError) return null;
+    if (!data) return null;
+
+    if (refreshing) {
+      return html`
+        <div class="alert alert-info mb-4 border-0 shadow-sm rounded-3">
+          <div class="d-flex align-items-center justify-content-center">
+            <div class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></div>
+            <div>Updating intelligence...</div>
+          </div>
+        </div>
+      `;
+    }
 
     return html`
-      <div class="card mb-3">
-        <div class="card-body" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-          <div class="row align-items-center g-3">
-            <div class="col-auto">
-              <div class="display-1 fw-bold">${score.score}</div>
-              <div class="text-white-50">Security Score</div>
-            </div>
-            <div class="col-auto">
-              <span class="badge bg-${this.getGradeClass(score.grade)} text-white" style="font-size: 2rem; padding: 0.5rem 1rem;">
-                ${score.grade}
-              </span>
-            </div>
+      <div class="alert alert-warning mb-4 border-0 shadow-sm rounded-3">
+        <div class="d-flex align-items-center justify-content-center gap-3">
+          <div>Displaying cached snapshot. ${refreshError}</div>
+          <button class="btn btn-warning btn-sm btn-pill" onClick=${() => this.refreshDashboard()}>Try Again</button>
+        </div>
+      </div>
+    `;
+  }
 
-            <div class="col">
-              <form onSubmit=${this.submitAiPrompt} class="mb-3">
-                <div class="input-group input-group-lg">
-                  <span class="input-group-text" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.2);">
-                    <svg class="icon" width="20" height="20" viewBox="0 0 24 24">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <circle cx="10" cy="10" r="7" />
-                      <line x1="21" y1="21" x2="15" y2="15" />
-                    </svg>
-                  </span>
-                  <input
-                    type="text"
-                    class="form-control"
-                    placeholder="Ask the AI Analyst: what should I fix first?"
-                    value=${this.state.aiPrompt}
-                    onInput=${this.handleAiPromptChange}
-                    style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.2);"
-                  />
-                  <button class="btn btn-light" type="submit">Ask</button>
-                </div>
-                <div class="small text-white-50 mt-1">
-                  Opens the AI Analyst workspace with your question.
-                </div>
-              </form>
+  renderSearchHeader() {
+    const { data } = this.state;
+    const score = data?.securityScore || { score: '?', grade: '-', urgentActionCount: 0 };
 
-              <div class="row g-2">
-                <div class="col-md-4">
-                  <div class="card bg-white bg-opacity-10 border-0">
-                    <div class="card-body p-3 text-center">
-                      <div class="h2 mb-0">${score.urgentActionCount || 0}</div>
-                      <div class="small text-white-50">Urgent Actions</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="card bg-white bg-opacity-10 border-0">
-                    <div class="card-body p-3 text-center">
-                      <div class="h2 mb-0">${score.criticalCveCount || 0}</div>
-                      <div class="small text-white-50">Critical CVEs</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="card bg-white bg-opacity-10 border-0">
-                    <div class="card-body p-3 text-center">
-                      <div class="h2 mb-0">${score.compliancePercent || 0}%</div>
-                      <div class="small text-white-50">Compliance</div>
-                    </div>
-                  </div>
-                </div>
+    return html`
+      <div class="text-center mb-5 mt-4">
+        <h1 class="display-4 fw-bold mb-2" style="letter-spacing: -1px;">
+          <span class="text-primary">Magen</span>Sec
+        </h1>
+        <div class="text-muted mb-4 fs-3">Your AI Security Intelligence Partner</div>
+        
+        <div class="row justify-content-center mb-4">
+          <div class="col-md-10 col-lg-8">
+            <form onSubmit=${this.submitAiPrompt} class="position-relative">
+              <div class="input-group input-group-lg shadow-sm rounded-pill overflow-hidden border">
+                <span class="input-group-text bg-white border-0 ps-4">
+                  <svg class="icon text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
+                </span>
+                <input
+                  type="text"
+                  class="form-control border-0 shadow-none ps-2"
+                  placeholder="Ask anything (e.g. 'Show active threats' or 'List Windows 11 devices')"
+                  value=${this.state.aiPrompt}
+                  onInput=${this.handleAiPromptChange}
+                  style="min-height: 56px;"
+                  autofocus
+                />
+                <button class="btn btn-white border-0 text-primary pe-4 fw-bold" type="submit">
+                  Analyze
+                </button>
               </div>
+            </form>
+            <div class="mt-4 d-flex justify-content-center gap-3 flex-wrap">
+              <button class="btn btn-light btn-pill border shadow-sm px-4" onClick=${() => this.refreshDashboard()}>
+                ${this.state.refreshing 
+                  ? html`<span class="spinner-border spinner-border-sm me-2"></span>Refreshing`
+                  : html`<svg class="icon icon-inline me-1 text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Refresh Intelligence`}
+              </button>
+              <a class="btn btn-light btn-pill border shadow-sm px-4" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/posture'; }}>
+                <span class="badge bg-${this.getGradeClass(score.grade)} me-2">Grade ${score.grade}</span> View Report
+              </a>
+              ${score.urgentActionCount > 0 ? html`
+                <a class="btn btn-light btn-pill border shadow-sm px-4" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('priority'); }}>
+                  <span class="badge bg-danger me-2">${score.urgentActionCount}</span> Urgent Actions
+                </a>
+              ` : ''}
             </div>
           </div>
         </div>
@@ -185,73 +255,59 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
-  renderQuickStats() {
+  renderMinimalStats() {
     const { data } = this.state;
     if (!data?.quickStats) return null;
 
     const stats = data.quickStats;
+    const dotClass = this.getDeviceHealthDotClass(stats);
 
+    // Google-style "knowledge panel" cards
     return html`
-      <div class="row mb-3">
-        <div class="col-md-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="d-flex align-items-center">
-                <div class="subheader">Devices</div>
-                <div class="ms-auto">
-                  <span class="status-dot status-green d-inline-block"></span>
-                </div>
-              </div>
+      <div class="row row-cols-2 row-cols-md-4 g-3 mb-5">
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/devices'}>
+            <div class="card-body text-center p-3">
+              <div class="text-muted text-uppercase small fw-bold mb-1">Devices</div>
               <div class="h2 mb-0">${stats.devices?.totalCount || 0}</div>
-              <div class="text-muted small">
-                ${stats.devices?.activeCount || 0} active · ${stats.devices?.offlineCount || 0} offline
+              <div class="d-flex align-items-center justify-content-center mt-1 text-muted small">
+                <span class="status-dot ${dotClass} me-1"></span>
+                ${stats.devices?.activeCount || 0} active
               </div>
             </div>
           </div>
         </div>
-        <div class="col-md-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="d-flex align-items-center">
-                <div class="subheader">Applications</div>
-              </div>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm bg-light-lt">
+            <div class="card-body text-center p-3">
+              <div class="text-muted text-uppercase small fw-bold mb-1">Apps</div>
               <div class="h2 mb-0">${stats.apps?.trackedCount || 0}</div>
-              <div class="text-muted small">
+              <div class="text-danger small mt-1">
                 ${stats.apps?.vulnerableCount || 0} vulnerable
               </div>
             </div>
           </div>
         </div>
-        <div class="col-md-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="d-flex align-items-center">
-                <div class="subheader">CVEs</div>
-                ${stats.cves?.exploitCount > 0 ? html`
-                  <div class="ms-auto">
-                    <span class="badge bg-danger text-white">${stats.cves.exploitCount} KEV</span>
-                  </div>
-                ` : ''}
-              </div>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm bg-light-lt">
+            <div class="card-body text-center p-3">
+              <div class="text-muted text-uppercase small fw-bold mb-1">CVEs</div>
               <div class="h2 mb-0">${stats.cves?.totalCount || 0}</div>
-              <div class="text-muted small">
-                ${stats.cves?.criticalCount || 0} critical · ${stats.cves?.highCount || 0} high
+              <div class="d-flex align-items-center justify-content-center mt-1 gap-2">
+                ${stats.cves?.exploitCount > 0 
+                  ? html`<span class="badge bg-danger-lt">${stats.cves.exploitCount} KEV</span>` 
+                  : html`<span class="text-muted small">No KEVs</span>`}
               </div>
             </div>
           </div>
         </div>
-        <div class="col-md-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="d-flex align-items-center">
-                <div class="subheader">License</div>
-                <div class="ms-auto">
-                  <span class="badge bg-primary text-white">${stats.license?.licenseType || 'License'}</span>
-                </div>
-              </div>
-              <div class="h2 mb-0">${stats.license?.seatsUsed || 0}/${stats.license?.seatsTotal || 0}</div>
-              <div class="text-muted small">
-                ${stats.license?.daysRemaining || 0} days remaining
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm bg-light-lt">
+            <div class="card-body text-center p-3">
+              <div class="text-muted text-uppercase small fw-bold mb-1">License</div>
+              <div class="h2 mb-0">${stats.license?.seatsUsed || 0}</div>
+              <div class="text-muted small mt-1">
+                of ${stats.license?.seatsTotal || 0} used
               </div>
             </div>
           </div>
@@ -260,35 +316,7 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
-  renderNarrativeHeader() {
-    const { activePersona } = this.state;
-    const title = activePersona === 'business'
-      ? 'Executive View'
-      : activePersona === 'it'
-        ? 'IT Operations View'
-        : 'Security Operations View';
 
-    const subtitle = activePersona === 'business'
-      ? 'Decisions, risk, and ROI — in one scroll'
-      : activePersona === 'it'
-        ? 'Health, rollout, and remediation focus'
-        : 'Threats, exploitability, and exposure focus';
-
-    return html`
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <div>
-          <h2 class="mb-1">${title}</h2>
-          <div class="text-muted">${subtitle}</div>
-        </div>
-        <div class="d-none d-md-flex gap-2">
-          <a class="btn btn-outline-secondary btn-sm" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('summary'); }}>Summary</a>
-          <a class="btn btn-outline-secondary btn-sm" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('priority'); }}>Priority</a>
-          <a class="btn btn-outline-secondary btn-sm" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('exposure'); }}>Exposure</a>
-          <a class="btn btn-outline-secondary btn-sm" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('next'); }}>Next steps</a>
-        </div>
-      </div>
-    `;
-  }
 
   renderPrioritySection() {
     const { data, activePersona } = this.state;
@@ -539,25 +567,31 @@ export default class UnifiedDashboard extends Component {
 
     if (loading) {
       return html`
-        <div class="container-fluid p-4">
-          <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
-            <div class="spinner-border text-primary" role="status">
+        <div class="container p-4">
+          <div class="d-flex flex-column justify-content-center align-items-center" style="min-height: 60vh;">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
               <span class="visually-hidden">Loading dashboard...</span>
             </div>
+            <div class="text-muted">Loading MagenSec Intelligence...</div>
           </div>
         </div>
       `;
     }
 
-    if (error) {
+    if (error && !this.state.data) {
       return html`
-        <div class="container-fluid p-4">
-          <div class="alert alert-danger">
-            <h4 class="alert-title">Failed to load dashboard</h4>
-            <p>${error}</p>
-            <button class="btn btn-primary" onClick=${() => this.loadDashboard()}>
-              Retry
-            </button>
+        <div class="container p-4">
+          <div class="d-flex flex-column justify-content-center align-items-center" style="min-height: 50vh;">
+            <div class="display-1 text-muted mb-3">:(</div>
+            <h2 class="h2 mb-3">Connection Interrupted</h2>
+            <p class="text-muted text-center mb-4" style="max-width: 500px;">
+              We couldn't reach the intelligence engine. ${error}
+            </p>
+            <div class="d-flex gap-2">
+              <button class="btn btn-primary btn-pill px-4" onClick=${() => this.loadDashboard()}>
+                Try Again
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -565,15 +599,15 @@ export default class UnifiedDashboard extends Component {
 
     const aiCardData = this.buildAiCardData();
 
+    // Google-style centered layout
     return html`
-      <div class="container-fluid p-4" style="padding-bottom: 100px !important;">
-        <div id="summary"></div>
-        ${this.renderHeroBanner()}
-        ${this.renderNarrativeHeader()}
-        ${this.renderQuickStats()}
+      <div class="container py-4" style="max-width: 960px; padding-bottom: 120px !important;">
+        ${this.renderRefreshBanner()}
+        ${this.renderSearchHeader()}
+        ${this.renderMinimalStats()}
 
         ${aiCardData ? html`
-          <div class="mb-3">
+          <div class="mb-4">
             <${AiAnalystCard}
               data=${aiCardData}
               expanded=${this.state.aiExpanded}
@@ -581,6 +615,11 @@ export default class UnifiedDashboard extends Component {
             />
           </div>
         ` : ''}
+
+        <div class="d-flex align-items-center justify-content-between mb-3 text-uppercase text-muted small fw-bold tracking-wide">
+           <span>Insights</span>
+           <span>${this.state.activePersona} Perspective</span>
+        </div>
 
         <div id="priority"></div>
         ${this.renderPrioritySection()}
@@ -591,6 +630,7 @@ export default class UnifiedDashboard extends Component {
         <div id="next"></div>
         ${this.renderNextStepsSection()}
 
+        ${/* Persona Nav stays fixed at bottom or as minimal footer */ ''}
         <${PersonaNav} activePersona=${this.state.activePersona} onPersonaChange=${this.handlePersonaChange} />
       </div>
     `;
