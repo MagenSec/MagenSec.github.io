@@ -28,6 +28,7 @@ import { renderFlatListView } from './views/FlatListView.js';
 import * as DateUtils from './utils/DateUtils.js';
 import * as FormattingUtils from './utils/FormattingUtils.js';
 import * as SortingUtils from './utils/SortingUtils.js';
+import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDotClass, getTrendIcon, getTrendClass } from '../devices/DeviceHealthRenderer.js';
 
 // Service modules
 import { RiskService } from './services/RiskService.js';
@@ -2045,17 +2046,10 @@ export class DeviceDetailPage extends window.Component {
                                         <div class="row">
                                             <div class="col-auto">
                                                 ${(() => {
-                                                    const last = device.LastHeartbeat || device.lastHeartbeat;
-                                                    if (!last) return html`<span class="status-dot status-red me-1"></span>Offline`;
-                                                    const mins = Math.floor((Date.now() - new Date(last).getTime())/60000);
-                                                    const isActive = String(device.State||'').toUpperCase()==='ACTIVE';
-                                                    if (mins <= 30 && isActive) {
-                                                        return html`<span class="status-dot status-dot-animated status-green me-1"></span>Online`;
-                                                    } else if (mins <= 360) {
-                                                        return html`<span class="status-dot status-yellow me-1"></span>${mins < 60 ? mins + 'm ago' : Math.floor(mins/60) + 'h ago'}`;
-                                                    } else {
-                                                        return html`<span class="status-dot status-red me-1"></span>Offline`;
-                                                    }
+                                                    const health = renderHealthStatus(device);
+                                                    return html`
+                                                        <span class="${getStatusDotClass(device.health)} me-1"></span>${health.text}
+                                                    `;
                                                 })()}
                                             </div>
                                             <div class="col-auto">
@@ -2069,6 +2063,26 @@ export class DeviceDetailPage extends window.Component {
                                                     const f = this.state.telemetryDetail?.latest?.fields || {};
                                                     const os = f.OSVersion || f.osVersion || f.OS || device.OS || device.os || 'Windows';
                                                     return os;
+                                                })()}
+                                            </div>
+                                            <div class="col-auto">
+                                                ${(() => {
+                                                    const risk = renderRiskIndicator(device);
+                                                    const score = Math.round(Number.isFinite(risk.score) ? risk.score : 0);
+                                                    return html`<span class="badge ${risk.badge || 'bg-secondary'} text-white">${risk.severity || 'LOW'} · ${score}%</span>`;
+                                                })()}
+                                            </div>
+                                            <div class="col-auto">
+                                                ${(() => {
+                                                    const patch = renderPatchStatus(device);
+                                                    const badgeClass = patch.badge === 'bg-success-lt' ? 'bg-success-lt text-success'
+                                                        : patch.badge === 'bg-info-lt' ? 'bg-info-lt text-info'
+                                                        : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
+                                                        : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
+                                                        : patch.badge;
+                                                    return patch.percent !== null 
+                                                        ? html`<span class="badge ${badgeClass}">${Math.round(patch.percent)}% patched</span>`
+                                                        : html`<span class="badge bg-secondary-lt text-secondary">No patch data</span>`;
                                                 })()}
                                             </div>
                                             ${(() => {
@@ -2170,6 +2184,49 @@ export class DeviceDetailPage extends window.Component {
                                                     ${mobileStatus.isMobile ? html`<span class="badge bg-info-lt text-info">Mobile (${mobileStatus.uniqueIpCount})</span>` : ''}
                                                 </div>
                                             </div>
+                                        </div>
+                                        <div class="row g-3 align-items-center mt-2">
+                                            ${(() => {
+                                                const health = renderHealthStatus(device);
+                                                const risk = renderRiskIndicator(device);
+                                                const patch = renderPatchStatus(device);
+                                                const patchBadgeClass = patch.badge === 'bg-success-lt' ? 'bg-success-lt text-success'
+                                                    : patch.badge === 'bg-info-lt' ? 'bg-info-lt text-info'
+                                                    : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
+                                                    : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
+                                                    : patch.badge;
+                                                const riskTrend = Number.isFinite(risk.trend7d) ? risk.trend7d : 0;
+                                                return html`
+                                                    <div class="col-md-4">
+                                                        <div class="text-muted small font-weight-medium">Health</div>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <span class="badge ${health.status === 'online' ? 'bg-success-lt text-success' : health.status === 'stale' ? 'bg-warning-lt text-warning' : health.status === 'offline' ? 'bg-danger-lt text-danger' : health.status === 'blocked' ? 'bg-dark-lt text-dark' : 'bg-secondary-lt text-secondary'}">
+                                                                <span class="${getStatusDotClass(device.health)} me-1"></span>
+                                                                ${health.text}
+                                                            </span>
+                                                            <span class="text-muted">${health.score ?? 0}/100 · ${health.grade || 'N/A'}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <div class="text-muted small font-weight-medium">Risk Trend (7d)</div>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <span class="badge ${risk.badge || 'bg-secondary'} text-white">${risk.severity || 'LOW'} · ${Math.round(Number.isFinite(risk.score) ? risk.score : 0)}%</span>
+                                                            <span class="${getTrendClass(riskTrend)}">${getTrendIcon(riskTrend)} ${Math.abs(Math.round(riskTrend))}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <div class="text-muted small font-weight-medium">Patch Compliance</div>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            ${patch.percent !== null ? html`
+                                                                <span class="badge ${patchBadgeClass}">${Math.round(patch.percent)}% patched</span>
+                                                                ${patch.pending > 0 ? html`<span class="text-muted">${patch.pending} pending</span>` : html`<span class="text-muted">No pending</span>`}
+                                                            ` : html`
+                                                                <span class="badge bg-secondary-lt text-secondary">No patch data</span>
+                                                            `}
+                                                        </div>
+                                                    </div>
+                                                `;
+                                            })()}
                                         </div>
                                     </div>
                                 </div>

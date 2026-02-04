@@ -27,6 +27,7 @@ import { DeviceFilterService } from './services/DeviceFilterService.js';
 
 // Component modules
 import { renderBulkActionsBar } from './components/BulkActionsBar.js';
+import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDotClass, getTrendIcon, getTrendClass } from './DeviceHealthRenderer.js';
 
 class DevicesPage extends window.Component {
     constructor(props) {
@@ -67,6 +68,7 @@ class DevicesPage extends window.Component {
             highlightedCve: null,
             showRiskExplanationModal: false,
             riskExplanationDevice: null,
+            isRefreshingInBackground: false,
             filteredDevices: [],
             selectedDevices: []
         };
@@ -755,13 +757,17 @@ class DevicesPage extends window.Component {
 
         devices.forEach(device => {
             const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
-            const enriched = this.state.enrichedScores[device.id];
-            const displayScoreRaw = enriched?.score !== undefined ? enriched.score : summary.score || 0;
-            const numericScore = Number(displayScoreRaw);
-            const displayScore = Number.isFinite(numericScore) ? numericScore : 0;
+            const risk = renderRiskIndicator(device);
+            
+            // Skip rendering if no risk data
+            if (risk.score === null) {
+                return;
+            }
+            
+            const displayScore = risk.score;
             const clampedScore = Math.max(0, Math.min(100, Math.round(displayScore)));
-            // 100=best (green), 0=worst (red)
-            const scoreColor = clampedScore >= 80 ? '#2fb344' : clampedScore >= 60 ? '#fab005' : clampedScore >= 40 ? '#f59f00' : '#d63939';
+            // INVERTED: 0=best (green), 100=worst (red)
+            const scoreColor = clampedScore >= 80 ? '#d63939' : clampedScore >= 60 ? '#f59f00' : clampedScore >= 40 ? '#fab005' : '#2fb344';
 
             const riskEl = this.tableRiskEls.get(device.id);
             const bounds = riskEl?.getBoundingClientRect();
@@ -774,17 +780,18 @@ class DevicesPage extends window.Component {
                 const safeSeries = [Number.isFinite(clampedScore) ? clampedScore : 0];
                     const riskOptions = {
                         chart: { type: 'radialBar', height: 100, width: 100, sparkline: { enabled: true } },
-                    colors: [gradientStart],
+                    colors: [scoreColor],
                     fill: {
                         type: 'gradient',
                         gradient: {
                             shade: 'light',
                             type: 'horizontal',
+                            // INVERTED gradient: green (0%) → yellow (50%) → red (100%)
                             colorStops: [
-                                { offset: 0, color: '#2fb344', opacity: 1 },
-                                { offset: 33, color: '#f59f00', opacity: 1 },
-                                { offset: 66, color: '#fab005', opacity: 1 },
-                                { offset: 100, color: '#d63939', opacity: 1 }
+                                { offset: 0, color: '#2fb344', opacity: 1 },    // Green at 0% (good)
+                                { offset: 40, color: '#fab005', opacity: 1 },   // Yellow at 40%
+                                { offset: 60, color: '#f59f00', opacity: 1 },   // Orange at 60%
+                                { offset: 100, color: '#d63939', opacity: 1 }   // Red at 100% (bad)
                             ]
                         }
                     },
@@ -1070,22 +1077,67 @@ class DevicesPage extends window.Component {
     }
 
     tryGetCachedDevices(orgId) {
-        if (this.DEVICES_CACHE[orgId]) {
-            const cached = this.DEVICES_CACHE[orgId];
-            const ageMs = Date.now() - cached.timestamp;
+        try {
+            const key = `devices_${orgId}`;
+            const cached = localStorage.getItem(key);
+            if (!cached) return null;
+
+            const { devices, timestamp } = JSON.parse(cached);
+            const ageMs = Date.now() - timestamp;
             const TTL_MS = 5 * 60 * 1000; // 5 minutes
             if (ageMs < TTL_MS) {
-                return cached.devices;
+                console.log(`[DevicesPage] 📦 Cache HIT: ${devices.length} devices from localStorage`);
+                return devices;
             }
+            localStorage.removeItem(key);
+        } catch (err) {
+            console.warn('[DevicesPage] Cache read error:', err);
         }
         return null;
     }
 
     setCachedDevices(orgId, devices) {
-        this.DEVICES_CACHE[orgId] = {
-            devices,
-            timestamp: Date.now()
-        };
+        try {
+            const key = `devices_${orgId}`;
+            localStorage.setItem(key, JSON.stringify({
+                devices,
+                timestamp: Date.now()
+            }));
+        } catch (err) {
+            console.warn('[DevicesPage] Cache write error:', err);
+        }
+    }
+
+    getCachedSummaries(orgId) {
+        try {
+            const key = `device_summaries_${orgId}`;
+            const cached = localStorage.getItem(key);
+            if (!cached) return null;
+
+            const { data, timestamp } = JSON.parse(cached);
+            const ageMs = Date.now() - timestamp;
+            const TTL_MS = 15 * 60 * 1000; // 15 minutes
+            if (ageMs < TTL_MS) {
+                console.log(`[DevicesPage] 📦 Summary cache HIT: ${Object.keys(data).length} summaries from localStorage`);
+                return data;
+            }
+            localStorage.removeItem(key);
+        } catch (err) {
+            console.warn('[DevicesPage] Summary cache read error:', err);
+        }
+        return null;
+    }
+
+    setCachedSummaries(orgId, summaries) {
+        try {
+            const key = `device_summaries_${orgId}`;
+            localStorage.setItem(key, JSON.stringify({
+                data: summaries,
+                timestamp: Date.now()
+            }));
+        } catch (err) {
+            console.warn('[DevicesPage] Summary cache write error:', err);
+        }
     }
 
     async enrichDeviceScoresAsync(devices, summaries) {
@@ -1121,18 +1173,27 @@ class DevicesPage extends window.Component {
                 return;
             }
 
+            // Try to load from cache immediately
             if (!forceRefresh) {
                 const cached = this.tryGetCachedDevices(currentOrg.orgId);
+                const cachedSummaries = this.getCachedSummaries(currentOrg.orgId) || {};
                 if (cached) {
-                    this.setState({ devices: cached, loading: false, error: null });
-                    return;
+                    console.log('[DevicesPage] ⚡ Loading from cache immediately...');
+                    this.setState({ devices: cached, loading: false, error: null, deviceSummaries: cachedSummaries, isRefreshingInBackground: true });
+                    // Continue to background refresh (don't return)
                 }
             }
 
-            this.setState({ loading: true, error: null });
+            // Show loading state only if not using cache
+            if (!this.state.devices || this.state.devices.length === 0) {
+                this.setState({ loading: true, error: null });
+            } else {
+                // Already showing cached data, just indicate background refresh
+                this.setState({ isRefreshingInBackground: true });
+            }
 
-            // Call real API
-            const response = await api.getDevices(currentOrg.orgId, { include: 'summary,session' }, { skipCache: forceRefresh });
+            // Step 1: Fast load with cached-summary (< 12s instead of 35s)
+            const response = await api.getDevices(currentOrg.orgId, { include: 'cached-summary,session' }, { skipCache: forceRefresh });
             if (!response.success) {
                 throw new Error(response.message || response.error || 'Failed to load devices');
             }
@@ -1206,12 +1267,17 @@ class DevicesPage extends window.Component {
             });
 
             this.setCachedDevices(currentOrg.orgId, devices);
+            
+            // Step 2: Try to enrich with cached summaries immediately
+            const cachedSummaries = this.getCachedSummaries(currentOrg.orgId) || {};
+            const hasCache = Object.keys(cachedSummaries).length > 0;
+            
             this.setState(prev => {
                 const updatedSelected = prev.selectedDevice ? devices.find(d => d.id === prev.selectedDevice.id) : null;
                 return {
                     devices,
                     loading: false,
-                    deviceSummaries: { ...prev.deviceSummaries, ...summariesFromApi },
+                    deviceSummaries: { ...prev.deviceSummaries, ...cachedSummaries, ...summariesFromApi },
                     selectedDevice: updatedSelected || prev.selectedDevice
                 };
             }, () => {
@@ -1219,12 +1285,66 @@ class DevicesPage extends window.Component {
                 this.setState({ filteredDevices: filteredNow }, () => this.renderTableApexCharts());
             });
             
+            // Step 3: Background fetch with summary (don't wait, enrich silently)
+            // Skip if forced refresh (already have fresh data) and no cache (nothing to update)
+            if (!forceRefresh || hasCache) {
+                this.loadSummariesInBackground(currentOrg.orgId, devices);
+            }
+            
             // Background: Load known exploits and enrich risk scores
             this.loadKnownExploitsAsync();
-            this.enrichDeviceScoresAsync(devices, summariesFromApi);
+            const allSummaries = { ...cachedSummaries, ...summariesFromApi };
+            if (Object.keys(allSummaries).length > 0) {
+                this.enrichDeviceScoresAsync(devices, allSummaries);
+            }
         } catch (error) {
             console.error('[DevicesPage] Error loading devices:', error);
             this.setState({ error: error.message, loading: false });
+        }
+    }
+
+    async loadSummariesInBackground(orgId, devices) {
+        try {
+            console.log('[DevicesPage] 🔄 Background fetch: loading fresh summaries...');
+            
+            // Wait a bit to let the UI settle first
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Fetch fresh summaries (skip cached, get real-time data)
+            const response = await api.getDevices(orgId, { include: 'summary,session' }, { skipCache: true });
+            
+            if (!response.success || !response.data?.devices) {
+                console.warn('[DevicesPage] Background summary fetch failed');
+                return;
+            }
+
+            // Extract summaries from response
+            const freshSummaries = {};
+            response.data.devices.forEach(device => {
+                const deviceId = device.DeviceId || device.deviceId;
+                const summary = this.normalizeSummary(device.summary || device.Summary);
+                if (summary && deviceId) {
+                    freshSummaries[deviceId] = summary;
+                }
+            });
+
+            // Step 4: Cache the fresh summaries
+            this.setCachedSummaries(orgId, freshSummaries);
+
+            // Update UI with fresh data (silent update)
+            this.setState(prev => ({
+                deviceSummaries: { ...prev.deviceSummaries, ...freshSummaries },
+                isRefreshingInBackground: false
+            }), () => {
+                // Re-render charts with new data
+                this.renderTableApexCharts();
+                // Re-enrich scores with fresh data
+                this.enrichDeviceScoresAsync(devices, freshSummaries);
+            });
+
+            console.log(`[DevicesPage] ✅ Background fetch complete: ${Object.keys(freshSummaries).length} summaries cached`);
+        } catch (err) {
+            console.warn('[DevicesPage] Background summary fetch error:', err);
         }
     }
 
@@ -1621,6 +1741,11 @@ class DevicesPage extends window.Component {
 
         const matchesConnection = (device) => {
             if (deviceFilters.connection === 'all') return true;
+            const status = String(device.health?.status || '').toLowerCase();
+            if (status) {
+                const isOnline = status === 'online';
+                return deviceFilters.connection === 'online' ? isOnline : !isOnline;
+            }
             const offline = DeviceStatsService.isDeviceInactive(device);
             return deviceFilters.connection === 'online' ? !offline : offline;
         };
@@ -1643,12 +1768,14 @@ class DevicesPage extends window.Component {
         list.sort((a, b) => {
             let aVal, bVal;
             if (this.state.sortField === 'risk') {
+                const aRisk = a.risk?.riskScore;
+                const bRisk = b.risk?.riskScore;
                 const aSummary = this.state.deviceSummaries[a.id] || { score: 0 };
                 const bSummary = this.state.deviceSummaries[b.id] || { score: 0 };
                 const aEnriched = this.state.enrichedScores[a.id];
                 const bEnriched = this.state.enrichedScores[b.id];
-                aVal = aEnriched?.score !== undefined ? aEnriched.score : aSummary.score || 0;
-                bVal = bEnriched?.score !== undefined ? bEnriched.score : bSummary.score || 0;
+                aVal = Number.isFinite(aRisk) ? aRisk : (aEnriched?.score !== undefined ? aEnriched.score : aSummary.score || 0);
+                bVal = Number.isFinite(bRisk) ? bRisk : (bEnriched?.score !== undefined ? bEnriched.score : bSummary.score || 0);
             } else if (this.state.sortField === 'name') {
                 aVal = (a.name || a.id || '').toLowerCase();
                 bVal = (b.name || b.id || '').toLowerCase();
@@ -2153,10 +2280,18 @@ class DevicesPage extends window.Component {
                 ${filteredDevices.map(device => {
                     const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                     const enriched = this.state.enrichedScores[device.id];
-                    const displayScore = enriched?.score !== undefined ? enriched.score : summary.score || 0;
-                    // 100=best, 0=worst
-                    const scoreSeverity = displayScore >= 80 ? 'EXCELLENT' : displayScore >= 60 ? 'GOOD' : displayScore >= 40 ? 'FAIR' : 'POOR';
-                    const severityBadge = displayScore >= 80 ? 'bg-success' : displayScore >= 60 ? 'bg-info' : displayScore >= 40 ? 'bg-warning' : 'bg-danger';
+                    const health = renderHealthStatus(device);
+                    const risk = renderRiskIndicator(device);
+                    const patch = renderPatchStatus(device);
+                    const displayScore = Number.isFinite(risk.score) ? risk.score : 0;
+                    // INVERTED: 100=worst, 0=best
+                    const scoreSeverity = risk.severity; // Use severity from renderRiskIndicator
+                    const severityBadge = risk.badge; // Use badge from renderRiskIndicator
+                    const patchBadgeClass = patch.badge === 'bg-success-lt' ? 'bg-success-lt text-success'
+                        : patch.badge === 'bg-info-lt' ? 'bg-info-lt text-info'
+                        : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
+                        : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
+                        : patch.badge;
                     
                     return html`
                         <div class="col-sm-6 col-lg-4">
@@ -2173,8 +2308,8 @@ class DevicesPage extends window.Component {
                                                     <a href="#!/devices/${device.id}" class="text-reset" title="${device.name || device.id}">${device.name || device.id}</a>
                                                 </h3>
                                                 <div class="device-meta text-muted small text-truncate" title="${device.telemetry?.osEdition || 'Unknown OS'}">
-                                                    <span class="status-dot ${this.getStatusDot(device.lastSeen)} me-1"></span>
-                                                    ${this.getStatusText(device.lastSeen)} · ${device.telemetry?.osEdition || 'Unknown OS'}
+                                                    <span class="${getStatusDotClass(health.status)} me-1"></span>
+                                                    ${health.text} · ${device.telemetry?.osEdition || 'Unknown OS'}
                                                 </div>
                                             </div>
                                         </div>
@@ -2228,20 +2363,27 @@ class DevicesPage extends window.Component {
 
                                     <!-- Center: Risk Score & Connection Status -->
                                     <div class="text-center mb-4 flex-grow-1 d-flex flex-column justify-content-center">
-                                        <div class="mb-2 mx-auto" style="width: 80px; height: 80px; cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }}>
-                                            <div style="width: 80px; height: 80px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
-                                        </div>
-                                        <div class="mb-2">
-                                            <span class="badge ${severityBadge} text-white">${scoreSeverity} RISK</span>
-                                        </div>
+                                        ${risk.score !== null ? html`
+                                            <div class="mb-2 mx-auto" style="width: 80px; height: 80px; cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }}>
+                                                <div style="width: 80px; height: 80px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
+                                            </div>
+                                            <div class="mb-2">
+                                                <span class="badge ${severityBadge} text-white">${scoreSeverity} RISK · ${displayScore}%</span>
+                                            </div>
+                                        ` : html`
+                                            <div class="mb-2">
+                                                <span class="badge bg-secondary-lt text-secondary">No risk data</span>
+                                            </div>
+                                        `}
                                         <div class="d-flex align-items-center justify-content-center gap-2">
                                             <div class="d-flex align-items-center">
-                                                <span class="status-dot ${this.getStatusDot(device.lastSeen)} me-2"></span>
-                                                ${(() => {
-                                                    const connStatus = getConnectionStatus(device);
-                                                    return window.html`<span class="badge ${connStatus.color} text-white">${connStatus.icon} ${connStatus.status}</span>`;
-                                                })()}
+                                                <span class="${getStatusDotClass(health.status)} me-2"></span>
+                                                <span class="badge bg-${health.color} ${health.color === 'success' || health.color === 'danger' ? 'text-white' : ''}">${health.icon} ${health.text}</span>
                                             </div>
+                                            ${patch.percent !== null 
+                                                ? html`<span class="badge ${patchBadgeClass}">${Math.round(patch.percent)}% patched</span>`
+                                                : html`<span class="badge bg-secondary-lt text-secondary">No patch data</span>`
+                                            }
                                         </div>
                                     </div>
 
@@ -2282,7 +2424,15 @@ class DevicesPage extends window.Component {
             
             <!-- Header & Actions -->
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3 class="mb-0">Security Overview</h3>
+                <div class="d-flex align-items-center gap-2">
+                    <h3 class="mb-0">Security Overview</h3>
+                    ${this.state.isRefreshingInBackground ? html`
+                        <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" style="animation: pulse 1s infinite;">
+                            <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px; border-width: 2px;\"></span>
+                            Refreshing...
+                        </span>
+                    ` : ''}
+                </div>
                 <div class="d-flex gap-2">
                     <div class="btn-group">
                         <button class="btn btn-sm ${this.state.viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ viewMode: 'list' })} title="List View">
@@ -2489,12 +2639,20 @@ class DevicesPage extends window.Component {
                                                         ${(() => {
                                                             const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                                                             const enriched = this.state.enrichedScores[device.id];
-                                                            const displayScore = enriched?.score !== undefined ? enriched.score : summary.score || 0;
-                                                            const clampedScore = Math.max(0, Math.min(100, Math.round(Number.isFinite(displayScore) ? displayScore : 0)));
+                                                            const health = renderHealthStatus(device);
+                                                            const risk = renderRiskIndicator(device);
+                                                            const patch = renderPatchStatus(device);
+                                                            const displayScore = Number.isFinite(risk.score) ? risk.score : 0;
+                                                            const clampedScore = Math.max(0, Math.min(100, Math.round(displayScore)));
                                                             const isEnriched = enriched && enriched.score !== (summary.score || 0);
-                                                            const scoreColor = displayScore >= 80 ? '#d63939' : displayScore >= 60 ? '#f59f00' : displayScore >= 40 ? '#fab005' : '#2fb344';
-                                                            const scoreSeverity = displayScore >= 80 ? 'CRITICAL' : displayScore >= 60 ? 'HIGH' : displayScore >= 40 ? 'MEDIUM' : 'LOW';
-                                                            const severityBadge = displayScore >= 80 ? 'bg-danger' : displayScore >= 60 ? 'bg-warning' : displayScore >= 40 ? 'bg-warning' : 'bg-success';
+                                                            const scoreSeverity = risk.severity;
+                                                            const severityBadge = risk.badge;
+                                                            const riskTrend = Number.isFinite(risk.trend7d) ? risk.trend7d : 0;
+                                                            const patchBadgeClass = patch.badge === 'bg-success-lt' ? 'bg-success-lt text-success'
+                                                                : patch.badge === 'bg-info-lt' ? 'bg-info-lt text-info'
+                                                                : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
+                                                                : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
+                                                                : patch.badge;
                                                             const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
                                                             const versionBadgeClass = isOutdated ? 'bg-warning-lt text-dark' : 'bg-secondary-lt';
                                                             const versionTitle = isOutdated ? `Update available: v${config.INSTALLERS.ENGINE.VERSION}` : 'Current installed MagenSec version';
@@ -2502,26 +2660,35 @@ class DevicesPage extends window.Component {
                                                             return html`
                                                             <!-- Risk Score Column -->
                                                             <td class="text-center">
-                                                                <div style="display: inline-flex; gap: 10px; align-items: flex-start;">
-                                                                    <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; color: inherit;">
-                                                                        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer;">
-                                                                            <div style="width: 100px; height: 50px; position: relative;">
-                                                                                <div style="width: 100px; height: 50px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
+                                                                ${risk.score !== null ? html`
+                                                                    <div style="display: inline-flex; gap: 10px; align-items: flex-start;">
+                                                                        <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; color: inherit;">
+                                                                            <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer;">
+                                                                                <div style="width: 100px; height: 50px; position: relative;">
+                                                                                    <div style="width: 100px; height: 50px;" ref=${(el) => { if (el) { this.tableRiskEls.set(device.id, el); } }}></div>
+                                                                                </div>
+                                                                                <span class="badge ${severityBadge} text-white d-inline-flex justify-content-center align-items-center text-uppercase text-center" style="min-width: 110px;" title=${`Risk score: ${clampedScore}/100 (100=worst)`}>${scoreSeverity} · ${clampedScore}%</span>
+                                                                                <div class="text-muted small d-flex align-items-center gap-1">
+                                                                                    <span class=${getTrendClass(riskTrend)}>${getTrendIcon(riskTrend)} ${Math.abs(Math.round(riskTrend))}</span>
+                                                                                    <span>7d trend</span>
+                                                                                </div>
                                                                             </div>
-                                                                            <span class="badge ${severityBadge} text-white d-inline-flex justify-content-center align-items-center text-uppercase text-center" style="min-width: 110px;" title=${`Risk score: ${clampedScore}/100`}>${scoreSeverity} RISK</span>
-                                                                            <div class="text-muted small">Click for details</div>
-                                                                        </div>
-                                                                    </a>
-                                                                    ${isEnriched ? html`
-                                                                        <span class="badge bg-success-lt text-success d-inline-flex align-items-center justify-content-center" style="width: 34px; height: 34px; border-radius: 8px; align-self: flex-start;" title="Enriched with known exploits">
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                                                                                <circle cx="12" cy="12" r="9" />
-                                                                                <path d="M9 12l2 2l4 -4" />
-                                                                            </svg>
-                                                                        </span>
-                                                                    ` : ''}
-                                                                </div>
+                                                                        </a>
+                                                                ` : html`
+                                                                    <div>
+                                                                        <span class="badge bg-secondary-lt text-secondary">No risk data</span>
+                                                                    </div>
+                                                                `}
+                                                                ${risk.score !== null && isEnriched ? html`
+                                                                    <span class="badge bg-success-lt text-success d-inline-flex align-items-center justify-content-center" style="width: 34px; height: 34px; border-radius: 8px; align-self: flex-start;" title="Enriched with known exploits">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                                                                            <circle cx="12" cy="12" r="9" />
+                                                                            <path d="M9 12l2 2l4 -4" />
+                                                                        </svg>
+                                                                    </span>
+                                                                ` : ''}
+                                                                ${risk.score !== null ? html`</div>` : ''}
                                                             </td>
                                                             
                                                             <!-- Device Name Column -->
@@ -2547,19 +2714,14 @@ class DevicesPage extends window.Component {
                                                                         ${versionLabel}
                                                                         ${isOutdated ? html`<span class="badge bg-warning badge-notification" style="position:absolute; top:-4px; right:-4px;"></span>` : ''}
                                                                     </span>
-                                                                    ${(() => {
-                                                                        const connStatus = getConnectionStatus(device);
-                                                                        return html`
-                                                                            <span class="badge ${connStatus.color} text-white d-inline-flex align-items-center justify-content-center gap-1 text-start" style="min-width: 120px;">
-                                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                                                                                    <circle cx="12" cy="12" r="9" />
-                                                                                    <path d="M12 8v4l2 2" />
-                                                                                </svg>
-                                                                                ${connStatus.icon} ${connStatus.status}
-                                                                            </span>
-                                                                        `;
-                                                                    })()}
+                                                                    <span class="badge bg-${health.color} ${health.color === 'success' || health.color === 'danger' ? 'text-white' : ''} d-inline-flex align-items-center justify-content-center gap-1 text-start" style="min-width: 120px;">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                                            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                                                                            <circle cx="12" cy="12" r="9" />
+                                                                            <path d="M12 8v4l2 2" />
+                                                                        </svg>
+                                                                        ${health.icon} ${health.text}
+                                                                    </span>
                                                                 </div>
                                                             </td>
 
@@ -2568,7 +2730,7 @@ class DevicesPage extends window.Component {
                                                                 <div class="d-flex flex-column gap-1">
                                                                     ${summary.vulnerableApps > 0 ? html`
                                                                         <div class="d-flex align-items-center gap-2">
-                                                                            <span class="badge bg-warning-lt">${summary.vulnerableApps} Vuln Apps</span>
+                                                                            <span class="badge bg-warning-lt text-warning">${summary.vulnerableApps} Vuln Apps</span>
                                                                         </div>
                                                                     ` : html`<span class="text-muted small">No vulnerable apps</span>`}
                                                                     
@@ -2579,6 +2741,14 @@ class DevicesPage extends window.Component {
                                                                             <span class="text-muted">CVEs</span>
                                                                         </div>
                                                                     ` : ''}
+                                                                    <div class="d-flex align-items-center gap-2 small">
+                                                                        ${patch.percent !== null ? html`
+                                                                            <span class="badge ${patchBadgeClass}">${Math.round(patch.percent)}% patched</span>
+                                                                            ${patch.pending > 0 ? html`<span class="text-muted">${patch.pending} pending</span>` : html`<span class="text-muted">No pending</span>`}
+                                                                        ` : html`
+                                                                            <span class="badge bg-secondary-lt text-secondary">No patch data</span>
+                                                                        `}
+                                                                    </div>
                                                                 </div>
                                                             </td>
 
@@ -2586,7 +2756,10 @@ class DevicesPage extends window.Component {
                                                             <td>
                                                                 <div class="d-flex flex-column gap-1">
                                                                     <div class="d-flex align-items-center gap-2">
-                                                                        ${DeviceStatsService.isDeviceInactive(device) ? html`<span class="badge bg-secondary-lt">Offline</span>` : html`<span class="badge bg-success-lt">Online</span>`}
+                                                                        <span class="badge ${health.status === 'online' ? 'bg-success-lt text-success' : health.status === 'stale' ? 'bg-warning-lt text-warning' : health.status === 'offline' ? 'bg-danger-lt text-danger' : health.status === 'blocked' ? 'bg-dark-lt text-dark' : 'bg-secondary-lt text-secondary'}">
+                                                                            <span class="${getStatusDotClass(device.health)} me-1"></span>
+                                                                            ${health.text}
+                                                                        </span>
                                                                         <span class="text-muted small">${device.telemetry?.osEdition || 'Unknown OS'}</span>
                                                                     </div>
                                                                     <div class="text-muted small">
@@ -2594,7 +2767,7 @@ class DevicesPage extends window.Component {
                                                                         ${device.telemetry?.networkSpeedMbps ? `(${formatNetworkSpeed(device.telemetry.networkSpeedMbps)})` : ''}
                                                                     </div>
                                                                     <div class="text-muted small">
-                                                                        Last seen ${this.formatLastSeen(device.lastHeartbeat)}
+                                                                        ${health.lastActivityMinutes !== undefined ? `Last seen ${health.lastActivityMinutes}m ago` : `Last seen ${this.formatLastSeen(device.lastHeartbeat)}`}
                                                                     </div>
                                                                 </div>
                                                             </td>

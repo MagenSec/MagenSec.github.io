@@ -48,8 +48,9 @@ export class DashboardPage extends Component {
             generatedAt: null,
             refreshInterval: null,
             activeTab: 'overview', // New: tab state (overview | analysis | findings)
-            postureSnapshot: null, // New: PostureEngine snapshot data
-            loadingPosture: false // New: separate loading state for posture tab
+            postureSnapshot: null,
+            loadingPosture: false,
+            isRefreshingInBackground: false
         };
         this.orgUnsubscribe = null;
         this.threatChart = null;
@@ -84,7 +85,8 @@ export class DashboardPage extends Component {
                 nextScan: 'Pending',
                 generatedAt: null,
                 postureSnapshot: null,
-                loadingPosture: false
+                loadingPosture: false,
+                isRefreshingInBackground: false
             });
             this.destroyCharts();
             if (this.deviceSparklineChart) this.deviceSparklineChart.destroy();
@@ -133,56 +135,114 @@ export class DashboardPage extends Component {
         }
     }
 
-    async loadDashboardData() {
+    getCachedDashboard(key, ttlMinutes = 30) {
         try {
-            this.setState({ loading: true, error: null });
+            const cached = localStorage.getItem(key);
+            if (!cached) return null;
+
+            const { data, timestamp } = JSON.parse(cached);
+            const ageMs = Date.now() - timestamp;
+            const TTL_MS = ttlMinutes * 60 * 1000;
+            const isStale = ageMs >= TTL_MS;
+
+            if (isStale) {
+                console.log(`[UnifiedDashboard] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s, ttl: ${ttlMinutes}m)`);
+            } else {
+                console.log(`[UnifiedDashboard] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
+            }
+            return { data, isStale };
+        } catch (err) {
+            console.warn('[UnifiedDashboard] Cache read error:', err);
+        }
+        return null;
+    }
+
+    setCachedDashboard(key, data) {
+        try {
+            localStorage.setItem(key, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+            console.log(`[UnifiedDashboard] 💾 Cache SAVE: ${key}`);
+        } catch (err) {
+            console.warn('[UnifiedDashboard] Cache write error:', err);
+        }
+    }
+
+    buildDashboardState(dashboard) {
+        const inventoryStats = dashboard.inventory || { totalApps: 0, vendors: 0 };
+        const licenseInfo = this.normalizeLicenseInfo(dashboard.license);
+        const coverage = dashboard.coverage || { healthy: 0, stale: 0, offline: 0, total: 0 };
+        const actions = dashboard.actions || [];
+        const generatedAt = dashboard.generatedAt || new Date().toISOString();
+        const threatSummary = this.normalizeThreatSummary(dashboard.threats);
+
+        return {
+            dashboardData: dashboard,
+            deviceStats: dashboard.devices || { total: 0, active: 0, disabled: 0, blocked: 0 },
+            threatSummary,
+            complianceSummary: dashboard.compliance || { score: 0, compliant: 0, nonCompliant: 0, total: 0 },
+            recentAlerts: dashboard.alerts || [],
+            recentDevices: dashboard.recentDevices || [],
+            securityScore: dashboard.securityScore || 0,
+            securityGrade: dashboard.grade || 'N/A',
+            lastScan: dashboard.lastScan || 'Never',
+            nextScan: dashboard.nextScan || 'Pending',
+            inventoryStats,
+            licenseInfo,
+            coverage,
+            actions,
+            generatedAt
+        };
+    }
+
+    async loadDashboardData(forceRefresh = false) {
+        try {
+            this.setState({ error: null });
             
             const user = auth.getUser();
             const currentOrg = orgContext.getCurrentOrg();
             
             if (!user) {
-                this.setState({ error: 'Not authenticated', loading: false });
+                this.setState({ error: 'Not authenticated', loading: false, isRefreshingInBackground: false });
                 return;
             }
 
             this.setState({ user, currentOrg });
 
             const orgId = currentOrg?.orgId || user.email;
-            
+            const cacheKey = `dashboard_${orgId}`;
+
+            // Always try cache first (even if stale)
+            if (!forceRefresh) {
+                const cached = this.getCachedDashboard(cacheKey, 30);
+                if (cached) {
+                    console.log('[UnifiedDashboard] ⚡ Loading from cache immediately (will refresh in background)...');
+                    this.setState({
+                        ...this.buildDashboardState(cached.data),
+                        loading: false,
+                        isRefreshingInBackground: true
+                    });
+                    this.loadPostureSnapshotInBackground();
+                    this.loadFreshDashboardData(cacheKey, orgId);
+                    return;
+                }
+            }
+
+            // No cache available, show loading spinner
+            this.setState({ loading: true, error: null, isRefreshingInBackground: false });
+
             // Single fetch for unified dashboard data
             const dashboardRes = await api.getUnifiedDashboard(orgId);
             
             if (dashboardRes.success && dashboardRes.data) {
                 const dashboard = dashboardRes.data;
-                
-                // Inventory stats from backend
-                const inventoryStats = dashboard.inventory || { totalApps: 0, vendors: 0 };
-
-                // License info from backend (normalize to avoid NaN and add daysRemaining)
-                const licenseInfo = this.normalizeLicenseInfo(dashboard.license);
-
-                const coverage = dashboard.coverage || { healthy: 0, stale: 0, offline: 0, total: 0 };
-                const actions = dashboard.actions || [];
-                const generatedAt = dashboard.generatedAt || new Date().toISOString();
-                const threatSummary = this.normalizeThreatSummary(dashboard.threats);
+                this.setCachedDashboard(cacheKey, dashboard);
 
                 this.setState({
-                    dashboardData: dashboard,
-                    deviceStats: dashboard.devices || { total: 0, active: 0, disabled: 0, blocked: 0 },
-                    threatSummary,
-                    complianceSummary: dashboard.compliance || { score: 0, compliant: 0, nonCompliant: 0, total: 0 },
-                    recentAlerts: dashboard.alerts || [],
-                    recentDevices: dashboard.recentDevices || [],
-                    securityScore: dashboard.securityScore || 0,
-                    securityGrade: dashboard.grade || 'N/A',
-                    lastScan: dashboard.lastScan || 'Never',
-                    nextScan: dashboard.nextScan || 'Pending',
-                    inventoryStats,
-                    licenseInfo,
-                    coverage,
-                    actions,
-                    generatedAt,
-                    loading: false
+                    ...this.buildDashboardState(dashboard),
+                    loading: false,
+                    isRefreshingInBackground: false
                 });
                 
                 // Auto-load posture snapshot in background for actions widget
@@ -192,7 +252,36 @@ export class DashboardPage extends Component {
             }
         } catch (error) {
             console.error('[UnifiedDashboard] Load failed:', error);
-            this.setState({ error: error.message, loading: false });
+            this.setState({ error: error.message, loading: false, isRefreshingInBackground: false });
+        }
+    }
+
+    async loadFreshDashboardData(cacheKey, orgId) {
+        try {
+            console.log('[UnifiedDashboard] 🔄 Background refresh starting...');
+
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const dashboardRes = await api.getUnifiedDashboard(orgId);
+
+            if (dashboardRes.success && dashboardRes.data) {
+                const dashboard = dashboardRes.data;
+                this.setCachedDashboard(cacheKey, dashboard);
+
+                this.setState({
+                    ...this.buildDashboardState(dashboard),
+                    isRefreshingInBackground: false
+                });
+
+                this.loadPostureSnapshotInBackground();
+                console.log('[UnifiedDashboard] ✅ Background refresh complete');
+                return;
+            }
+
+            throw new Error(dashboardRes.message || dashboardRes.error || 'Failed to load dashboard data');
+        } catch (error) {
+            console.warn('[UnifiedDashboard] Background refresh failed:', error);
+            this.setState({ isRefreshingInBackground: false });
         }
     }
 
@@ -1613,9 +1702,24 @@ export class DashboardPage extends Component {
                     <div class="row g-2 align-items-center">
                         <div class="col">
                             <div class="page-pretitle">Security Command Center</div>
-                            <h2 class="page-title">${orgName}</h2>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <h2 class="page-title mb-0">${orgName}</h2>
+                                ${this.state.isRefreshingInBackground ? html`
+                                    <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
+                                        <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
+                                        Refreshing...
+                                    </span>
+                                ` : null}
+                            </div>
                         </div>
-                        <div class="col-auto ms-auto">
+                        <div class="col-auto ms-auto d-flex gap-2">
+                            <button 
+                                class="btn btn-icon" 
+                                onClick=${() => this.loadDashboardData(true)}
+                                title="Refresh dashboard data"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                            </button>
                             ${this.renderQuickActions()}
                         </div>
                     </div>

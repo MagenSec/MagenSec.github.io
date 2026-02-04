@@ -36,6 +36,41 @@ const { useState, useEffect, useRef } = window.preactHooks;
 // Chart instance at module level to persist across component renders
 let auditChartInstance = null;
 
+// Cache helper functions for SWR pattern
+const getCachedAuditData = (key, ttlMinutes = 30) => {
+    try {
+        const cached = localStorage.getItem(key);
+        if (!cached) return null;
+
+        const { data, timestamp } = JSON.parse(cached);
+        const ageMs = Date.now() - timestamp;
+        const TTL_MS = ttlMinutes * 60 * 1000;
+        const isStale = ageMs >= TTL_MS;
+
+        if (isStale) {
+            console.log(`[Audit] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s, ttl: ${ttlMinutes}m)`);
+        } else {
+            console.log(`[Audit] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
+        }
+        return { data, isStale };
+    } catch (err) {
+        console.warn('[Audit] Cache read error:', err);
+    }
+    return null;
+};
+
+const setCachedAuditData = (key, data) => {
+    try {
+        localStorage.setItem(key, JSON.stringify({
+            data,
+            timestamp: Date.now()
+        }));
+        console.log(`[Audit] 💾 Cache SAVE: ${key}`);
+    } catch (err) {
+        console.warn('[Audit] Cache write error:', err);
+    }
+};
+
 export function AuditPage() {
     logger.debug('[Audit] Component rendering...');
 
@@ -44,6 +79,7 @@ export function AuditPage() {
 
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [isRefreshingInBackground, setIsRefreshingInBackground] = useState(false);
     const scrollObserverRef = useRef(null);
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'timeline', 'user-activity', or 'device-activity'
     const [events, setEvents] = useState([]);
@@ -600,21 +636,44 @@ export function AuditPage() {
         await loadEvents();
     };
 
-    const loadEvents = async () => {
+    const loadEvents = async (forceRefresh = false) => {
         try {
             logger.debug('[Audit] loadEvents called');
-            setLoading(true);
-            setLoadingAnalytics(true);
             const currentOrg = orgContext.getCurrentOrg();
 
             if (!currentOrg?.orgId) {
                 logger.warn('[Audit] No org selected');
                 toast.show('Please select an organization', 'warning');
-                setLoading(false);
-                setLoadingAnalytics(false);
                 return;
             }
 
+            const cacheKey = `audit_${currentOrg.orgId}_${rangeDays}`;
+
+            // Step 1: Try cache first (unless force refresh)
+            if (!forceRefresh) {
+                const cached = getCachedAuditData(cacheKey, 30); // 30 minute TTL
+                if (cached) {
+                    console.log('[Audit] ⚡ Loading from cache immediately (even if stale)...');
+                    setEvents(cached.data.events || []);
+                    setHasMore(cached.data.hasMore || false);
+                    
+                    const analyticsData = computeAnalytics(cached.data.events || []);
+                    setAnalytics(analyticsData);
+                    setLoading(false);
+                    setLoadingAnalytics(false);
+                    setIsRefreshingInBackground(true);
+                    
+                    // Always trigger background refresh (even if cache not stale)
+                    loadFreshEvents(cacheKey, currentOrg.orgId);
+                    return;
+                }
+            }
+
+            // Step 2: Show loading state if no cache
+            setLoading(true);
+            setLoadingAnalytics(true);
+
+            // Step 3: Fetch fresh data
             const baseQuery = new URLSearchParams({
                 pageSize: '500',
                 days: String(rangeDays)
@@ -651,6 +710,12 @@ export function AuditPage() {
                 }
             } while (true);
 
+            // Cache the response
+            setCachedAuditData(cacheKey, {
+                events: allEvents,
+                hasMore: Boolean(continuationToken)
+            });
+
             setEvents(allEvents);
             setHasMore(Boolean(continuationToken));
             const analyticsData = computeAnalytics(allEvents);
@@ -661,6 +726,65 @@ export function AuditPage() {
         } finally {
             setLoading(false);
             setLoadingAnalytics(false);
+            setIsRefreshingInBackground(false);
+        }
+    };
+
+    const loadFreshEvents = async (cacheKey, orgId) => {
+        try {
+            console.log('[Audit] 🔄 Background refresh starting...');
+            
+            // Wait for UI to settle
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const baseQuery = new URLSearchParams({
+                pageSize: '500',
+                days: String(rangeDays)
+            });
+
+            const allEvents = [];
+            let continuationToken = null;
+            let pageFetches = 0;
+            const maxPages = 50;
+
+            do {
+                const query = new URLSearchParams(baseQuery);
+                if (continuationToken) {
+                    query.set('pageToken', continuationToken);
+                }
+
+                const res = await api.get(`/api/v1/orgs/${orgId}/audit?${query.toString()}`);
+
+                if (res.success && res.data) {
+                    allEvents.push(...(res.data.events || []));
+                    continuationToken = res.data.continuationToken;
+                    pageFetches += 1;
+
+                    if (!continuationToken || pageFetches >= maxPages) {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            } while (true);
+
+            // Cache fresh data
+            setCachedAuditData(cacheKey, {
+                events: allEvents,
+                hasMore: Boolean(continuationToken)
+            });
+
+            // Silent update
+            setEvents(allEvents);
+            setHasMore(Boolean(continuationToken));
+            const analyticsData = computeAnalytics(allEvents);
+            setAnalytics(analyticsData);
+            setIsRefreshingInBackground(false);
+
+            console.log('[Audit] ✅ Background refresh complete');
+        } catch (err) {
+            console.warn('[Audit] Background refresh failed:', err);
+            setIsRefreshingInBackground(false);
         }
     };
 
@@ -1748,14 +1872,22 @@ export function AuditPage() {
                 <div class="page-header d-print-none">
                     <div class="row align-items-center">
                         <div class="col">
-                            <h2 class="page-title">Audit</h2>
+                            <div class="d-flex align-items-center gap-2">
+                                <h2 class="page-title mb-0">Audit</h2>
+                                ${isRefreshingInBackground ? html`
+                                    <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
+                                        <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
+                                        Refreshing...
+                                    </span>
+                                ` : ''}
+                            </div>
                             <div class="text-muted mt-1">
                                 ${activeTab === 'analytics' ? 'Analytics Dashboard' : `${filteredEvents.length} ${filteredEvents.length === 1 ? 'event' : 'events'}`}
                                 ${activeTab === 'timeline' && (filters.eventType !== 'all' || filters.search || filters.dateFrom || filters.dateTo) ? '(filtered)' : ''}
                             </div>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-icon" onClick=${() => activeTab === 'analytics' ? loadAnalytics() : loadEvents()} title="Refresh">
+                            <button class="btn btn-icon" onClick=${() => activeTab === 'analytics' ? loadAnalytics(true) : loadEvents(true)} title="Refresh">
                                 <i class="ti ti-refresh"></i>
                             </button>
                         </div>

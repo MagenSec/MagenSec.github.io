@@ -20,7 +20,8 @@ export class PosturePage extends Component {
             error: null,
             snapshot: null,
             triggeredGeneration: false,
-            period: 'daily'
+            period: 'daily',
+            isRefreshingInBackground: false
         };
         this.orgUnsubscribe = null;
     }
@@ -34,6 +35,40 @@ export class PosturePage extends Component {
         if (this.orgUnsubscribe) this.orgUnsubscribe();
     }
 
+    getCachedSnapshot(key, ttlMinutes = 30) {
+        try {
+            const cached = localStorage.getItem(key);
+            if (!cached) return null;
+
+            const { data, timestamp } = JSON.parse(cached);
+            const ageMs = Date.now() - timestamp;
+            const TTL_MS = ttlMinutes * 60 * 1000;
+            const isStale = ageMs >= TTL_MS;
+
+            if (isStale) {
+                console.log(`[Posture] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s, ttl: ${ttlMinutes}m)`);
+            } else {
+                console.log(`[Posture] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
+            }
+            return { data, isStale };
+        } catch (err) {
+            console.warn('[Posture] Cache read error:', err);
+        }
+        return null;
+    }
+
+    setCachedSnapshot(key, data) {
+        try {
+            localStorage.setItem(key, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+            console.log(`[Posture] 💾 Cache SAVE: ${key}`);
+        } catch (err) {
+            console.warn('[Posture] Cache write error:', err);
+        }
+    }
+
     async loadSnapshot(force = false) {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg || !currentOrg.orgId) {
@@ -41,14 +76,34 @@ export class PosturePage extends Component {
             return;
         }
 
+        const period = this.state?.period || 'daily';
+        const cacheKey = `posture_${currentOrg.orgId}_${period}`;
+
+        // Step 1: Try cache first (even if stale)
+        if (!force) {
+            const cached = this.getCachedSnapshot(cacheKey, 30);
+            if (cached) {
+                console.log('[Posture] ⚡ Loading from cache immediately (will refresh in background)...');
+                this.setState({ 
+                    snapshot: cached.data,
+                    loading: false, 
+                    isRefreshingInBackground: true 
+                });
+                // Continue to background refresh
+                this.loadFreshSnapshot(cacheKey, period);
+                return;
+            }
+        }
+
+        // Step 2: Show loading state if no cache
         this.setState({
             loading: !this.state.snapshot || force,
             refreshing: force,
             error: null
         });
 
+        // Step 3: Fetch fresh data
         try {
-            const period = this.state?.period || 'daily';
             const res = await api.getPostureSnapshot(currentOrg.orgId, { period, force });
             const payload = res?.data || res;
             const snapshot = payload?.snapshot || payload?.data?.snapshot || null;
@@ -58,11 +113,15 @@ export class PosturePage extends Component {
                 throw new Error('Snapshot unavailable');
             }
 
+            // Cache the response
+            this.setCachedSnapshot(cacheKey, snapshot);
+
             this.setState({
                 snapshot,
                 triggeredGeneration,
                 loading: false,
-                refreshing: false
+                refreshing: false,
+                isRefreshingInBackground: false
             });
         } catch (err) {
             logger.error('[Posture] Failed to load snapshot:', err);
@@ -74,8 +133,41 @@ export class PosturePage extends Component {
             this.setState({
                 error: errorMsg,
                 loading: false,
-                refreshing: false
+                refreshing: false,
+                isRefreshingInBackground: false
             });
+        }
+    }
+
+    async loadFreshSnapshot(cacheKey, period) {
+        try {
+            console.log('[Posture] 🔄 Background refresh starting...');
+            
+            // Wait for UI to settle
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const currentOrg = orgContext.getCurrentOrg();
+            if (!currentOrg || !currentOrg.orgId) return;
+
+            const res = await api.getPostureSnapshot(currentOrg.orgId, { period, force: false });
+            const payload = res?.data || res;
+            const snapshot = payload?.snapshot || payload?.data?.snapshot || null;
+
+            if (snapshot) {
+                // Cache the fresh data
+                this.setCachedSnapshot(cacheKey, snapshot);
+
+                // Silent update
+                this.setState(prev => ({
+                    snapshot,
+                    isRefreshingInBackground: false
+                }));
+
+                console.log('[Posture] ✅ Background refresh complete');
+            }
+        } catch (err) {
+            console.warn('[Posture] Background refresh failed:', err);
+            this.setState({ isRefreshingInBackground: false });
         }
     }
 
@@ -402,13 +494,30 @@ export class PosturePage extends Component {
                 <div class="container">
                     <div class="row g-2 align-items-center">
                         <div class="col">
-                            <h2 class="page-title">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
-                                Security Posture
-                            </h2>
+                            <div class="d-flex align-items-center gap-2">
+                                <h2 class="page-title mb-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+                                    Security Posture
+                                </h2>
+                                ${this.state.isRefreshingInBackground ? html`
+                                    <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
+                                        <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
+                                        Refreshing...
+                                    </span>
+                                ` : ''}
+                            </div>
                             <div class="page-subtitle">
                                 <span class="text-muted">Generated: ${generatedAt}</span>
                             </div>
+                        </div>
+                        <div class="col-auto ms-auto">
+                            <button 
+                                class="btn btn-icon" 
+                                onClick=${() => this.loadSnapshot(true)}
+                                title="Refresh snapshot"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -13,7 +13,8 @@ export class AssetsPage extends Component {
             searchTerm: '',
             riskFilter: 'all',
             sortColumn: 'riskScore',
-            sortDirection: 'desc'
+            sortDirection: 'desc',
+            isRefreshingInBackground: false
         };
     }
 
@@ -28,9 +29,43 @@ export class AssetsPage extends Component {
         }
     }
 
-    async loadAssets() {
+    // Cache helper methods
+    getCachedAssets(key, ttlMinutes = 30) {
         try {
-            this.setState({ loading: true, error: null });
+            const cached = localStorage.getItem(key);
+            if (!cached) return null;
+            
+            const { data, timestamp } = JSON.parse(cached);
+            const ageMs = Date.now() - timestamp;
+            const TTL_MS = ttlMinutes * 60 * 1000;
+            const isStale = ageMs >= TTL_MS;
+            
+            if (isStale) {
+                console.log(`[Assets] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs/1000)}s, TTL: ${ttlMinutes}m)`);
+            } else {
+                console.log(`[Assets] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs/1000)}s)`);
+            }
+            return { data, isStale };
+        } catch (err) {
+            console.warn('[Assets] Cache read error:', err);
+        }
+        return null;
+    }
+
+    setCachedAssets(key, data) {
+        try {
+            localStorage.setItem(key, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+            console.log(`[Assets] 💾 Cache SAVED: ${key}`);
+        } catch (err) {
+            console.warn('[Assets] Cache write error:', err);
+        }
+    }
+
+    async loadAssets(forceRefresh = false) {
+        try {
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId;
             
@@ -38,24 +73,84 @@ export class AssetsPage extends Component {
                 throw new Error('No organization selected');
             }
 
+            // Step 1: Try cache first (even if stale)
+            if (!forceRefresh) {
+                const cacheKey = `assets_${orgId}`;
+                const cached = this.getCachedAssets(cacheKey, 30);
+                if (cached) {
+                    console.log('[Assets] ⚡ Loading from cache immediately (will refresh in background)...');
+                    this.setState({
+                        assets: cached.data,
+                        loading: false,
+                        isRefreshingInBackground: true
+                    });
+                    // Trigger background refresh without blocking
+                    this.loadFreshAssets();
+                    return;
+                }
+            }
+
+            // Step 2: No cache, show loading spinner
+            this.setState({ loading: true, error: null });
+
+            // Step 3: Fetch fresh data
             const response = await api.getSoftwareInventory(orgId);
             
             if (response.success) {
-                // The API returns array directly in data
                 const assets = Array.isArray(response.data) ? response.data : [];
+                
+                // Cache the response
+                this.setCachedAssets(`assets_${orgId}`, assets);
+                
                 this.setState({ 
                     assets: assets, 
-                    loading: false 
+                    loading: false,
+                    isRefreshingInBackground: false
                 });
             } else {
                 throw new Error(response.message || 'Failed to load software inventory');
             }
         } catch (err) {
-            console.error('Failed to load assets:', err);
+            console.error('[Assets] Failed to load:', err);
             this.setState({ 
                 error: err.message || 'Failed to load software inventory. Please try again.', 
-                loading: false 
+                loading: false,
+                isRefreshingInBackground: false
             });
+        }
+    }
+
+    async loadFreshAssets() {
+        try {
+            console.log('[Assets] 🔄 Background refresh starting...');
+            
+            const currentOrg = orgContext.getCurrentOrg();
+            const orgId = currentOrg?.orgId;
+            
+            if (!orgId) return;
+
+            // Wait a moment for UI to settle
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const response = await api.getSoftwareInventory(orgId);
+            
+            if (response.success) {
+                const assets = Array.isArray(response.data) ? response.data : [];
+                
+                // Update cache
+                this.setCachedAssets(`assets_${orgId}`, assets);
+                
+                // Silently update UI
+                this.setState(prev => ({
+                    assets: assets,
+                    isRefreshingInBackground: false
+                }));
+                
+                console.log('[Assets] ✅ Background refresh complete');
+            }
+        } catch (err) {
+            console.warn('[Assets] Background refresh failed:', err);
+            this.setState({ isRefreshingInBackground: false });
         }
     }
 
@@ -174,7 +269,28 @@ export class AssetsPage extends Component {
             <div class="page-header d-print-none">
                 <div class="row align-items-center">
                     <div class="col">
-                        <h2 class="page-title">Application Inventory</h2>
+                        <div class="d-flex align-items-center gap-2">
+                            <h2 class="page-title mb-0">Application Inventory</h2>
+                            ${this.state.isRefreshingInBackground ? html`
+                                <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
+                                    <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
+                                    Refreshing...
+                                </span>
+                            ` : ''}
+                        </div>
+                        <div class="page-subtitle">
+                            <span class="text-muted">Track installed software, versions, and vulnerabilities across devices</span>
+                        </div>
+                    </div>
+                    <div class="col-auto ms-auto">
+                        <button 
+                            class="btn btn-icon" 
+                            onClick=${() => this.loadAssets(true)}
+                            title="Refresh inventory"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                        </button>
+                    </div>
                         <div class="text-muted mt-1">${assets.length} Applications Installed</div>
                     </div>
                     <div class="col-auto ms-auto d-print-none">

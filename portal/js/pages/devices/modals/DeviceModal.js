@@ -3,6 +3,7 @@
  */
 import { formatDate } from '../../device-detail/utils/DateUtils.js';
 import { PiiDecryption } from '@utils/piiDecryption.js';
+import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDotClass, getTrendIcon, getTrendClass } from '../DeviceHealthRenderer.js';
 
 export function renderDeviceModal(component) {
     const { html } = window;
@@ -94,16 +95,40 @@ export function renderDeviceModal(component) {
                                 <div class="col-md-5">
                                     <h5>Security Status</h5>
                                     ${(() => {
+                                        const health = renderHealthStatus(component.state.selectedDevice);
+                                        const risk = renderRiskIndicator(component.state.selectedDevice);
+                                        const patch = renderPatchStatus(component.state.selectedDevice);
+                                        const patchBadgeClass = patch.badge === 'bg-success-lt' ? 'bg-success-lt text-success'
+                                            : patch.badge === 'bg-info-lt' ? 'bg-info-lt text-info'
+                                            : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
+                                            : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
+                                            : patch.badge;
+                                        const riskTrend = Number.isFinite(risk.trend7d) ? risk.trend7d : 0;
                                         const summary = component.state.deviceSummaries[component.state.selectedDevice.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                                         const displayScore = (component.state.enrichedScores[component.state.selectedDevice.id]?.score ?? summary.score ?? 0);
                                         return html`
                                             <div class="d-flex flex-column gap-3">
+                                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                                    <span class="badge ${health.status === 'online' ? 'bg-success-lt text-success' : health.status === 'stale' ? 'bg-warning-lt text-warning' : health.status === 'offline' ? 'bg-danger-lt text-danger' : health.status === 'blocked' ? 'bg-dark-lt text-dark' : 'bg-secondary-lt text-secondary'}">
+                                                        <span class="${getStatusDotClass(component.state.selectedDevice.health)} me-1"></span>
+                                                        ${health.text}
+                                                    </span>
+                                                    <span class="badge ${risk.badge || 'bg-secondary'} text-white">
+                                                        ${risk.severity || 'LOW'} · ${Math.round(Number.isFinite(risk.score) ? risk.score : displayScore)}%
+                                                    </span>
+                                                    ${patch.percent !== null ? html`
+                                                        <span class="badge ${patchBadgeClass}">${Math.round(patch.percent)}% patched</span>
+                                                    ` : html`
+                                                        <span class="badge bg-secondary-lt text-secondary">No patch data</span>
+                                                    `}
+                                                    <span class="text-muted small ${getTrendClass(riskTrend)}">${getTrendIcon(riskTrend)} ${Math.abs(Math.round(riskTrend))} (7d)</span>
+                                                </div>
                                                 <div class="d-flex align-items-start gap-3 flex-wrap" style="cursor: pointer;" onclick=${(e) => { e.preventDefault(); component.openRiskExplanationModal(component.state.selectedDevice); }} title="Click to see what drives this risk score">
                                                     <div style="width: 88px; height: 88px;" ref=${(el) => { component.riskChartEl = el; }}></div>
                                                     <div class="d-flex flex-column gap-1 align-items-start" style="min-width: 140px;">
                                                         <div class="d-flex align-items-center gap-2">
                                                             <span class="text-muted small">Risk Score:</span>
-                                                            <span class="badge ${summary.worstSeverity === 'CRITICAL' ? 'bg-danger-lt' : summary.worstSeverity === 'HIGH' ? 'bg-warning-lt' : summary.worstSeverity === 'MEDIUM' ? 'bg-secondary-lt' : 'bg-success-lt'}">${summary.worstSeverity}</span>
+                                                            <span class="badge ${summary.worstSeverity === 'CRITICAL' ? 'bg-danger-lt text-danger' : summary.worstSeverity === 'HIGH' ? 'bg-warning-lt text-warning' : summary.worstSeverity === 'MEDIUM' ? 'bg-secondary-lt text-secondary' : 'bg-success-lt text-success'}">${summary.worstSeverity}</span>
                                                         </div>
                                                         <div class="text-muted small">Click for details</div>
                                                     </div>
