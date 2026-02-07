@@ -19,7 +19,8 @@ class ReportPreviewPage extends Component {
             sendingEmail: false,
             emailSent: false,
             emailMessage: null,
-            showSendMenu: false
+            showSendMenu: false,
+            selectedFramework: 'Both' // CIS, NIST, or Both
         };
     }
 
@@ -81,6 +82,10 @@ class ReportPreviewPage extends Component {
 
     handleTierChange = (tier) => {
         this.setState({ selectedTier: tier, emailSent: false });
+    }
+
+    handleFrameworkChange = (framework) => {
+        this.setState({ selectedFramework: framework, emailSent: false });
     }
 
     handleSendEmail = async (recipient = 'owner', customEmail = '') => {
@@ -158,6 +163,49 @@ class ReportPreviewPage extends Component {
         `;
     }
 
+    renderFrameworkSelector() {
+        const { selectedFramework } = this.state;
+        
+        return html`
+            <div className="framework-selector">
+                <div className="selector-header">
+                    <div>
+                        <div className="eyebrow">Compliance Framework</div>
+                        <div className="selector-sub">Choose which security frameworks to include in this report preview</div>
+                    </div>
+                </div>
+                <div className="framework-segmented">
+                    <button
+                        className=${`segment ${selectedFramework === 'CIS' ? 'active' : ''}`}
+                        onClick=${() => this.handleFrameworkChange('CIS')}
+                        title="CIS Controls v8 - Practical, prioritized security controls"
+                    >
+                        <span className="segment-label">CIS Controls Only</span>
+                    </button>
+                    <button
+                        className=${`segment ${selectedFramework === 'NIST' ? 'active' : ''}`}
+                        onClick=${() => this.handleFrameworkChange('NIST')}
+                        title="NIST CSF 2.0 - Governance, Protect, Detect, Respond, Recover"
+                    >
+                        <span className="segment-label">NIST CSF Only</span>
+                    </button>
+                    <button
+                        className=${`segment ${selectedFramework === 'Both' ? 'active' : ''}`}
+                        onClick=${() => this.handleFrameworkChange('Both')}
+                        title="Show all compliance gaps across both frameworks"
+                    >
+                        <span className="segment-label">Both CIS & NIST</span>
+                    </button>
+                </div>
+                <p className="framework-note">
+                    <strong>CIS:</strong> Practical controls for defense. 
+                    <strong className="ms-2">NIST:</strong> Governance and risk management framework. 
+                    <strong className="ms-2">Both:</strong> Comprehensive view (recommended).
+                </p>
+            </div>
+        `;
+    }
+
     renderEmailPreview() {
         const { snapshot, selectedTier, renderedByTier } = this.state;
 
@@ -229,6 +277,8 @@ class ReportPreviewPage extends Component {
                 `}
 
                 ${this.renderTierSelector()}
+                
+                ${this.renderFrameworkSelector()}
 
                 <div className="report-actions">
                     <div className="send-group">
@@ -327,6 +377,24 @@ class ReportPreviewPage extends Component {
                     .segment-label { font-size: 12px; }
                     .segment-locked { margin-left: auto; }
                     .tier-note {
+                        font-size: 13px;
+                        color: #64748b;
+                        margin: 10px 0 0 0;
+                    }
+                    .framework-selector {
+                        background: #f8fafc;
+                        padding: 20px;
+                        border-radius: 8px;
+                        margin-bottom: 24px;
+                        border: 1px solid #e2e8f0;
+                    }
+                    .framework-segmented {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 6px;
+                        margin-top: 10px;
+                    }
+                    .framework-note {
                         font-size: 13px;
                         color: #64748b;
                         margin: 10px 0 0 0;

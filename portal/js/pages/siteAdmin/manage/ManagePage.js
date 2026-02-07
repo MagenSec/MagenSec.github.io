@@ -76,11 +76,11 @@ export class ManagePage extends Component {
                     ownerEmail: data.ownerEmail,
                     seats: data.seats,
                     durationDays: data.duration,
-                    reportEnabled: data.reportEnabled,
+                    dailyReportEnabled: data.reportEnabled,
                     weeklyEnabled: data.weeklyEnabled,
                     dailySnapshotEnabled: data.dailySnapshotEnabled,
                     sendToAllTeamMembers: data.sendToAllTeamMembers,
-                    reportTier: data.reportTier
+                    weeklyReportTier: data.reportTier
                 })
             });
             
@@ -105,11 +105,11 @@ export class ManagePage extends Component {
                 method: 'PUT',
                 body: JSON.stringify({
                     orgName: data.orgName,
-                    reportEnabled: data.reportEnabled,
+                    dailyReportEnabled: data.reportEnabled,
                     weeklyEnabled: data.weeklyEnabled,
                     dailySnapshotEnabled: data.dailySnapshotEnabled,
                     sendToAllTeamMembers: data.sendToAllTeamMembers,
-                    reportTier: data.reportTier
+                    weeklyReportTier: data.reportTier
                 })
             });
 

@@ -27,11 +27,11 @@ export default class AIAnalystChatPage extends Component {
             sending: false,
             error: null,
             suggestions: [
-                'What are my top 5 critical vulnerabilities?',
-                'Show devices with outdated software',
-                'Which devices need immediate attention?',
-                'Compliance status summary',
-                'Recent security alerts'
+                'What are my CIS compliance gaps?',
+                'Show me critical compliance gaps only',
+                'Tell me about control 7.1',
+                'How do I fix gap 7.1?',
+                "What's the effort for gap 7.1?"
             ],
             conversationId: this.generateConversationId()
         };
@@ -57,6 +57,22 @@ export default class AIAnalystChatPage extends Component {
 
         // Load chat history if available
         this.loadChatHistory();
+
+        const initialQuestion = this.getInitialQuestionFromHash();
+        if (initialQuestion) {
+            this.setState({ inputText: initialQuestion }, () => {
+                this.sendMessage(initialQuestion);
+            });
+        }
+    }
+
+    getInitialQuestionFromHash() {
+        const hash = window.location.hash || '';
+        const queryIndex = hash.indexOf('?');
+        if (queryIndex < 0) return '';
+        const query = hash.substring(queryIndex + 1);
+        const params = new URLSearchParams(query);
+        return (params.get('q') || '').trim();
     }
 
     componentWillUnmount() {

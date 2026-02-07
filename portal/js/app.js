@@ -16,6 +16,7 @@ import UnifiedDashboard from './pages/dashboard/UnifiedDashboard.js';
 import DevicesPage from './pages/devices/Devices.js';
 import { DeviceDetailPage } from './pages/device-detail/DeviceDetail.js';
 import { AnalystPage } from './pages/analyst/Analyst.js';
+import AIAnalystChatPage from './pages/ai/aiAnalystChat.js';
 import { PosturePage } from './pages/posture/Posture.js';
 import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
 // TEMPORARY: Wired up _unused/ pages for validation (will be removed or re-wired later)
@@ -26,6 +27,9 @@ import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
 // import { SecurityDashboardPage } from './pages/_unused/securityDashboard.js';
 // import { ResponseActionsPage } from './pages/_unused/responseActions.js';
 import { AssetsPage } from './pages/inventory/Assets.js';
+import { AppsInventoryPage } from './pages/inventory/AppsInventory.js';
+import { Vulnerabilities } from './pages/vulnerabilities/index.js';
+import { CVEDetails } from './pages/cves/index.js';
 import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
 import { SettingsPage } from './pages/settings/Settings.js';
 import { AuditPage } from './pages/audit/Audit.js';
@@ -34,6 +38,7 @@ import { ManagePage } from './pages/siteAdmin/manage/ManagePage.js';
 import { ActivityPage } from './pages/siteAdmin/activity/ActivityPage.js';
 import { PreviewPage } from './pages/siteAdmin/preview/PreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
+import { DocumentationHub } from './pages/docs/DocumentationHub/index.js';
 
 const { html, render } = window;
 
@@ -75,11 +80,15 @@ function App() {
             return html`<${DeviceDetailPage} params=${{ deviceId: currentParams?.deviceId ?? currentCtx?.params?.deviceId ?? currentCtx?.params?.id }} />`;
         
         case 'analyst':
+            return html`<${AIAnalystChatPage} />`;
+        case 'analyst-old':
             return html`<${AnalystPage} />`;
         case 'posture':
             return html`<${PosturePage} />`;
         case 'posture-ai':
             return html`<${AIPosturePage} />`;
+        case 'documentation-hub':
+            return html`<${DocumentationHub} />`;
         // TEMPORARY: _unused/ pages for validation
         // DISABLED: Routes commented out - pages not deployed to production
         // case 'threat-intel':
@@ -97,6 +106,12 @@ function App() {
         //     return html`<${ReportPreviewPage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
+        case 'apps':
+            return html`<${AppsInventoryPage} />`;
+        case 'vulnerabilities':
+            return html`<${Vulnerabilities} />`;
+        case 'cves':
+            return html`<${CVEDetails} cveId=${ currentParams?.cveId ?? currentCtx?.params?.cveId } />`;
         case 'siteadmin/business':
             return html`<${BusinessPage} />`;
         case 'siteadmin/manage':

@@ -1169,6 +1169,7 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
         const sendToAllTeamMembers = emailPreferences?.sendToAllTeamMembers ?? emailPreferences?.SendToAllTeamMembers ?? false;
         const reportRecipients = [];
         const ownerEmail = emailPreferences?.ownerEmail || emailPreferences?.OwnerEmail || '';
+        const complianceFramework = emailPreferences?.complianceFramework || emailPreferences?.ComplianceFramework || 'Both';
 
         const normalizedPreferences = {};
         EVENT_GROUPS.forEach(group => {
@@ -1186,7 +1187,8 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
             ownerEmail,
             sendToAllTeamMembers,
             reportRecipients,
-            preferences: normalizedPreferences
+            preferences: normalizedPreferences,
+            complianceFramework
         });
     }, [emailPreferences, orgId]);
 
@@ -1211,7 +1213,8 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
             ownerEmail: localPrefs.ownerEmail,
             sendToAllTeamMembers: localPrefs.sendToAllTeamMembers,
             reportRecipients: [],
-            preferences: localPrefs.preferences
+            preferences: localPrefs.preferences,
+            complianceFramework: localPrefs.complianceFramework
         };
         await onSavePreferences(payload);
         setEmailPreferences(payload);
@@ -1291,6 +1294,36 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
                 </div>
             </div>
 
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="card-title">Compliance Framework Preference</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Choose frameworks for security reports</label>
+                        <select 
+                            class="form-select"
+                            value=${localPrefs.complianceFramework || 'Both'}
+                            onChange=${(e) => setLocalPrefs({ ...localPrefs, complianceFramework: e.target.value })}
+                            disabled=${savingPreferences}
+                        >
+                            <option value="CIS">CIS Controls v8 Only</option>
+                            <option value="NIST">NIST CSF 2.0 Only</option>
+                            <option value="Both">Both CIS & NIST</option>
+                        </select>
+                        <div class="form-text">
+                            <strong>CIS Controls:</strong> Practical, prioritized security controls for defense against attacks.
+                            <br/><strong>NIST CSF:</strong> Framework for managing cybersecurity risk across functions (Govern, Protect, Detect, Respond, Recover).
+                            <br/><strong>Both:</strong> Show all gaps across both frameworks (recommended for comprehensive view).
+                        </div>
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="ti ti-info-circle me-2"></i>
+                        Your preference will be applied to all security reports sent to your organization.
+                    </div>
+                </div>
+            </div>
+
             <div class="row g-3">
                 ${EVENT_GROUPS.map(group => html`
                     <div class="col-12 col-lg-6">
@@ -1340,28 +1373,28 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
 
     useEffect(() => {
         if (reportConfig) {
-            // Normalize legacy fields if present and ensure required keys exist
+            // Normalize fields and ensure required keys exist
             const normalized = {
-                reportEnabled: reportConfig.reportEnabled ?? true,
-                weeklyEnabled: reportConfig.weeklyEnabled ?? (reportConfig.reportFrequency === 'weekly'),
-                dailySnapshotEnabled: reportConfig.dailySnapshotEnabled ?? (reportConfig.reportFrequency === 'daily'),
-                reportTier: reportConfig.reportTier ?? 'Basic',
-                sendToAllTeamMembers: reportConfig.sendToAllTeamMembers ?? true
+                dailyReportEnabled: reportConfig.dailyReportEnabled ?? false,
+                weeklyEnabled: reportConfig.weeklyEnabled ?? false,
+                dailySnapshotEnabled: reportConfig.dailySnapshotEnabled ?? false,
+                weeklyReportTier: reportConfig.weeklyReportTier ?? 'Basic',
+                sendToAllTeamMembers: reportConfig.sendToAllTeamMembers ?? false
             };
             // Personal orgs: force weekly off and tier Basic
             if (isPersonalOrg) {
                 normalized.weeklyEnabled = false;
-                normalized.reportTier = 'Basic';
+                normalized.weeklyReportTier = 'Basic';
             }
             setLocalConfig(normalized);
         } else {
             // Initialize with defaults
             const defaults = {
-                reportEnabled: true,
+                dailyReportEnabled: false,
                 weeklyEnabled: !isPersonalOrg, // Business: weekly on by default; Personal: off
                 dailySnapshotEnabled: false,
-                reportTier: isPersonalOrg ? 'Basic' : 'Professional',
-                sendToAllTeamMembers: true
+                weeklyReportTier: isPersonalOrg ? 'Basic' : 'Professional',
+                sendToAllTeamMembers: false
             };
             setLocalConfig(defaults);
         }
@@ -1374,9 +1407,8 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
     const handleToggle = (key) => {
         setLocalConfig({ ...localConfig, [key]: !localConfig[key] });
     };
-
     const handleTierChange = (value) => {
-        setLocalConfig({ ...localConfig, reportTier: value });
+        setLocalConfig({ ...localConfig, weeklyReportTier: value });
     };
 
     const handleSave = async () => {
@@ -1384,7 +1416,7 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
         // Ensure personal org constraints are respected
         if (isPersonalOrg) {
             payload.weeklyEnabled = false;
-            payload.reportTier = 'Basic';
+            payload.weeklyReportTier = 'Basic';
         }
         await onSaveReportConfig(payload);
     };
@@ -1474,7 +1506,7 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                                             id="tierPro"
                                             name="tier"
                                             value="Professional"
-                                            checked=${localConfig.reportTier === 'Professional'}
+                                            checked=${localConfig.weeklyReportTier === 'Professional'}
                                             onChange=${(e) => handleTierChange(e.target.value)}
                                             disabled=${savingReportConfig || isPersonalOrg}
                                         />
@@ -1505,7 +1537,7 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                                             id="tierPrem"
                                             name="tier"
                                             value="Premium"
-                                            checked=${localConfig.reportTier === 'Premium'}
+                                            checked=${localConfig.weeklyReportTier === 'Premium'}
                                             onChange=${(e) => handleTierChange(e.target.value)}
                                             disabled=${savingReportConfig || isPersonalOrg}
                                         />

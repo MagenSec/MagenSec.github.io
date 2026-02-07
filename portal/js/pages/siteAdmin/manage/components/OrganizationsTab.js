@@ -132,11 +132,11 @@ export function OrganizationsTab({
         try {
             const configRes = await window.api.get(`/api/v1/admin/email/${org.orgId}/config`);
             if (configRes?.success !== false && configRes?.data) {
-                setUpdateReportEnabled(configRes.data.reportEnabled !== false);
+                setUpdateReportEnabled(configRes.data.dailyReportEnabled !== false);
                 setUpdateWeeklyEnabled(!!configRes.data.weeklyEnabled);
                 setUpdateDailySnapshotEnabled(!!configRes.data.dailySnapshotEnabled);
                 setUpdateSendToAllMembers(configRes.data.sendToAllTeamMembers !== false);
-                setUpdateBusinessTier(configRes.data.reportTier || 'Professional');
+                setUpdateBusinessTier(configRes.data.weeklyReportTier || 'Professional');
             }
         } catch (err) {
             console.warn('[OrganizationsTab] Failed to load report config', err);

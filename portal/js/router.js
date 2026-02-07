@@ -235,6 +235,11 @@ export function initRouter(renderApp) {
         renderApp({ page: 'settings', ctx });
     });
 
+    // Documentation Hub (public, no auth required)
+    page('/docs', (ctx) => {
+        renderApp({ page: 'documentation-hub', ctx });
+    });
+
     // Account route REMOVED - account page is placeholder (login-based signup/profile)
 
     // Start router with hash-bang mode

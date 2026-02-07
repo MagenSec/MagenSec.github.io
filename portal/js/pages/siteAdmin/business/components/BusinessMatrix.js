@@ -748,6 +748,155 @@ export function BusinessMatrixPage() {
         `;
     }
 
+    // Build projected costs section with capacity planning scenarios
+    const buildProjectedCostsSection = (currentMetrics) => {
+        if (!currentMetrics || !currentMetrics.costAnalytics) return null;
+
+        const orgAllocations = currentMetrics.costAnalytics.orgAllocations || {};
+        const orgsWithProjections = Object.values(orgAllocations).filter(org => 
+            org.projectedCosts && org.projectedCosts.inactiveSeats > 0
+        );
+
+        if (orgsWithProjections.length === 0) return null;
+
+        const currencySymbol = currency === 'INR' ? '₹' : '$';
+        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
+
+        // Calculate platform-wide aggregates
+        const totalInactiveSeats = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.inactiveSeats, 0);
+        const totalAdditionalCostAvg = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.additionalCostAvg, 0) * currencyMultiplier;
+        const totalAdditionalCostPeak = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.additionalCostPeak, 0) * currencyMultiplier;
+        const totalCurrentMonthlyCost = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.currentMonthlyCost, 0) * currencyMultiplier;
+
+        return html`
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up me-2"></i>Projected Cost Impact (Capacity Planning)
+                    </h5>
+                    <span class="badge bg-warning-lt text-warning">${totalInactiveSeats} Inactive Seats</span>
+                </div>
+                <div class="card-body">
+                    <!-- Platform-Wide Summary -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <div class="text-body-secondary small mb-1">Current Monthly Cost</div>
+                                    <div class="h3 mb-0">${currencySymbol}${totalCurrentMonthlyCost.toFixed(2)}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success-lt">
+                                <div class="card-body text-center">
+                                    <div class="text-body-secondary small mb-1">Projected (Avg Scenario)</div>
+                                    <div class="h4 mb-0 text-success">+${currencySymbol}${totalAdditionalCostAvg.toFixed(2)}/mo</div>
+                                    <div class="text-body-secondary small">If all seats at avg telemetry</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning-lt">
+                                <div class="card-body text-center">
+                                    <div class="text-body-secondary small mb-1">Projected (Peak Scenario)</div>
+                                    <div class="h4 mb-0 text-warning">+${currencySymbol}${totalAdditionalCostPeak.toFixed(2)}/mo</div>
+                                    <div class="text-body-secondary small">If all seats at peak telemetry</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info-lt">
+                                <div class="card-body text-center">
+                                    <div class="text-body-secondary small mb-1">Cost Range</div>
+                                    <div class="h4 mb-0 text-info">${((totalAdditionalCostPeak - totalAdditionalCostAvg) / totalAdditionalCostAvg * 100).toFixed(0)}%</div>
+                                    <div class="text-body-secondary small">Peak vs Avg variance</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Per-Organization Projection Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Organization</th>
+                                    <th class="text-end">Active</th>
+                                    <th class="text-end">Licensed</th>
+                                    <th class="text-end">Inactive</th>
+                                    <th class="text-end">Current Cost/mo</th>
+                                    <th class="text-end">Projected Avg/mo</th>
+                                    <th class="text-end">Projected Peak/mo</th>
+                                    <th class="text-end">Additional (Avg)</th>
+                                    <th class="text-end">Additional (Peak)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${orgsWithProjections.map(org => {
+                                    const currentCost = org.projectedCosts.currentMonthlyCost * currencyMultiplier;
+                                    const projectedAvg = org.projectedCosts.projectedAvgMonthlyCost * currencyMultiplier;
+                                    const projectedPeak = org.projectedCosts.projectedPeakMonthlyCost * currencyMultiplier;
+                                    const additionalAvg = org.projectedCosts.additionalCostAvg * currencyMultiplier;
+                                    const additionalPeak = org.projectedCosts.additionalCostPeak * currencyMultiplier;
+
+                                    return html`
+                                        <tr>
+                                            <td>
+                                                <span class="font-weight-medium">${org.orgId}</span>
+                                            </td>
+                                            <td class="text-end">
+                                                <span class="badge bg-success-lt text-success">${org.activeDevices}</span>
+                                            </td>
+                                            <td class="text-end">
+                                                <span class="badge bg-primary-lt text-primary">${org.licensedSeats}</span>
+                                            </td>
+                                            <td class="text-end">
+                                                <span class="badge bg-warning-lt text-warning">${org.projectedCosts.inactiveSeats}</span>
+                                            </td>
+                                            <td class="text-end text-muted">
+                                                ${currencySymbol}${currentCost.toFixed(2)}
+                                            </td>
+                                            <td class="text-end text-success">
+                                                ${currencySymbol}${projectedAvg.toFixed(2)}
+                                            </td>
+                                            <td class="text-end text-warning">
+                                                ${currencySymbol}${projectedPeak.toFixed(2)}
+                                            </td>
+                                            <td class="text-end">
+                                                <span class="badge bg-success text-white">+${currencySymbol}${additionalAvg.toFixed(2)}</span>
+                                            </td>
+                                            <td class="text-end">
+                                                <span class="badge bg-warning text-white">+${currencySymbol}${additionalPeak.toFixed(2)}</span>
+                                            </td>
+                                        </tr>
+                                    `;
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Explanation Box -->
+                    <div class="alert alert-info mt-3 mb-0">
+                        <div class="d-flex">
+                            <div class="me-2">
+                                <i class="bi bi-info-circle"></i>
+                            </div>
+                            <div>
+                                <strong>How Projections Work:</strong>
+                                <ul class="mb-0 mt-1 ps-3">
+                                    <li><strong>Avg Scenario:</strong> Assumes new devices send average telemetry volume (based on current active devices)</li>
+                                    <li><strong>Peak Scenario:</strong> Assumes new devices send telemetry like your noisiest device (upper bound)</li>
+                                    <li><strong>Inactive Seats:</strong> Licensed capacity not yet utilized (opportunity for growth)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    };
+
     if (!metrics) {
         return html`<div class="alert alert-info">No metrics data available</div>`;
     }
@@ -961,6 +1110,37 @@ export function BusinessMatrixPage() {
                 </div>
             </div>
 
+            <!-- Cost Analytics Charts Row -->
+            ${metrics && metrics.costAnalytics && (metrics.costAnalytics.dailySnapshots && metrics.costAnalytics.dailySnapshots.length > 0) ? html`
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Daily Cost Trend (Last 30 Days)</h5>
+                            </div>
+                            <div class="card-body" style="height: 280px;">
+                                <canvas ref=${costTrendChartRef}></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Cost Breakdown by Resource Type</h5>
+                            </div>
+                            <div class="card-body" style="height: 280px;">
+                                <canvas ref=${costBreakdownChartRef}></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Azure Service Cost Trends Section -->
+            ${serviceCostTrendsSection}
+
+            <!-- Projected Costs Section -->
+            ${buildProjectedCostsSection(metrics)}
 
             <!-- Top Organizations Table with Expandable Device Rows -->
             <div class="card mb-4">

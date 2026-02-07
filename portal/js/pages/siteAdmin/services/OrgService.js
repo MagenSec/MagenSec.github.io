@@ -46,11 +46,11 @@ export async function loadOrgDetails(api, orgId) {
         console.warn('[OrgService] Could not load report config:', error);
         // Provide defaults
         result.emailConfig = {
-            reportEnabled: true,
+            dailyReportEnabled: true,
             weeklyEnabled: true,
             dailySnapshotEnabled: false,
             sendToAllTeamMembers: true,
-            reportTier: 'Professional'
+            weeklyReportTier: 'Professional'
         };
     }
 
@@ -114,10 +114,10 @@ export function buildOrgPayload(formData) {
         ownerEmail: formData.ownerEmail,
         seats: parseInt(formData.seats, 10),
         days: parseInt(formData.duration, 10),
-        reportEnabled: formData.reportEnabled,
+        dailyReportEnabled: formData.reportEnabled,
         weeklyEnabled: formData.weeklyEnabled,
         dailySnapshotEnabled: formData.dailySnapshotEnabled,
-        sendToAllTeamMembers: formData.sendToAllMembers,
-        reportTier: formData.businessTier
+        sendToAllTeamMembers: formData.sendToAllTeamMembers,
+        weeklyReportTier: formData.businessTier
     };
 }

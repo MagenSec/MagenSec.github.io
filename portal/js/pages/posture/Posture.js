@@ -21,7 +21,10 @@ export class PosturePage extends Component {
             snapshot: null,
             triggeredGeneration: false,
             period: 'daily',
-            isRefreshingInBackground: false
+            isRefreshingInBackground: false,
+            frameworkView: 'cis', // 'cis', 'nist', or 'both'
+            nistGaps: null,
+            nistGapsLoading: false
         };
         this.orgUnsubscribe = null;
     }
@@ -69,6 +72,93 @@ export class PosturePage extends Component {
         }
     }
 
+    getCachedNistGaps(key, ttlMinutes = 30) {
+        try {
+            const cached = localStorage.getItem(key);
+            if (!cached) return null;
+
+            const { data, timestamp } = JSON.parse(cached);
+            const ageMs = Date.now() - timestamp;
+            const TTL_MS = ttlMinutes * 60 * 1000;
+            const isStale = ageMs >= TTL_MS;
+
+            if (isStale) {
+                console.log(`[Posture] 📦 NIST Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
+            } else {
+                console.log(`[Posture] 📦 NIST Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
+            }
+            return { data, isStale };
+        } catch (err) {
+            console.warn('[Posture] NIST cache read error:', err);
+        }
+        return null;
+    }
+
+    setCachedNistGaps(key, data) {
+        try {
+            localStorage.setItem(key, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+            console.log(`[Posture] 💾 NIST Cache SAVE: ${key}`);
+        } catch (err) {
+            console.warn('[Posture] NIST cache write error:', err);
+        }
+    }
+
+    async loadNistGaps(force = false) {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg || !currentOrg.orgId) {
+            console.warn('[Posture] No organization selected for NIST gaps');
+            return;
+        }
+
+        const period = this.state?.period || 'daily';
+        const cacheKey = `nist_gaps_${currentOrg.orgId}_${period}`;
+
+        // Try cache first (even if stale)
+        if (!force) {
+            const cached = this.getCachedNistGaps(cacheKey, 30);
+            if (cached && cached.data && Array.isArray(cached.data)) {
+                console.log('[Posture] ⚡ Loading NIST gaps from cache...');
+                this.setState({ nistGaps: cached.data });
+                // Continue to background refresh
+                this.loadFreshNistGaps(cacheKey, period);
+                return;
+            }
+        }
+
+        // Fetch fresh NIST gaps from API
+        await this.loadFreshNistGaps(cacheKey, period);
+    }
+
+    async loadFreshNistGaps(cacheKey, period = 'daily') {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg || !currentOrg.orgId) return;
+
+        this.setState({ nistGapsLoading: true });
+
+        try {
+            // Fetch NIST gaps from Cache table via API
+            const response = await api.get(
+                `/api/v1/orgs/${currentOrg.orgId}/cache/nist-gaps?period=${period}`
+            );
+
+            if (response && response.success && response.data && Array.isArray(response.data.gaps)) {
+                const gaps = response.data.gaps;
+                this.setCachedNistGaps(cacheKey, gaps);
+                this.setState({ nistGaps: gaps, nistGapsLoading: false });
+                console.log(`[Posture] ✅ Loaded ${gaps.length} NIST gaps from API`);
+            } else {
+                console.warn('[Posture] No NIST gaps found in response');
+                this.setState({ nistGapsLoading: false });
+            }
+        } catch (err) {
+            console.warn('[Posture] Failed to load NIST gaps:', err);
+            this.setState({ nistGapsLoading: false });
+        }
+    }
+
     async loadSnapshot(force = false) {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg || !currentOrg.orgId) {
@@ -91,6 +181,8 @@ export class PosturePage extends Component {
                 });
                 // Continue to background refresh
                 this.loadFreshSnapshot(cacheKey, period);
+                // Also load NIST gaps in background
+                this.loadNistGaps(false);
                 return;
             }
         }
@@ -391,6 +483,123 @@ export class PosturePage extends Component {
         return 'bg-light border text-muted';
     }
 
+    getGapsByFunction(gaps) {
+        if (!gaps || !Array.isArray(gaps)) return {};
+        
+        const grouped = {
+            'IDENTIFY': [],
+            'PROTECT': [],
+            'DETECT': [],
+            'RESPOND': [],
+            'RECOVER': [],
+            'GOVERN': []
+        };
+
+        gaps.forEach(gap => {
+            const category = gap.category?.toUpperCase() || 'UNKNOWN';
+            if (grouped[category]) {
+                grouped[category].push(gap);
+            }
+        });
+
+        // Sort each function's gaps by priority descending
+        Object.keys(grouped).forEach(fn => {
+            grouped[fn].sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        });
+
+        return grouped;
+    }
+
+    priorityToColor(priority) {
+        if (priority >= 80) return 'bg-light border border-danger text-danger'; // P1
+        if (priority >= 60) return 'bg-light border border-warning text-warning'; // P2
+        if (priority >= 40) return 'bg-light border border-info text-info'; // P3
+        return 'bg-light border text-muted'; // P4
+    }
+
+    priorityToLabel(priority) {
+        if (priority >= 80) return 'P1: Critical';
+        if (priority >= 60) return 'P2: High';
+        if (priority >= 40) return 'P3: Medium';
+        return 'P4: Low';
+    }
+
+    renderNistComplianceGaps() {
+        const gaps = this.state.nistGaps;
+        if (!gaps || gaps.length === 0) {
+            return html`<div class="text-muted text-center py-4">No NIST gaps detected. Great job!</div>`;
+        }
+
+        const grouped = this.getGapsByFunction(gaps);
+        const functionOrder = ['IDENTIFY', 'PROTECT', 'DETECT', 'RESPOND', 'RECOVER', 'GOVERN'];
+        const functionIcons = {
+            'IDENTIFY': '🔍',
+            'PROTECT': '🛡️',
+            'DETECT': '👁️',
+            'RESPOND': '⚡',
+            'RECOVER': '♻️',
+            'GOVERN': '⚙️'
+        };
+
+        const summary = {
+            p1: gaps.filter(g => g.priority >= 80).length,
+            p2: gaps.filter(g => g.priority >= 60 && g.priority < 80).length,
+            p3: gaps.filter(g => g.priority >= 40 && g.priority < 60).length,
+            p4: gaps.filter(g => g.priority < 40).length
+        };
+
+        return html`
+            <div>
+                <!-- NIST Gap Summary Badges -->
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <span class="badge bg-light border border-danger text-danger">P1: ${summary.p1}</span>
+                    <span class="badge bg-light border border-warning text-warning">P2: ${summary.p2}</span>
+                    <span class="badge bg-light border border-info text-info">P3: ${summary.p3}</span>
+                    <span class="badge bg-light border text-muted">P4: ${summary.p4}</span>
+                </div>
+
+                <!-- NIST Gaps by Function -->
+                <div class="list-group">
+                    ${functionOrder.map(fn => {
+                        const fnGaps = grouped[fn] || [];
+                        if (fnGaps.length === 0) return '';
+                        
+                        return html`
+                            <div class="list-group-item" style="background-color: #f9f9f9;">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <span style="font-size: 1.2em;">${functionIcons[fn]}</span>
+                                    <div class="fw-semibold">${fn}</div>
+                                    <span class="badge bg-secondary">${fnGaps.length} gaps</span>
+                                </div>
+
+                                <div class="list-group" style="margin-left: 20px;">
+                                    ${fnGaps.slice(0, 3).map(gap => html`
+                                        <div class="list-group-item p-2 mb-1">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <div class="fw-semibold">${gap.subcategoryId}: ${gap.subcategoryTitle}</div>
+                                                    <div class="text-muted small">${gap.description}</div>
+                                                </div>
+                                                <span class="badge ${this.priorityToColor(gap.priority)}">${this.priorityToLabel(gap.priority)}</span>
+                                            </div>
+                                            <div class="text-muted small mt-2">
+                                                ${gap.estimatedEffort && html`<span>Effort: ${gap.estimatedEffort}</span>`}
+                                                ${gap.affectedAssets && html`<span> · Affects ${gap.affectedAssets} asset(s)</span>`}
+                                            </div>
+                                        </div>
+                                    `)}
+                                    ${fnGaps.length > 3 ? html`
+                                        <div class="text-muted small p-2">+${fnGaps.length - 3} more gaps</div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    })}
+                </div>
+            </div>
+        `;
+    }
+
     renderMetadata() {
         const meta = this.state.snapshot?.metadata;
         if (!meta) return null;
@@ -523,6 +732,51 @@ export class PosturePage extends Component {
                 </div>
             </div>
 
+            <div class="page-header d-print-none mb-3" style="margin-top: 20px;">
+                <div class="container">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h3 class="page-title mb-0">Compliance Frameworks</h3>
+                        </div>
+                        <div class="col-auto">
+                            <div class="btn-group" role="group">
+                                <button 
+                                    type="button" 
+                                    class="btn btn-sm ${this.state.frameworkView === 'cis' ? 'btn-primary' : 'btn-outline-primary'}"
+                                    onClick=${() => this.setState({ frameworkView: 'cis' })}
+                                >
+                                    CIS Controls
+                                </button>
+                                <button 
+                                    type="button" 
+                                    class="btn btn-sm ${this.state.frameworkView === 'nist' ? 'btn-primary' : 'btn-outline-primary'}"
+                                    onClick=${() => {
+                                        this.setState({ frameworkView: 'nist' });
+                                        if (!this.state.nistGaps) {
+                                            this.loadNistGaps(false);
+                                        }
+                                    }}
+                                >
+                                    NIST CSF
+                                </button>
+                                <button 
+                                    type="button" 
+                                    class="btn btn-sm ${this.state.frameworkView === 'both' ? 'btn-primary' : 'btn-outline-primary'}"
+                                    onClick=${() => {
+                                        this.setState({ frameworkView: 'both' });
+                                        if (!this.state.nistGaps) {
+                                            this.loadNistGaps(false);
+                                        }
+                                    }}
+                                >
+                                    Compare All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="container py-4">
 
                 ${this.renderHero()}
@@ -584,6 +838,46 @@ export class PosturePage extends Component {
                         </div>
                     </div>
                 </div>
+
+                <!-- Compliance Framework Cards -->
+                ${(this.state.frameworkView === 'cis' || this.state.frameworkView === 'both') ? html`
+                    <div class="card shadow-sm mt-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="card-title mb-0">CIS Controls v8 Compliance Gaps</div>
+                                <div class="text-muted small">Control deficiencies by priority</div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            ${this.state.snapshot?.cisComplianceGaps && Array.isArray(this.state.snapshot.cisComplianceGaps)
+                                ? this.state.snapshot.cisComplianceGaps.length > 0
+                                    ? html`<div class="text-muted">CIS gaps: ${this.state.snapshot.cisComplianceGaps.length} detected</div>`
+                                    : html`<div class="text-muted text-center py-4">No CIS gaps detected. Excellent!</div>`
+                                : html`<div class="text-muted text-center py-4">CIS gap analysis data not available.</div>`
+                            }
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${(this.state.frameworkView === 'nist' || this.state.frameworkView === 'both') ? html`
+                    <div class="card shadow-sm mt-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="card-title mb-0">NIST CSF 2.0 Compliance Gaps</div>
+                                <div class="text-muted small">6 functions across 21 subcategories</div>
+                            </div>
+                            ${this.state.nistGapsLoading ? html`
+                                <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
+                                    <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
+                                    Loading...
+                                </span>
+                            ` : ''}
+                        </div>
+                        <div class="card-body">
+                            ${this.renderNistComplianceGaps()}
+                        </div>
+                    </div>
+                ` : ''}
 
                 <div class="card shadow-sm mt-4">
                     <div class="card-header d-flex justify-content-between align-items-center">

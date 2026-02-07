@@ -238,3 +238,78 @@ export function isVersionOutdated(currentVersion, latestVersion) {
     
     return false;
 }
+
+/**
+ * Offline Compliance Risk Indicator
+ * Maps OfflineComplianceRisk enum values (0=Ok, 1=Low, 2=Medium, 3=High, 4=Critical)
+ * to display colors, text, and risk assessment
+ */
+export function renderOfflineComplianceRisk(summary) {
+    if (!summary || summary.offlineRisk === null || summary.offlineRisk === undefined) {
+        return null; // No offline risk data available
+    }
+
+    const riskLevel = summary.offlineRisk; // 0-4
+    const lastHeartbeat = summary.lastHeartbeat ? new Date(summary.lastHeartbeat) : null;
+    const offlineDays = summary.offlineDurationDays || 0;
+    const shouldAutoBlock = summary.shouldAutoBlock || false;
+
+    let text, badge, color, icon, title;
+
+    switch (riskLevel) {
+        case 0: // Ok - Less than 2 days offline
+            text = 'Compliant';
+            badge = 'bg-success-lt text-success';
+            color = 'success';
+            icon = '✓';
+            title = `Device online. Last heartbeat ${offlineDays}d ago.`;
+            break;
+        
+        case 1: // Low - 2-7 days offline
+            text = 'At Risk (Low)';
+            badge = 'bg-warning-lt text-warning';
+            color = 'warning';
+            icon = '⚠';
+            title = `Device offline ${offlineDays} days. Low compliance risk.`;
+            break;
+        
+        case 2: // Medium - 7-15 days offline
+            text = 'At Risk (Medium)';
+            badge = 'bg-orange-lt text-orange';
+            color = 'orange';
+            icon = '⚠';
+            title = `Device offline ${offlineDays} days. Medium compliance risk.`;
+            break;
+        
+        case 3: // High - 15-30 days offline
+            text = 'At Risk (High)';
+            badge = 'bg-danger-lt text-danger';
+            color = 'danger';
+            icon = '!';
+            title = `Device offline ${offlineDays} days. High compliance risk.`;
+            break;
+        
+        case 4: // Critical - More than 30 days offline (Auto-block candidate)
+            text = 'Non-Compliant';
+            badge = 'bg-dark-lt text-dark';
+            color = 'dark';
+            icon = '✕';
+            title = `Device offline ${offlineDays} days. Will be auto-blocked.`;
+            break;
+        
+        default:
+            return null;
+    }
+
+    return {
+        riskLevel,
+        text,
+        badge,
+        color,
+        icon,
+        title,
+        shouldAutoBlock,
+        lastHeartbeat,
+        offlineDays
+    };
+}

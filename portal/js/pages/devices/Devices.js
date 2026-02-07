@@ -27,7 +27,7 @@ import { DeviceFilterService } from './services/DeviceFilterService.js';
 
 // Component modules
 import { renderBulkActionsBar } from './components/BulkActionsBar.js';
-import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDotClass, getTrendIcon, getTrendClass } from './DeviceHealthRenderer.js';
+import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDotClass, getTrendIcon, getTrendClass, renderOfflineComplianceRisk } from './DeviceHealthRenderer.js';
 
 class DevicesPage extends window.Component {
     constructor(props) {
@@ -2762,12 +2762,28 @@ class DevicesPage extends window.Component {
                                                                         </span>
                                                                         <span class="text-muted small">${device.telemetry?.osEdition || 'Unknown OS'}</span>
                                                                     </div>
+                                                                    
+                                                                    <!-- Offline Compliance Risk Indicator -->
+                                                                    ${(() => {
+                                                                        const offlineRisk = renderOfflineComplianceRisk(summary);
+                                                                        return offlineRisk ? html`
+                                                                            <div class="d-flex align-items-center gap-2">
+                                                                                <span class="badge ${offlineRisk.badge}" title="${offlineRisk.title}">
+                                                                                    ${offlineRisk.icon} ${offlineRisk.text}
+                                                                                </span>
+                                                                                ${offlineRisk.shouldAutoBlock ? html`
+                                                                                    <span class="badge bg-danger-lt text-danger" title="Will be auto-blocked">Auto-block</span>
+                                                                                ` : ''}
+                                                                            </div>
+                                                                        ` : '';
+                                                                    })()}
+                                                                    
                                                                     <div class="text-muted small">
                                                                         ${device.telemetry?.connectionType || 'Unknown Network'} 
                                                                         ${device.telemetry?.networkSpeedMbps ? `(${formatNetworkSpeed(device.telemetry.networkSpeedMbps)})` : ''}
                                                                     </div>
                                                                     <div class="text-muted small">
-                                                                        ${health.lastActivityMinutes !== undefined ? `Last seen ${health.lastActivityMinutes}m ago` : `Last seen ${this.formatLastSeen(device.lastHeartbeat)}`}
+                                                                        ${device.lastHeartbeat ? `Last heartbeat: ${formatDate(device.lastHeartbeat)}` : 'Last heartbeat: Never'}
                                                                     </div>
                                                                 </div>
                                                             </td>
