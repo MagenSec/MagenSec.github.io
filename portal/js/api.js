@@ -282,8 +282,8 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/dashboard`);
     }
 
-    async getUnifiedDashboard(orgId) {
-        return this.get(`/api/v1/orgs/${orgId}/dashboard`);
+    async getUnifiedDashboard(orgId, params = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/dashboard`, params);
     }
 
     // === POSTURE ENGINE ===

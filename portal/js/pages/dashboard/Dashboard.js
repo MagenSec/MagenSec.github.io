@@ -3,6 +3,11 @@
  * Adaptive layout for all user roles
  * Features: AI Analyst, Security Posture, Inventory, Threat Intel
  * Tabs: Overview | Detailed Analysis | Findings Table
+ * 
+ * SWR Pattern:
+ * 1. Load from localStorage cache immediately (even if stale)
+ * 2. Background refresh with ?include=cached-summary (uses server-side cache)
+ * 3. Manual refresh button calls without include parameter (fresh full data)
  */
 
 import { auth } from '@auth';
@@ -11,6 +16,7 @@ import { config } from '@config';
 import { orgContext } from '@orgContext';
 import { SavingsCalculator } from '@components/SavingsCalculator.js';
 import { CveDetailsModal } from '@components/CveDetailsModal.js';
+import { SWRHelper } from '@utils/SWRHelper.js';
 
 // Shared components
 import { StatusBadge, getConnectionStatus, StatusDot } from '@components/shared/StatusBadge.js';
@@ -24,6 +30,7 @@ const { html, Component } = window;
 export class DashboardPage extends Component {
     constructor(props) {
         super(props);
+        this.swr = new SWRHelper('dashboard', 30);  // 30-min cache TTL
         this.state = {
             loading: true,
             error: null,
@@ -135,40 +142,6 @@ export class DashboardPage extends Component {
         }
     }
 
-    getCachedDashboard(key, ttlMinutes = 30) {
-        try {
-            const cached = localStorage.getItem(key);
-            if (!cached) return null;
-
-            const { data, timestamp } = JSON.parse(cached);
-            const ageMs = Date.now() - timestamp;
-            const TTL_MS = ttlMinutes * 60 * 1000;
-            const isStale = ageMs >= TTL_MS;
-
-            if (isStale) {
-                console.log(`[UnifiedDashboard] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s, ttl: ${ttlMinutes}m)`);
-            } else {
-                console.log(`[UnifiedDashboard] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
-            }
-            return { data, isStale };
-        } catch (err) {
-            console.warn('[UnifiedDashboard] Cache read error:', err);
-        }
-        return null;
-    }
-
-    setCachedDashboard(key, data) {
-        try {
-            localStorage.setItem(key, JSON.stringify({
-                data,
-                timestamp: Date.now()
-            }));
-            console.log(`[UnifiedDashboard] 💾 Cache SAVE: ${key}`);
-        } catch (err) {
-            console.warn('[UnifiedDashboard] Cache write error:', err);
-        }
-    }
-
     buildDashboardState(dashboard) {
         const inventoryStats = dashboard.inventory || { totalApps: 0, vendors: 0 };
         const licenseInfo = this.normalizeLicenseInfo(dashboard.license);
@@ -211,11 +184,10 @@ export class DashboardPage extends Component {
             this.setState({ user, currentOrg });
 
             const orgId = currentOrg?.orgId || user.email;
-            const cacheKey = `dashboard_${orgId}`;
 
-            // Always try cache first (even if stale)
+            // Step 1: Try cache first (skip if forcing refresh)
             if (!forceRefresh) {
-                const cached = this.getCachedDashboard(cacheKey, 30);
+                const cached = this.swr.getCached();
                 if (cached) {
                     console.log('[UnifiedDashboard] ⚡ Loading from cache immediately (will refresh in background)...');
                     this.setState({
@@ -223,21 +195,21 @@ export class DashboardPage extends Component {
                         loading: false,
                         isRefreshingInBackground: true
                     });
-                    this.loadPostureSnapshotInBackground();
-                    this.loadFreshDashboardData(cacheKey, orgId);
+                    // Step 2: Background refresh with cached-summary parameter
+                    this.loadFreshDashboardData(orgId);
                     return;
                 }
             }
 
-            // No cache available, show loading spinner
+            // Step 3: No cache available, show loading spinner
             this.setState({ loading: true, error: null, isRefreshingInBackground: false });
 
-            // Single fetch for unified dashboard data
+            // Step 4: Fetch fresh data (no include parameter = full fresh data)
             const dashboardRes = await api.getUnifiedDashboard(orgId);
             
             if (dashboardRes.success && dashboardRes.data) {
                 const dashboard = dashboardRes.data;
-                this.setCachedDashboard(cacheKey, dashboard);
+                this.swr.setCached(dashboard);
 
                 this.setState({
                     ...this.buildDashboardState(dashboard),
@@ -256,17 +228,19 @@ export class DashboardPage extends Component {
         }
     }
 
-    async loadFreshDashboardData(cacheKey, orgId) {
+    async loadFreshDashboardData(orgId) {
         try {
-            console.log('[UnifiedDashboard] 🔄 Background refresh starting...');
+            console.log('[UnifiedDashboard] 🔄 Background refresh starting (with cached-summary)...');
 
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            const dashboardRes = await api.getUnifiedDashboard(orgId);
+            // Background fetch with include=cached-summary parameter
+            // Server returns fresh data if cache is stale, or cached data if fresh
+            const dashboardRes = await api.getUnifiedDashboard(orgId, { include: 'cached-summary' });
 
             if (dashboardRes.success && dashboardRes.data) {
                 const dashboard = dashboardRes.data;
-                this.setCachedDashboard(cacheKey, dashboard);
+                this.swr.setCached(dashboard);
 
                 this.setState({
                     ...this.buildDashboardState(dashboard),
