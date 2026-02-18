@@ -560,16 +560,8 @@ export class ApiClient {
     }
 
     // === VULNERABILITIES ===
-    async getVulnerabilities(params) {
-        return this.get('/api/v1/vulnerabilities', params);
-    }
-
-    async getVulnerability(vulnId) {
-        return this.get(`/api/v1/vulnerabilities/${vulnId}`);
-    }
-
-    async mitigateVulnerability(vulnId, data) {
-        return this.post(`/api/v1/vulnerabilities/${vulnId}/mitigate`, data);
+    async getVulnerabilities(orgId, params) {
+        return this.get(`/api/v1/orgs/${orgId}/vulnerabilities`, params);
     }
 
     // === ORG INSIGHTS (CVE Details, Threat Analysis, etc.) ===
@@ -614,8 +606,8 @@ export class ApiClient {
         return this.get('/api/v1/analytics', params);
     }
 
-    async getAggregations(params) {
-        return this.get('/api/v1/aggregations', params);
+    async getAggregations(orgId, metric, params) {
+        return this.get(`/api/v1/orgs/${orgId}/aggregations/${metric}`, params);
     }
 
     async getSoftwareInventory(orgId) {
@@ -747,16 +739,16 @@ export class ApiClient {
 
     // === SECURITY & TELEMETRY ===
     async getSecurityDetections(orgId, params = {}) {
-        return this.get(`/api/v1/security/${orgId}/detections`, params);
+        return this.get(`/api/v1/orgs/${orgId}/security/detections`, params);
     }
 
     // === RESPONSE ACTIONS ===
-    async executeCommand(data) {
-        return this.post('/api/v1/response/commands', data);
+    async executeCommand(orgId, data) {
+        return this.post(`/api/v1/orgs/${orgId}/response/commands`, data);
     }
 
     async getCommandHistory(orgId) {
-        return this.get(`/api/v1/response/${orgId}/commands`);
+        return this.get(`/api/v1/orgs/${orgId}/response/commands`);
     }
 }
 
