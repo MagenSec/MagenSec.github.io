@@ -286,6 +286,51 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/dashboard`, params);
     }
 
+    // === SNAPSHOTS ===
+    async getAuditSnapshot(orgId, params = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/snapshots/audit`, params);
+    }
+
+    async getComplianceSnapshot(orgId, params = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/snapshots/compliance`, params);
+    }
+
+    async getRemediationSnapshot(orgId, params = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/snapshots/remediation`, params);
+    }
+
+    async getSecuritySnapshot(orgId, params = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/snapshots/security`, params);
+    }
+
+    async getRiskSnapshot(orgId, params = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/snapshots/risk`, params);
+    }
+
+    async getTrendSnapshots(orgId, params = {}) {
+        const query = {
+            from: params.from,
+            to: params.to
+        };
+        return this.get(`/api/v1/orgs/${orgId}/snapshots/trends`, query);
+    }
+
+    async getAdminBusinessSnapshot() {
+        return this.get('/api/v1/admin/snapshots/business-metrics');
+    }
+
+    async getAdminComplianceSnapshot() {
+        return this.get('/api/v1/admin/snapshots/compliance-metrics');
+    }
+
+    async getAdminSecuritySnapshot() {
+        return this.get('/api/v1/admin/snapshots/security-metrics');
+    }
+
+    async triggerSnapshotCron(taskId) {
+        return this.post('/api/v1/admin/cron/trigger', { taskId });
+    }
+
     // === POSTURE ENGINE ===
     async getPostureSnapshot(orgId, params = {}) {
         return this.get(`/api/v1/orgs/${orgId}/posture`, params, { skipCache: params?.force });

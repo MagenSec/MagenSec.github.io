@@ -20,6 +20,7 @@ export default class UnifiedDashboard extends Component {
       error: null,
       refreshError: null,
       data: null,
+      isRefreshingInBackground: false,
       activePersona: 'business', // business | it | security
       aiExpanded: false,
       aiPrompt: ''
@@ -30,12 +31,43 @@ export default class UnifiedDashboard extends Component {
     this.loadDashboard();
   }
 
-  async loadDashboard({ refresh } = {}) {
+  getCachedDashboard(key, ttlMinutes = 30) {
+    try {
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+
+      const { data, timestamp } = JSON.parse(cached);
+      const ageMs = Date.now() - timestamp;
+      const TTL_MS = ttlMinutes * 60 * 1000;
+      const isStale = ageMs >= TTL_MS;
+
+      if (isStale) {
+        console.log(`[UnifiedDashboard] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
+      } else {
+        console.log(`[UnifiedDashboard] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
+      }
+      return { data, isStale };
+    } catch (err) {
+      console.warn('[UnifiedDashboard] Cache read error:', err);
+    }
+    return null;
+  }
+
+  setCachedDashboard(key, data) {
+    try {
+      localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+    } catch (err) {
+      console.warn('[UnifiedDashboard] Cache write error:', err);
+    }
+  }
+
+  async loadDashboard({ refresh, background } = {}) {
     try {
       const isRefresh = !!refresh;
+      const isBackground = !!background;
       this.setState({
-        loading: !this.state.data && !isRefresh,
-        refreshing: isRefresh,
+        loading: !this.state.data && !isRefresh && !isBackground,
+        refreshing: isRefresh && !isBackground,
         error: null,
         refreshError: null
       });
@@ -49,9 +81,30 @@ export default class UnifiedDashboard extends Component {
         return;
       }
 
-      const url = isRefresh
-        ? `/api/v1/orgs/${orgId}/dashboard?format=unified&refresh=true`
-        : `/api/v1/orgs/${orgId}/dashboard?format=unified`;
+      const cacheKey = `unified_dashboard_${orgId}`;
+
+      if (!isRefresh) {
+        const cached = this.getCachedDashboard(cacheKey, 30);
+        if (cached?.data) {
+          this.setState({
+            data: cached.data,
+            loading: false,
+            refreshing: false,
+            isRefreshingInBackground: true,
+            error: null,
+            refreshError: null
+          });
+          await this.loadDashboard({ refresh: true, background: true });
+          return;
+        }
+      }
+
+      let url = `/api/v1/orgs/${orgId}/dashboard?format=unified`;
+      if (isRefresh && !isBackground) {
+        url += '&refresh=true';
+      } else {
+        url += '&include=cached-summary';
+      }
 
       const response = await api.get(url);
 
@@ -59,23 +112,30 @@ export default class UnifiedDashboard extends Component {
         throw new Error(response.message || 'Failed to load dashboard');
       }
 
+      if (response.data) {
+        this.setCachedDashboard(cacheKey, response.data);
+      }
+
       this.setState({
         data: response.data,
         loading: false,
-        refreshing: false
+        refreshing: false,
+        isRefreshingInBackground: false
       });
     } catch (err) {
       console.error('Failed to load unified dashboard:', err);
 
       const message = err?.message || 'Failed to load dashboard data';
       const isRefresh = !!refresh;
+      const isBackground = !!background;
 
       // If we already have data, keep showing it and surface a non-blocking refresh error.
-      if (isRefresh && this.state.data) {
+      if ((isRefresh || isBackground) && this.state.data) {
         this.setState({
           refreshError: message,
           loading: false,
-          refreshing: false
+          refreshing: false,
+          isRefreshingInBackground: false
         });
         return;
       }
@@ -83,7 +143,8 @@ export default class UnifiedDashboard extends Component {
       this.setState({
         error: message,
         loading: false,
-        refreshing: false
+        refreshing: false,
+        isRefreshingInBackground: false
       });
     }
   }
@@ -177,8 +238,8 @@ export default class UnifiedDashboard extends Component {
   }
 
   renderRefreshBanner() {
-    const { refreshing, refreshError, data } = this.state;
-    if (!refreshing && !refreshError) return null;
+    const { refreshing, refreshError, data, isRefreshingInBackground } = this.state;
+    if (!refreshing && !refreshError && !isRefreshingInBackground) return null;
     if (!data) return null;
 
     if (refreshing) {
@@ -187,6 +248,17 @@ export default class UnifiedDashboard extends Component {
           <div class="d-flex align-items-center justify-content-center">
             <div class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></div>
             <div>Updating intelligence...</div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (isRefreshingInBackground) {
+      return html`
+        <div class="alert alert-info mb-4 border-0 shadow-sm rounded-3">
+          <div class="d-flex align-items-center justify-content-center">
+            <div class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></div>
+            <div>Refreshing cached snapshot...</div>
           </div>
         </div>
       `;

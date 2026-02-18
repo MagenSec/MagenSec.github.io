@@ -152,7 +152,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                                                             <i class="ti ti-check ms-2 text-primary fw-bold" style="font-size: 18px;"></i>
                                                         `}
                                                     </div>
-                                                    <div class="text-muted small mb-2" style="min-height: 40px; overflow-y: auto;">${task.description}</div>
+                                                    <div class="text-muted small mb-2" style="min-height: 40px; overflow-y: auto;" title=${task.description}>${task.description}</div>
                                                     <div>
                                                         <span class="badge bg-info">
                                                             <i class="ti ti-clock me-1"></i>
