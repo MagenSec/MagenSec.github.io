@@ -56,6 +56,7 @@ export class DashboardPage extends Component {
             refreshInterval: null,
             activeTab: 'overview', // New: tab state (overview | analysis | findings)
             postureSnapshot: null,
+            trendSnapshots: [],
             loadingPosture: false,
             isRefreshingInBackground: false
         };
@@ -92,6 +93,7 @@ export class DashboardPage extends Component {
                 nextScan: 'Pending',
                 generatedAt: null,
                 postureSnapshot: null,
+                trendSnapshots: [],
                 loadingPosture: false,
                 isRefreshingInBackground: false
             });
@@ -209,10 +211,12 @@ export class DashboardPage extends Component {
             
             if (dashboardRes.success && dashboardRes.data) {
                 const dashboard = dashboardRes.data;
+                const trendSnapshots = await this.loadTrendSnapshots(orgId);
                 this.swr.setCached(dashboard);
 
                 this.setState({
                     ...this.buildDashboardState(dashboard),
+                    trendSnapshots,
                     loading: false,
                     isRefreshingInBackground: false
                 });
@@ -240,10 +244,12 @@ export class DashboardPage extends Component {
 
             if (dashboardRes.success && dashboardRes.data) {
                 const dashboard = dashboardRes.data;
+                const trendSnapshots = await this.loadTrendSnapshots(orgId);
                 this.swr.setCached(dashboard);
 
                 this.setState({
                     ...this.buildDashboardState(dashboard),
+                    trendSnapshots,
                     isRefreshingInBackground: false
                 });
 
@@ -319,6 +325,53 @@ export class DashboardPage extends Component {
         if (!previousValue || previousValue === 0) return 0;
         const delta = currentValue - previousValue;
         return Math.round((delta / previousValue) * 100);
+    }
+
+    getTrendDateRange(days = 30) {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - days);
+        return {
+            from: start.toISOString().slice(0, 10),
+            to: end.toISOString().slice(0, 10)
+        };
+    }
+
+    async loadTrendSnapshots(orgId) {
+        try {
+            const range = this.getTrendDateRange(30);
+            const res = await api.getTrendSnapshots(orgId, range);
+            const payload = res?.data || res;
+            const trends = payload?.data || payload?.snapshots || [];
+            return Array.isArray(trends) ? trends : [];
+        } catch (err) {
+            console.warn('[Dashboard] Failed to load trend snapshots:', err);
+            return [];
+        }
+    }
+
+    getLatestReliableMlTrendInsight() {
+        const trends = this.state?.trendSnapshots || [];
+        if (!trends.length) return null;
+        const latest = trends[trends.length - 1];
+        if (!latest?.ml || latest.ml.isReliable !== true) return null;
+        return latest.ml;
+    }
+
+    renderReliableMlBadges() {
+        const mlTrend = this.getLatestReliableMlTrendInsight();
+        if (!mlTrend) return null;
+
+        const confidence = Math.round((mlTrend.confidence || 0) * 100);
+        const nextRisk = Number.isFinite(mlTrend.forecastNext) ? Math.round(mlTrend.forecastNext) : null;
+
+        return html`
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                ${mlTrend.isAnomaly ? html`<span class="badge bg-danger text-white">Anomaly detected</span>` : ''}
+                ${nextRisk !== null ? html`<span class="badge bg-primary text-white">Next risk: ${nextRisk}</span>` : ''}
+                <span class="badge bg-secondary text-white">Confidence ${confidence}%</span>
+            </div>
+        `;
     }
 
     normalizeThreatSummary(threats) {
@@ -1062,7 +1115,10 @@ export class DashboardPage extends Component {
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">Security Posture Analysis</h3>
+                            <div>
+                                <h3 class="card-title">Security Posture Analysis</h3>
+                                ${this.renderReliableMlBadges()}
+                            </div>
                             <div class="card-actions">
                                 <button 
                                     class="btn btn-sm btn-ghost-primary me-2"
@@ -1186,7 +1242,8 @@ export class DashboardPage extends Component {
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title">Top Security Findings</h3>
-                            <div class="ms-auto">
+                            <div class="ms-auto d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                                ${this.renderReliableMlBadges()}
                                 <span class="badge bg-secondary-lt text-secondary">${findings.length} findings</span>
                             </div>
                         </div>
@@ -2542,6 +2599,9 @@ export class DashboardPage extends Component {
     renderKPICards(role, riskScore, riskColor, compact = false) {
         const { deviceStats, licenseInfo, coverage, securityGrade, lastScan, complianceSummary } = this.state;
         const riskLabel = this.getRiskLabel(riskScore);
+        const mlTrend = this.getLatestReliableMlTrendInsight();
+        const mlConfidence = Math.round((mlTrend?.confidence || 0) * 100);
+        const mlForecastNext = Number.isFinite(mlTrend?.forecastNext) ? Math.round(mlTrend.forecastNext) : null;
         
         // Calculate trends (mock previous values - in real implementation, fetch from history)
         const scoreTrend = this.calculateTrend(riskScore, riskScore - 5);
@@ -2576,6 +2636,13 @@ export class DashboardPage extends Component {
                             <div class="text-muted small">${riskLabel}</div>
                             <div class="ms-auto text-muted small">Last: ${lastScan}</div>
                         </div>
+                        ${mlTrend ? html`
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                ${mlTrend.isAnomaly ? html`<span class="badge bg-danger text-white">Anomaly detected</span>` : ''}
+                                ${mlForecastNext !== null ? html`<span class="badge bg-primary text-white">Next risk: ${mlForecastNext}</span>` : ''}
+                                <span class="badge bg-secondary text-white">Confidence ${mlConfidence}%</span>
+                            </div>
+                        ` : ''}
                         <div class="progress progress-sm mb-2">
                             <div class="progress-bar bg-${riskColor}" style="width: ${riskScore}%" role="progressbar" aria-valuenow="${riskScore}" aria-valuemin="0" aria-valuemax="100"></div>
                         </div>

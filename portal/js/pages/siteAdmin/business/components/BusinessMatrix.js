@@ -15,6 +15,7 @@ export function BusinessMatrixPage() {
     const [expandedOrgs, setExpandedOrgs] = useState(new Set());
     const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'USD');
     const [serviceCostDays, setServiceCostDays] = useState(30); // 7, 30, or 90 days
+    const [showMrrMlDetails, setShowMrrMlDetails] = useState(false);
     
     // Chart refs
     const revenueChartRef = useRef(null);
@@ -494,6 +495,82 @@ export function BusinessMatrixPage() {
             isPositive: change > 0,
             isNegative: change < 0
         };
+    };
+
+    const getLatestMrrMlInsight = (trends) => {
+        if (!trends || trends.length === 0) return null;
+        const latest = trends[trends.length - 1];
+        if (!latest || latest.isReliable !== true) return null;
+        return latest;
+    };
+
+    const getMrrMlHealth = (trends) => {
+        if (!trends || trends.length === 0) {
+            return {
+                label: 'Unknown',
+                badgeClass: 'bg-secondary text-white',
+                message: 'ML trend signal is not available yet.',
+                action: 'Wait for more trend points to be collected.'
+            };
+        }
+
+        const latest = trends[trends.length - 1];
+        if (!latest || latest.isReliable !== true) {
+            return {
+                label: 'Degraded',
+                badgeClass: 'bg-warning text-white',
+                message: 'ML signal is currently low-confidence.',
+                action: 'Use trend direction only and recheck after next cron run.'
+            };
+        }
+
+        if (latest.isAnomaly) {
+            return {
+                label: 'Degraded',
+                badgeClass: 'bg-warning text-white',
+                message: 'MRR anomaly detected in the latest reliable signal.',
+                action: 'Review org-level drivers and recent cost/revenue changes.'
+            };
+        }
+
+        return {
+            label: 'Healthy',
+            badgeClass: 'bg-success text-white',
+            message: 'MRR ML signal is stable and reliable.',
+            action: 'No immediate action required.'
+        };
+    };
+
+    const renderMrrMlStatus = (trends) => {
+        const mlHealth = getMrrMlHealth(trends);
+        const insight = getLatestMrrMlInsight(trends);
+        const confidencePercent = Math.round(((insight?.confidence) || 0) * 100);
+
+        return html`
+            <div class="mt-2 text-start">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                    <span class="badge ${mlHealth.badgeClass}">ML ${mlHealth.label}</span>
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-sm"
+                        onClick=${() => setShowMrrMlDetails(!showMrrMlDetails)}
+                    >
+                        ${showMrrMlDetails ? 'Hide details' : 'Details'}
+                    </button>
+                </div>
+                <div class="small mt-1">${mlHealth.message}</div>
+                <div class="small text-body-secondary">Action: ${mlHealth.action}</div>
+
+                ${showMrrMlDetails && html`
+                    <div class="small text-body-secondary mt-2 border-top pt-2">
+                        <div>Reliable: ${insight ? 'Yes' : 'No'}</div>
+                        <div>Anomaly: ${insight?.isAnomaly ? 'Yes' : 'No'}</div>
+                        <div>Forecast next: ${Number.isFinite(insight?.forecastNext) ? formatCurrency(insight.forecastNext || 0) : 'N/A'}</div>
+                        <div>Confidence: ${insight ? confidencePercent + '%' : 'N/A'}</div>
+                    </div>
+                `}
+            </div>
+        `;
     };
 
     // Render trend indicator
@@ -1011,6 +1088,7 @@ export function BusinessMatrixPage() {
                                 ? renderTrendIndicator(calculateTrend(platformSummary.mrr || 0, platformSummary.trends, 'mrr'), false)
                                 : html`<div class="text-body-secondary small mt-1"><em>Trend data collecting...</em></div>`
                             }
+                                ${renderMrrMlStatus(platformSummary.trends)}
                             <div class="text-body-secondary small mt-2">ARR: ${formatCurrency((platformSummary.mrr || 0) * 12)}</div>
                         </div>
                     </div>

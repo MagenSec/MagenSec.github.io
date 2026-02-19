@@ -19,6 +19,7 @@ export class PosturePage extends Component {
             refreshing: false,
             error: null,
             snapshot: null,
+            trendSnapshots: [],
             triggeredGeneration: false,
             period: 'daily',
             isRefreshingInBackground: false,
@@ -207,9 +208,11 @@ export class PosturePage extends Component {
 
             // Cache the response
             this.setCachedSnapshot(cacheKey, snapshot);
+            const trendSnapshots = await this.loadTrendSnapshots(currentOrg.orgId);
 
             this.setState({
                 snapshot,
+                trendSnapshots,
                 triggeredGeneration,
                 loading: false,
                 refreshing: false,
@@ -248,10 +251,12 @@ export class PosturePage extends Component {
             if (snapshot) {
                 // Cache the fresh data
                 this.setCachedSnapshot(cacheKey, snapshot);
+                const trendSnapshots = await this.loadTrendSnapshots(currentOrg.orgId);
 
                 // Silent update
                 this.setState(prev => ({
                     snapshot,
+                    trendSnapshots,
                     isRefreshingInBackground: false
                 }));
 
@@ -261,6 +266,53 @@ export class PosturePage extends Component {
             console.warn('[Posture] Background refresh failed:', err);
             this.setState({ isRefreshingInBackground: false });
         }
+    }
+
+    getTrendDateRange(days = 30) {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - days);
+        return {
+            from: start.toISOString().slice(0, 10),
+            to: end.toISOString().slice(0, 10)
+        };
+    }
+
+    async loadTrendSnapshots(orgId) {
+        try {
+            const range = this.getTrendDateRange(30);
+            const res = await api.getTrendSnapshots(orgId, range);
+            const payload = res?.data || res;
+            const trends = payload?.data || payload?.snapshots || [];
+            return Array.isArray(trends) ? trends : [];
+        } catch (err) {
+            console.warn('[Posture] Failed to load trend snapshots:', err);
+            return [];
+        }
+    }
+
+    getLatestReliableMlTrend() {
+        const trendSnapshots = this.state?.trendSnapshots || [];
+        if (!trendSnapshots.length) return null;
+        const latest = trendSnapshots[trendSnapshots.length - 1];
+        if (!latest?.ml || latest.ml.isReliable !== true) return null;
+        return latest.ml;
+    }
+
+    renderMlTrendBadges() {
+        const ml = this.getLatestReliableMlTrend();
+        if (!ml) return null;
+
+        const confidencePct = Math.round((ml.confidence || 0) * 100);
+        const forecastNext = Number.isFinite(ml.forecastNext) ? Math.round(ml.forecastNext) : null;
+
+        return html`
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                ${ml.isAnomaly ? html`<span class="badge bg-danger text-white">Anomaly detected</span>` : ''}
+                ${forecastNext !== null ? html`<span class="badge bg-primary text-white">Next risk: ${forecastNext}</span>` : ''}
+                <span class="badge bg-secondary text-white">Confidence ${confidencePct}%</span>
+            </div>
+        `;
     }
 
     setPeriod(period) {
@@ -289,6 +341,7 @@ export class PosturePage extends Component {
                         <div class="display-6 mb-0 ${trendClass}">${trendLabel}</div>
                         <div class="text-muted small">First: ${first?.score ?? 'n/a'} → Latest: ${last?.score ?? 'n/a'}</div>
                     </div>
+                    ${this.renderMlTrendBadges()}
                 </div>
             </div>
         `;

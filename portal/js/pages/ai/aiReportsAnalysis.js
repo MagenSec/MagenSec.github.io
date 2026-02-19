@@ -11,6 +11,8 @@ export function AiReportsAnalysisPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [reports, setReports] = useState([]);
+    const [mlDiagnostics, setMlDiagnostics] = useState(null);
+    const [showMlDetails, setShowMlDetails] = useState(false);
     const [stats, setStats] = useState({
         totalReports: 0,
         avgGenerationTime: 0,
@@ -34,13 +36,20 @@ export function AiReportsAnalysisPage() {
         setLoading(true);
         setError(null);
         try {
-            const data = await api.get('/api/v1/admin/ai/reports');
+            const data = await api.get('/api/v1/admin/ai/reports?includeDiagnostics=true');
             
             if (!data.success) {
                 throw new Error(data.message || 'Failed to load AI reports');
             }
 
-            if (!data.data || !Array.isArray(data.data)) {
+            const payload = data.data;
+            const reportData = Array.isArray(payload)
+                ? payload
+                : (Array.isArray(payload?.reports) ? payload.reports : []);
+
+            setMlDiagnostics(!Array.isArray(payload) ? (payload?.mlDiagnostics || null) : null);
+
+            if (!reportData || !Array.isArray(reportData)) {
                 setReports([]);
                 setStats({
                     totalReports: 0,
@@ -57,7 +66,7 @@ export function AiReportsAnalysisPage() {
             const now = new Date();
             const daysAgo = new Date(now.getTime() - parseInt(timeRange) * 24 * 60 * 60 * 1000);
             
-            let filteredReports = data.data.filter(r => {
+            let filteredReports = reportData.filter(r => {
                 const completedAt = r.completedAt ? new Date(r.completedAt) : null;
                 return completedAt && completedAt >= daysAgo;
             });
@@ -82,6 +91,7 @@ export function AiReportsAnalysisPage() {
             logger.error('[AiReportsAnalysis] Error loading reports:', err);
             setError(err.message || 'Failed to load AI reports');
             setReports([]);
+            setMlDiagnostics(null);
         } finally {
             setLoading(false);
         }
@@ -186,6 +196,61 @@ export function AiReportsAnalysisPage() {
     const formatDate = (dateStr) => {
         if (!dateStr) return 'N/A';
         return new Date(dateStr).toLocaleString();
+    };
+
+    const formatTimestamp = (dateStr) => {
+        if (!dateStr) return 'N/A';
+        return new Date(dateStr).toLocaleString();
+    };
+
+    const getMlHealth = (diagnostics) => {
+        if (!diagnostics) {
+            return {
+                label: 'Unknown',
+                badgeClass: 'bg-secondary text-white',
+                message: 'ML diagnostics are not available yet.',
+                action: 'Refresh this page to load current ML health.'
+            };
+        }
+
+        if (!diagnostics.enabled) {
+            return {
+                label: 'Disabled',
+                badgeClass: 'bg-secondary text-white',
+                message: 'Time-series ML is currently disabled.',
+                action: 'Enable TimeSeriesML in configuration if you want anomaly and forecast guidance.'
+            };
+        }
+
+        const hasDiagnosticsError = !!diagnostics.diagnosticsError;
+        const hasPlatformArtifact = !!diagnostics.platformArtifactPresent;
+        const hasOrgArtifacts = (diagnostics.orgArtifactCount || 0) > 0;
+        const reliabilityRatio = (diagnostics.orgArtifactCount || 0) > 0
+            ? (diagnostics.orgReliableCount || 0) / diagnostics.orgArtifactCount
+            : 0;
+
+        let isStale = false;
+        if (diagnostics.lastArtifactUpdatedAt) {
+            const lastUpdated = new Date(diagnostics.lastArtifactUpdatedAt).getTime();
+            const ageMs = Date.now() - lastUpdated;
+            isStale = ageMs > (24 * 60 * 60 * 1000);
+        }
+
+        if (hasDiagnosticsError || !hasPlatformArtifact || !hasOrgArtifacts || isStale || reliabilityRatio < 0.5) {
+            return {
+                label: 'Degraded',
+                badgeClass: 'bg-warning text-white',
+                message: 'ML is running but signal quality or freshness needs attention.',
+                action: 'Check cron freshness and model artifact generation in technical details.'
+            };
+        }
+
+        return {
+            label: 'Healthy',
+            badgeClass: 'bg-success text-white',
+            message: 'ML diagnostics are healthy and producing reliable insights.',
+            action: 'No action required. Continue monitoring from this page.'
+        };
     };
 
     const sortReports = (reportsToSort) => {
@@ -298,6 +363,71 @@ export function AiReportsAnalysisPage() {
 
             ${!loading && html`
                 <div>
+                    ${mlDiagnostics && html`
+                        ${(() => {
+                            const mlHealth = getMlHealth(mlDiagnostics);
+                            return html`
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-start justify-content-between gap-3">
+                                            <div>
+                                                <div class="d-flex align-items-center gap-2 mb-1">
+                                                    <span class="badge ${mlHealth.badgeClass}">ML ${mlHealth.label}</span>
+                                                    <span class="text-muted">Time-Series Diagnostics</span>
+                                                </div>
+                                                <div class="fw-semibold">${mlHealth.message}</div>
+                                                <div class="small text-muted mt-1">Action: ${mlHealth.action}</div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="btn btn-outline-secondary btn-sm"
+                                                onClick=${() => setShowMlDetails(!showMlDetails)}
+                                            >
+                                                ${showMlDetails ? 'Hide technical details' : 'View technical details'}
+                                            </button>
+                                        </div>
+
+                                        ${showMlDetails && html`
+                                            <div class="row g-2 mt-3">
+                                                <div class="col-md-3">
+                                                    <div class="small text-muted">Min points</div>
+                                                    <div class="fw-semibold">${mlDiagnostics.minPoints ?? 'N/A'}</div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="small text-muted">Min confidence</div>
+                                                    <div class="fw-semibold">${Math.round((mlDiagnostics.minConfidence || 0) * 100)}%</div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="small text-muted">Org artifacts</div>
+                                                    <div class="fw-semibold">${mlDiagnostics.orgArtifactCount || 0} (reliable: ${mlDiagnostics.orgReliableCount || 0})</div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="small text-muted">Platform artifact</div>
+                                                    <div class="fw-semibold">${mlDiagnostics.platformArtifactPresent ? 'Present' : 'Missing'}</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="small text-muted">Last artifact update</div>
+                                                    <div class="fw-semibold">${formatTimestamp(mlDiagnostics.lastArtifactUpdatedAt)}</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="small text-muted">Artifact root</div>
+                                                    <div class="fw-semibold">${mlDiagnostics.artifactRoot || 'N/A'}</div>
+                                                </div>
+                                                ${mlDiagnostics.diagnosticsError && html`
+                                                    <div class="col-12">
+                                                        <div class="alert alert-warning mb-0" role="alert">
+                                                            ${mlDiagnostics.diagnosticsError}
+                                                        </div>
+                                                    </div>
+                                                `}
+                                            </div>
+                                        `}
+                                    </div>
+                                </div>
+                            `;
+                        })()}
+                    `}
+
                     <!-- Summary Statistics -->
                     <div class="row row-deck">
                         <div class="col-md-4">
