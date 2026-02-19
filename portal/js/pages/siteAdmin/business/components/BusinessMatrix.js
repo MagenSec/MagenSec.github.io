@@ -469,6 +469,14 @@ export function BusinessMatrixPage() {
         }
         return '$' + value.toFixed(2);
     };
+
+    const formatCompactNumber = (value) => {
+        const n = Number(value || 0);
+        if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B';
+        if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+        if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+        return n.toString();
+    };
     // Calculate trend from historical data
     const calculateTrend = (currentValue, trends, metricKey) => {
         if (!trends || trends.length < 2) return null;
@@ -970,6 +978,7 @@ export function BusinessMatrixPage() {
                                 <strong>Overall Profit Margin: ${platformSummary.profitMargin.toFixed(1)}%</strong>
                                 · ${platformSummary.totalOrgs} Organizations
                                 · ${deviceHealth.activeCount} Active Devices
+                                · ${(metrics.telemetryVolumes?.platform?.totalRows || 0).toLocaleString()} Daily Telemetry Rows
                             </div>
                         </div>
                         <div class="col-md-3"></div>
@@ -1054,13 +1063,31 @@ export function BusinessMatrixPage() {
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">Organizations & Devices</div>
                             <div class="h2 mb-0">${platformSummary.totalOrgs || 0} <span class="h4 text-body-secondary">orgs</span></div>
-                            ${platformSummary.trends && platformSummary.trends.length >= 2
-                                ? renderTrendIndicator(calculateTrend(platformSummary.totalDevices || 0, platformSummary.trends, 'deviceCount'), false)
-                                : html`<div class="text-body-secondary small mt-1"><em>Trend data collecting...</em></div>`
-                            }
+                            <div class="small mt-1">
+                                ${platformSummary.trends && platformSummary.trends.length >= 2
+                                    ? renderTrendIndicator(calculateTrend(platformSummary.totalOrgs || 0, platformSummary.trends, 'orgCount'), false)
+                                    : html`<span class="text-body-secondary"><em>Org trend collecting...</em></span>`
+                                }
+                            </div>
                             <div class="text-body-secondary small mt-2">
                                 ${deviceHealth.activeCount} Active · ${deviceHealth.disabledCount} Disabled
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">Daily Telemetry Volume</div>
+                            <div class="h2 mb-0 text-primary">${formatCompactNumber(metrics.telemetryVolumes?.platform?.totalRows || 0)}</div>
+                            ${platformSummary.trends && platformSummary.trends.length >= 2
+                                ? renderTrendIndicator(calculateTrend(metrics.telemetryVolumes?.platform?.totalRows || 0, platformSummary.trends, 'telemetryVolume'), true)
+                                : html`<div class="text-body-secondary small mt-1"><em>Trend data collecting...</em></div>`
+                            }
+                            <div class="text-body-secondary small mt-2">rows / day</div>
                         </div>
                     </div>
                 </div>
