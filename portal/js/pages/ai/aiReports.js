@@ -14,6 +14,7 @@
  */
 
 import { api } from '@api';
+import { auth } from '@auth';
 import { orgContext } from '@orgContext';
 
 const { html, Component } = window;
@@ -28,9 +29,14 @@ export default class AIReportsPage extends Component {
             reports: [],
             generating: false,
             selectedTemplate: 'full-posture',
+            selectedModel: 'azure-openai',
             generationStatus: null,
             continuationToken: null,
-            hasMore: false
+            hasMore: false,
+            isSiteAdmin: false,
+            feedbackData: null,
+            loadingFeedback: false,
+            feedbackDays: 7
         };
         this.scrollObserverRef = React.createRef();
         this.orgChangeListener = null;
@@ -42,7 +48,14 @@ export default class AIReportsPage extends Component {
             this.loadReports();
         });
         this.loadReports();
-        
+
+        // Detect site admin to show quality feedback panel
+        const user = auth.getUser();
+        if (user?.userType === 'SiteAdmin') {
+            this.setState({ isSiteAdmin: true });
+            this.loadFeedback();
+        }
+
         // Setup infinite scroll observer
         this.setupInfiniteScroll();
     }
@@ -129,6 +142,7 @@ export default class AIReportsPage extends Component {
 
             const response = await api.post(`/api/v1/orgs/${org.orgId}/ai-analyst/run`, {
                 prompt: prompt,
+                model: this.state.selectedModel,
                 includeRecommendations: true,
                 waitSeconds: 30 // Poll for 30 seconds
             });
@@ -212,8 +226,32 @@ export default class AIReportsPage extends Component {
         return md;
     }
 
+    async loadFeedback(days) {
+        const queryDays = days || this.state.feedbackDays;
+        this.setState({ loadingFeedback: true });
+        try {
+            const response = await api.get(`/api/v1/ai-analyst/metrics/system/feedback?days=${queryDays}`);
+            if (response.success) {
+                this.setState({ feedbackData: response.data, loadingFeedback: false, feedbackDays: queryDays });
+            } else {
+                this.setState({ loadingFeedback: false });
+            }
+        } catch (err) {
+            this.setState({ loadingFeedback: false });
+        }
+    }
+
+    getFailureBadgeClass(failureType) {
+        const map = { NO_TELEMETRY: 'bg-warning text-dark', LLM_ERROR: 'bg-danger text-white', INADEQUATE_RESPONSE: 'bg-orange text-white', POLICY_REJECTED: 'bg-secondary text-white' };
+        return map[failureType] || 'bg-secondary text-white';
+    }
+
     handleTemplateChange(e) {
         this.setState({ selectedTemplate: e.target.value });
+    }
+
+    handleModelChange(model) {
+        this.setState({ selectedModel: model });
     }
 
     async loadMoreReports() {
@@ -241,7 +279,8 @@ export default class AIReportsPage extends Component {
     }
 
     render() {
-        const { loading, error, reports, generating, selectedTemplate, generationStatus, hasMore } = this.state;
+        const { loading, error, reports, generating, selectedTemplate, selectedModel, generationStatus, hasMore,
+                isSiteAdmin, feedbackData, loadingFeedback, feedbackDays } = this.state;
 
         return h('div', { class: 'ai-reports-page' },
             h('div', { class: 'page-header' },
@@ -290,6 +329,32 @@ export default class AIReportsPage extends Component {
                     h('div', { class: 'card-subtitle' }, 'AI-powered security analysis and recommendations')
                 ),
                 h('div', { class: 'card-body' },
+                    // Model selector
+                    h('div', { class: 'mb-3' },
+                        h('label', { class: 'form-label' }, 'Analysis Engine'),
+                        h('div', { class: 'btn-group d-flex', role: 'group' },
+                            h('button', {
+                                type: 'button',
+                                class: `btn ${selectedModel === 'azure-openai' ? 'btn-primary' : 'btn-outline-secondary'} flex-fill`,
+                                onClick: () => this.handleModelChange('azure-openai'),
+                                disabled: generating
+                            },
+                                h('span', null, '✨ AI-Powered (GPT-4o)')
+                            ),
+                            h('button', {
+                                type: 'button',
+                                class: `btn ${selectedModel === 'heuristic' ? 'btn-secondary' : 'btn-outline-secondary'} flex-fill`,
+                                onClick: () => this.handleModelChange('heuristic'),
+                                disabled: generating
+                            },
+                                h('span', null, '📊 Classic (Heuristic)')
+                            )
+                        ),
+                        selectedModel === 'azure-openai' && h('div', { class: 'form-text text-primary mt-1' },
+                            '✨ GPT-4o will use your real security telemetry to create a personalized narrative report.'
+                        )
+                    ),
+
                     h('div', { class: 'form-group' },
                         h('label', { for: 'template-select' }, 'Report Template'),
                         h('select', {
@@ -320,10 +385,9 @@ export default class AIReportsPage extends Component {
                                 h('i', { class: 'fas fa-spinner fa-spin mr-2' }),
                                 'Generating...'
                             )
-                            : h('span', null,
-                                h('i', { class: 'fas fa-magic mr-2' }),
-                                'Generate Report'
-                            )
+                            : selectedModel === 'azure-openai'
+                            ? h('span', null, '✨ Generate AI Report')
+                            : h('span', null, '📊 Generate Report')
                     )
                 )
             ),
@@ -383,7 +447,13 @@ export default class AIReportsPage extends Component {
                                                 class: `badge badge-${this.getStatusBadgeClass(report.status)}`
                                             }, report.status)
                                         ),
-                                        h('td', null, report.reportType || 'Security Posture'),
+                                        h('td', null, 
+                                            report.reportType || 'Security Posture',
+                                            report.model && report.model !== 'heuristic' && h('span', {
+                                                class: 'badge bg-primary text-white ms-2',
+                                                title: `Generated with ${report.model}`
+                                            }, '🤖 AI')
+                                        ),
                                         h('td', null,
                                             h('button', {
                                                 class: 'btn btn-sm btn-primary mr-2',
@@ -415,6 +485,83 @@ export default class AIReportsPage extends Component {
                         this.state.loadingMore && h('div', { class: 'py-3' },
                             h('span', { class: 'spinner-border spinner-border-sm me-2' }),
                             h('span', { class: 'text-muted' }, 'Loading more reports...')
+                        )
+                    )
+                )
+            ),
+
+            // AI Quality Issues panel — site admin only
+            isSiteAdmin && h('div', { class: 'card mt-4' },
+                h('div', { class: 'card-header' },
+                    h('h3', { class: 'card-title' },
+                        h('span', { class: 'badge bg-danger text-white me-2' }, 'Admin'),
+                        'AI Quality Issues'
+                    ),
+                    h('div', { class: 'card-subtitle text-muted' },
+                        'Incidents where the AI gave inadequate responses, had no telemetry, or encountered errors. Fix these to improve answer quality.'
+                    ),
+                    h('div', { class: 'ms-auto d-flex gap-2 align-items-center' },
+                        ['7', '14', '30'].map(d => h('button', {
+                            key: d,
+                            class: `btn btn-sm ${feedbackDays === parseInt(d) ? 'btn-primary' : 'btn-outline-secondary'}`,
+                            onClick: () => this.loadFeedback(parseInt(d))
+                        }, `${d}d`)),
+                        h('button', {
+                            class: 'btn btn-sm btn-outline-secondary',
+                            onClick: () => this.loadFeedback(),
+                            disabled: loadingFeedback
+                        }, loadingFeedback ? '…' : '↻')
+                    )
+                ),
+                h('div', { class: 'card-body' },
+                    loadingFeedback && h('div', { class: 'text-center py-4' },
+                        h('span', { class: 'spinner-border text-secondary' })
+                    ),
+
+                    !loadingFeedback && feedbackData && feedbackData.totalIncidents === 0 && h('div', { class: 'text-center py-4 text-muted' },
+                        h('p', { class: 'mb-0' }, `✅ No AI quality incidents in the last ${feedbackDays} days.`)
+                    ),
+
+                    !loadingFeedback && feedbackData && feedbackData.totalIncidents > 0 && h('div', null,
+                        // Daily summary row
+                        h('div', { class: 'd-flex gap-3 mb-4 flex-wrap' },
+                            feedbackData.byDay.slice(0, 14).map(day => h('div', {
+                                key: day.date,
+                                class: 'text-center',
+                                style: 'min-width: 64px;'
+                            },
+                                h('div', { class: 'h4 mb-0 text-danger' }, day.totalCount),
+                                h('div', { class: 'text-muted small' }, `${day.date.slice(4,6)}/${day.date.slice(6,8)}`),
+                                Object.entries(day.breakdown).map(([type, count]) => h('div', {
+                                    key: type,
+                                    class: `badge ${this.getFailureBadgeClass(type)} d-block mt-1`,
+                                    title: type
+                                }, count))
+                            ))
+                        ),
+
+                        // Incident table
+                        h('div', { class: 'table-responsive' },
+                            h('table', { class: 'table table-sm table-hover' },
+                                h('thead', null,
+                                    h('tr', null,
+                                        h('th', null, 'Time'),
+                                        h('th', null, 'Org'),
+                                        h('th', null, 'Type'),
+                                        h('th', null, 'Question'),
+                                        h('th', null, 'Details')
+                                    )
+                                ),
+                                h('tbody', null,
+                                    feedbackData.allIncidents.slice(0, 50).map((inc, idx) => h('tr', { key: idx },
+                                        h('td', { class: 'text-muted small text-nowrap' }, new Date(inc.timestamp).toLocaleString()),
+                                        h('td', { class: 'small font-monospace' }, inc.orgId),
+                                        h('td', null, h('span', { class: `badge ${this.getFailureBadgeClass(inc.failureType)}` }, inc.failureType)),
+                                        h('td', { class: 'small', style: 'max-width:280px; word-break:break-word;' }, inc.question),
+                                        h('td', { class: 'small text-muted', style: 'max-width:240px; word-break:break-word;' }, inc.details || '—')
+                                    ))
+                                )
+                            )
                         )
                     )
                 )

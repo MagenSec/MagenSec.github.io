@@ -26,13 +26,6 @@ export default class AIAnalystChatPage extends Component {
             inputText: '',
             sending: false,
             error: null,
-            suggestions: [
-                'What are my CIS compliance gaps?',
-                'Show me critical compliance gaps only',
-                'Tell me about control 7.1',
-                'How do I fix gap 7.1?',
-                "What's the effort for gap 7.1?"
-            ],
             conversationId: this.generateConversationId()
         };
         this.chatEndRef = createRef();
@@ -154,16 +147,12 @@ export default class AIAnalystChatPage extends Component {
                     content: response.data.answer || 'No response',
                     confidence: response.data.confidence || 0,
                     citations: response.data.citations || [],
-                    followUpSuggestions: response.data.followUpSuggestions || [],
                     timestamp: new Date().toISOString()
                 };
 
                 this.setState(prevState => ({
                     messages: [...prevState.messages, assistantMessage],
-                    sending: false,
-                    suggestions: assistantMessage.followUpSuggestions.length > 0 
-                        ? assistantMessage.followUpSuggestions 
-                        : prevState.suggestions
+                    sending: false
                 }));
             } else {
                 this.setState({
@@ -196,11 +185,55 @@ export default class AIAnalystChatPage extends Component {
     }
 
     handleSuggestionClick(suggestion) {
+        // Retained for any external callers; suggestions panel has been removed from the UI.
         this.setState({ inputText: suggestion }, () => {
-            if (this.inputRef.current) {
-                this.inputRef.current.focus();
-            }
+            if (this.inputRef.current) this.inputRef.current.focus();
         });
+    }
+
+    switchPersona(persona) {
+        const personaSuggestions = {
+            business_owner: [
+                'How secure is my business right now?',
+                'What should I worry about most?',
+                'Am I at risk of a ransomware attack?',
+                "What's the cost if I ignore these issues?"
+            ],
+            it_admin: [
+                'Which CVEs need patching this week?',
+                'Show me my most vulnerable applications',
+                'Which devices are highest risk?',
+                'What CIS controls am I failing?'
+            ],
+            ciso: [
+                'What is our risk posture trend this month?',
+                'How do we compare against CIS benchmarks?',
+                'What are our highest-priority strategic gaps?',
+                'Summarize this for a board presentation'
+            ],
+            auditor: [
+                'List all failed compliance controls with evidence',
+                'What CIS Controls are fully implemented?',
+                'Show me device compliance by control domain',
+                'Which NIST CSF categories have gaps?'
+            ]
+        };
+        this.setState({
+            selectedPersona: persona,
+            suggestions: personaSuggestions[persona] || personaSuggestions.it_admin,
+            messages: [],
+            conversationId: this.generateConversationId()
+        });
+    }
+
+    getPersonaConfig(persona) {
+        const configs = {
+            business_owner: { label: 'Business Owner', icon: '💼', color: 'btn-outline-success' },
+            it_admin:       { label: 'IT Admin',        icon: '🖥️', color: 'btn-outline-primary' },
+            ciso:           { label: 'CISO',            icon: '🛡️', color: 'btn-outline-danger' },
+            auditor:        { label: 'Auditor',         icon: '📋', color: 'btn-outline-warning' }
+        };
+        return configs[persona] || configs.it_admin;
     }
 
     clearConversation() {
@@ -212,16 +245,16 @@ export default class AIAnalystChatPage extends Component {
     }
 
     render() {
-        const { messages, inputText, sending, error, suggestions } = this.state;
+        const { messages, inputText, sending, error } = this.state;
 
         return h('div', { class: 'ai-analyst-chat-page' },
             h('div', { class: 'page-header' },
-                h('h1', null, 
+                h('h1', null,
                     h('i', { class: 'fas fa-robot mr-2' }),
                     'AI Security Analyst'
                 ),
-                h('p', { class: 'page-description' }, 
-                    'Ask questions about your security posture in natural language. The AI analyst will provide insights grounded in your actual infrastructure data.'
+                h('p', { class: 'page-description' },
+                    'Ask a question about your organization’s current security exposure. Answers are grounded in your MagenSec telemetry data.'
                 )
             ),
 
@@ -237,9 +270,9 @@ export default class AIAnalystChatPage extends Component {
                 // Chat Messages Area
                 h('div', { class: 'chat-messages' },
                     messages.length === 0 && !sending && h('div', { class: 'chat-empty-state' },
-                        h('i', { class: 'fas fa-comments fa-3x mb-3 text-muted' }),
-                        h('p', { class: 'text-muted' }, 'Start a conversation with your AI security analyst'),
-                        h('p', { class: 'text-muted small' }, 'Try one of the suggestions below or ask your own question')
+                        h('i', { class: 'fas fa-robot fa-3x mb-3 text-muted' }),
+                        h('p', { class: 'text-muted' }, 'Your AI Security Analyst is ready.'),
+                        h('p', { class: 'text-muted small' }, 'Ask about vulnerable applications, devices needing patches, compliance gaps, or your overall risk posture.')
                     ),
 
                     messages.map(msg => this.renderMessage(msg)),
@@ -258,25 +291,6 @@ export default class AIAnalystChatPage extends Component {
                     ),
 
                     h('div', { ref: this.chatEndRef })
-                ),
-
-                // Suggestions Panel (show when no messages or after assistant response)
-                (messages.length === 0 || (messages.length > 0 && messages[messages.length - 1].role === 'assistant')) &&
-                suggestions.length > 0 && h('div', { class: 'chat-suggestions' },
-                    h('div', { class: 'suggestions-label' },
-                        h('i', { class: 'fas fa-lightbulb mr-2' }),
-                        messages.length === 0 ? 'Suggested questions:' : 'Follow-up suggestions:'
-                    ),
-                    h('div', { class: 'suggestions-list' },
-                        suggestions.map((suggestion, idx) =>
-                            h('button', {
-                                key: idx,
-                                class: 'suggestion-chip',
-                                onClick: () => this.handleSuggestionClick(suggestion),
-                                disabled: sending
-                            }, suggestion)
-                        )
-                    )
                 ),
 
                 // Input Area
@@ -325,13 +339,13 @@ export default class AIAnalystChatPage extends Component {
 
     renderMessage(msg) {
         const isUser = msg.role === 'user';
-        
-        return h('div', { 
-            key: msg.id, 
-            class: `message ${msg.role}` 
+
+        return h('div', {
+            key: msg.id,
+            class: `message ${msg.role}`
         },
-            h('div', { class: 'message-avatar' },
-                h('i', { class: isUser ? 'fas fa-user' : 'fas fa-robot' })
+            h('div', { class: 'message-avatar', title: isUser ? 'You' : 'MagenSec AI' },
+                isUser ? h('i', { class: 'fas fa-user' }) : h('i', { class: 'fas fa-robot' })
             ),
             h('div', { class: 'message-content' },
                 h('div', { class: 'message-text' },
