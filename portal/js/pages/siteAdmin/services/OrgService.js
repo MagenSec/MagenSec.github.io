@@ -38,7 +38,7 @@ export async function loadOrgDetails(api, orgId) {
 
     // Load email configuration
     try {
-        const configRes = await api.get(`/api/v1/admin/email/${orgId}/config`);
+        const configRes = await api.get(`/api/v1/orgs/${orgId}/report-config`);
         if (configRes.success && configRes.data) {
             result.emailConfig = configRes.data;
         }

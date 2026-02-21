@@ -186,9 +186,9 @@ export class ChatDrawer extends Component {
           position: fixed;
           bottom: 88px;
           right: 24px;
-          width: 400px;
+          width: 500px;
           max-width: calc(100vw - 48px);
-          height: 520px;
+          height: 560px;
           max-height: calc(100vh - 120px);
           border-radius: 12px;
           background: var(--tblr-bg-surface, #fff);
@@ -231,7 +231,7 @@ export class ChatDrawer extends Component {
         <div
           id="chat-drawer-messages"
           onClick=${this.handlePortalLinkClick}
-          style="flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;"
+          style="flex: 1; overflow-y: auto; scrollbar-width: thin; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;"
         >
           ${messages.length === 0 ? html`
             <div style="text-align: center; color: var(--tblr-secondary, #888); margin-top: 40px;">

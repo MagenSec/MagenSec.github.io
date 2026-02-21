@@ -55,6 +55,8 @@ export function SettingsPage() {
     const [savingPhone, setSavingPhone] = useState(false);
     const [orgWhatsAppEnabled, setOrgWhatsAppEnabled] = useState(false);
     const [savingOrgWhatsApp, setSavingOrgWhatsApp] = useState(false);
+    const [orgWhatsAppPhone, setOrgWhatsAppPhone] = useState('');
+    const [savingOrgWhatsAppPhone, setSavingOrgWhatsAppPhone] = useState(false);
 
     // Load data on mount and reload when org changes
     useEffect(() => {
@@ -201,6 +203,7 @@ export function SettingsPage() {
                     if (response.success && response.data) {
                         setEmailPreferences(response.data);
                         setOrgWhatsAppEnabled(response.data.whatsappEnabled ?? false);
+                        setOrgWhatsAppPhone(response.data.orgWhatsAppPhone ?? '');
                         logger.debug('[Settings] Email preferences loaded');
                     } else if (response.error === 'NOT_FOUND') {
                         // Endpoint not implemented yet - expected, skip silently
@@ -219,7 +222,7 @@ export function SettingsPage() {
 
                 // Load report configuration
                 try {
-                    const reportRes = await api.get(`/api/v1/admin/email/${currentOrgId}/config`);
+                    const reportRes = await api.get(`/api/v1/orgs/${currentOrgId}/report-config`);
                     if (reportRes.success && reportRes.data) {
                         setReportConfig(reportRes.data);
                         logger.debug('[Settings] Report configuration loaded');
@@ -394,7 +397,7 @@ export function SettingsPage() {
         try {
             setSavingReportConfig(true);
             
-            const res = await api.put(`/api/v1/admin/email/${currentOrg.orgId}/config`, config);
+            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/report-config`, config);
             
             if (res.success) {
                 showToast('Report configuration saved', 'success');
@@ -448,6 +451,26 @@ export function SettingsPage() {
             showToast(error?.message || 'Failed to update WhatsApp setting', 'error');
         } finally {
             setSavingOrgWhatsApp(false);
+        }
+    };
+
+    const handleSaveOrgWhatsAppPhone = async (phone) => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) return;
+        try {
+            setSavingOrgWhatsAppPhone(true);
+            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/whatsapp-phone`, { phoneNumber: phone || null });
+            if (res.success) {
+                setOrgWhatsAppPhone(phone || '');
+                showToast(phone ? 'WhatsApp number updated' : 'WhatsApp number cleared', 'success');
+            } else {
+                showToast(res.message || 'Failed to update WhatsApp number', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error saving org WhatsApp phone', error);
+            showToast(error?.message || 'Failed to update WhatsApp number', 'error');
+        } finally {
+            setSavingOrgWhatsAppPhone(false);
         }
     };
 
@@ -596,6 +619,9 @@ export function SettingsPage() {
                         orgWhatsAppEnabled=${orgWhatsAppEnabled}
                         savingOrgWhatsApp=${savingOrgWhatsApp}
                         onSaveOrgWhatsApp=${handleSaveOrgWhatsApp}
+                        orgWhatsAppPhone=${orgWhatsAppPhone}
+                        savingOrgWhatsAppPhone=${savingOrgWhatsAppPhone}
+                        onSaveOrgWhatsAppPhone=${handleSaveOrgWhatsAppPhone}
                     />`}
 
                 </div>
@@ -1477,9 +1503,10 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
 }
 
 // Reports Configuration Tab - Manage security report settings
-function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveReportConfig, isPersonalOrg, orgWhatsAppEnabled, savingOrgWhatsApp, onSaveOrgWhatsApp }) {
+function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveReportConfig, isPersonalOrg, orgWhatsAppEnabled, savingOrgWhatsApp, onSaveOrgWhatsApp, orgWhatsAppPhone, savingOrgWhatsAppPhone, onSaveOrgWhatsAppPhone }) {
     const [localConfig, setLocalConfig] = useState(null);
     const [showPopovers, setShowPopovers] = useState({});
+    const [localWhatsAppPhone, setLocalWhatsAppPhone] = useState('');
 
     useEffect(() => {
         if (reportConfig) {
@@ -1489,7 +1516,8 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                 weeklyEnabled: reportConfig.weeklyEnabled ?? false,
                 dailySnapshotEnabled: reportConfig.dailySnapshotEnabled ?? false,
                 weeklyReportTier: reportConfig.weeklyReportTier ?? 'Basic',
-                sendToAllTeamMembers: reportConfig.sendToAllTeamMembers ?? false
+                sendToAllTeamMembers: reportConfig.sendToAllTeamMembers ?? false,
+                reportEnabled: !!(reportConfig.dailyReportEnabled || reportConfig.weeklyEnabled)
             };
             // Personal orgs: force weekly off and tier Basic
             if (isPersonalOrg) {
@@ -1510,6 +1538,10 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
         }
     }, [reportConfig, orgId, isPersonalOrg]);
 
+    useEffect(() => {
+        setLocalWhatsAppPhone(orgWhatsAppPhone ?? '');
+    }, [orgWhatsAppPhone]);
+
     if (!localConfig) {
         return html`<div class="text-muted">Loading report configuration...</div>`;
     }
@@ -1523,6 +1555,15 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
 
     const handleSave = async () => {
         const payload = { ...localConfig };
+        // Sync master toggle back to individual flags
+        if (!payload.reportEnabled) {
+            payload.dailyReportEnabled = false;
+            payload.weeklyEnabled = false;
+        } else if (!payload.dailyReportEnabled && !payload.weeklyEnabled) {
+            // Re-enabling from a fully-disabled state: turn on daily at minimum
+            payload.dailyReportEnabled = true;
+            payload.weeklyEnabled = !isPersonalOrg;
+        }
         // Ensure personal org constraints are respected
         if (isPersonalOrg) {
             payload.weeklyEnabled = false;
@@ -1789,7 +1830,40 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                     <div class="card-body">
                         <small class="text-muted">
                             <i class="ti ti-info-circle me-1"></i>
-                            When enabled, org members who have added their phone number and opted in will receive a WhatsApp message when the daily report is sent.
+                            When enabled, a daily WhatsApp security brief will be sent to the phone number configured below.
+                        </small>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4 class="card-title mb-0">WhatsApp Notification Number</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2 align-items-center">
+                            <div class="col">
+                                <input
+                                    type="tel"
+                                    class="form-control"
+                                    placeholder="+12125551234"
+                                    value=${localWhatsAppPhone}
+                                    onInput=${(e) => setLocalWhatsAppPhone(e.target.value)}
+                                    disabled=${savingOrgWhatsAppPhone}
+                                />
+                            </div>
+                            <div class="col-auto">
+                                <button
+                                    class="btn btn-primary"
+                                    onClick=${() => onSaveOrgWhatsAppPhone(localWhatsAppPhone)}
+                                    disabled=${savingOrgWhatsAppPhone}
+                                >
+                                    ${savingOrgWhatsAppPhone ? html`<span class="spinner-border spinner-border-sm me-1"></span>` : ''}
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                        <small class="text-muted mt-2 d-block">
+                            Phone number to receive the daily WhatsApp security brief. Must be in E.164 format (e.g. +12125551234). Leave blank to stop delivery.
                         </small>
                     </div>
                 </div>

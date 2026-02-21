@@ -1,4 +1,4 @@
-/**
+﻿/**
  * UnifiedDashboard - Persona-driven security dashboard
  * Uses html`` template literals (no JSX)
  */
@@ -9,13 +9,6 @@ import { orgContext } from '@orgContext';
 import PersonaNav from './PersonaNav.js';
 
 const { html, Component } = window;
-
-const PERSONA_LABELS = {
-  business: 'Business Owner',
-  it: 'IT Admin',
-  security: 'Security Pro',
-  auditor: 'Auditor'
-};
 
 function renderMarkdown(text) {
   if (!text) return '';
@@ -34,11 +27,13 @@ export default class UnifiedDashboard extends Component {
       data: null,
       isRefreshingInBackground: false,
       activePersona: 'business', // business | it | security | auditor
+      personaSheetOpen: false,
       aiPrompt: '',
       aiAnswer: null,
       aiLoading: false,
       aiError: null
     };
+    this._sheetDismissHandler = null;
   }
 
   componentDidMount() {
@@ -164,9 +159,16 @@ export default class UnifiedDashboard extends Component {
   };
 
   handlePersonaChange = (persona) => {
-    this.setState({ activePersona: persona });
-    // Scroll to top of content area
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const alreadyOpen = this.state.personaSheetOpen && this.state.activePersona === persona;
+    if (alreadyOpen) {
+      this.setState({ personaSheetOpen: false });
+    } else {
+      this.setState({ activePersona: persona, personaSheetOpen: true });
+    }
+  };
+
+  closePersonaSheet = () => {
+    this.setState({ personaSheetOpen: false });
   };
 
   scrollToSection = (sectionId) => {
@@ -269,6 +271,23 @@ export default class UnifiedDashboard extends Component {
     return 'status-red';
   }
 
+  getHeroGradient(score) {
+    if (score >= 80) return 'linear-gradient(160deg, #0a1f12 0%, #0e2f1e 45%, #071a2a 100%)';
+    if (score >= 60) return 'linear-gradient(160deg, #071829 0%, #0c2040 45%, #060e1c 100%)';
+    if (score >= 40) return 'linear-gradient(160deg, #1a1006 0%, #2a1c08 45%, #181006 100%)';
+    return 'linear-gradient(160deg, #1a0608 0%, #2e0c0c 45%, #1a0508 100%)';
+  }
+
+  getPersonaGradient(persona) {
+    const map = {
+      business: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+      it:       'linear-gradient(135deg, #1d4ed8 0%, #0891b2 100%)',
+      security: 'linear-gradient(135deg, #dc2626 0%, #ea580c 100%)',
+      auditor:  'linear-gradient(135deg, #0f766e 0%, #047857 100%)'
+    };
+    return map[persona] || map.business;
+  }
+
   renderRefreshBanner() {
     const { refreshing, refreshError, data, isRefreshingInBackground } = this.state;
     if (!refreshing && !refreshError && !isRefreshingInBackground) return null;
@@ -307,115 +326,160 @@ export default class UnifiedDashboard extends Component {
   }
 
   renderSearchHeader() {
-    const { data, aiLoading, aiAnswer, aiError } = this.state;
-    const score = data?.securityScore || { score: '?', grade: '-', urgentActionCount: 0 };
+    const { data, aiLoading, aiAnswer, aiError, refreshing } = this.state;
+    const secScore = typeof data?.securityScore?.score === 'number' ? data.securityScore.score : 0;
+    const heroGradient = this.getHeroGradient(secScore);
+    const freshness = this.getFreshnessInfo();
 
     return html`
-      <div class="text-center mb-5 mt-4">
-        <h1 class="display-4 fw-bold mb-2" style="letter-spacing: -1px;">
-          <span class="text-primary">Magen</span>Sec
-        </h1>
-        <div class="text-muted mb-4 fs-3">Your AI Security Intelligence Partner</div>
+      <div style="
+        width: 100vw;
+        position: relative;
+        left: 50%;
+        right: 50%;
+        margin-left: -50vw;
+        margin-right: -50vw;
+        background: ${heroGradient};
+        padding: 40px 16px 44px;
+        overflow: hidden;
+      ">
+        <!-- Decorative glow orbs -->
+        <div style="position: absolute; top: -80px; right: -40px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 65%); pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -60px; left: -40px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 65%); pointer-events: none;"></div>
 
-        <div class="row justify-content-center mb-4">
-          <div class="col-md-10 col-lg-8">
-            <form onSubmit=${this.submitAiPrompt} class="position-relative">
-              <div class="input-group input-group-lg shadow-sm rounded-pill overflow-hidden border">
-                <span class="input-group-text bg-white border-0 ps-4">
+        <div style="max-width: 960px; margin: 0 auto; position: relative;">
+
+          <!-- Title -->
+          <div style="text-align: center; margin-bottom: 28px;">
+            <h1 style="font-size: 2.6rem; font-weight: 800; letter-spacing: -1.5px; margin: 0 0 6px; line-height: 1.1;">
+              <span style="background: linear-gradient(135deg, #a5b4fc, #c4b5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Magen</span><span style="color: #fff;">Sec</span>
+            </h1>
+            <div style="color: rgba(255,255,255,0.42); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500;">Security Intelligence Platform</div>
+          </div>
+
+          <!-- Glassmorphism KR Tiles -->
+          ${this.renderConfidenceTiles()}
+
+          <!-- AI Search bar -->
+          <div style="max-width: 680px; margin: 0 auto 12px;">
+            <form onSubmit=${this.submitAiPrompt}>
+              <div style="
+                display: flex;
+                align-items: center;
+                background: rgba(255,255,255,0.08);
+                backdrop-filter: blur(16px) saturate(180%);
+                -webkit-backdrop-filter: blur(16px) saturate(180%);
+                border: 1px solid rgba(255,255,255,0.16);
+                border-radius: 50px;
+                overflow: hidden;
+                transition: border-color 0.2s;
+              ">
+                <span style="display: flex; align-items: center; padding: 0 10px 0 20px; color: rgba(255,255,255,0.35); flex-shrink: 0;">
                   ${aiLoading
-                    ? html`<span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>`
-                    : html`<svg class="icon text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>`}
+                    ? html`<span class="spinner-border spinner-border-sm" style="color: #a5b4fc; width: 16px; height: 16px; border-width: 2px;" role="status"></span>`
+                    : html`<svg width="17" height="17" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>`}
                 </span>
                 <input
                   type="text"
-                  class="form-control border-0 shadow-none ps-2"
-                  placeholder="Ask anything (e.g. 'Show active threats' or 'List Windows 11 devices')"
+                  placeholder="Ask about threats, compliance, or any device..."
                   value=${this.state.aiPrompt}
                   onInput=${this.handleAiPromptChange}
-                  style="min-height: 56px;"
-                  autofocus
                   disabled=${aiLoading}
+                  style="
+                    flex: 1;
+                    background: none;
+                    border: none;
+                    outline: none;
+                    color: #fff;
+                    font-size: 0.9rem;
+                    padding: 13px 8px;
+                    min-width: 0;
+                  "
                 />
-                <button class="btn btn-white border-0 text-primary pe-4 fw-bold" type="submit" disabled=${aiLoading}>
-                  ${aiLoading ? 'Analyzing…' : 'Analyze'}
-                </button>
+                <button
+                  type="submit"
+                  disabled=${aiLoading}
+                  style="
+                    flex-shrink: 0;
+                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                    border: none;
+                    color: #fff;
+                    padding: 0 20px;
+                    height: 36px;
+                    font-weight: 600;
+                    font-size: 0.82rem;
+                    border-radius: 40px;
+                    margin: 4px;
+                    cursor: ${aiLoading ? 'default' : 'pointer'};
+                    opacity: ${aiLoading ? '0.6' : '1'};
+                    transition: opacity 0.15s;
+                    white-space: nowrap;
+                  "
+                >${aiLoading ? 'Thinkingâ€¦' : 'Ask AI'}</button>
               </div>
             </form>
 
-            ${aiLoading ? html`
-              <div class="mt-3 text-center text-muted small">
-                <span class="spinner-border spinner-border-sm me-2 text-primary"></span>Asking AI Analyst…
-              </div>
-            ` : ''}
-
+            <!-- AI Answer card -->
             ${aiAnswer ? html`
-              <div class="card mt-3 text-start shadow-sm border-0">
-                <div class="card-body pb-2">
-                  <div class="d-flex align-items-center justify-content-between mb-2">
-                    <div class="d-flex align-items-center gap-2">
-                      <svg class="icon text-primary" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-                      <span class="fw-semibold text-muted small">AI Analyst</span>
-                      ${aiAnswer.confidence != null ? html`
-                        <span class="badge bg-${aiAnswer.confidence >= 0.9 ? 'success' : aiAnswer.confidence >= 0.7 ? 'info' : 'secondary'}-lt text-${aiAnswer.confidence >= 0.9 ? 'success' : aiAnswer.confidence >= 0.7 ? 'primary' : 'muted'} small">
-                          ${Math.round((aiAnswer.confidence || 0) * 100)}% confident
-                        </span>
-                      ` : ''}
-                    </div>
-                    <div class="d-flex gap-2">
-                      <button
-                        class="btn btn-sm btn-outline-primary"
-                        onClick=${() => {
-                          try {
-                            sessionStorage.setItem('ai_analyst_prefill', JSON.stringify({
-                              question: aiAnswer.question,
-                              answer: aiAnswer.answer
-                            }));
-                          } catch (_) {}
-                          window.location.hash = '#!/analyst';
-                        }}
-                      >Continue in AI Analyst →</button>
-                      <button class="btn btn-sm btn-outline-secondary" onClick=${this.clearAiAnswer}>✕</button>
-                    </div>
+              <div style="
+                margin-top: 14px;
+                background: rgba(255,255,255,0.07);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border: 1px solid rgba(255,255,255,0.12);
+                border-left: 3px solid #818cf8;
+                border-radius: 14px;
+                padding: 14px 16px;
+              ">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="#a5b4fc" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
+                    <span style="color: #c4b5fd; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;">AI ANALYST</span>
+                    ${aiAnswer.confidence != null ? html`
+                      <span style="font-size: 0.7rem; background: rgba(99,102,241,0.25); color: #a5b4fc; padding: 1px 8px; border-radius: 20px;">${Math.round((aiAnswer.confidence || 0) * 100)}% confident</span>
+                    ` : ''}
                   </div>
-                  <div class="text-muted small mb-2 border-bottom pb-2">${aiAnswer.question}</div>
-                  <div class="position-relative">
-                    <div class="chat-markdown-content" style="max-height: 500px; overflow-y: auto; font-size: 0.9rem;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <button
+                      onClick=${() => {
+                        try { sessionStorage.setItem('ai_analyst_prefill', JSON.stringify({ question: aiAnswer.question, answer: aiAnswer.answer })); } catch (_) {}
+                        window.location.hash = '#!/analyst';
+                      }}
+                      style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18); color: #e0e7ff; font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; cursor: pointer;"
+                    >Continue â†’</button>
+                    <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">âœ•</button>
                   </div>
-                  ${aiAnswer.citations?.length ? html`
-                    <div class="mt-2 pt-2 border-top">
-                      <span class="text-muted small">
-                        <svg class="icon icon-inline me-1" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><line x1="3" y1="6" x2="3" y2="19" /><line x1="12" y1="6" x2="12" y2="19" /><line x1="21" y1="6" x2="21" y2="19" /></svg>
-                        ${aiAnswer.citations.join(' · ')}
-                      </span>
-                    </div>
-                  ` : ''}
                 </div>
+                <div style="color: rgba(255,255,255,0.38); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
+                <div class="chat-markdown-content" style="color: rgba(255,255,255,0.82); font-size: 0.875rem; max-height: 280px; overflow-y: auto;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
               </div>
             ` : ''}
 
             ${aiError ? html`
-              <div class="alert alert-warning mt-3 d-flex align-items-center justify-content-between">
+              <div style="margin-top: 10px; background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); border-radius: 10px; padding: 10px 14px; color: #fca5a5; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
                 <span>${aiError}</span>
-                <button class="btn btn-sm btn-outline-secondary ms-2" onClick=${this.clearAiAnswer}>Dismiss</button>
+                <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: #fca5a5; cursor: pointer; margin-left: 8px;">âœ•</button>
               </div>
             ` : ''}
+          </div>
 
-            <div class="mt-4 d-flex justify-content-center gap-3 flex-wrap">
-              <a class="btn btn-light btn-pill border shadow-sm px-4" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/posture'; }}>
-                <span class="badge bg-${this.getGradeClass(score.grade)} me-2">Grade ${score.grade}</span> View Report
-              </a>
-              ${score.urgentActionCount > 0 ? html`
-                <a class="btn btn-light btn-pill border shadow-sm px-4" href="#" onClick=${(e) => { e.preventDefault(); this.scrollToSection('priority'); }}>
-                  <span class="badge bg-danger me-2">${score.urgentActionCount}</span> Urgent Actions
-                </a>
-              ` : ''}
-              <button class="btn btn-light btn-pill border shadow-sm px-4" onClick=${() => this.refreshDashboard()}>
-                ${this.state.refreshing
-                  ? html`<span class="spinner-border spinner-border-sm me-2"></span>Refreshing`
-                  : html`<svg class="icon icon-inline me-1 text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Refresh`}
+          <!-- Quick nav + freshness -->
+          <div style="text-align: center;">
+            <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;">
+              <a href="#!/security" style="font-size: 0.72rem; color: rgba(255,255,255,0.38); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 1px solid rgba(255,255,255,0.09);">Security</a>
+              <a href="#!/compliance" style="font-size: 0.72rem; color: rgba(255,255,255,0.38); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 1px solid rgba(255,255,255,0.09);">Compliance</a>
+              <a href="#!/reports" style="font-size: 0.72rem; color: rgba(255,255,255,0.38); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 1px solid rgba(255,255,255,0.09);">Reports</a>
+              <button onClick=${() => this.refreshDashboard()} style="font-size: 0.72rem; color: rgba(255,255,255,0.38); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 3px 10px; cursor: pointer;">
+                ${refreshing ? 'Refreshingâ€¦' : 'â†» Refresh'}
               </button>
+              ${freshness ? html`
+                <span style="font-size: 0.68rem; color: rgba(255,255,255,0.25);">
+                  Â· ${freshness.ageText}${freshness.isStale ? ' (stale)' : ''}
+                </span>
+              ` : ''}
             </div>
           </div>
+
         </div>
       </div>
     `;
@@ -428,422 +492,389 @@ export default class UnifiedDashboard extends Component {
     const score = data.securityScore || {};
     const compliance = data.businessOwner?.complianceCard || {};
     const stats = data.quickStats || {};
+    const threats = data.securityPro?.threatIntel || {};
 
+    const secScore = score.score || 0;
     const compliancePercent = compliance.percent || 0;
-    const auditReady = compliancePercent >= 80;
-    const complianceColor = compliancePercent >= 80 ? 'success' : compliancePercent >= 60 ? 'warning' : 'danger';
-    const dotClass = this.getDeviceHealthDotClass(stats);
+    const criticalCount = threats.criticalCveCount || 0;
+    const activeDevices = stats.devices?.activeCount || 0;
+    const totalDevices = stats.devices?.totalCount || 0;
+    const offlineDevices = stats.devices?.offlineCount || 0;
+
+    const scoreHex   = secScore >= 80 ? '#34d399' : secScore >= 60 ? '#60a5fa' : secScore >= 40 ? '#fbbf24' : '#f87171';
+    const compHex    = compliancePercent >= 80 ? '#34d399' : compliancePercent >= 60 ? '#60a5fa' : compliancePercent >= 40 ? '#fbbf24' : '#f87171';
+    const threatHex  = criticalCount === 0 ? '#34d399' : criticalCount <= 3 ? '#fbbf24' : '#f87171';
+    const fleetHex   = offlineDevices === 0 ? '#60a5fa' : offlineDevices <= 2 ? '#fbbf24' : '#f87171';
+
+    const glass = 'background:rgba(255,255,255,0.07);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,0.11);border-radius:14px;padding:16px 14px;cursor:pointer;transition:background 0.2s,border-color 0.2s;';
+    const label = 'color:rgba(255,255,255,0.45);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.09em;font-weight:600;margin-bottom:6px;';
+    const bigNum = (color) => `font-size:2rem;font-weight:800;color:${color};line-height:1;margin-bottom:4px;`;
+    const sub = 'font-size:0.72rem;color:rgba(255,255,255,0.38);';
 
     return html`
-      <div class="row row-cols-2 row-cols-md-4 g-3 mb-5">
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/security'}>
-            <div class="card-body text-center p-3">
-              <div class="text-muted text-uppercase small fw-bold mb-1">Security Score</div>
-              <div class="h2 mb-0">
-                <span class="badge bg-${this.getGradeClass(score.grade)} me-1">${score.grade || '-'}</span>${score.score || 0}
-              </div>
-              <div class="text-muted small mt-1">
-                ${score.urgentActionCount > 0
-                  ? html`<span class="text-danger">${score.urgentActionCount} urgent</span>`
-                  : html`<span class="text-success">No urgent actions</span>`}
-              </div>
+      <div class="row g-2 mb-5">
+
+        <div class="col-6 col-md-3">
+          <div style="${glass}" onClick=${() => window.location.hash = '#!/security'}>
+            <div style="${label}">Security</div>
+            <div style="display:flex;align-items:baseline;gap:8px;${bigNum(scoreHex)}">
+              <span>${secScore}</span>
+              <span style="font-size:0.78rem;font-weight:700;color:${scoreHex};background:rgba(255,255,255,0.09);padding:2px 7px;border-radius:6px;">${score.grade || 'â€”'}</span>
+            </div>
+            <div style="${sub}${score.urgentActionCount > 0 ? 'color:#fca5a5;' : ''}">
+              ${score.urgentActionCount > 0 ? `âš  ${score.urgentActionCount} urgent` : 'âœ“ No alerts'}
             </div>
           </div>
         </div>
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/compliance'}>
-            <div class="card-body text-center p-3">
-              <div class="text-muted text-uppercase small fw-bold mb-1">Compliance</div>
-              <div class="h2 mb-0 text-${complianceColor}">${compliancePercent}%</div>
-              <div class="progress mt-2" style="height: 4px;">
-                <div class="progress-bar bg-${complianceColor}" style="width: ${compliancePercent}%"></div>
-              </div>
-              <div class="text-muted small mt-1">${compliance.gapDescription || 'No data yet'}</div>
+
+        <div class="col-6 col-md-3">
+          <div style="${glass}" onClick=${() => window.location.hash = '#!/compliance'}>
+            <div style="${label}">Compliance</div>
+            <div style="${bigNum(compHex)}">${compliancePercent}%</div>
+            <div style="background:rgba(255,255,255,0.12);border-radius:3px;height:3px;overflow:hidden;margin-bottom:5px;">
+              <div style="width:${compliancePercent}%;height:100%;background:${compHex};border-radius:3px;transition:width 0.9s ease;"></div>
+            </div>
+            <div style="${sub}">
+              ${compliance.gapCount > 0 ? `${compliance.gapCount} gap${compliance.gapCount !== 1 ? 's' : ''}` : 'Fully compliant'}
             </div>
           </div>
         </div>
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/auditor'}>
-            <div class="card-body text-center p-3">
-              <div class="text-muted text-uppercase small fw-bold mb-1">Audit Ready</div>
-              <div class="h2 mb-0">
-                ${auditReady
-                  ? html`<svg class="icon text-success" width="28" height="28" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>`
-                  : html`<svg class="icon text-warning" width="28" height="28" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>`}
-              </div>
-              <div class="text-muted small mt-1">
-                ${auditReady ? 'Ready' : 'Not ready — score below 80%'}
-              </div>
+
+        <div class="col-6 col-md-3">
+          <div style="${glass}" onClick=${() => window.location.hash = '#!/security'}>
+            <div style="${label}">Threats</div>
+            <div style="display:flex;align-items:baseline;gap:6px;${bigNum(threatHex)}">
+              <span>${criticalCount}</span>
+              <span style="font-size:0.72rem;color:rgba(255,255,255,0.38);">critical</span>
+            </div>
+            <div style="${sub}${threats.exploitCount > 0 ? 'color:#fb923c;' : ''}">
+              ${threats.exploitCount > 0 ? `${threats.exploitCount} KEV exploits` : `${threats.highCveCount || 0} high severity`}
             </div>
           </div>
         </div>
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/devices'}>
-            <div class="card-body text-center p-3">
-              <div class="text-muted text-uppercase small fw-bold mb-1">Devices Protected</div>
-              <div class="h2 mb-0">${stats.devices?.totalCount || 0}</div>
-              <div class="d-flex align-items-center justify-content-center mt-1 text-muted small">
-                <span class="status-dot ${dotClass} me-1"></span>
-                ${stats.devices?.activeCount || 0} active
-              </div>
+
+        <div class="col-6 col-md-3">
+          <div style="${glass}" onClick=${() => window.location.hash = '#!/devices'}>
+            <div style="${label}">Fleet</div>
+            <div style="display:flex;align-items:baseline;gap:4px;${bigNum(fleetHex)}">
+              <span>${activeDevices}</span>
+              <span style="font-size:0.82rem;color:rgba(255,255,255,0.3);">/ ${totalDevices}</span>
+            </div>
+            <div style="${sub}${offlineDevices > 0 ? 'color:#fbbf24;' : ''}">
+              ${offlineDevices > 0 ? `${offlineDevices} offline` : 'âœ“ All healthy'}
             </div>
           </div>
         </div>
+
       </div>
     `;
   }
 
-  renderPrioritySection() {
-    const { data, activePersona } = this.state;
+  renderPersonaSheet() {
+    const { data, activePersona, personaSheetOpen } = this.state;
     if (!data) return null;
 
+    const headerGradient = this.getPersonaGradient(activePersona);
+
+    const PERSONA_ICONS = {
+      business: html`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" stroke-width="1.8" stroke="rgba(255,255,255,0.9)" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7v-2a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="12" y1="12" x2="12" y2="12.01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg>`,
+      it:       html`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" stroke-width="1.8" stroke="rgba(255,255,255,0.9)" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1"/><line x1="7" y1="20" x2="17" y2="20"/><line x1="9" y1="16" x2="9" y2="20"/><line x1="15" y1="16" x2="15" y2="20"/></svg>`,
+      security: html`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" stroke-width="1.8" stroke="rgba(255,255,255,0.9)" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/><path d="M9 12l2 2l4-4"/></svg>`,
+      auditor:  html`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" stroke-width="1.8" stroke="rgba(255,255,255,0.9)" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-12a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12l2 2l4-4"/></svg>`
+    };
+
+    const PERSONA_LABELS = {
+      business: 'Business Owner',
+      it:       'IT Operations',
+      security: 'Security',
+      auditor:  'Auditor'
+    };
+
+    const PERSONA_CTAs = {
+      business: [
+        { href: '#!/compliance', label: 'Compliance' },
+        { href: '#!/security',   label: 'Security' },
+        { href: '#!/reports',    label: 'Reports' }
+      ],
+      it: [
+        { href: '#!/devices',   label: 'Devices' },
+        { href: '#!/inventory', label: 'Inventory' },
+        { href: '#!/security',  label: 'Vulnerabilities' }
+      ],
+      security: [
+        { href: '#!/security',    label: 'Full Analysis' },
+        { href: '#!/reports',     label: 'Reports' },
+        { href: '#!/analyst',     label: 'Ask AI' }
+      ],
+      auditor: [
+        { href: '#!/auditor',     label: 'Auditor Dashboard' },
+        { href: '#!/audit',       label: 'Audit Log' },
+        { href: '#!/compliance',  label: 'Compliance' }
+      ]
+    };
+
+    // Build headline metric for header
+    let headlineValue = '';
+    let headlineLabel = '';
+    let headlineSubtitle = '';
+    const score = data.securityScore || {};
+    const bo = data.businessOwner || {};
+    const it = data.itAdmin || {};
+    const sec = data.securityPro?.threatIntel || {};
+    const compPct = bo.complianceCard?.percent || 0;
+
     if (activePersona === 'business') {
-      const bo = data.businessOwner;
-      return html`
-        <div class="card mb-3">
-          <div class="card-header">
-            <h3 class="card-title">Priority actions</h3>
-          </div>
-          <div class="card-body">
-            ${bo?.topActions?.length ? bo.topActions.map((action, idx) => html`
-              <div class="mb-3 pb-3 ${idx < bo.topActions.length - 1 ? 'border-bottom' : ''}">
-                <div class="d-flex align-items-start">
-                  <div class="me-3">
-                    <span class="badge ${action.urgency === 'critical' ? 'bg-danger text-white' : action.urgency === 'high' ? 'bg-warning text-white' : 'bg-info text-white'}">
-                      ${action.urgency}
-                    </span>
-                  </div>
-                  <div class="flex-fill">
-                    <div class="font-weight-medium">${action.title}</div>
-                    <div class="text-muted">${action.description}</div>
-                    <div class="text-muted small mt-1">${action.deadlineText || ''}</div>
-                  </div>
-                </div>
-              </div>
-            `) : html`<div class="text-muted">No urgent actions right now.</div>`}
-          </div>
-        </div>
-      `;
+      headlineValue = `${compPct}%`;
+      headlineLabel = 'Compliance';
+      headlineSubtitle = bo.riskSummary?.overallRisk ? `${bo.riskSummary.overallRisk} risk overall` : 'Risk posture summary';
+    } else if (activePersona === 'it') {
+      headlineValue = String(it.deploymentStatus?.pendingUpdates || 0);
+      headlineLabel = 'Pending Updates';
+      headlineSubtitle = `${it.inventory?.totalDevices || 0} devices Â· ${it.inventory?.totalApps || 0} apps tracked`;
+    } else if (activePersona === 'security') {
+      headlineValue = String(sec.criticalCveCount || 0);
+      headlineLabel = 'Critical CVEs';
+      headlineSubtitle = sec.exploitCount > 0 ? `âš  ${sec.exploitCount} actively exploited (KEV)` : `${sec.highCveCount || 0} high severity CVEs`;
+    } else {
+      headlineValue = `${compPct}%`;
+      headlineLabel = 'Audit Readiness';
+      headlineSubtitle = bo.complianceCard?.gapCount > 0 ? `${bo.complianceCard.gapCount} control gap${bo.complianceCard.gapCount !== 1 ? 's' : ''}` : 'Controls verified';
     }
 
-    if (activePersona === 'it') {
-      const it = data.itAdmin;
-      const hasAppRisks = it?.appRisks?.length > 0;
-      return html`
-        <div class="card mb-3">
-          <div class="card-header">
-            <h3 class="card-title">Patch priorities</h3>
-            <div class="card-options text-muted small">
-              ${it?.inventory ? html`${it.inventory.totalDevices || 0} devices · ${it.inventory.totalApps || 0} apps` : ''}
-            </div>
-          </div>
-          <div class="card-body">
-            ${hasAppRisks ? html`
-              <div class="table-responsive">
-                <table class="table table-vcenter table-sm card-table">
-                  <thead>
-                    <tr>
-                      <th>Application to patch</th>
-                      <th class="text-center">CVEs</th>
-                      <th class="text-center">KEV</th>
-                      <th class="text-end">Devices affected</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${it.appRisks.slice(0, 5).map((a, i) => html`
-                      <tr>
-                        <td>
-                          <span class="badge bg-secondary me-2">#${i + 1}</span>
-                          <span class="fw-medium">${a.appName}</span>
-                          ${a.version ? html`<span class="text-muted small ms-1">${a.version}</span>` : ''}
-                        </td>
-                        <td class="text-center"><span class="badge bg-danger-lt text-danger">${a.cveCount}</span></td>
-                        <td class="text-center">${a.kevCount > 0 ? html`<span class="badge bg-orange text-white">${a.kevCount} KEV</span>` : html`<span class="text-muted">—</span>`}</td>
-                        <td class="text-end text-muted">${a.deviceCount}</td>
-                      </tr>
-                    `)}
-                  </tbody>
-                </table>
-              </div>
-            ` : html`
-              <div class="row g-3 text-center">
-                <div class="col-4">
-                  <div class="h3 mb-0 text-warning">${it?.deploymentStatus?.pendingUpdates || 0}</div>
-                  <div class="text-muted small">Pending updates</div>
-                </div>
-                <div class="col-4">
-                  <div class="h3 mb-0 text-primary">${it?.deploymentStatus?.inProgressUpdates || 0}</div>
-                  <div class="text-muted small">In progress</div>
-                </div>
-                <div class="col-4">
-                  <div class="h3 mb-0 text-success">${it?.deploymentStatus?.completedToday || 0}</div>
-                  <div class="text-muted small">Completed today</div>
-                </div>
-              </div>
-            `}
-          </div>
-        </div>
-      `;
+    // Build metric row (row 1 of sheet body)
+    let metricCards = [];
+    if (activePersona === 'business') {
+      const risk = bo.riskSummary?.overallRisk || 'â€”';
+      const riskColor = risk === 'low' ? '#34d399' : risk === 'medium' ? '#fbbf24' : '#f87171';
+      metricCards = [
+        { label: 'Security Score', value: score.score || 0, valueColor: score.score >= 80 ? '#16a34a' : score.score >= 60 ? '#2563eb' : '#d97706', suffix: '', sub: score.grade || '' },
+        { label: 'Compliance',     value: `${compPct}%`,   valueColor: compPct >= 80 ? '#16a34a' : compPct >= 60 ? '#2563eb' : '#dc2626', suffix: '', sub: bo.complianceCard?.gapCount > 0 ? `${bo.complianceCard.gapCount} gaps` : 'clean' },
+        { label: 'Risk Level',     value: risk,            valueColor: riskColor,   suffix: '', sub: `Score: ${bo.riskSummary?.riskScore || 'â€”'}` },
+        { label: 'License',        value: `${bo.licenseCard?.seatsUsed || 0}/${bo.licenseCard?.seatsTotal || 0}`, valueColor: '#6366f1', suffix: '', sub: `${bo.licenseCard?.daysRemaining || 0}d remaining` }
+      ];
+    } else if (activePersona === 'it') {
+      metricCards = [
+        { label: 'Managed Devices', value: it.inventory?.totalDevices || 0,         valueColor: '#2563eb', suffix: '', sub: '' },
+        { label: 'Pending Patches', value: it.deploymentStatus?.pendingUpdates || 0, valueColor: it.deploymentStatus?.pendingUpdates > 0 ? '#d97706' : '#16a34a', suffix: '', sub: '' },
+        { label: 'Patched Today',   value: it.deploymentStatus?.completedToday || 0, valueColor: '#16a34a', suffix: '', sub: '' },
+        { label: 'Apps Tracked',    value: it.inventory?.totalApps || 0,             valueColor: '#6366f1', suffix: '', sub: '' }
+      ];
+    } else if (activePersona === 'security') {
+      metricCards = [
+        { label: 'Critical CVEs', value: sec.criticalCveCount || 0, valueColor: sec.criticalCveCount > 0 ? '#dc2626' : '#16a34a', suffix: '', sub: '' },
+        { label: 'High Severity', value: sec.highCveCount || 0,     valueColor: sec.highCveCount > 0 ? '#d97706' : '#16a34a',    suffix: '', sub: '' },
+        { label: 'KEV Exploits',  value: sec.exploitCount || 0,     valueColor: sec.exploitCount > 0 ? '#ea580c' : '#16a34a',    suffix: '', sub: 'active' },
+        { label: 'Risk Score',    value: 100 - (score.score || 0),  valueColor: '#6366f1', suffix: '', sub: '' }
+      ];
+    } else {
+      const gapCount = bo.complianceCard?.gapCount || 0;
+      metricCards = [
+        { label: 'Compliance',   value: `${compPct}%`,                          valueColor: compPct >= 80 ? '#16a34a' : compPct >= 60 ? '#2563eb' : '#dc2626', suffix: '', sub: '' },
+        { label: 'Control Gaps', value: gapCount,                               valueColor: gapCount > 0 ? '#d97706' : '#16a34a', suffix: '', sub: '' },
+        { label: 'Risk Score',   value: bo.riskSummary?.riskScore || 'â€”',       valueColor: '#6366f1', suffix: '', sub: '' },
+        { label: 'Status',       value: compPct >= 80 ? 'Ready' : 'Not Ready',  valueColor: compPct >= 80 ? '#16a34a' : '#d97706', suffix: '', sub: '' }
+      ];
     }
 
-    if (activePersona === 'auditor') {
-      const bo = data.businessOwner;
-      const compliancePercent = bo?.complianceCard?.percent || 0;
-      const auditReady = compliancePercent >= 80;
-      const complianceColor = compliancePercent >= 80 ? 'success' : compliancePercent >= 60 ? 'warning' : 'danger';
-      return html`
-        <div class="card mb-3">
-          <div class="card-header">
-            <h3 class="card-title">Audit readiness</h3>
-            <div class="card-options">
-              <a href="#!/auditor" class="btn btn-sm btn-outline-secondary">Full Auditor View →</a>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-3 text-center">
-                <div class="h1 mb-0 text-${complianceColor}">${compliancePercent}%</div>
-                <div class="text-muted">Compliance score</div>
-                <div class="progress mt-2" style="height: 6px;">
-                  <div class="progress-bar bg-${complianceColor}" style="width: ${compliancePercent}%"></div>
-                </div>
-              </div>
-              <div class="col-md-3 text-center">
-                <div class="h1 mb-0 text-${auditReady ? 'success' : 'warning'}">
-                  ${auditReady ? 'Ready' : 'Not Ready'}
-                </div>
-                <div class="text-muted">Audit status</div>
-              </div>
-              <div class="col-md-3 text-center">
-                <div class="h1 mb-0">${bo?.riskSummary?.riskScore || '—'}</div>
-                <div class="text-muted">Risk score</div>
-              </div>
-              <div class="col-md-3 text-center">
-                <div class="h1 mb-0 text-${bo?.riskSummary?.overallRisk === 'low' ? 'success' : bo?.riskSummary?.overallRisk === 'medium' ? 'warning' : 'danger'}">
-                  ${bo?.riskSummary?.overallRisk || '—'}
-                </div>
-                <div class="text-muted">Overall risk</div>
-              </div>
-            </div>
-            ${bo?.complianceCard?.gapDescription ? html`
-              <div class="mt-3 alert alert-${complianceColor}-lt border-0">
-                ${bo.complianceCard.gapDescription}
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      `;
+    // Build action list (row 2 of sheet body)
+    let actionRows = [];
+    if (activePersona === 'business') {
+      actionRows = (bo.topActions || []).slice(0, 3).map(a => ({
+        badge: a.urgency || 'normal',
+        badgeColor: a.urgency === 'critical' || a.urgency === 'urgent' ? '#dc2626' : a.urgency === 'high' || a.urgency === 'important' ? '#d97706' : '#6b7280',
+        title: a.title || '',
+        sub: a.deadlineText || a.description || ''
+      }));
+    } else if (activePersona === 'it') {
+      actionRows = (it.appRisks || []).slice(0, 3).map(a => ({
+        badge: `${a.cveCount} CVEs`,
+        badgeColor: '#dc2626',
+        title: a.appName || '',
+        sub: a.kevCount > 0 ? `${a.kevCount} KEV Â· ${a.deviceCount} devices` : `${a.deviceCount} devices affected`
+      }));
+    } else if (activePersona === 'security') {
+      if (sec.exploitCount > 0) {
+        actionRows = [{ badge: 'KEV', badgeColor: '#ea580c', title: `${sec.exploitCount} actively exploited vulnerability${sec.exploitCount !== 1 ? 'ies' : 'y'}`, sub: 'Patch immediately â€” these are in CISA KEV catalog' }];
+      }
+      actionRows = [...actionRows, ...(data.securityPro?.attackSurface?.layers || []).slice(0, 2).map(l => ({
+        badge: l.riskLevel || 'medium',
+        badgeColor: l.riskLevel === 'critical' ? '#dc2626' : l.riskLevel === 'high' ? '#d97706' : '#6b7280',
+        title: l.name || '',
+        sub: `${l.cveCount || 0} CVEs${l.criticalCount > 0 ? ` Â· ${l.criticalCount} critical` : ''}`
+      }))].slice(0, 3);
+    } else {
+      const gapDesc = bo.complianceCard?.gapDescription || '';
+      if (gapDesc) actionRows.push({ badge: 'gap', badgeColor: '#d97706', title: 'Compliance gap identified', sub: gapDesc });
+      actionRows.push({ badge: 'report', badgeColor: '#6366f1', title: 'Asset inventory', sub: 'Available now' });
+      actionRows.push({ badge: 'report', badgeColor: '#6366f1', title: 'Compliance report', sub: 'Available now' });
+      actionRows = actionRows.slice(0, 3);
     }
 
-    const sec = data.securityPro;
-    const totalCves = (sec?.threatIntel?.criticalCveCount || 0) + (sec?.threatIntel?.highCveCount || 0);
+    const ctaList = PERSONA_CTAs[activePersona] || PERSONA_CTAs.business;
+
     return html`
-      <div class="card mb-3">
-        <div class="card-header"><h3 class="card-title">Threat intelligence</h3></div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-3">
-              <div class="h2 mb-0">${totalCves}</div>
-              <div class="text-muted">Total CVEs</div>
-            </div>
-            <div class="col-md-3">
-              <div class="h2 mb-0 text-danger">${sec?.threatIntel?.criticalCveCount || 0}</div>
-              <div class="text-muted">Critical</div>
-            </div>
-            <div class="col-md-3">
-              <div class="h2 mb-0 text-warning">${sec?.threatIntel?.exploitCount || 0}</div>
-              <div class="text-muted">KEV exploits</div>
-            </div>
-            <div class="col-md-3">
-              <div class="h2 mb-0 text-info">${sec?.threatIntel?.highEpssCount || 0}</div>
-              <div class="text-muted">High EPSS</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
+      <div>
+        <!-- Scrim backdrop -->
+        <div
+          onClick=${this.closePersonaSheet}
+          style="
+            position: fixed;
+            inset: 0;
+            z-index: 1039;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            transition: opacity 0.3s ease;
+            opacity: ${personaSheetOpen ? '1' : '0'};
+            pointer-events: ${personaSheetOpen ? 'all' : 'none'};
+          "
+        ></div>
 
-  renderExposureSection() {
-    const { data, activePersona } = this.state;
-    if (!data) return null;
+        <!-- Persona sheet -->
+        <div style="
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 1040;
+          transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+          transform: ${personaSheetOpen ? 'translateY(0)' : 'translateY(100%)'};
+          opacity: ${personaSheetOpen ? '1' : '0'};
+          pointer-events: ${personaSheetOpen ? 'all' : 'none'};
+        ">
+          <div style="
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 -8px 48px rgba(0,0,0,0.28), 0 -2px 12px rgba(0,0,0,0.12);
+            max-height: 56vh;
+            display: flex;
+            flex-direction: column;
+          ">
+            <!-- Row 0: Gradient header with persona identity + headline metric -->
+            <div style="
+              background: ${headerGradient};
+              padding: 16px 20px 18px;
+              position: relative;
+              flex-shrink: 0;
+            ">
+              <!-- Close button -->
+              <button
+                onClick=${this.closePersonaSheet}
+                style="position: absolute; top: 12px; right: 14px; background: rgba(255,255,255,0.15); border: none; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff;"
+                title="Close"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
 
-    if (activePersona === 'business') {
-      const bo = data.businessOwner;
-      return html`
-        <div class="row">
-          <div class="col-md-4">
-            <div class="card mb-3">
-              <div class="card-header"><h3 class="card-title">Compliance</h3></div>
-              <div class="card-body text-center">
-                <div class="display-3 mb-2">${bo?.complianceCard?.percent || 0}%</div>
-                <div class="text-muted">${bo?.complianceCard?.gapDescription || ''}</div>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card mb-3">
-              <div class="card-header"><h3 class="card-title">License</h3></div>
-              <div class="card-body text-center">
-                <div class="display-4 mb-2">${bo?.licenseCard?.seatsUsed || 0}/${bo?.licenseCard?.seatsTotal || 0}</div>
-                <div class="progress mb-2">
-                  <div class="progress-bar bg-primary" style="width: ${bo?.licenseCard?.utilizationPercent || 0}%"></div>
+              <!-- Drag handle -->
+              <div style="width: 36px; height: 3px; background: rgba(255,255,255,0.3); border-radius: 2px; margin: 0 auto 14px;"></div>
+
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="opacity: 0.9; flex-shrink: 0;">${PERSONA_ICONS[activePersona]}</div>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="color: rgba(255,255,255,0.65); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 2px;">${PERSONA_LABELS[activePersona]}</div>
+                  <div style="display: flex; align-items: baseline; gap: 8px;">
+                    <span style="font-size: 2rem; font-weight: 800; color: #fff; line-height: 1;">${headlineValue}</span>
+                    <span style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">${headlineLabel}</span>
+                  </div>
+                  <div style="color: rgba(255,255,255,0.55); font-size: 0.78rem; margin-top: 2px;">${headlineSubtitle}</div>
                 </div>
-                <div class="text-muted">${bo?.licenseCard?.daysRemaining || 0} days remaining</div>
               </div>
             </div>
-          </div>
-          <div class="col-md-4">
-            <div class="card mb-3">
-              <div class="card-header"><h3 class="card-title">Risk summary</h3></div>
-              <div class="card-body">
-                <div class="d-flex align-items-center mb-2">
-                  <span class="badge bg-danger text-white me-2">${bo?.riskSummary?.overallRisk || 'unknown'}</span>
-                  <span class="text-muted small">Risk score: ${bo?.riskSummary?.riskScore || 0}</span>
-                </div>
-                ${bo?.riskSummary?.topRiskFactors?.length ? html`
-                  <ul class="text-muted mb-0">
-                    ${bo.riskSummary.topRiskFactors.slice(0, 3).map(f => html`<li>${f}</li>`) }
-                  </ul>
-                ` : html`<div class="text-muted">No risk factors available.</div>`}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
 
-    if (activePersona === 'it') {
-      const it = data.itAdmin;
-      const hasDevices = it?.deviceHealth?.length > 0;
-      const hasAppRisks = it?.appRisks?.length > 0;
-      return html`
-        <div class="card mb-3">
-          <div class="card-header"><h3 class="card-title">Operational exposure</h3></div>
-          <div class="card-body">
-            ${hasAppRisks ? html`
-              <div class="subheader mb-2">Riskiest applications</div>
-              <div class="table-responsive">
-                <table class="table table-vcenter table-sm card-table">
-                  <thead><tr><th>Application</th><th>CVEs</th><th>KEV</th><th>Devices</th></tr></thead>
-                  <tbody>
-                    ${it.appRisks.slice(0, 5).map(a => html`
-                      <tr>
-                        <td><span class="text-truncate d-inline-block" style="max-width:200px;">${a.appName}</span>${a.version ? html` <span class="text-muted small">${a.version}</span>` : ''}</td>
-                        <td><span class="badge bg-danger-lt">${a.cveCount}</span></td>
-                        <td>${a.kevCount > 0 ? html`<span class="badge bg-warning">${a.kevCount}</span>` : html`<span class="text-muted">—</span>`}</td>
-                        <td>${a.deviceCount}</td>
-                      </tr>
-                    `)}
-                  </tbody>
-                </table>
+            <!-- Scrollable body -->
+            <div style="
+              background: var(--tblr-bg-surface, #fff);
+              overflow-y: auto;
+              flex: 1;
+              padding-bottom: 72px;
+            ">
+
+              <!-- Row 1: Metric cards -->
+              <div class="row g-2" style="padding: 14px 16px 0; margin: 0;">
+                ${metricCards.map(m => html`
+                  <div class="col-6 col-sm-3">
+                    <div style="
+                      background: var(--tblr-bg-surface-secondary, #f8f9fa);
+                      border-radius: 10px;
+                      padding: 10px 12px;
+                      border: 1px solid var(--tblr-border-color, #e6e7e9);
+                      height: 100%;
+                    ">
+                      <div style="font-size: 1.3rem; font-weight: 800; color: ${m.valueColor}; line-height: 1.1; margin-bottom: 2px;">${m.value}</div>
+                      <div style="font-size: 0.63rem; color: var(--tblr-secondary, #666); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">${m.label}</div>
+                      ${m.sub ? html`<div style="font-size: 0.63rem; color: ${m.valueColor}; opacity: 0.75; margin-top: 1px;">${m.sub}</div>` : ''}
+                    </div>
+                  </div>
+                `)}
               </div>
-            ` : ''}
-            ${hasDevices ? html`
-              <div class="${hasAppRisks ? 'mt-3' : ''}">
-                <div class="subheader mb-2">Devices needing attention</div>
-                <div class="list-group list-group-flush">
-                  ${it.deviceHealth.slice(0, 5).map(d => html`
-                    <div class="list-group-item px-0">
-                      <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                          <div class="fw-medium">${d.deviceName || d.deviceId || 'Device'}</div>
-                          <div class="text-muted small">${d.reason || (d.cveCount ? `${d.cveCount} CVEs` : '')}</div>
-                        </div>
-                        <span class="badge ${d.riskLevel === 'critical' || d.risk === 'critical' ? 'bg-danger' : 'bg-warning'}">${d.riskLevel || d.risk || 'at risk'}</span>
+
+              <!-- Row 2: Action list -->
+              ${actionRows.length > 0 ? html`
+                <div style="padding: 12px 16px 0;">
+                  <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tblr-secondary, #999); margin-bottom: 8px;">
+                    ${activePersona === 'it' ? 'Top apps to patch' : activePersona === 'auditor' ? 'Compliance status' : 'Priority actions'}
+                  </div>
+                  ${actionRows.map(a => html`
+                    <div style="
+                      display: flex;
+                      align-items: flex-start;
+                      gap: 10px;
+                      padding: 8px 0;
+                      border-bottom: 1px solid var(--tblr-border-color, #f0f0f0);
+                    ">
+                      <span style="
+                        flex-shrink: 0;
+                        font-size: 0.65rem;
+                        font-weight: 700;
+                        color: ${a.badgeColor};
+                        background: ${a.badgeColor}18;
+                        padding: 2px 7px;
+                        border-radius: 4px;
+                        text-transform: uppercase;
+                        letter-spacing: 0.04em;
+                        margin-top: 1px;
+                        border: 1px solid ${a.badgeColor}33;
+                        white-space: nowrap;
+                      ">${a.badge}</span>
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 0.84rem; font-weight: 500; color: var(--tblr-body-color, #333); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${a.title}</div>
+                        ${a.sub ? html`<div style="font-size: 0.75rem; color: var(--tblr-secondary, #888); margin-top: 1px;">${a.sub}</div>` : ''}
                       </div>
                     </div>
                   `)}
                 </div>
-              </div>
-            ` : ''}
-            ${!hasAppRisks && !hasDevices ? html`
-              <div class="text-muted">No exposure data yet — devices may still be syncing.</div>
-            ` : ''}
-          </div>
-        </div>
-      `;
-    }
-
-    if (activePersona === 'auditor') {
-      const bo = data.businessOwner;
-      const compliancePercent = bo?.complianceCard?.percent || 0;
-      const complianceColor = compliancePercent >= 80 ? 'success' : compliancePercent >= 60 ? 'warning' : 'danger';
-      const gapCount = bo?.complianceCard?.gapCount || 0;
-      return html`
-        <div class="card mb-3">
-          <div class="card-header">
-            <h3 class="card-title">Compliance evidence summary</h3>
-            <div class="card-options">
-              <a href="#!/audit" class="btn btn-sm btn-outline-secondary">Full audit log →</a>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <div class="col-md-4 text-center">
-                <div class="h1 mb-0 text-${complianceColor} fw-bold">${compliancePercent}%</div>
-                <div class="progress mt-2 mb-1" style="height: 6px;">
-                  <div class="progress-bar bg-${complianceColor}" style="width: ${compliancePercent}%"></div>
+              ` : html`
+                <div style="padding: 16px 16px 4px; color: var(--tblr-success, #2fb344); font-size: 0.875rem; display: flex; align-items: center; gap: 8px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10-10"/></svg>
+                  All clear â€” no immediate actions required
                 </div>
-                <div class="text-muted small">Compliance score</div>
-              </div>
-              <div class="col-md-4 text-center">
-                <div class="h1 mb-0 ${gapCount > 0 ? 'text-warning' : 'text-success'} fw-bold">${gapCount}</div>
-                <div class="text-muted small">Compliance gaps</div>
-              </div>
-              <div class="col-md-4 text-center">
-                <div class="h1 mb-0 fw-bold">${bo?.riskSummary?.riskScore || '—'}</div>
-                <div class="text-muted small">Risk score</div>
-              </div>
-            </div>
-            ${bo?.complianceCard?.gapDescription ? html`
-              <div class="mt-3 alert alert-${complianceColor}-lt border-0 mb-0">
-                ${bo.complianceCard.gapDescription}
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      `;
-    }
+              `}
 
-    const sec = data.securityPro;
-    const layers = sec?.attackSurface?.layers || [];
-    return html`
-      <div class="card mb-3">
-        <div class="card-header"><h3 class="card-title">Exposure &amp; attack surface</h3></div>
-        <div class="card-body">
-          <div class="row g-3 mb-${layers.length ? '3' : '0'}">
-            <div class="col-4 text-center">
-              <div class="h3 mb-0">${sec?.attackSurface?.exposedServices || 0}</div>
-              <div class="text-muted small">Exposed services</div>
-            </div>
-            <div class="col-4 text-center">
-              <div class="h3 mb-0 text-danger">${sec?.attackSurface?.criticalExposures || 0}</div>
-              <div class="text-muted small">Critical exposures</div>
-            </div>
-            <div class="col-4 text-center">
-              <div class="h3 mb-0">${layers.length || 0}</div>
-              <div class="text-muted small">Attack layers</div>
+              <!-- Row 3: CTA buttons -->
+              <div style="padding: 12px 16px 4px; display: flex; gap: 8px; flex-wrap: wrap;">
+                ${ctaList.map((cta, i) => html`
+                  <a
+                    href="${cta.href}"
+                    onClick=${() => { this.closePersonaSheet(); window.location.hash = cta.href.slice(1); }}
+                    style="
+                      font-size: 0.78rem;
+                      font-weight: 600;
+                      color: ${i === 0 ? '#fff' : 'var(--tblr-body-color, #333)'};
+                      background: ${i === 0 ? headerGradient : 'var(--tblr-bg-surface-secondary, #f5f5f5)'};
+                      border: 1px solid ${i === 0 ? 'transparent' : 'var(--tblr-border-color, #e6e7e9)'};
+                      padding: 6px 14px;
+                      border-radius: 8px;
+                      text-decoration: none;
+                      transition: opacity 0.15s;
+                    "
+                  >${cta.label} â†’</a>
+                `)}
+              </div>
+
             </div>
           </div>
-          ${layers.length ? html`
-            <div class="subheader mb-2">By attack layer</div>
-            <div class="list-group list-group-flush">
-              ${layers.map(layer => html`
-                <div class="list-group-item px-0 py-2">
-                  <div class="d-flex align-items-center justify-content-between">
-                    <div class="fw-medium">${layer.name}</div>
-                    <div class="d-flex gap-2 align-items-center">
-                      <span class="text-muted small">${layer.cveCount} CVEs</span>
-                      ${layer.criticalCount > 0 ? html`<span class="badge bg-danger">${layer.criticalCount} critical</span>` : ''}
-                      <span class="badge bg-${layer.riskLevel === 'critical' ? 'danger' : layer.riskLevel === 'high' ? 'warning' : layer.riskLevel === 'medium' ? 'info' : 'success'}-lt">${layer.riskLevel || 'low'}</span>
-                    </div>
-                  </div>
-                </div>
-              `)}
-            </div>
-          ` : ''}
         </div>
       </div>
     `;
@@ -854,13 +885,16 @@ export default class UnifiedDashboard extends Component {
 
     if (loading) {
       return html`
-        <div class="container p-4">
-          <div class="d-flex flex-column justify-content-center align-items-center" style="min-height: 60vh;">
-            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
-              <span class="visually-hidden">Loading dashboard...</span>
-            </div>
-            <div class="text-muted">Loading MagenSec Intelligence...</div>
-          </div>
+        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 70vh;">
+          <div style="
+            width: 48px; height: 48px; border-radius: 50%;
+            border: 3px solid rgba(99,102,241,0.2);
+            border-top-color: #6366f1;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 16px;
+          "></div>
+          <div style="color: var(--tblr-secondary, #888); font-size: 0.9rem;">Loading intelligence...</div>
+          <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
         </div>
       `;
     }
@@ -874,45 +908,20 @@ export default class UnifiedDashboard extends Component {
             <p class="text-muted text-center mb-4" style="max-width: 500px;">
               We couldn't reach the intelligence engine. ${error}
             </p>
-            <div class="d-flex gap-2">
-              <button class="btn btn-primary btn-pill px-4" onClick=${() => this.loadDashboard()}>
-                Try Again
-              </button>
-            </div>
+            <button class="btn btn-primary btn-pill px-4" onClick=${() => this.loadDashboard()}>
+              Try Again
+            </button>
           </div>
         </div>
       `;
     }
 
-    const freshness = this.getFreshnessInfo();
-
-    // Google-style centered layout
     return html`
-      <div class="container py-4" style="max-width: 960px; padding-bottom: 120px !important;">
+      <div>
         ${this.renderRefreshBanner()}
         ${this.renderSearchHeader()}
-
-        ${freshness ? html`
-          <div class="text-center text-muted small mb-4" style="margin-top: -1rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline me-1" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 15" /></svg>
-            Data as of ${freshness.ageText}${freshness.isStale ? html` <span class="text-warning">(stale)</span>` : ''}
-          </div>
-        ` : ''}
-
-        ${this.renderConfidenceTiles()}
-
-        <div class="d-flex align-items-center justify-content-between mb-3 text-uppercase text-muted small fw-bold" style="letter-spacing: 0.05em;">
-           <span>Insights</span>
-           <span>${PERSONA_LABELS[this.state.activePersona] || this.state.activePersona} Perspective</span>
-        </div>
-
-        <div id="priority"></div>
-        ${this.renderPrioritySection()}
-
-        <div id="exposure"></div>
-        ${this.renderExposureSection()}
-
         <${PersonaNav} activePersona=${this.state.activePersona} onPersonaChange=${this.handlePersonaChange} />
+        ${this.renderPersonaSheet()}
       </div>
     `;
   }

@@ -130,7 +130,7 @@ export function OrganizationsTab({
 
         // Load report config + licenses lazily
         try {
-            const configRes = await window.api.get(`/api/v1/admin/email/${org.orgId}/config`);
+            const configRes = await window.api.get(`/api/v1/orgs/${org.orgId}/report-config`);
             if (configRes?.success !== false && configRes?.data) {
                 setUpdateReportEnabled(configRes.data.dailyReportEnabled !== false);
                 setUpdateWeeklyEnabled(!!configRes.data.weeklyEnabled);

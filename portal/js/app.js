@@ -108,7 +108,7 @@ function App() {
             return html`<${AuditorPage} />`;
         case 'reports':
             return html`<${ReportsPage} />`;
-        case 'review':
+        case 'siteadmin/review':
             return html`<${ReviewPage} />`;
         case 'settings':
             return html`<${SettingsPage} />`;
