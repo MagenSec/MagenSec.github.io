@@ -307,7 +307,7 @@ export function AiReportsAnalysisPage() {
                     </div>
                     <div class="col-auto ms-auto d-print-none">
                         <button class="btn btn-primary" onClick=${loadReports}>
-                            <i class="ti ti-refresh me-2"></i>
+                            <svg class="me-2" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
                             Refresh
                         </button>
                     </div>
@@ -338,7 +338,7 @@ export function AiReportsAnalysisPage() {
                     ${(selectedOrg || startDate) && html`
                         <div class="col-auto d-flex align-items-end">
                             <button class="btn btn-outline-secondary" onClick=${() => { setSelectedOrg(''); setStartDate(''); }}>
-                                <i class="ti ti-x me-1"></i>
+                                <svg class="me-1" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                 Clear Filters
                             </button>
                         </div>
@@ -349,7 +349,7 @@ export function AiReportsAnalysisPage() {
             ${error && html`
                 <div class="alert alert-danger alert-dismissible" role="alert">
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    <i class="ti ti-alert-triangle me-2"></i>
+                    <svg class="me-2" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.871l-8.106 -13.534a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/></svg>
                     ${error}
                 </div>
             `}
@@ -564,19 +564,19 @@ export function AiReportsAnalysisPage() {
                                         <th>Organization</th>
                                         <th style="cursor: pointer;" onClick=${() => toggleSort('enqueued')}>
                                             Enqueued
-                                            ${sortBy === 'enqueued' && html`<i class="ti ${sortOrder === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} ms-1"></i>`}
+                                            ${sortBy === 'enqueued' && (sortOrder === 'asc' ? html`<svg class="ms-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l9 0"/><path d="M4 12l7 0"/><path d="M4 18l7 0"/><path d="M15 9l3 -3l3 3"/><path d="M18 6l0 12"/></svg>` : html`<svg class="ms-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l7 0"/><path d="M4 12l7 0"/><path d="M4 18l9 0"/><path d="M15 15l3 3l3 -3"/><path d="M18 6l0 12"/></svg>`)}
                                         </th>
                                         <th style="cursor: pointer;" onClick=${() => toggleSort('started')}>
                                             Started
-                                            ${sortBy === 'started' && html`<i class="ti ${sortOrder === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} ms-1"></i>`}
+                                            ${sortBy === 'started' && (sortOrder === 'asc' ? html`<svg class="ms-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l9 0"/><path d="M4 12l7 0"/><path d="M4 18l7 0"/><path d="M15 9l3 -3l3 3"/><path d="M18 6l0 12"/></svg>` : html`<svg class="ms-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l7 0"/><path d="M4 12l7 0"/><path d="M4 18l9 0"/><path d="M15 15l3 3l3 -3"/><path d="M18 6l0 12"/></svg>`)}
                                         </th>
                                         <th style="cursor: pointer;" onClick=${() => toggleSort('completed')}>
                                             Completed
-                                            ${sortBy === 'completed' && html`<i class="ti ${sortOrder === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} ms-1"></i>`}
+                                            ${sortBy === 'completed' && (sortOrder === 'asc' ? html`<svg class="ms-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l9 0"/><path d="M4 12l7 0"/><path d="M4 18l7 0"/><path d="M15 9l3 -3l3 3"/><path d="M18 6l0 12"/></svg>` : html`<svg class="ms-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l7 0"/><path d="M4 12l7 0"/><path d="M4 18l9 0"/><path d="M15 15l3 3l3 -3"/><path d="M18 6l0 12"/></svg>`)}
                                         </th>
                                         <th style="cursor: pointer;" onClick=${() => toggleSort('time')}>
                                             Gen Time
-                                            ${sortBy === 'time' && html`<i class="ti ${sortOrder === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} ms-1"></i>`}
+                                            ${sortBy === 'time' && (sortOrder === 'asc' ? html`<svg class="ms-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l9 0"/><path d="M4 12l7 0"/><path d="M4 18l7 0"/><path d="M15 9l3 -3l3 3"/><path d="M18 6l0 12"/></svg>` : html`<svg class="ms-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l7 0"/><path d="M4 12l7 0"/><path d="M4 18l9 0"/><path d="M15 15l3 3l3 -3"/><path d="M18 6l0 12"/></svg>`)}
                                         </th>
                                         <th>Total Time</th>
                                         <th>Trigger</th>

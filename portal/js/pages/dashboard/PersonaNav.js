@@ -1,9 +1,9 @@
 /**
  * PersonaNav - Sticky bottom persona navigation
- * 
+ *
  * Features:
  * - Sticky bottom positioning
- * - Three persona pills (Business Owner, IT Admin, Security Pro)
+ * - Four persona pills (Business Owner, IT Admin, Security Pro, Auditor)
  * - Active state highlighting
  * - Smooth transitions
  * - Responsive design
@@ -13,7 +13,6 @@ export default class PersonaNav extends Component {
     const { activePersona, onPersonaChange } = this.props;
 
     const { html } = window;
-    const adoption = activePersona === 'business' ? '80%' : activePersona === 'it' ? '15%' : '5%';
 
     return html`
       <div class="persona-nav-sticky">
@@ -69,10 +68,22 @@ export default class PersonaNav extends Component {
                       <span class="d-none d-sm-inline">Security Pro</span>
                       <span class="d-inline d-sm-none">Security</span>
                     </button>
+
+                    <button
+                      type="button"
+                      class="btn ${activePersona === 'auditor' ? 'btn-primary' : 'btn-outline-primary'}"
+                      onClick=${() => onPersonaChange('auditor')}
+                    >
+                      <svg class="icon icon-inline me-1" width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                        <path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" />
+                        <rect x="9" y="3" width="6" height="4" rx="2" />
+                        <path d="M9 12l2 2l4 -4" />
+                      </svg>
+                      <span class="d-none d-sm-inline">Auditor</span>
+                      <span class="d-inline d-sm-none">Audit</span>
+                    </button>
                   </div>
-                </div>
-                <div class="col-auto">
-                  <span class="badge bg-info text-white">${adoption}</span>
                 </div>
               </div>
             </div>

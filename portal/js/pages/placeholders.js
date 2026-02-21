@@ -599,3 +599,65 @@ export class PlatformInsightsPage extends Component {
     `;
   }
 }
+
+export class ReviewPage extends Component {
+  render() {
+    const parkedPages = [
+      { name: 'AI Analyst', route: '#!/analyst', description: 'Interactive AI security chat' },
+      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine snapshot view' },
+      { name: 'Posture AI', route: '#!/posture-ai', description: 'AI-generated compliance posture report' },
+      { name: 'Vulnerabilities', route: '#!/vulnerabilities', description: 'CVE and vulnerability list view' }
+    ];
+
+    return html`
+      <div class="page-header d-print-none">
+        <div class="container-xl">
+          <div class="row g-2 align-items-center">
+            <div class="col">
+              <h2 class="page-title">Review</h2>
+              <div class="text-muted">Pages that exist but are not linked from the main navigation</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="container-xl">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Parked Pages</h3>
+              <div class="card-options">
+                <span class="badge bg-secondary text-white">${parkedPages.length} pages</span>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-vcenter card-table">
+                <thead>
+                  <tr>
+                    <th>Page Name</th>
+                    <th>Route</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${parkedPages.map(p => html`
+                    <tr>
+                      <td class="fw-medium">${p.name}</td>
+                      <td><code>${p.route}</code></td>
+                      <td class="text-muted">${p.description}</td>
+                      <td><span class="badge bg-warning text-white">Parked</span></td>
+                      <td>
+                        <a href="${p.route}" class="btn btn-sm btn-outline-secondary">Open</a>
+                      </td>
+                    </tr>
+                  `)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}

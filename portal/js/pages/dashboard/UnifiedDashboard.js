@@ -7,9 +7,21 @@ import { auth } from '@auth';
 import { api } from '@api';
 import { orgContext } from '@orgContext';
 import PersonaNav from './PersonaNav.js';
-import AiAnalystCard from './AiAnalystCard.js';
 
 const { html, Component } = window;
+
+const PERSONA_LABELS = {
+  business: 'Business Owner',
+  it: 'IT Admin',
+  security: 'Security Pro',
+  auditor: 'Auditor'
+};
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  let parsed = window.marked ? window.marked.parse(text) : text.replace(/\n/g, '<br>');
+  return window.DOMPurify ? window.DOMPurify.sanitize(parsed) : parsed;
+}
 
 export default class UnifiedDashboard extends Component {
   constructor(props) {
@@ -21,9 +33,11 @@ export default class UnifiedDashboard extends Component {
       refreshError: null,
       data: null,
       isRefreshingInBackground: false,
-      activePersona: 'business', // business | it | security
-      aiExpanded: false,
-      aiPrompt: ''
+      activePersona: 'business', // business | it | security | auditor
+      aiPrompt: '',
+      aiAnswer: null,
+      aiLoading: false,
+      aiError: null
     };
   }
 
@@ -41,11 +55,6 @@ export default class UnifiedDashboard extends Component {
       const TTL_MS = ttlMinutes * 60 * 1000;
       const isStale = ageMs >= TTL_MS;
 
-      if (isStale) {
-        console.log(`[UnifiedDashboard] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
-      } else {
-        console.log(`[UnifiedDashboard] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
-      }
       return { data, isStale };
     } catch (err) {
       console.warn('[UnifiedDashboard] Cache read error:', err);
@@ -166,19 +175,42 @@ export default class UnifiedDashboard extends Component {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  toggleAiExpanded = () => {
-    this.setState({ aiExpanded: !this.state.aiExpanded });
-  };
-
   handleAiPromptChange = (e) => {
     this.setState({ aiPrompt: e?.target?.value ?? '' });
   };
 
-  submitAiPrompt = (e) => {
+  submitAiPrompt = async (e) => {
     if (e?.preventDefault) e.preventDefault();
     const prompt = (this.state.aiPrompt || '').trim();
-    if (!prompt) return;
-    window.location.hash = `#!/analyst?q=${encodeURIComponent(prompt)}`;
+    if (!prompt || this.state.aiLoading) return;
+
+    const user = auth.getUser();
+    const currentOrg = orgContext.getCurrentOrg();
+    const orgId = currentOrg?.orgId || user?.email;
+    if (!orgId) return;
+
+    this.setState({ aiLoading: true, aiAnswer: null, aiError: null });
+    try {
+      const response = await api.askAIAnalyst(orgId, { question: prompt });
+      const data = response?.data;
+      const answer = data?.answer || response?.answer || data?.response || response?.response || null;
+      if (!answer) throw new Error('No answer in response');
+      this.setState({
+        aiAnswer: {
+          question: prompt,
+          answer,
+          confidence: data?.confidence ?? null,
+          citations: Array.isArray(data?.citations) ? data.citations : []
+        },
+        aiLoading: false
+      });
+    } catch (err) {
+      this.setState({ aiError: err?.message || 'Failed to get an answer', aiLoading: false });
+    }
+  };
+
+  clearAiAnswer = () => {
+    this.setState({ aiAnswer: null, aiError: null });
   };
 
   getGradeClass(grade) {
@@ -275,7 +307,7 @@ export default class UnifiedDashboard extends Component {
   }
 
   renderSearchHeader() {
-    const { data } = this.state;
+    const { data, aiLoading, aiAnswer, aiError } = this.state;
     const score = data?.securityScore || { score: '?', grade: '-', urgentActionCount: 0 };
 
     return html`
@@ -284,13 +316,15 @@ export default class UnifiedDashboard extends Component {
           <span class="text-primary">Magen</span>Sec
         </h1>
         <div class="text-muted mb-4 fs-3">Your AI Security Intelligence Partner</div>
-        
+
         <div class="row justify-content-center mb-4">
           <div class="col-md-10 col-lg-8">
             <form onSubmit=${this.submitAiPrompt} class="position-relative">
               <div class="input-group input-group-lg shadow-sm rounded-pill overflow-hidden border">
                 <span class="input-group-text bg-white border-0 ps-4">
-                  <svg class="icon text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
+                  ${aiLoading
+                    ? html`<span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>`
+                    : html`<svg class="icon text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>`}
                 </span>
                 <input
                   type="text"
@@ -300,18 +334,73 @@ export default class UnifiedDashboard extends Component {
                   onInput=${this.handleAiPromptChange}
                   style="min-height: 56px;"
                   autofocus
+                  disabled=${aiLoading}
                 />
-                <button class="btn btn-white border-0 text-primary pe-4 fw-bold" type="submit">
-                  Analyze
+                <button class="btn btn-white border-0 text-primary pe-4 fw-bold" type="submit" disabled=${aiLoading}>
+                  ${aiLoading ? 'Analyzing…' : 'Analyze'}
                 </button>
               </div>
             </form>
+
+            ${aiLoading ? html`
+              <div class="mt-3 text-center text-muted small">
+                <span class="spinner-border spinner-border-sm me-2 text-primary"></span>Asking AI Analyst…
+              </div>
+            ` : ''}
+
+            ${aiAnswer ? html`
+              <div class="card mt-3 text-start shadow-sm border-0">
+                <div class="card-body pb-2">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                      <svg class="icon text-primary" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
+                      <span class="fw-semibold text-muted small">AI Analyst</span>
+                      ${aiAnswer.confidence != null ? html`
+                        <span class="badge bg-${aiAnswer.confidence >= 0.9 ? 'success' : aiAnswer.confidence >= 0.7 ? 'info' : 'secondary'}-lt text-${aiAnswer.confidence >= 0.9 ? 'success' : aiAnswer.confidence >= 0.7 ? 'primary' : 'muted'} small">
+                          ${Math.round((aiAnswer.confidence || 0) * 100)}% confident
+                        </span>
+                      ` : ''}
+                    </div>
+                    <div class="d-flex gap-2">
+                      <button
+                        class="btn btn-sm btn-outline-primary"
+                        onClick=${() => {
+                          try {
+                            sessionStorage.setItem('ai_analyst_prefill', JSON.stringify({
+                              question: aiAnswer.question,
+                              answer: aiAnswer.answer
+                            }));
+                          } catch (_) {}
+                          window.location.hash = '#!/analyst';
+                        }}
+                      >Continue in AI Analyst →</button>
+                      <button class="btn btn-sm btn-outline-secondary" onClick=${this.clearAiAnswer}>✕</button>
+                    </div>
+                  </div>
+                  <div class="text-muted small mb-2 border-bottom pb-2">${aiAnswer.question}</div>
+                  <div class="position-relative">
+                    <div class="chat-markdown-content" style="max-height: 500px; overflow-y: auto; font-size: 0.9rem;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
+                  </div>
+                  ${aiAnswer.citations?.length ? html`
+                    <div class="mt-2 pt-2 border-top">
+                      <span class="text-muted small">
+                        <svg class="icon icon-inline me-1" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><line x1="3" y1="6" x2="3" y2="19" /><line x1="12" y1="6" x2="12" y2="19" /><line x1="21" y1="6" x2="21" y2="19" /></svg>
+                        ${aiAnswer.citations.join(' · ')}
+                      </span>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            ` : ''}
+
+            ${aiError ? html`
+              <div class="alert alert-warning mt-3 d-flex align-items-center justify-content-between">
+                <span>${aiError}</span>
+                <button class="btn btn-sm btn-outline-secondary ms-2" onClick=${this.clearAiAnswer}>Dismiss</button>
+              </div>
+            ` : ''}
+
             <div class="mt-4 d-flex justify-content-center gap-3 flex-wrap">
-              <button class="btn btn-light btn-pill border shadow-sm px-4" onClick=${() => this.refreshDashboard()}>
-                ${this.state.refreshing 
-                  ? html`<span class="spinner-border spinner-border-sm me-2"></span>Refreshing`
-                  : html`<svg class="icon icon-inline me-1 text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Refresh Intelligence`}
-              </button>
               <a class="btn btn-light btn-pill border shadow-sm px-4" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/posture'; }}>
                 <span class="badge bg-${this.getGradeClass(score.grade)} me-2">Grade ${score.grade}</span> View Report
               </a>
@@ -320,6 +409,11 @@ export default class UnifiedDashboard extends Component {
                   <span class="badge bg-danger me-2">${score.urgentActionCount}</span> Urgent Actions
                 </a>
               ` : ''}
+              <button class="btn btn-light btn-pill border shadow-sm px-4" onClick=${() => this.refreshDashboard()}>
+                ${this.state.refreshing
+                  ? html`<span class="spinner-border spinner-border-sm me-2"></span>Refreshing`
+                  : html`<svg class="icon icon-inline me-1 text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Refresh`}
+              </button>
             </div>
           </div>
         </div>
@@ -327,20 +421,67 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
-  renderMinimalStats() {
+  renderConfidenceTiles() {
     const { data } = this.state;
-    if (!data?.quickStats) return null;
+    if (!data) return null;
 
-    const stats = data.quickStats;
+    const score = data.securityScore || {};
+    const compliance = data.businessOwner?.complianceCard || {};
+    const stats = data.quickStats || {};
+
+    const compliancePercent = compliance.percent || 0;
+    const auditReady = compliancePercent >= 80;
+    const complianceColor = compliancePercent >= 80 ? 'success' : compliancePercent >= 60 ? 'warning' : 'danger';
     const dotClass = this.getDeviceHealthDotClass(stats);
 
-    // Google-style "knowledge panel" cards
     return html`
       <div class="row row-cols-2 row-cols-md-4 g-3 mb-5">
         <div class="col">
+          <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/security'}>
+            <div class="card-body text-center p-3">
+              <div class="text-muted text-uppercase small fw-bold mb-1">Security Score</div>
+              <div class="h2 mb-0">
+                <span class="badge bg-${this.getGradeClass(score.grade)} me-1">${score.grade || '-'}</span>${score.score || 0}
+              </div>
+              <div class="text-muted small mt-1">
+                ${score.urgentActionCount > 0
+                  ? html`<span class="text-danger">${score.urgentActionCount} urgent</span>`
+                  : html`<span class="text-success">No urgent actions</span>`}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/compliance'}>
+            <div class="card-body text-center p-3">
+              <div class="text-muted text-uppercase small fw-bold mb-1">Compliance</div>
+              <div class="h2 mb-0 text-${complianceColor}">${compliancePercent}%</div>
+              <div class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar bg-${complianceColor}" style="width: ${compliancePercent}%"></div>
+              </div>
+              <div class="text-muted small mt-1">${compliance.gapDescription || 'No data yet'}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/auditor'}>
+            <div class="card-body text-center p-3">
+              <div class="text-muted text-uppercase small fw-bold mb-1">Audit Ready</div>
+              <div class="h2 mb-0">
+                ${auditReady
+                  ? html`<svg class="icon text-success" width="28" height="28" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>`
+                  : html`<svg class="icon text-warning" width="28" height="28" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>`}
+              </div>
+              <div class="text-muted small mt-1">
+                ${auditReady ? 'Ready' : 'Not ready — score below 80%'}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
           <div class="card h-100 border-0 shadow-sm bg-light-lt card-link-hover" style="cursor: pointer;" onClick=${() => window.location.hash = '#!/devices'}>
             <div class="card-body text-center p-3">
-              <div class="text-muted text-uppercase small fw-bold mb-1">Devices</div>
+              <div class="text-muted text-uppercase small fw-bold mb-1">Devices Protected</div>
               <div class="h2 mb-0">${stats.devices?.totalCount || 0}</div>
               <div class="d-flex align-items-center justify-content-center mt-1 text-muted small">
                 <span class="status-dot ${dotClass} me-1"></span>
@@ -349,46 +490,9 @@ export default class UnifiedDashboard extends Component {
             </div>
           </div>
         </div>
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm bg-light-lt">
-            <div class="card-body text-center p-3">
-              <div class="text-muted text-uppercase small fw-bold mb-1">Apps</div>
-              <div class="h2 mb-0">${stats.apps?.trackedCount || 0}</div>
-              <div class="text-danger small mt-1">
-                ${stats.apps?.vulnerableCount || 0} vulnerable
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm bg-light-lt">
-            <div class="card-body text-center p-3">
-              <div class="text-muted text-uppercase small fw-bold mb-1">CVEs</div>
-              <div class="h2 mb-0">${stats.cves?.totalCount || 0}</div>
-              <div class="d-flex align-items-center justify-content-center mt-1 gap-2">
-                ${stats.cves?.exploitCount > 0 
-                  ? html`<span class="badge bg-danger-lt">${stats.cves.exploitCount} KEV</span>` 
-                  : html`<span class="text-muted small">No KEVs</span>`}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col">
-          <div class="card h-100 border-0 shadow-sm bg-light-lt">
-            <div class="card-body text-center p-3">
-              <div class="text-muted text-uppercase small fw-bold mb-1">License</div>
-              <div class="h2 mb-0">${stats.license?.seatsUsed || 0}</div>
-              <div class="text-muted small mt-1">
-                of ${stats.license?.seatsTotal || 0} used
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     `;
   }
-
-
 
   renderPrioritySection() {
     const { data, activePersona } = this.state;
@@ -425,31 +529,108 @@ export default class UnifiedDashboard extends Component {
 
     if (activePersona === 'it') {
       const it = data.itAdmin;
+      const hasAppRisks = it?.appRisks?.length > 0;
       return html`
-        <div class="row">
-          <div class="col-md-6">
-            <div class="card mb-3">
-              <div class="card-header"><h3 class="card-title">Deployment status</h3></div>
-              <div class="card-body">
-                <div class="text-muted">
-                  ${it?.deploymentStatus?.pendingUpdates || 0} pending ·
-                  ${it?.deploymentStatus?.inProgressUpdates || 0} in progress ·
-                  ${it?.deploymentStatus?.completedToday || 0} completed today
-                </div>
-              </div>
+        <div class="card mb-3">
+          <div class="card-header">
+            <h3 class="card-title">Patch priorities</h3>
+            <div class="card-options text-muted small">
+              ${it?.inventory ? html`${it.inventory.totalDevices || 0} devices · ${it.inventory.totalApps || 0} apps` : ''}
             </div>
           </div>
-          <div class="col-md-6">
-            <div class="card mb-3">
-              <div class="card-header"><h3 class="card-title">Inventory summary</h3></div>
-              <div class="card-body">
-                <div class="text-muted">
-                  ${it?.inventory?.totalDevices || 0} devices ·
-                  ${it?.inventory?.totalApps || 0} apps ·
-                  ${it?.inventory?.uniqueAppCount || 0} vendors
+          <div class="card-body">
+            ${hasAppRisks ? html`
+              <div class="table-responsive">
+                <table class="table table-vcenter table-sm card-table">
+                  <thead>
+                    <tr>
+                      <th>Application to patch</th>
+                      <th class="text-center">CVEs</th>
+                      <th class="text-center">KEV</th>
+                      <th class="text-end">Devices affected</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${it.appRisks.slice(0, 5).map((a, i) => html`
+                      <tr>
+                        <td>
+                          <span class="badge bg-secondary me-2">#${i + 1}</span>
+                          <span class="fw-medium">${a.appName}</span>
+                          ${a.version ? html`<span class="text-muted small ms-1">${a.version}</span>` : ''}
+                        </td>
+                        <td class="text-center"><span class="badge bg-danger-lt text-danger">${a.cveCount}</span></td>
+                        <td class="text-center">${a.kevCount > 0 ? html`<span class="badge bg-orange text-white">${a.kevCount} KEV</span>` : html`<span class="text-muted">—</span>`}</td>
+                        <td class="text-end text-muted">${a.deviceCount}</td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
+              </div>
+            ` : html`
+              <div class="row g-3 text-center">
+                <div class="col-4">
+                  <div class="h3 mb-0 text-warning">${it?.deploymentStatus?.pendingUpdates || 0}</div>
+                  <div class="text-muted small">Pending updates</div>
+                </div>
+                <div class="col-4">
+                  <div class="h3 mb-0 text-primary">${it?.deploymentStatus?.inProgressUpdates || 0}</div>
+                  <div class="text-muted small">In progress</div>
+                </div>
+                <div class="col-4">
+                  <div class="h3 mb-0 text-success">${it?.deploymentStatus?.completedToday || 0}</div>
+                  <div class="text-muted small">Completed today</div>
                 </div>
               </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    if (activePersona === 'auditor') {
+      const bo = data.businessOwner;
+      const compliancePercent = bo?.complianceCard?.percent || 0;
+      const auditReady = compliancePercent >= 80;
+      const complianceColor = compliancePercent >= 80 ? 'success' : compliancePercent >= 60 ? 'warning' : 'danger';
+      return html`
+        <div class="card mb-3">
+          <div class="card-header">
+            <h3 class="card-title">Audit readiness</h3>
+            <div class="card-options">
+              <a href="#!/auditor" class="btn btn-sm btn-outline-secondary">Full Auditor View →</a>
             </div>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-3 text-center">
+                <div class="h1 mb-0 text-${complianceColor}">${compliancePercent}%</div>
+                <div class="text-muted">Compliance score</div>
+                <div class="progress mt-2" style="height: 6px;">
+                  <div class="progress-bar bg-${complianceColor}" style="width: ${compliancePercent}%"></div>
+                </div>
+              </div>
+              <div class="col-md-3 text-center">
+                <div class="h1 mb-0 text-${auditReady ? 'success' : 'warning'}">
+                  ${auditReady ? 'Ready' : 'Not Ready'}
+                </div>
+                <div class="text-muted">Audit status</div>
+              </div>
+              <div class="col-md-3 text-center">
+                <div class="h1 mb-0">${bo?.riskSummary?.riskScore || '—'}</div>
+                <div class="text-muted">Risk score</div>
+              </div>
+              <div class="col-md-3 text-center">
+                <div class="h1 mb-0 text-${bo?.riskSummary?.overallRisk === 'low' ? 'success' : bo?.riskSummary?.overallRisk === 'medium' ? 'warning' : 'danger'}">
+                  ${bo?.riskSummary?.overallRisk || '—'}
+                </div>
+                <div class="text-muted">Overall risk</div>
+              </div>
+            </div>
+            ${bo?.complianceCard?.gapDescription ? html`
+              <div class="mt-3 alert alert-${complianceColor}-lt border-0">
+                ${bo.complianceCard.gapDescription}
+              </div>
+            ` : ''}
           </div>
         </div>
       `;
@@ -535,29 +716,90 @@ export default class UnifiedDashboard extends Component {
 
     if (activePersona === 'it') {
       const it = data.itAdmin;
+      const hasDevices = it?.deviceHealth?.length > 0;
+      const hasAppRisks = it?.appRisks?.length > 0;
       return html`
         <div class="card mb-3">
           <div class="card-header"><h3 class="card-title">Operational exposure</h3></div>
           <div class="card-body">
-            <div class="text-muted">
-              Snapshot-backed Top-N device/app risk lists appear here when available.
-            </div>
-            ${it?.deviceHealth?.length ? html`
-              <div class="mt-3">
+            ${hasAppRisks ? html`
+              <div class="subheader mb-2">Riskiest applications</div>
+              <div class="table-responsive">
+                <table class="table table-vcenter table-sm card-table">
+                  <thead><tr><th>Application</th><th>CVEs</th><th>KEV</th><th>Devices</th></tr></thead>
+                  <tbody>
+                    ${it.appRisks.slice(0, 5).map(a => html`
+                      <tr>
+                        <td><span class="text-truncate d-inline-block" style="max-width:200px;">${a.appName}</span>${a.version ? html` <span class="text-muted small">${a.version}</span>` : ''}</td>
+                        <td><span class="badge bg-danger-lt">${a.cveCount}</span></td>
+                        <td>${a.kevCount > 0 ? html`<span class="badge bg-warning">${a.kevCount}</span>` : html`<span class="text-muted">—</span>`}</td>
+                        <td>${a.deviceCount}</td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
+              </div>
+            ` : ''}
+            ${hasDevices ? html`
+              <div class="${hasAppRisks ? 'mt-3' : ''}">
                 <div class="subheader mb-2">Devices needing attention</div>
-                <div class="list-group">
+                <div class="list-group list-group-flush">
                   ${it.deviceHealth.slice(0, 5).map(d => html`
-                    <div class="list-group-item">
+                    <div class="list-group-item px-0">
                       <div class="d-flex align-items-center justify-content-between">
                         <div>
-                          <div class="font-weight-medium">${d.deviceName || d.deviceId || 'Device'}</div>
-                          <div class="text-muted small">${d.reason || ''}</div>
+                          <div class="fw-medium">${d.deviceName || d.deviceId || 'Device'}</div>
+                          <div class="text-muted small">${d.reason || (d.cveCount ? `${d.cveCount} CVEs` : '')}</div>
                         </div>
-                        <span class="badge bg-warning text-white">${d.risk || d.riskLevel || 'risk'}</span>
+                        <span class="badge ${d.riskLevel === 'critical' || d.risk === 'critical' ? 'bg-danger' : 'bg-warning'}">${d.riskLevel || d.risk || 'at risk'}</span>
                       </div>
                     </div>
                   `)}
                 </div>
+              </div>
+            ` : ''}
+            ${!hasAppRisks && !hasDevices ? html`
+              <div class="text-muted">No exposure data yet — devices may still be syncing.</div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    if (activePersona === 'auditor') {
+      const bo = data.businessOwner;
+      const compliancePercent = bo?.complianceCard?.percent || 0;
+      const complianceColor = compliancePercent >= 80 ? 'success' : compliancePercent >= 60 ? 'warning' : 'danger';
+      const gapCount = bo?.complianceCard?.gapCount || 0;
+      return html`
+        <div class="card mb-3">
+          <div class="card-header">
+            <h3 class="card-title">Compliance evidence summary</h3>
+            <div class="card-options">
+              <a href="#!/audit" class="btn btn-sm btn-outline-secondary">Full audit log →</a>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4 text-center">
+                <div class="h1 mb-0 text-${complianceColor} fw-bold">${compliancePercent}%</div>
+                <div class="progress mt-2 mb-1" style="height: 6px;">
+                  <div class="progress-bar bg-${complianceColor}" style="width: ${compliancePercent}%"></div>
+                </div>
+                <div class="text-muted small">Compliance score</div>
+              </div>
+              <div class="col-md-4 text-center">
+                <div class="h1 mb-0 ${gapCount > 0 ? 'text-warning' : 'text-success'} fw-bold">${gapCount}</div>
+                <div class="text-muted small">Compliance gaps</div>
+              </div>
+              <div class="col-md-4 text-center">
+                <div class="h1 mb-0 fw-bold">${bo?.riskSummary?.riskScore || '—'}</div>
+                <div class="text-muted small">Risk score</div>
+              </div>
+            </div>
+            ${bo?.complianceCard?.gapDescription ? html`
+              <div class="mt-3 alert alert-${complianceColor}-lt border-0 mb-0">
+                ${bo.complianceCard.gapDescription}
               </div>
             ` : ''}
           </div>
@@ -566,72 +808,45 @@ export default class UnifiedDashboard extends Component {
     }
 
     const sec = data.securityPro;
+    const layers = sec?.attackSurface?.layers || [];
     return html`
       <div class="card mb-3">
-        <div class="card-header"><h3 class="card-title">Exposure & attack surface</h3></div>
+        <div class="card-header"><h3 class="card-title">Exposure &amp; attack surface</h3></div>
         <div class="card-body">
-          <div class="row">
-            <div class="col-md-4">
-              <div class="h2 mb-0">${sec?.attackSurface?.exposedServices || 0}</div>
-              <div class="text-muted">Exposed services</div>
+          <div class="row g-3 mb-${layers.length ? '3' : '0'}">
+            <div class="col-4 text-center">
+              <div class="h3 mb-0">${sec?.attackSurface?.exposedServices || 0}</div>
+              <div class="text-muted small">Exposed services</div>
             </div>
-            <div class="col-md-4">
-              <div class="h2 mb-0 text-danger">${sec?.attackSurface?.criticalExposures || 0}</div>
-              <div class="text-muted">Critical exposures</div>
+            <div class="col-4 text-center">
+              <div class="h3 mb-0 text-danger">${sec?.attackSurface?.criticalExposures || 0}</div>
+              <div class="text-muted small">Critical exposures</div>
             </div>
-            <div class="col-md-4">
-              <div class="h2 mb-0">${sec?.attackSurface?.layers?.length || 0}</div>
-              <div class="text-muted">Attack layers tracked</div>
+            <div class="col-4 text-center">
+              <div class="h3 mb-0">${layers.length || 0}</div>
+              <div class="text-muted small">Attack layers</div>
             </div>
           </div>
+          ${layers.length ? html`
+            <div class="subheader mb-2">By attack layer</div>
+            <div class="list-group list-group-flush">
+              ${layers.map(layer => html`
+                <div class="list-group-item px-0 py-2">
+                  <div class="d-flex align-items-center justify-content-between">
+                    <div class="fw-medium">${layer.name}</div>
+                    <div class="d-flex gap-2 align-items-center">
+                      <span class="text-muted small">${layer.cveCount} CVEs</span>
+                      ${layer.criticalCount > 0 ? html`<span class="badge bg-danger">${layer.criticalCount} critical</span>` : ''}
+                      <span class="badge bg-${layer.riskLevel === 'critical' ? 'danger' : layer.riskLevel === 'high' ? 'warning' : layer.riskLevel === 'medium' ? 'info' : 'success'}-lt">${layer.riskLevel || 'low'}</span>
+                    </div>
+                  </div>
+                </div>
+              `)}
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
-  }
-
-  renderNextStepsSection() {
-    return html`
-      <div class="card mb-3">
-        <div class="card-header"><h3 class="card-title">Next steps</h3></div>
-        <div class="card-body">
-          <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-primary" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/posture'; }}>
-              Open posture snapshot
-            </a>
-            <a class="btn btn-outline-primary" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/devices'; }}>
-              Review devices
-            </a>
-            <a class="btn btn-outline-secondary" href="#" onClick=${(e) => { e.preventDefault(); window.location.hash = '#!/analyst'; }}>
-              Ask the AI Analyst
-            </a>
-          </div>
-          <div class="text-muted mt-2">
-            Tip: switch persona below to reframe the same data.
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  buildAiCardData() {
-    const ai = this.state.data?.aiContext;
-    if (!ai) return null;
-
-    const quick = this.state.data?.quickStats;
-    const score = this.state.data?.securityScore;
-
-    return {
-      orgSummary: ai.orgSummary,
-      topConcerns: ai.topConcerns,
-      suggestedQueries: ai.suggestedQueries,
-      metricsForAi: {
-        totalDevices: quick?.devices?.totalCount,
-        totalCves: quick?.cves?.totalCount,
-        kevCount: quick?.cves?.exploitCount,
-        securityScore: score?.score,
-        maxScore: 100
-      }
-    };
   }
 
   render() {
@@ -669,28 +884,26 @@ export default class UnifiedDashboard extends Component {
       `;
     }
 
-    const aiCardData = this.buildAiCardData();
+    const freshness = this.getFreshnessInfo();
 
     // Google-style centered layout
     return html`
       <div class="container py-4" style="max-width: 960px; padding-bottom: 120px !important;">
         ${this.renderRefreshBanner()}
         ${this.renderSearchHeader()}
-        ${this.renderMinimalStats()}
 
-        ${aiCardData ? html`
-          <div class="mb-4">
-            <${AiAnalystCard}
-              data=${aiCardData}
-              expanded=${this.state.aiExpanded}
-              onToggle=${this.toggleAiExpanded}
-            />
+        ${freshness ? html`
+          <div class="text-center text-muted small mb-4" style="margin-top: -1rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline me-1" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 15" /></svg>
+            Data as of ${freshness.ageText}${freshness.isStale ? html` <span class="text-warning">(stale)</span>` : ''}
           </div>
         ` : ''}
 
-        <div class="d-flex align-items-center justify-content-between mb-3 text-uppercase text-muted small fw-bold tracking-wide">
+        ${this.renderConfidenceTiles()}
+
+        <div class="d-flex align-items-center justify-content-between mb-3 text-uppercase text-muted small fw-bold" style="letter-spacing: 0.05em;">
            <span>Insights</span>
-           <span>${this.state.activePersona} Perspective</span>
+           <span>${PERSONA_LABELS[this.state.activePersona] || this.state.activePersona} Perspective</span>
         </div>
 
         <div id="priority"></div>
@@ -699,10 +912,6 @@ export default class UnifiedDashboard extends Component {
         <div id="exposure"></div>
         ${this.renderExposureSection()}
 
-        <div id="next"></div>
-        ${this.renderNextStepsSection()}
-
-        ${/* Persona Nav stays fixed at bottom or as minimal footer */ ''}
         <${PersonaNav} activePersona=${this.state.activePersona} onPersonaChange=${this.handlePersonaChange} />
       </div>
     `;

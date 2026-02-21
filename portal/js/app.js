@@ -19,18 +19,15 @@ import { AnalystPage } from './pages/analyst/Analyst.js';
 import AIAnalystChatPage from './pages/ai/aiAnalystChat.js';
 import { PosturePage } from './pages/posture/Posture.js';
 import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
-// TEMPORARY: Wired up _unused/ pages for validation (will be removed or re-wired later)
-// DISABLED: Causing 404 in production - _unused folder not deployed
-// import { ThreatIntelPage } from './pages/_unused/threatIntel.js';
-// import { VulnerabilitiesPage } from './pages/_unused/vulnerabilities.js';
-// import { AlertsPage } from './pages/_unused/alerts.js';
-// import { SecurityDashboardPage } from './pages/_unused/securityDashboard.js';
-// import { ResponseActionsPage } from './pages/_unused/responseActions.js';
 import { AssetsPage } from './pages/inventory/Assets.js';
 import { AppsInventoryPage } from './pages/inventory/AppsInventory.js';
 import { Vulnerabilities } from './pages/vulnerabilities/index.js';
 import { CVEDetails } from './pages/cves/index.js';
-import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage } from './pages/placeholders.js';
+import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage, ReviewPage } from './pages/placeholders.js';
+import { CompliancePage } from './pages/compliance/Compliance.js';
+import { AuditorPage } from './pages/auditor/Auditor.js';
+import { ReportsPage } from './pages/reports/Reports.js';
+import { ChatDrawer } from './components/ChatDrawer.js';
 import { SettingsPage } from './pages/settings/Settings.js';
 import { AuditPage } from './pages/audit/Audit.js';
 import { BusinessPage } from './pages/siteAdmin/business/BusinessPage.js';
@@ -71,9 +68,9 @@ function App() {
         case 'login':
             return html`<${LoginPage} />`;
         case 'dashboard':
-            return html`<${DashboardPage} />`;
-        case 'unified-dashboard':
             return html`<${UnifiedDashboard} />`;
+        case 'security':
+            return html`<div><${DashboardPage} /><${ChatDrawer} contextHint="security threats and vulnerabilities" /></div>`;
         case 'devices':
             return html`<${DevicesPage} />`;
         case 'device-detail':
@@ -89,21 +86,6 @@ function App() {
             return html`<${AIPosturePage} />`;
         case 'documentation-hub':
             return html`<${DocumentationHub} />`;
-        // TEMPORARY: _unused/ pages for validation
-        // DISABLED: Routes commented out - pages not deployed to production
-        // case 'threat-intel':
-        //     return html`<${ThreatIntelPage} />`;
-        // case 'vulnerabilities':
-        //     return html`<${VulnerabilitiesPage} />`;
-        // case 'alerts':
-        //     return html`<${AlertsPage} />`;
-        // case 'security-dashboard':
-        //     return html`<${SecurityDashboardPage} />`;
-        // case 'response-actions':
-        //     return html`<${ResponseActionsPage} />`;
-        // Report Preview moved under Site Admin → Activity Reports (Preview tab)
-        // case 'report-preview':
-        //     return html`<${ReportPreviewPage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
         case 'apps':
@@ -120,6 +102,14 @@ function App() {
             return html`<${ActivityPage} />`;
         case 'siteadmin/preview':
             return html`<${PreviewPage} />`;
+        case 'compliance':
+            return html`<${CompliancePage} />`;
+        case 'auditor':
+            return html`<${AuditorPage} />`;
+        case 'reports':
+            return html`<${ReportsPage} />`;
+        case 'review':
+            return html`<${ReviewPage} />`;
         case 'settings':
             return html`<${SettingsPage} />`;
         case 'audit':

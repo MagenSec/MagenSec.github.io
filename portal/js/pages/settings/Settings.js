@@ -50,6 +50,12 @@ export function SettingsPage() {
     const [reportConfig, setReportConfig] = useState(null);
     const [savingReportConfig, setSavingReportConfig] = useState(false);
 
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [whatsAppEnabled, setWhatsAppEnabled] = useState(false);
+    const [savingPhone, setSavingPhone] = useState(false);
+    const [orgWhatsAppEnabled, setOrgWhatsAppEnabled] = useState(false);
+    const [savingOrgWhatsApp, setSavingOrgWhatsApp] = useState(false);
+
     // Load data on mount and reload when org changes
     useEffect(() => {
         const unsubscribe = orgContext.onChange(() => {
@@ -77,6 +83,17 @@ export function SettingsPage() {
             const user = auth.getUser();
             const userType = user?.userType || 'EndUser';
             setIsSiteAdmin(userType === 'SiteAdmin');
+
+            // Load user phone / WhatsApp settings
+            try {
+                const meRes = await api.get('/api/v1/users/me');
+                if (meRes.success && meRes.data?.user) {
+                    setPhoneNumber(meRes.data.user.phoneNumber || '');
+                    setWhatsAppEnabled(meRes.data.user.whatsAppEnabled ?? false);
+                }
+            } catch (phoneErr) {
+                logger.debug('[Settings] Could not load phone settings', phoneErr);
+            }
 
             // Fetch full org details from API for complete data
             let isPersonalType = false; // Default for fallback path
@@ -183,6 +200,7 @@ export function SettingsPage() {
 
                     if (response.success && response.data) {
                         setEmailPreferences(response.data);
+                        setOrgWhatsAppEnabled(response.data.whatsappEnabled ?? false);
                         logger.debug('[Settings] Email preferences loaded');
                     } else if (response.error === 'NOT_FOUND') {
                         // Endpoint not implemented yet - expected, skip silently
@@ -394,6 +412,45 @@ export function SettingsPage() {
         }
     };
 
+    const handleSavePhone = async (newPhone, newWhatsApp) => {
+        try {
+            setSavingPhone(true);
+            const res = await api.put('/api/v1/users/me/phone', { phoneNumber: newPhone || null, whatsAppEnabled: newWhatsApp });
+            if (res.success) {
+                setPhoneNumber(newPhone || '');
+                setWhatsAppEnabled(newWhatsApp);
+                showToast('Phone settings saved', 'success');
+            } else {
+                showToast(res.message || 'Failed to save phone settings', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error saving phone settings', error);
+            showToast(error?.message || 'Failed to save phone settings', 'error');
+        } finally {
+            setSavingPhone(false);
+        }
+    };
+
+    const handleSaveOrgWhatsApp = async (enabled) => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) return;
+        try {
+            setSavingOrgWhatsApp(true);
+            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/whatsapp-enabled`, { enabled });
+            if (res.success) {
+                setOrgWhatsAppEnabled(enabled);
+                showToast(`WhatsApp notifications ${enabled ? 'enabled' : 'disabled'} for org`, 'success');
+            } else {
+                showToast(res.message || 'Failed to update WhatsApp setting', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error saving org WhatsApp setting', error);
+            showToast(error?.message || 'Failed to update WhatsApp setting', 'error');
+        } finally {
+            setSavingOrgWhatsApp(false);
+        }
+    };
+
     if (loading) {
         return html`
             <div class="container-xl">
@@ -519,12 +576,16 @@ export function SettingsPage() {
                             showTeamDropdown=${showTeamDropdown}
                             setShowTeamDropdown=${setShowTeamDropdown}
                         />`)}
-                    ${activeTab === 'notifications' && !isPersonalOrg && html`<${EmailNotificationsTab} 
+                    ${activeTab === 'notifications' && !isPersonalOrg && html`<${EmailNotificationsTab}
                         orgId=${org?.orgId}
                         emailPreferences=${emailPreferences}
                         setEmailPreferences=${setEmailPreferences}
                         savingPreferences=${savingPreferences}
                         onSavePreferences=${handleSaveEmailPreferences}
+                        phoneNumber=${phoneNumber}
+                        whatsAppEnabled=${whatsAppEnabled}
+                        savingPhone=${savingPhone}
+                        onSavePhone=${handleSavePhone}
                     />`}
                     ${activeTab === 'reports' && html`<${ReportsConfigTab}
                         orgId=${org?.orgId}
@@ -532,6 +593,9 @@ export function SettingsPage() {
                         savingReportConfig=${savingReportConfig}
                         onSaveReportConfig=${handleSaveReportConfig}
                         isPersonalOrg=${isPersonalOrg}
+                        orgWhatsAppEnabled=${orgWhatsAppEnabled}
+                        savingOrgWhatsApp=${savingOrgWhatsApp}
+                        onSaveOrgWhatsApp=${handleSaveOrgWhatsApp}
                     />`}
 
                 </div>
@@ -1109,8 +1173,12 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
 
 
 // Email Notifications Tab - Manage email notification preferences
-function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, savingPreferences, onSavePreferences }) {
+function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, savingPreferences, onSavePreferences, phoneNumber, whatsAppEnabled, savingPhone, onSavePhone }) {
     const [localPrefs, setLocalPrefs] = useState(null);
+    const [localPhone, setLocalPhone] = useState(phoneNumber || '');
+    const [localWhatsApp, setLocalWhatsApp] = useState(whatsAppEnabled || false);
+
+    useEffect(() => { setLocalPhone(phoneNumber || ''); setLocalWhatsApp(whatsAppEnabled || false); }, [phoneNumber, whatsAppEnabled]);
 
     const EVENT_GROUPS = [
         {
@@ -1296,6 +1364,48 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
 
             <div class="card mb-4">
                 <div class="card-header">
+                    <h4 class="card-title">Mobile / WhatsApp</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Your WhatsApp Phone Number</label>
+                        <input
+                            type="tel"
+                            class="form-control"
+                            placeholder="+91XXXXXXXXXX"
+                            value=${localPhone}
+                            onInput=${(e) => setLocalPhone(e.target.value)}
+                            disabled=${savingPhone}
+                        />
+                        <small class="text-muted">E.164 format: +[country code][number]</small>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            id="whatsAppEnabledToggle"
+                            checked=${localWhatsApp}
+                            onChange=${() => setLocalWhatsApp(!localWhatsApp)}
+                            disabled=${savingPhone || !localPhone}
+                        />
+                        <label class="form-check-label" for="whatsAppEnabledToggle">
+                            <strong>Receive daily security reports via WhatsApp</strong>
+                            <div class="small text-muted">Requires a phone number and org-level WhatsApp to be enabled</div>
+                        </label>
+                    </div>
+                    <button
+                        class="btn btn-sm btn-primary"
+                        onClick=${() => onSavePhone(localPhone, localWhatsApp)}
+                        disabled=${savingPhone}
+                    >
+                        ${savingPhone ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : html`<i class="ti ti-device-floppy me-2"></i>`}
+                        Save Phone Settings
+                    </button>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
                     <h4 class="card-title">Compliance Framework Preference</h4>
                 </div>
                 <div class="card-body">
@@ -1367,7 +1477,7 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
 }
 
 // Reports Configuration Tab - Manage security report settings
-function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveReportConfig, isPersonalOrg }) {
+function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveReportConfig, isPersonalOrg, orgWhatsAppEnabled, savingOrgWhatsApp, onSaveOrgWhatsApp }) {
     const [localConfig, setLocalConfig] = useState(null);
     const [showPopovers, setShowPopovers] = useState({});
 
@@ -1659,6 +1769,31 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                 </div>
             `}
             <!-- Recipients moved to Email Notifications. No manual recipients here. -->
+
+            ${!isPersonalOrg && html`
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="card-title mb-0">WhatsApp Notifications</h4>
+                        <div class="form-check form-switch mb-0">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="orgWhatsAppEnabled"
+                                checked=${orgWhatsAppEnabled}
+                                onChange=${() => onSaveOrgWhatsApp(!orgWhatsAppEnabled)}
+                                disabled=${savingOrgWhatsApp}
+                                style="width: 48px; height: 24px;"
+                            />
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <small class="text-muted">
+                            <i class="ti ti-info-circle me-1"></i>
+                            When enabled, org members who have added their phone number and opted in will receive a WhatsApp message when the daily report is sent.
+                        </small>
+                    </div>
+                </div>
+            `}
         </div>
     `;
 }

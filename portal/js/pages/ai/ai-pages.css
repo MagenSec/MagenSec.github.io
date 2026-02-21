@@ -31,7 +31,7 @@
 
 /* AI Analyst Chat Page Styles */
 .ai-analyst-chat-page {
-    max-width: 1200px;
+    max-width: 800px;
     margin: 0 auto;
     padding: 2rem 1rem;
 }
@@ -44,8 +44,7 @@
     background: var(--tblr-bg-surface);
     border: 1px solid var(--tblr-border-color);
     border-radius: 8px;
-    height: calc(100vh - 300px);
-    min-height: 500px;
+    min-height: calc(100vh - 200px);
     display: flex;
     flex-direction: column;
 }
@@ -97,22 +96,6 @@
     align-self: flex-start;
 }
 
-.message-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    flex-shrink: 0;
-}
-
-.message.user .message-avatar {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
 .message-content {
     flex: 1;
     background: var(--tblr-bg-surface-secondary);
@@ -122,7 +105,7 @@
 }
 
 .message.user .message-content {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
     color: white;
     border-color: transparent;
 }
@@ -201,39 +184,37 @@
     color: rgba(255, 255, 255, 0.8);
 }
 
-/* Typing Indicator */
-.typing-indicator {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    padding: 0.5rem 0;
+/* Shimmer Skeleton Typing Indicator */
+.chat-shimmer {
+    padding: 1rem;
+    border-radius: 12px 12px 12px 2px;
+    background: var(--tblr-bg-surface-secondary);
+    border: 1px solid var(--tblr-border-color);
+    width: 60%;
+    min-width: 200px;
 }
 
-.typing-indicator span {
-    width: 8px;
-    height: 8px;
-    background: var(--tblr-primary);
-    border-radius: 50%;
-    animation: typing 1.4s infinite;
+.chat-shimmer-line {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--tblr-border-color) 25%, var(--tblr-bg-surface) 50%, var(--tblr-border-color) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    margin-bottom: 8px;
 }
 
-.typing-indicator span:nth-child(2) {
-    animation-delay: 0.2s;
+.chat-shimmer-line:last-child {
+    margin-bottom: 0;
+    width: 70%;
 }
 
-.typing-indicator span:nth-child(3) {
-    animation-delay: 0.4s;
+.chat-shimmer-line:nth-child(2) {
+    width: 90%;
 }
 
-@keyframes typing {
-    0%, 60%, 100% {
-        transform: translateY(0);
-        opacity: 0.7;
-    }
-    30% {
-        transform: translateY(-10px);
-        opacity: 1;
-    }
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 /* Suggestions */
@@ -325,28 +306,6 @@
     text-align: center;
 }
 
-/* Dark Mode Adjustments */
-[data-theme="dark"] .message-content {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-[data-theme="dark"] .suggestion-chip {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-[data-theme="dark"] .suggestion-chip:hover:not(:disabled) {
-    background: var(--tblr-primary);
-}
-
-[data-theme="dark"] .typing-indicator span {
-    background: rgba(255, 255, 255, 0.6);
-}
-
-[data-theme="dark"] .chat-input {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--tblr-body-color);
-}
-
 /* Responsive Design */
 @media (max-width: 768px) {
     .ai-reports-page,
@@ -355,7 +314,6 @@
     }
 
     .chat-container {
-        height: calc(100vh - 250px);
         border-radius: 0;
         border-left: none;
         border-right: none;
@@ -370,11 +328,6 @@
         max-width: 95%;
     }
 
-    .message-avatar {
-        width: 32px;
-        height: 32px;
-    }
-
     .chat-input-area {
         padding: 1rem;
     }
@@ -387,126 +340,6 @@
         width: 100%;
         text-align: left;
     }
-}
-
-/* Report Markdown Content Styling */
-.report-markdown-content {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    line-height: 1.6;
-    color: var(--tblr-body-color);
-}
-
-.report-markdown-content h1,
-.report-markdown-content h2,
-.report-markdown-content h3,
-.report-markdown-content h4 {
-    margin-top: 1.5rem;
-    margin-bottom: 1rem;
-    font-weight: 600;
-    line-height: 1.25;
-    border-bottom: 1px solid var(--tblr-border-color-light);
-    padding-bottom: 0.3rem;
-}
-
-.report-markdown-content h1 { font-size: 2rem; }
-.report-markdown-content h2 { font-size: 1.5rem; }
-.report-markdown-content h3 { font-size: 1.25rem; }
-.report-markdown-content h4 { font-size: 1rem; }
-
-.report-markdown-content table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 1rem 0;
-    overflow-x: auto;
-    display: block;
-}
-
-.report-markdown-content thead {
-    background-color: var(--tblr-bg-surface-secondary);
-}
-
-.report-markdown-content th,
-.report-markdown-content td {
-    border: 1px solid var(--tblr-border-color);
-    padding: 0.75rem;
-    text-align: left;
-}
-
-.report-markdown-content th {
-    font-weight: 600;
-}
-
-.report-markdown-content code {
-    background-color: var(--tblr-bg-surface-tertiary);
-    padding: 0.2rem 0.4rem;
-    border-radius: 3px;
-    font-size: 0.875em;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-}
-
-.report-markdown-content pre {
-    background-color: var(--tblr-bg-surface-tertiary);
-    border: 1px solid var(--tblr-border-color);
-    border-radius: 6px;
-    padding: 1rem;
-    overflow-x: auto;
-    margin: 1rem 0;
-}
-
-.report-markdown-content pre code {
-    background-color: transparent;
-    padding: 0;
-}
-
-.report-markdown-content blockquote {
-    border-left: 4px solid var(--tblr-primary);
-    margin: 1rem 0;
-    padding-left: 1rem;
-    color: var(--tblr-muted);
-}
-
-.report-markdown-content ul,
-.report-markdown-content ol {
-    margin: 1rem 0;
-    padding-left: 2rem;
-}
-
-.report-markdown-content li {
-    margin: 0.5rem 0;
-}
-
-.report-markdown-content hr {
-    border: none;
-    border-top: 2px solid var(--tblr-border-color);
-    margin: 2rem 0;
-}
-
-.report-markdown-content a {
-    color: var(--tblr-link-color);
-    text-decoration: none;
-}
-
-.report-markdown-content a:hover {
-    text-decoration: underline;
-}
-
-.report-markdown-content img {
-    max-width: 100%;
-    height: auto;
-}
-
-.chat-input-area,
-.chat-suggestions {
-    display: none;
-}
-
-.chat-container {
-    border: none;
-    height: auto;
-}
-
-.chat-messages {
-    overflow: visible;
 }
 
 /* ========== Markdown Report Content Styling ========== */
@@ -715,4 +548,159 @@
 .form-select:focus {
     border-color: var(--tblr-primary);
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ========== Chat Message Markdown Styles ========== */
+
+/* Scoped markdown inside chat assistant bubbles */
+.chat-markdown-content {
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.chat-markdown-content p { margin: 0 0 0.5rem; }
+.chat-markdown-content p:last-child { margin-bottom: 0; }
+
+.chat-markdown-content h1,
+.chat-markdown-content h2,
+.chat-markdown-content h3,
+.chat-markdown-content h4 {
+    font-weight: 600;
+    margin: 0.75rem 0 0.375rem;
+    line-height: 1.3;
+}
+
+.chat-markdown-content h1 { font-size: 1.1rem; }
+.chat-markdown-content h2 { font-size: 1rem; }
+.chat-markdown-content h3,
+.chat-markdown-content h4 { font-size: 0.9rem; }
+
+.chat-markdown-content ul,
+.chat-markdown-content ol {
+    margin: 0.375rem 0;
+    padding-left: 1.5rem;
+}
+
+.chat-markdown-content li { margin-bottom: 0.25rem; }
+
+.chat-markdown-content code {
+    background-color: rgba(0, 0, 0, 0.07);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.82em;
+    font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.chat-markdown-content pre {
+    background-color: var(--tblr-bg-surface-tertiary);
+    border: 1px solid var(--tblr-border-color);
+    border-radius: 6px;
+    padding: 0.75rem;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+}
+
+.chat-markdown-content pre code {
+    background: transparent;
+    padding: 0;
+}
+
+.chat-markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    font-size: 0.82em;
+}
+
+.chat-markdown-content th,
+.chat-markdown-content td {
+    border: 1px solid var(--tblr-border-color);
+    padding: 0.375rem 0.6rem;
+    text-align: left;
+}
+
+.chat-markdown-content th { font-weight: 600; }
+
+.chat-markdown-content blockquote {
+    border-left: 3px solid var(--tblr-primary);
+    margin: 0.5rem 0;
+    padding-left: 0.75rem;
+    color: var(--tblr-muted);
+    font-style: italic;
+}
+
+/* Persona selector pill bar */
+.persona-bar {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.persona-pill {
+    padding: 0.35rem 0.875rem;
+    border-radius: 999px;
+    border: 1px solid var(--tblr-border-color);
+    background: transparent;
+    font-size: 0.8rem;
+    cursor: pointer;
+    color: var(--tblr-body-color);
+    transition: all 0.15s;
+}
+
+.persona-pill:hover { border-color: var(--tblr-primary); color: var(--tblr-primary); }
+
+.persona-pill.active {
+    background: var(--tblr-primary);
+    border-color: var(--tblr-primary);
+    color: #fff;
+    font-weight: 500;
+}
+
+/* Character count hint */
+.char-count-hint {
+    font-size: 0.7rem;
+    color: var(--tblr-muted);
+    text-align: right;
+    margin-top: 2px;
+}
+
+.char-count-hint.over { color: var(--tblr-warning); }
+
+/* ========== Dark Mode Overrides ========== */
+
+[data-theme="dark"] .chat-shimmer-line {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.06) 25%,
+        rgba(255, 255, 255, 0.12) 50%,
+        rgba(255, 255, 255, 0.06) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+[data-theme="dark"] .chat-markdown-content code {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .message-content {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .suggestion-chip {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .suggestion-chip:hover:not(:disabled) {
+    background: var(--tblr-primary);
+}
+
+[data-theme="dark"] .chat-input {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--tblr-body-color);
+}
+
+[data-theme="dark"] .persona-pill {
+    border-color: rgba(255, 255, 255, 0.15);
 }

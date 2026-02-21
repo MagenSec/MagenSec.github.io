@@ -47,13 +47,22 @@ export function initRouter(renderApp) {
         renderApp({ page: 'dashboard', ctx });
     });
 
-    // Unified Dashboard (protected) - Persona-driven dashboard
+    // Security deep-dive (protected) - former /dashboard
+    page('/security', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'security', ctx });
+    });
+
+    // Backward compat: /unified-dashboard redirects to /dashboard
     page('/unified-dashboard', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'unified-dashboard', ctx });
+        page.redirect('/dashboard');
     });
 
     // Devices (protected)
@@ -101,13 +110,40 @@ export function initRouter(renderApp) {
         renderApp({ page: 'posture-ai', ctx });
     });
 
-    // TEMPORARY: _unused/ pages for validation (will be removed or re-wired later)
-    page('/threat-intel', (ctx) => {
+    // Compliance (protected)
+    page('/compliance', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'threat-intel', ctx });
+        renderApp({ page: 'compliance', ctx });
+    });
+
+    // Auditor (protected)
+    page('/auditor', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'auditor', ctx });
+    });
+
+    // Reports (protected)
+    page('/reports', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'reports', ctx });
+    });
+
+    // Review - dead pages catalog (protected)
+    page('/review', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'review', ctx });
     });
 
     page('/vulnerabilities', (ctx) => {
@@ -116,33 +152,6 @@ export function initRouter(renderApp) {
             return;
         }
         renderApp({ page: 'vulnerabilities', ctx });
-    });
-
-    page('/alerts', (ctx) => {
-        if (!ctx.isAuthenticated) {
-            page.redirect('/');
-            return;
-        }
-        renderApp({ page: 'alerts', ctx });
-    });
-
-    page('/response-actions', (ctx) => {
-        if (!ctx.isAuthenticated) {
-            page.redirect('/');
-            return;
-        }
-        renderApp({ page: 'response-actions', ctx });
-    });
-
-        // Report Preview moved under Site Admin → Activity Reports (Preview tab)
-
-    // Legacy alias: security-dashboard -> _unused validation page (temporary)
-    page('/security-dashboard', (ctx) => {
-        if (!ctx.isAuthenticated) {
-            page.redirect('/');
-            return;
-        }
-        renderApp({ page: 'security-dashboard', ctx });
     });
 
     // Security routes REMOVED - threatIntel, response, vulnerabilities are placeholder/unreachable

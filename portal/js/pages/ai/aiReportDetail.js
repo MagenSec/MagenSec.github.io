@@ -170,11 +170,11 @@ export default class AIReportDetailPage extends Component {
             return html`
                 <div class="container-fluid p-4">
                     <div class="alert alert-danger" role="alert">
-                        <h4 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Error</h4>
+                        <h4 class="alert-heading"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.871l-8.106 -13.534a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/></svg> Error</h4>
                         <p>${error}</p>
                         <hr />
                         <button class="btn btn-sm btn-outline-danger" onclick=${() => window.history.back()}>
-                            <i class="bi bi-arrow-left"></i> Go Back
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="12" x2="11" y2="18"/><line x1="5" y1="12" x2="11" y2="6"/></svg> Go Back
                         </button>
                     </div>
                 </div>
@@ -187,7 +187,7 @@ export default class AIReportDetailPage extends Component {
                     <div class="alert alert-warning" role="alert">
                         <p>Report not found</p>
                         <button class="btn btn-sm btn-outline-warning" onclick=${() => window.history.back()}>
-                            <i class="bi bi-arrow-left"></i> Go Back
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="12" x2="11" y2="18"/><line x1="5" y1="12" x2="11" y2="6"/></svg> Go Back
                         </button>
                     </div>
                 </div>
@@ -210,19 +210,19 @@ export default class AIReportDetailPage extends Component {
                             </ol>
                         </nav>
                         <h1 class="h3 mb-0">
-                            <i class="bi bi-file-earmark-text text-primary"></i>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/><line x1="9" y1="9" x2="10" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
                             Security Report
                         </h1>
                     </div>
                     <div class="btn-group">
                         <button class="btn btn-outline-secondary" onclick=${() => this.handlePrint()}>
-                            <i class="bi bi-printer"></i> Print
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17 17h2a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h2"/><path d="M17 9v-4a2 2 0 0 0 -2 -2h-6a2 2 0 0 0 -2 2v4"/><rect x="7" y="13" width="10" height="8" rx="2"/></svg> Print
                         </button>
                         <button class="btn btn-outline-primary" onclick=${() => this.handleDownload('html')}>
-                            <i class="bi bi-download"></i> Download
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg> Download
                         </button>
                         <button class="btn btn-outline-secondary" onclick=${() => window.history.back()}>
-                            <i class="bi bi-arrow-left"></i> Back
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="12" x2="11" y2="18"/><line x1="5" y1="12" x2="11" y2="6"/></svg> Back
                         </button>
                     </div>
                 </div>

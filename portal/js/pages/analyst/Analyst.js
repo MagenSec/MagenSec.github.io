@@ -5,6 +5,9 @@ import { orgContext } from '@orgContext';
 import { ChartRenderer } from '@components/ChartRenderer.js';
 import { PromptSuggestions } from '@components/PromptSuggestions.js';
 import { CONSTANTS } from '@utils/constants.js';
+import { CveDetailsModal } from '@components/CveDetailsModal.js';
+import { DeviceQuickViewModal } from '@components/DeviceQuickViewModal.js';
+import { AppDevicesModal } from '@components/AppDevicesModal.js';
 
 const { html, Component } = window;
 
@@ -22,7 +25,10 @@ export class AnalystPage extends Component {
             loading: false,
             result: null,
             error: null,
-            history: []
+            history: [],
+            modalDeviceId: null,
+            modalCveId: null,
+            modalAppName: null
         };
         this.orgUnsubscribe = null;
         this.pollInterval = null;
@@ -606,9 +612,26 @@ export class AnalystPage extends Component {
         </div>`;
     }
 
+    handlePortalLinkClick = (e) => {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href') || '';
+        if (href.startsWith('#!/devices/')) {
+            e.preventDefault(); e.stopPropagation();
+            this.setState({ modalDeviceId: href.slice('#!/devices/'.length) });
+        } else if (href.startsWith('#!/cves/')) {
+            e.preventDefault(); e.stopPropagation();
+            this.setState({ modalCveId: href.slice('#!/cves/'.length) });
+        } else if (href.startsWith('#!/apps/')) {
+            e.preventDefault(); e.stopPropagation();
+            this.setState({ modalAppName: decodeURIComponent(href.slice('#!/apps/'.length)) });
+        }
+    };
+
     render() {
         const { html } = window;
-        
+        const { modalDeviceId, modalCveId, modalAppName, selectedOrgId } = this.state;
+
         return html`
             ${this.state.error && html`<div class="alert alert-danger alert-dismissible">
                 <div class="d-flex">
@@ -621,8 +644,31 @@ export class AnalystPage extends Component {
                 <button type="button" class="btn-close" onClick=${() => this.setState({ error: null })}></button>
             </div>`}
             ${this.renderForm()}
-            ${this.renderResult()}
+            <div onClick=${this.handlePortalLinkClick}>
+                ${this.renderResult()}
+            </div>
             ${this.renderFeedbackModal()}
+            ${modalDeviceId && html`
+                <${DeviceQuickViewModal}
+                    deviceId=${modalDeviceId}
+                    orgId=${selectedOrgId}
+                    isOpen=${true}
+                    onClose=${() => this.setState({ modalDeviceId: null })}
+                />`}
+            ${modalCveId && html`
+                <${CveDetailsModal}
+                    cveId=${modalCveId}
+                    orgId=${selectedOrgId}
+                    isOpen=${true}
+                    onClose=${() => this.setState({ modalCveId: null })}
+                />`}
+            ${modalAppName && html`
+                <${AppDevicesModal}
+                    appName=${modalAppName}
+                    orgId=${selectedOrgId}
+                    isOpen=${true}
+                    onClose=${() => this.setState({ modalAppName: null })}
+                />`}
         `;
     }
 }
