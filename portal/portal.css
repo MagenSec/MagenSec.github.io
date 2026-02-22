@@ -989,9 +989,117 @@
     font-size: 0.875rem;
     padding: 0.5rem 0.75rem;
   }
-  
+
   .persona-nav-sticky .icon {
     width: 16px;
     height: 16px;
+  }
+}
+
+/* ========================================
+   Professional Clean Theme
+   Google Search-like: white / silver / minimal
+   ======================================== */
+
+/* Page background — very light neutral gray (Google-like) */
+body, .antialiased {
+  background-color: #f4f6f8 !important;
+}
+
+/* Primary brand colour — Google Blue */
+:root {
+  --tblr-primary:    #1a73e8;
+  --tblr-blue:       #1a73e8;
+  --tblr-muted:      #5f6368;
+  --tblr-secondary:  #5f6368;
+}
+
+/* Sidebar / vertical navbar — white with subtle right border */
+.navbar-vertical,
+.navbar-vertical.navbar-dark {
+  background-color: #ffffff !important;
+  border-right: 1px solid #e8eaed !important;
+  box-shadow: 1px 0 0 #e8eaed !important;
+}
+
+/* Sidebar nav links — dark text, Google pill active state */
+.navbar-vertical .navbar-nav .nav-link,
+.navbar-vertical .navbar-nav .nav-link .icon {
+  color: #3c4043 !important;
+}
+.navbar-vertical .navbar-nav .nav-link {
+  border-radius: 0 24px 24px 0 !important;
+  margin-right: 12px !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  transition: background 0.15s, color 0.15s !important;
+}
+.navbar-vertical .navbar-nav .nav-link:hover {
+  background-color: #e8f0fe !important;
+  color: #1a73e8 !important;
+}
+.navbar-vertical .navbar-nav .nav-link:hover .icon {
+  color: #1a73e8 !important;
+}
+.navbar-vertical .navbar-nav .nav-link.active,
+.navbar-vertical .navbar-nav .nav-item.active > .nav-link {
+  background-color: #e8f0fe !important;
+  color: #1a73e8 !important;
+  font-weight: 600 !important;
+}
+.navbar-vertical .navbar-nav .nav-link.active .icon,
+.navbar-vertical .navbar-nav .nav-item.active > .nav-link .icon {
+  color: #1a73e8 !important;
+}
+
+/* Sidebar brand / logo */
+.navbar-brand-text,
+.navbar-vertical .navbar-brand {
+  color: #1a73e8 !important;
+  font-weight: 700 !important;
+}
+
+/* Top header bar — white with thin bottom border */
+.navbar:not(.navbar-vertical) {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e8eaed !important;
+  box-shadow: 0 1px 3px rgba(60,64,67,0.08) !important;
+}
+
+/* Cards — bright white with Google-style elevation */
+.card {
+  background-color: #ffffff !important;
+  border: 1px solid #e8eaed !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 3px rgba(60,64,67,0.06), 0 0 0 1px rgba(60,64,67,0.03) !important;
+  transition: box-shadow 0.2s !important;
+}
+.card.card-hover:hover,
+.card:hover {
+  box-shadow: 0 4px 12px rgba(60,64,67,0.12), 0 0 0 1px rgba(60,64,67,0.04) !important;
+}
+
+/* Buttons — Google-style primary */
+.btn-primary {
+  background-color: #1a73e8 !important;
+  border-color: #1a73e8 !important;
+}
+.btn-primary:hover {
+  background-color: #1557b0 !important;
+  border-color: #1557b0 !important;
+}
+
+/* ========================================
+   Security Officer's Note — Slide-down animation
+   ======================================== */
+
+@keyframes slideDownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

@@ -57,6 +57,8 @@ export function SettingsPage() {
     const [savingOrgWhatsApp, setSavingOrgWhatsApp] = useState(false);
     const [orgWhatsAppPhone, setOrgWhatsAppPhone] = useState('');
     const [savingOrgWhatsAppPhone, setSavingOrgWhatsAppPhone] = useState(false);
+    const [transferOwnerEmail, setTransferOwnerEmail] = useState('');
+    const [transferringOwnership, setTransferringOwnership] = useState(false);
 
     // Load data on mount and reload when org changes
     useEffect(() => {
@@ -75,58 +77,56 @@ export function SettingsPage() {
             setLoading(true);
             const currentOrg = orgContext.getCurrentOrg();
             const currentOrgId = currentOrg?.orgId;
-            
+
             if (!currentOrgId) {
                 showToast('Please select an organization', 'warning');
                 return;
             }
 
-            // Check if user is Site Admin
             const user = auth.getUser();
             const userType = user?.userType || 'EndUser';
-            setIsSiteAdmin(userType === 'SiteAdmin');
+            const isAdmin = userType === 'SiteAdmin';
+            setIsSiteAdmin(isAdmin);
 
-            // Load user phone / WhatsApp settings
-            try {
-                const meRes = await api.get('/api/v1/users/me');
-                if (meRes.success && meRes.data?.user) {
-                    setPhoneNumber(meRes.data.user.phoneNumber || '');
-                    setWhatsAppEnabled(meRes.data.user.whatsAppEnabled ?? false);
-                }
-            } catch (phoneErr) {
-                logger.debug('[Settings] Could not load phone settings', phoneErr);
+            // ── Batch 1: independent calls (no org-type dependency) ─────────────────
+            const [meResult, orgResult, creditResult] = await Promise.allSettled([
+                api.get('/api/v1/users/me'),
+                api.get(`/api/v1/orgs/${currentOrgId}`),
+                api.get(`/api/v1/orgs/${currentOrgId}/credits/history`)
+            ]);
+
+            // Process users/me → phone / WhatsApp settings
+            if (meResult.status === 'fulfilled' && meResult.value?.success && meResult.value?.data?.user) {
+                setPhoneNumber(meResult.value.data.user.phoneNumber || '');
+                setWhatsAppEnabled(meResult.value.data.user.whatsAppEnabled ?? false);
+            } else if (meResult.status === 'rejected') {
+                logger.debug('[Settings] Could not load phone settings', meResult.reason);
             }
 
-            // Fetch full org details from API for complete data
-            let isPersonalType = false; // Default for fallback path
-            try {
-                const orgRes = await api.get(`/api/v1/orgs/${currentOrgId}`);
-                logger.info('[Settings] Org API response', { success: orgRes.success, hasData: !!orgRes.data, orgRes });
-                if (orgRes.success && orgRes.data) {
-                    const orgData = orgRes.data;
-                    logger.info('[Settings] Setting org state from API', { 
-                        ownerEmail: orgData.ownerEmail, 
-                        totalCredits: orgData.totalCredits,
-                        remainingCredits: orgData.remainingCredits 
-                    });
-                    isPersonalType = orgData.type === 'Personal' || orgData.orgType === 'Personal';
-                    setOrg({
-                        orgId: orgData.orgId,
-                        orgName: orgData.orgName || orgData.name,
-                        ownerEmail: orgData.ownerEmail || 'Unknown',
-                        totalCredits: orgData.totalCredits ?? 0,
-                        remainingCredits: orgData.remainingCredits ?? 0,
-                        seats: orgData.seats ?? orgData.totalSeats ?? null,
-                        isDisabled: orgData.isDisabled ?? false,
-                        isPersonal: isPersonalType
-                    });
-                    setIsPersonalOrg(isPersonalType);
-                } else {
-                    logger.warn('[Settings] Org API response not successful', orgRes);
-                }
-            } catch (orgErr) {
-                logger.warn('[Settings] Failed to load org details, using context data as fallback', orgErr);
-                // Fallback to org context if API fails
+            // Process org details
+            let isPersonalType = false;
+            if (orgResult.status === 'fulfilled' && orgResult.value?.success && orgResult.value?.data) {
+                const orgData = orgResult.value.data;
+                logger.info('[Settings] Org API response', { success: true, hasData: true });
+                logger.info('[Settings] Setting org state from API', {
+                    ownerEmail: orgData.ownerEmail,
+                    totalCredits: orgData.totalCredits,
+                    remainingCredits: orgData.remainingCredits
+                });
+                isPersonalType = orgData.type === 'Personal' || orgData.orgType === 'Personal';
+                setOrg({
+                    orgId: orgData.orgId,
+                    orgName: orgData.orgName || orgData.name,
+                    ownerEmail: orgData.ownerEmail || 'Unknown',
+                    totalCredits: orgData.totalCredits ?? 0,
+                    remainingCredits: orgData.remainingCredits ?? 0,
+                    seats: orgData.seats ?? orgData.totalSeats ?? null,
+                    isDisabled: orgData.isDisabled ?? false,
+                    isPersonal: isPersonalType
+                });
+                setIsPersonalOrg(isPersonalType);
+            } else {
+                logger.warn('[Settings] Failed to load org details, using context data as fallback');
                 const contextOrg = orgContext.getCurrentOrg();
                 if (contextOrg) {
                     isPersonalType = contextOrg.type === 'Personal';
@@ -144,94 +144,78 @@ export function SettingsPage() {
                 }
             }
 
-            // Only load licenses and members for Business orgs
-            // Personal orgs don't have these features (use computed value, not state)
-            const isPersonal = isPersonalType;
-            if (!isPersonal) {
-                // Load licenses
-                // Use portal-friendly alias for org licenses
-                const licensesRes = await api.get(`/api/v1/licenses/org/${currentOrgId}`);
-                if (licensesRes.success && licensesRes.data) {
-                    setLicenses(licensesRes.data);
-                }
-
-                // Load team members
-                const membersRes = await api.get(`/api/v1/orgs/${currentOrgId}/members`);
-                if (membersRes.success && membersRes.data) {
-                    setMembers(membersRes.data);
-                }
+            // Process credit history
+            if (creditResult.status === 'fulfilled' && creditResult.value?.success && creditResult.value?.data) {
+                setCreditHistory(creditResult.value.data.history || []);
+                setProjectedExhaustion(creditResult.value.data.projectedExhaustionDate || null);
             } else {
-                // Clear licenses and members for personal orgs
-                setLicenses([]);
-                setMembers([]);
-            }
-
-            // Load all accounts for user search (Site Admin)
-            if (isSiteAdmin) {
-                try {
-                    const accountsRes = await api.get('/api/v1/admin/accounts');
-                    if (accountsRes.success && accountsRes.data) {
-                        setAccounts(accountsRes.data);
-                    }
-                } catch (accErr) {
-                    logger.debug('[Settings] Could not load accounts list', accErr);
-                    setAccounts([]);
-                }
-            }
-
-            // Credit history for charts (all org types)
-            try {
-                const creditRes = await api.get(`/api/v1/orgs/${currentOrgId}/credits/history`);
-                if (creditRes.success && creditRes.data) {
-                    setCreditHistory(creditRes.data.history || []);
-                    setProjectedExhaustion(creditRes.data.projectedExhaustionDate || null);
-                }
-            } catch (creditErr) {
-                logger.debug('[Settings] Credit history not available', creditErr);
+                logger.debug('[Settings] Credit history not available');
                 setCreditHistory([]);
                 setProjectedExhaustion(null);
             }
 
-            // Load email preferences for Business orgs (owner or SiteAdmin only)
-            // NOTE: Email preferences feature is optional and should not block page load
-            // Use direct fetch to avoid api.js auto-logout on permission errors
-            const canManageEmailPrefs = (userType === 'SiteAdmin') || currentOrg?.role === 'Owner';
+            // ── Batch 2: org-type-dependent calls (all in parallel) ─────────────────
+            const canManageEmailPrefs = isAdmin || currentOrg?.role === 'Owner';
+            const batch2Calls = [];
+            const batch2Keys = [];
+
+            if (!isPersonalType) {
+                batch2Calls.push(api.get(`/api/v1/licenses/org/${currentOrgId}`));
+                batch2Keys.push('licenses');
+                batch2Calls.push(api.get(`/api/v1/orgs/${currentOrgId}/members`));
+                batch2Keys.push('members');
+            }
+            if (isAdmin) {
+                batch2Calls.push(api.get('/api/v1/admin/accounts'));
+                batch2Keys.push('accounts');
+            }
             if (!isPersonalType && canManageEmailPrefs) {
-                try {
-                    const response = await api.get(`/api/v1/orgs/${currentOrgId}/email-preferences`);
+                batch2Calls.push(api.get(`/api/v1/orgs/${currentOrgId}/email-preferences`));
+                batch2Keys.push('emailPrefs');
+                batch2Calls.push(api.get(`/api/v1/orgs/${currentOrgId}/report-config`));
+                batch2Keys.push('reportConfig');
+            }
 
-                    if (response.success && response.data) {
-                        setEmailPreferences(response.data);
-                        setOrgWhatsAppEnabled(response.data.whatsappEnabled ?? false);
-                        setOrgWhatsAppPhone(response.data.orgWhatsAppPhone ?? '');
-                        logger.debug('[Settings] Email preferences loaded');
-                    } else if (response.error === 'NOT_FOUND') {
-                        // Endpoint not implemented yet - expected, skip silently
-                        logger.debug('[Settings] Email preferences endpoint not available');
-                    } else if (response.error === 'FORBIDDEN' || response.error === 'UNAUTHORIZED') {
-                        // Permission denied or not authorized - this is expected for some users
-                        // Email preferences feature is admin-only, skip silently
-                        logger.debug('[Settings] Email preferences not available (admin feature)');
-                    } else if (response.error) {
-                        logger.warn('[Settings] Email preferences error:', response.error);
-                    }
-                } catch (error) {
-                    // Network error or other issue - log but don't fail page load
-                    logger.error('[Settings] Error loading email preferences:', error);
-                }
+            if (batch2Calls.length > 0) {
+                const batch2Results = await Promise.allSettled(batch2Calls);
+                batch2Results.forEach((result, idx) => {
+                    const key = batch2Keys[idx];
+                    const val = result.status === 'fulfilled' ? result.value : null;
 
-                // Load report configuration
-                try {
-                    const reportRes = await api.get(`/api/v1/orgs/${currentOrgId}/report-config`);
-                    if (reportRes.success && reportRes.data) {
-                        setReportConfig(reportRes.data);
-                        logger.debug('[Settings] Report configuration loaded');
-                    } else {
-                        logger.debug('[Settings] Report configuration not available:', reportRes.error);
+                    if (key === 'licenses') {
+                        setLicenses((val?.success && val?.data) ? val.data : []);
+                    } else if (key === 'members') {
+                        setMembers((val?.success && val?.data) ? val.data : []);
+                    } else if (key === 'accounts') {
+                        if (val?.success && val?.data) setAccounts(val.data);
+                        else { logger.debug('[Settings] Could not load accounts list'); setAccounts([]); }
+                    } else if (key === 'emailPrefs') {
+                        if (val?.success && val?.data) {
+                            setEmailPreferences(val.data);
+                            setOrgWhatsAppEnabled(val.data.whatsappEnabled ?? false);
+                            setOrgWhatsAppPhone(val.data.orgWhatsAppPhone ?? '');
+                            logger.debug('[Settings] Email preferences loaded');
+                        } else if (val?.error === 'NOT_FOUND') {
+                            logger.debug('[Settings] Email preferences endpoint not available');
+                        } else if (val?.error === 'FORBIDDEN' || val?.error === 'UNAUTHORIZED') {
+                            logger.debug('[Settings] Email preferences not available (admin feature)');
+                        } else if (val?.error) {
+                            logger.warn('[Settings] Email preferences error:', val.error);
+                        } else if (result.status === 'rejected') {
+                            logger.error('[Settings] Error loading email preferences:', result.reason);
+                        }
+                    } else if (key === 'reportConfig') {
+                        if (val?.success && val?.data) {
+                            setReportConfig(val.data);
+                            logger.debug('[Settings] Report configuration loaded');
+                        } else {
+                            logger.debug('[Settings] Report configuration not available:', val?.error);
+                        }
                     }
-                } catch (error) {
-                    logger.error('[Settings] Error loading report config:', error);
-                }
+                });
+            } else {
+                setLicenses([]);
+                setMembers([]);
             }
 
         } catch (error) {
@@ -474,6 +458,34 @@ export function SettingsPage() {
         }
     };
 
+    const handleTransferOwnership = async () => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) { showToast('No organization selected', 'warning'); return; }
+        if (!transferOwnerEmail.trim()) { showToast('Enter the new owner email address', 'warning'); return; }
+
+        const confirmed = window.confirm(
+            `Transfer ownership of "${org?.orgName}" to ${transferOwnerEmail.trim()}?\n\nYou will lose owner privileges for this organization.`
+        );
+        if (!confirmed) return;
+
+        try {
+            setTransferringOwnership(true);
+            const res = await api.put(`/api/v1/orgs/${currentOrg.orgId}/owner`, { newOwnerEmail: transferOwnerEmail.trim() });
+            if (res.success) {
+                showToast('Ownership transferred successfully', 'success');
+                setTransferOwnerEmail('');
+                await loadSettings();
+            } else {
+                showToast(res.message || 'Failed to transfer ownership', 'error');
+            }
+        } catch (error) {
+            logger.error('[Settings] Error transferring ownership', error);
+            showToast(error?.message || 'Failed to transfer ownership', 'error');
+        } finally {
+            setTransferringOwnership(false);
+        }
+    };
+
     if (loading) {
         return html`
             <div class="container-xl">
@@ -564,7 +576,17 @@ export function SettingsPage() {
                 </div>
 
                 <div class="card-body">
-                    ${activeTab === 'general' && html`<${GeneralTab} org=${org} isPersonal=${isPersonalOrg} creditHistory=${creditHistory} projectedExhaustion=${projectedExhaustion} />`}
+                    ${activeTab === 'general' && html`<${GeneralTab}
+                        org=${org}
+                        isPersonal=${isPersonalOrg}
+                        creditHistory=${creditHistory}
+                        projectedExhaustion=${projectedExhaustion}
+                        currentUserEmail=${auth.getUser()?.email}
+                        transferOwnerEmail=${transferOwnerEmail}
+                        setTransferOwnerEmail=${setTransferOwnerEmail}
+                        transferringOwnership=${transferringOwnership}
+                        onTransferOwnership=${handleTransferOwnership}
+                    />`}
                     ${activeTab === 'licenses' && (isPersonalOrg
                         ? html`<${BusinessOnlyMessage} 
                             title=${'License Management (Business Only)'}
@@ -639,8 +661,11 @@ export function SettingsPage() {
 }
 
 // General Tab - Org info and credits
-function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion }) {
+function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, currentUserEmail, transferOwnerEmail, setTransferOwnerEmail, transferringOwnership, onTransferOwnership }) {
     if (!org) return html`<div class="text-muted">No organization data</div>`;
+
+    const isOwner = currentUserEmail && org.ownerEmail &&
+        currentUserEmail.toLowerCase() === org.ownerEmail.toLowerCase();
 
     const { daysLeft, targetDate } = getDaysLeftInfo(projectedExhaustion);
     const projectionLabel = targetDate
@@ -754,6 +779,47 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion }) {
                 </div>
             </div>
         ` : ''}
+
+        ${!isPersonal && isOwner && html`
+            <div class="card border-danger mt-4">
+                <div class="card-header bg-danger-lt">
+                    <h4 class="card-title mb-0 text-danger">
+                        <i class="ti ti-alert-triangle me-2"></i>
+                        Danger Zone
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <h5 class="mb-1">Transfer Ownership</h5>
+                    <p class="text-muted small mb-3">
+                        Transfer ownership of this organization to another member. The new owner must already be a member of the organization.
+                        You will lose owner privileges after the transfer.
+                    </p>
+                    <div class="row g-2 align-items-center">
+                        <div class="col">
+                            <input
+                                type="email"
+                                class="form-control"
+                                placeholder="New owner email address"
+                                value=${transferOwnerEmail}
+                                onInput=${(e) => setTransferOwnerEmail(e.target.value)}
+                                disabled=${transferringOwnership}
+                            />
+                        </div>
+                        <div class="col-auto">
+                            <button
+                                class="btn btn-danger"
+                                onClick=${onTransferOwnership}
+                                disabled=${transferringOwnership || !transferOwnerEmail.trim()}
+                            >
+                                ${transferringOwnership
+                                    ? html`<span class="spinner-border spinner-border-sm me-1"></span>Transferring...`
+                                    : html`<i class="ti ti-transfer me-1"></i>Transfer Ownership`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `}
     `;
 }
 
@@ -1510,29 +1576,22 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
 
     useEffect(() => {
         if (reportConfig) {
-            // Normalize fields and ensure required keys exist
             const normalized = {
-                dailyReportEnabled: reportConfig.dailyReportEnabled ?? false,
-                weeklyEnabled: reportConfig.weeklyEnabled ?? false,
-                dailySnapshotEnabled: reportConfig.dailySnapshotEnabled ?? false,
-                weeklyReportTier: reportConfig.weeklyReportTier ?? 'Basic',
+                dailyReportEnabled: reportConfig.dailyReportEnabled !== false,
+                weeklyReportEnabled: !!(reportConfig.weeklyReportEnabled || reportConfig.weeklyEnabled),
                 sendToAllTeamMembers: reportConfig.sendToAllTeamMembers ?? false,
-                reportEnabled: !!(reportConfig.dailyReportEnabled || reportConfig.weeklyEnabled)
+                reportEnabled: !!(reportConfig.dailyReportEnabled || reportConfig.weeklyReportEnabled || reportConfig.weeklyEnabled)
             };
-            // Personal orgs: force weekly off and tier Basic
             if (isPersonalOrg) {
-                normalized.weeklyEnabled = false;
-                normalized.weeklyReportTier = 'Basic';
+                normalized.weeklyReportEnabled = false;
             }
             setLocalConfig(normalized);
         } else {
-            // Initialize with defaults
             const defaults = {
-                dailyReportEnabled: false,
-                weeklyEnabled: !isPersonalOrg, // Business: weekly on by default; Personal: off
-                dailySnapshotEnabled: false,
-                weeklyReportTier: isPersonalOrg ? 'Basic' : 'Professional',
-                sendToAllTeamMembers: false
+                dailyReportEnabled: true,
+                weeklyReportEnabled: !isPersonalOrg,
+                sendToAllTeamMembers: false,
+                reportEnabled: true
             };
             setLocalConfig(defaults);
         }
@@ -1549,25 +1608,19 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
     const handleToggle = (key) => {
         setLocalConfig({ ...localConfig, [key]: !localConfig[key] });
     };
-    const handleTierChange = (value) => {
-        setLocalConfig({ ...localConfig, weeklyReportTier: value });
-    };
 
     const handleSave = async () => {
         const payload = { ...localConfig };
         // Sync master toggle back to individual flags
         if (!payload.reportEnabled) {
             payload.dailyReportEnabled = false;
-            payload.weeklyEnabled = false;
-        } else if (!payload.dailyReportEnabled && !payload.weeklyEnabled) {
-            // Re-enabling from a fully-disabled state: turn on daily at minimum
+            payload.weeklyReportEnabled = false;
+        } else if (!payload.dailyReportEnabled && !payload.weeklyReportEnabled) {
             payload.dailyReportEnabled = true;
-            payload.weeklyEnabled = !isPersonalOrg;
+            payload.weeklyReportEnabled = !isPersonalOrg;
         }
-        // Ensure personal org constraints are respected
         if (isPersonalOrg) {
-            payload.weeklyEnabled = false;
-            payload.weeklyReportTier = 'Basic';
+            payload.weeklyReportEnabled = false;
         }
         await onSaveReportConfig(payload);
     };
@@ -1627,114 +1680,12 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                     <div class="card-body">
                         <!-- Toggles in a row -->
                         <div class="d-flex gap-4 flex-wrap">
-                            <!-- Business Tier Toggle -->
-                            <div class="d-flex flex-column gap-2">
-                                <div class="d-flex align-items-center gap-2">
-                                    <label class="form-label mb-0"><strong>Business Tier</strong></label>
-                                    ${isPersonalOrg && html`
-                                        <div 
-                                            class="position-relative"
-                                            onMouseEnter=${() => togglePopover('tier')}
-                                            onMouseLeave=${() => togglePopover('tier')}
-                                        >
-                                            <i class="ti ti-info-circle text-warning" style="cursor: help; font-size: 16px;"></i>
-                                            ${showPopovers.tier && html`
-                                                <div class="popover bs-popover-bottom show" style="position: absolute; top: 100%; left: 0; margin-top: 8px; z-index: 1000; min-width: 200px;">
-                                                    <div class="popover-arrow"></div>
-                                                    <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
-                                                        Business Tier selection is available for Business organizations only. Upgrade to Business to unlock Professional and Premium tiers.
-                                                    </div>
-                                                </div>
-                                            `}
-                                        </div>
-                                    `}
-                                </div>
-                                <div class="btn-group" role="group">
-                                    <div class="position-relative">
-                                        <input 
-                                            type="radio" 
-                                            class="btn-check" 
-                                            id="tierPro"
-                                            name="tier"
-                                            value="Professional"
-                                            checked=${localConfig.weeklyReportTier === 'Professional'}
-                                            onChange=${(e) => handleTierChange(e.target.value)}
-                                            disabled=${savingReportConfig || isPersonalOrg}
-                                        />
-                                        <label class="btn btn-outline-primary position-relative" for="tierPro">
-                                            Professional
-                                            <span 
-                                                onMouseEnter=${() => togglePopover('professional')}
-                                                onMouseLeave=${() => togglePopover('professional')}
-                                                style="margin-left: 4px; cursor: help;"
-                                            >
-                                                <i class="ti ti-info-circle text-muted" style="font-size: 12px;"></i>
-                                                ${showPopovers.professional && html`
-                                                    <div class="popover bs-popover-top show" style="position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 8px; z-index: 1002; min-width: 240px;">
-                                                        <div class="popover-arrow"></div>
-                                                        <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
-                                                            <strong>Professional:</strong> Detailed analysis with device risk scores, vulnerability trends, and recommended actions.
-                                                        </div>
-                                                    </div>
-                                                `}
-                                            </span>
-                                        </label>
-                                    </div>
-                                    
-                                    <div class="position-relative">
-                                        <input 
-                                            type="radio" 
-                                            class="btn-check" 
-                                            id="tierPrem"
-                                            name="tier"
-                                            value="Premium"
-                                            checked=${localConfig.weeklyReportTier === 'Premium'}
-                                            onChange=${(e) => handleTierChange(e.target.value)}
-                                            disabled=${savingReportConfig || isPersonalOrg}
-                                        />
-                                        <label class="btn btn-outline-primary position-relative" for="tierPrem">
-                                            Premium
-                                            <span 
-                                                onMouseEnter=${() => togglePopover('premium')}
-                                                onMouseLeave=${() => togglePopover('premium')}
-                                                style="margin-left: 4px; cursor: help;"
-                                            >
-                                                <i class="ti ti-info-circle text-muted" style="font-size: 12px;"></i>
-                                                ${showPopovers.premium && html`
-                                                    <div class="popover bs-popover-top show" style="position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 8px; z-index: 1002; min-width: 240px;">
-                                                        <div class="popover-arrow"></div>
-                                                        <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
-                                                            <strong>Premium:</strong> Executive summary with compliance status, top threats, and strategic insights for leadership.
-                                                        </div>
-                                                    </div>
-                                                `}
-                                            </span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-
                             <!-- Weekly Report Toggle -->
                             <div class="d-flex flex-column gap-2">
                                 <div class="d-flex align-items-center gap-2">
-                                    <label class="form-label mb-0"><strong>Weekly Report</strong></label>
-                                    <div 
-                                        class="position-relative"
-                                        onMouseEnter=${() => togglePopover('weeklyInfo')}
-                                        onMouseLeave=${() => togglePopover('weeklyInfo')}
-                                    >
-                                        <i class="ti ti-info-circle text-muted" style="cursor: help; font-size: 16px;"></i>
-                                        ${showPopovers.weeklyInfo && html`
-                                            <div class="popover bs-popover-bottom show" style="position: absolute; top: 100%; left: 0; margin-top: 8px; z-index: 1000; min-width: 240px;">
-                                                <div class="popover-arrow"></div>
-                                                <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
-                                                    <strong>Weekly Summary:</strong> Comprehensive report delivered every Monday in your selected tier (Professional for detailed analysis or Premium for executive summary). Includes trends, comparative insights, and strategic recommendations.
-                                                </div>
-                                            </div>
-                                        `}
-                                    </div>
+                                    <label class="form-label mb-0"><strong>Weekly Brief</strong></label>
                                     ${isPersonalOrg && html`
-                                        <div 
+                                        <div
                                             class="position-relative"
                                             onMouseEnter=${() => togglePopover('weekly')}
                                             onMouseLeave=${() => togglePopover('weekly')}
@@ -1744,7 +1695,7 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                                                 <div class="popover bs-popover-bottom show" style="position: absolute; top: 100%; left: 0; margin-top: 8px; z-index: 1000; min-width: 200px;">
                                                     <div class="popover-arrow"></div>
                                                     <div class="popover-body p-2 text-muted small" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
-                                                        Weekly reports are exclusive to Business organizations. Upgrade to Business to enable.
+                                                        Weekly briefs are exclusive to Business organizations.
                                                     </div>
                                                 </div>
                                             `}
@@ -1752,12 +1703,12 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                                     `}
                                 </div>
                                 <div class="form-check form-switch">
-                                    <input 
-                                        class="form-check-input" 
-                                        type="checkbox" 
-                                        id="weeklyEnabled"
-                                        checked=${localConfig.weeklyEnabled}
-                                        onChange=${() => handleToggle('weeklyEnabled')}
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="weeklyReportEnabled"
+                                        checked=${localConfig.weeklyReportEnabled}
+                                        onChange=${() => handleToggle('weeklyReportEnabled')}
                                         disabled=${savingReportConfig || isPersonalOrg}
                                         style="width: 48px; height: 24px; margin-top: 2px;"
                                     />
@@ -1765,21 +1716,21 @@ function ReportsConfigTab({ orgId, reportConfig, savingReportConfig, onSaveRepor
                                 <small class="text-muted">Every Monday</small>
                             </div>
 
-                            <!-- Daily Snapshot Toggle -->
+                            <!-- Daily Report Toggle -->
                             <div class="d-flex flex-column gap-2">
-                                <label class="form-label mb-0"><strong>Daily Snapshot</strong></label>
+                                <label class="form-label mb-0"><strong>Daily Report</strong></label>
                                 <div class="form-check form-switch">
-                                    <input 
-                                        class="form-check-input" 
-                                        type="checkbox" 
-                                        id="dailySnapshotEnabled"
-                                        checked=${localConfig.dailySnapshotEnabled}
-                                        onChange=${() => handleToggle('dailySnapshotEnabled')}
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="dailyReportEnabled"
+                                        checked=${localConfig.dailyReportEnabled}
+                                        onChange=${() => handleToggle('dailyReportEnabled')}
                                         disabled=${savingReportConfig}
                                         style="width: 48px; height: 24px; margin-top: 2px;"
                                     />
                                 </div>
-                                <small class="text-muted">Basic snapshot</small>
+                                <small class="text-muted">Every day</small>
                             </div>
 
                             <!-- Send To All Members Toggle -->

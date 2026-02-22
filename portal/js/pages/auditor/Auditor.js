@@ -11,6 +11,11 @@ import ChatDrawer from '../../components/ChatDrawer.js';
 
 const { html, Component } = window;
 
+// Shared sessionStorage key — same key written by Dashboard, Compliance, and Auditor pages
+const SESSION_DASH_KEY = (orgId) => `dashboard_data_${orgId}`;
+const LS_AUDITOR_KEY = (orgId) => `auditor_${orgId}`;
+const LS_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
 // Evidence checklist items — status derived from live dashboard data
 const buildEvidenceChecklist = (data) => {
   const compliance = data?.businessOwner?.complianceCard || {};
@@ -74,6 +79,7 @@ export class AuditorPage extends Component {
       loading: true,
       error: null,
       data: null,
+      cachedAt: null,
       recentEvents: [],
       eventsLoading: true
     };
@@ -99,9 +105,41 @@ export class AuditorPage extends Component {
       return;
     }
 
-    this.setState({ loading: true, error: null, eventsLoading: true });
+    // ── 1. Try cross-page sessionStorage cache (zero cost if Dashboard loaded this session) ──
+    let cachedData = null;
+    let cachedAt = null;
 
-    // Load dashboard and audit events in parallel
+    try {
+      const sessionRaw = sessionStorage.getItem(SESSION_DASH_KEY(orgId));
+      if (sessionRaw) {
+        const parsed = JSON.parse(sessionRaw);
+        cachedData = parsed?.data ?? parsed;
+        cachedAt = parsed?.ts ?? null;
+      }
+    } catch {}
+
+    // ── 2. Fall back to localStorage with TTL ────────────────────────────────────────────────
+    if (!cachedData) {
+      try {
+        const lsRaw = localStorage.getItem(LS_AUDITOR_KEY(orgId));
+        if (lsRaw) {
+          const parsed = JSON.parse(lsRaw);
+          if (parsed?.ts && Date.now() - parsed.ts < LS_TTL_MS) {
+            cachedData = parsed.data;
+            cachedAt = parsed.ts;
+          }
+        }
+      } catch {}
+    }
+
+    // ── 3. Render cached dashboard data immediately (stale-while-revalidate) ────────────────
+    if (cachedData) {
+      this.setState({ data: cachedData, loading: false, cachedAt, error: null });
+    } else {
+      this.setState({ loading: true, error: null, eventsLoading: true });
+    }
+
+    // ── 4. Background refresh — always fetch dashboard + audit events in parallel ────────────
     const [dashboardResult, auditResult] = await Promise.allSettled([
       api.get(`/api/v1/orgs/${orgId}/dashboard?format=unified&include=cached-summary`),
       api.get(`/api/v1/orgs/${orgId}/audit?pageSize=10&days=30`)
@@ -109,9 +147,16 @@ export class AuditorPage extends Component {
 
     const dashState = {};
     if (dashboardResult.status === 'fulfilled' && dashboardResult.value?.success) {
+      const now = Date.now();
+      try {
+        sessionStorage.setItem(SESSION_DASH_KEY(orgId), JSON.stringify({ data: dashboardResult.value.data, ts: now }));
+        localStorage.setItem(LS_AUDITOR_KEY(orgId), JSON.stringify({ data: dashboardResult.value.data, ts: now }));
+      } catch {}
       dashState.data = dashboardResult.value.data;
+      dashState.cachedAt = now;
       dashState.loading = false;
-    } else {
+      dashState.error = null;
+    } else if (!cachedData) {
       dashState.error = dashboardResult.reason?.message || 'Failed to load dashboard data';
       dashState.loading = false;
     }
@@ -151,6 +196,15 @@ export class AuditorPage extends Component {
     return html`<span class="badge ${map[status] || 'bg-secondary-lt'}">${labelMap[status] || status}</span>`;
   }
 
+  formatCachedAt(ts) {
+    if (!ts) return null;
+    const diffMs = Date.now() - ts;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    return `${Math.floor(mins / 60)}h ago`;
+  }
+
   formatTimestamp(ts) {
     if (!ts) return '—';
     const d = new Date(ts);
@@ -164,20 +218,22 @@ export class AuditorPage extends Component {
     return `${days}d ago`;
   }
 
-  renderReadinessComposite(data) {
+  renderReadinessComposite(data, cachedAt) {
     const compliance = data?.businessOwner?.complianceCard || {};
     const score = data?.securityScore || {};
     const risk = data?.businessOwner?.riskSummary || {};
     const pct = compliance?.percent || 0;
     const auditReady = pct >= 80;
     const complianceColor = pct >= 80 ? 'success' : pct >= 60 ? 'warning' : 'danger';
+    const asOf = this.formatCachedAt(cachedAt);
 
     return html`
       <div class="container-xl mb-4">
         <div class="card border-0 shadow-sm">
           <div class="card-header">
             <h3 class="card-title">Audit Readiness</h3>
-            <div class="card-options">
+            <div class="card-options d-flex align-items-center gap-2">
+              ${asOf ? html`<span class="badge bg-secondary-lt text-muted fw-normal" title="Data last refreshed">as of ${asOf}</span>` : ''}
               <a href="#!/auditor" class="btn btn-sm btn-outline-secondary" onClick=${(e) => { e.preventDefault(); this.loadAll(); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                 Refresh
@@ -345,7 +401,7 @@ export class AuditorPage extends Component {
   }
 
   render() {
-    const { loading, error, data } = this.state;
+    const { loading, error, data, cachedAt } = this.state;
 
     if (loading) {
       return html`
@@ -393,7 +449,7 @@ export class AuditorPage extends Component {
           </div>
         </div>
 
-        ${this.renderReadinessComposite(data)}
+        ${this.renderReadinessComposite(data, cachedAt)}
         ${this.renderEvidenceChecklist(data)}
         ${this.renderRecentEvents()}
         ${this.renderDownloadSection()}

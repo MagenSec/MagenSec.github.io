@@ -31,13 +31,29 @@ export default class UnifiedDashboard extends Component {
       aiPrompt: '',
       aiAnswer: null,
       aiLoading: false,
-      aiError: null
+      aiError: null,
+      officerNoteOpen: false,
+      officerNoteDismissed: false
     };
     this._sheetDismissHandler = null;
+    this._orgChangeUnsub = null;
   }
 
   componentDidMount() {
     this.loadDashboard();
+    this._orgChangeUnsub = orgContext.onChange(() => {
+      // Clear cached dashboard data for old org and reload for new org
+      try {
+        for (const key of [...Object.keys(localStorage)]) {
+          if (key.startsWith('unified_dashboard_')) localStorage.removeItem(key);
+        }
+      } catch (_) {}
+      this.loadDashboard();
+    });
+  }
+
+  componentWillUnmount() {
+    if (this._orgChangeUnsub) this._orgChangeUnsub();
   }
 
   getCachedDashboard(key, ttlMinutes = 30) {
@@ -415,7 +431,7 @@ export default class UnifiedDashboard extends Component {
                     transition: opacity 0.15s;
                     white-space: nowrap;
                   "
-                >${aiLoading ? 'Thinkingâ€¦' : 'Ask AI'}</button>
+                >${aiLoading ? 'Thinking…' : 'Ask 🕵️MAGI'}</button>
               </div>
             </form>
 
@@ -434,7 +450,7 @@ export default class UnifiedDashboard extends Component {
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="#a5b4fc" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-                    <span style="color: #c4b5fd; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;">AI ANALYST</span>
+                    <span style="color: #c4b5fd; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;">🕵️MAGI</span>
                     ${aiAnswer.confidence != null ? html`
                       <span style="font-size: 0.7rem; background: rgba(99,102,241,0.25); color: #a5b4fc; padding: 1px 8px; border-radius: 20px;">${Math.round((aiAnswer.confidence || 0) * 100)}% confident</span>
                     ` : ''}
@@ -446,8 +462,8 @@ export default class UnifiedDashboard extends Component {
                         window.location.hash = '#!/analyst';
                       }}
                       style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18); color: #e0e7ff; font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; cursor: pointer;"
-                    >Continue â†’</button>
-                    <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">âœ•</button>
+                    >Continue →</button>
+                    <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">✕</button>
                   </div>
                 </div>
                 <div style="color: rgba(255,255,255,0.38); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
@@ -458,7 +474,7 @@ export default class UnifiedDashboard extends Component {
             ${aiError ? html`
               <div style="margin-top: 10px; background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); border-radius: 10px; padding: 10px 14px; color: #fca5a5; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
                 <span>${aiError}</span>
-                <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: #fca5a5; cursor: pointer; margin-left: 8px;">âœ•</button>
+                <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: #fca5a5; cursor: pointer; margin-left: 8px;">✕</button>
               </div>
             ` : ''}
           </div>
@@ -470,11 +486,11 @@ export default class UnifiedDashboard extends Component {
               <a href="#!/compliance" style="font-size: 0.72rem; color: rgba(255,255,255,0.38); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 1px solid rgba(255,255,255,0.09);">Compliance</a>
               <a href="#!/reports" style="font-size: 0.72rem; color: rgba(255,255,255,0.38); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 1px solid rgba(255,255,255,0.09);">Reports</a>
               <button onClick=${() => this.refreshDashboard()} style="font-size: 0.72rem; color: rgba(255,255,255,0.38); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 3px 10px; cursor: pointer;">
-                ${refreshing ? 'Refreshingâ€¦' : 'â†» Refresh'}
+                ${refreshing ? 'Refreshing…' : '↻ Refresh'}
               </button>
               ${freshness ? html`
                 <span style="font-size: 0.68rem; color: rgba(255,255,255,0.25);">
-                  Â· ${freshness.ageText}${freshness.isStale ? ' (stale)' : ''}
+                  · ${freshness.ageText}${freshness.isStale ? ' (stale)' : ''}
                 </span>
               ` : ''}
             </div>
@@ -506,7 +522,7 @@ export default class UnifiedDashboard extends Component {
     const threatHex  = criticalCount === 0 ? '#34d399' : criticalCount <= 3 ? '#fbbf24' : '#f87171';
     const fleetHex   = offlineDevices === 0 ? '#60a5fa' : offlineDevices <= 2 ? '#fbbf24' : '#f87171';
 
-    const glass = 'background:rgba(255,255,255,0.07);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,0.11);border-radius:14px;padding:16px 14px;cursor:pointer;transition:background 0.2s,border-color 0.2s;';
+    const glass = 'height:100%;background:rgba(255,255,255,0.07);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,0.11);border-radius:14px;padding:16px 14px;cursor:pointer;transition:background 0.2s,border-color 0.2s;';
     const label = 'color:rgba(255,255,255,0.45);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.09em;font-weight:600;margin-bottom:6px;';
     const bigNum = (color) => `font-size:2rem;font-weight:800;color:${color};line-height:1;margin-bottom:4px;`;
     const sub = 'font-size:0.72rem;color:rgba(255,255,255,0.38);';
@@ -519,10 +535,10 @@ export default class UnifiedDashboard extends Component {
             <div style="${label}">Security</div>
             <div style="display:flex;align-items:baseline;gap:8px;${bigNum(scoreHex)}">
               <span>${secScore}</span>
-              <span style="font-size:0.78rem;font-weight:700;color:${scoreHex};background:rgba(255,255,255,0.09);padding:2px 7px;border-radius:6px;">${score.grade || 'â€”'}</span>
+              <span style="font-size:0.78rem;font-weight:700;color:${scoreHex};background:rgba(255,255,255,0.09);padding:2px 7px;border-radius:6px;">${score.grade || '—'}</span>
             </div>
             <div style="${sub}${score.urgentActionCount > 0 ? 'color:#fca5a5;' : ''}">
-              ${score.urgentActionCount > 0 ? `âš  ${score.urgentActionCount} urgent` : 'âœ“ No alerts'}
+              ${score.urgentActionCount > 0 ? `⚠  ${score.urgentActionCount} urgent` : '✓ No alerts'}
             </div>
           </div>
         </div>
@@ -561,7 +577,7 @@ export default class UnifiedDashboard extends Component {
               <span style="font-size:0.82rem;color:rgba(255,255,255,0.3);">/ ${totalDevices}</span>
             </div>
             <div style="${sub}${offlineDevices > 0 ? 'color:#fbbf24;' : ''}">
-              ${offlineDevices > 0 ? `${offlineDevices} offline` : 'âœ“ All healthy'}
+              ${offlineDevices > 0 ? `${offlineDevices} offline` : '✓ All healthy'}
             </div>
           </div>
         </div>
@@ -604,7 +620,7 @@ export default class UnifiedDashboard extends Component {
       security: [
         { href: '#!/security',    label: 'Full Analysis' },
         { href: '#!/reports',     label: 'Reports' },
-        { href: '#!/analyst',     label: 'Ask AI' }
+        { href: '#!/analyst',     label: 'Ask 🕵️MAGI' }
       ],
       auditor: [
         { href: '#!/auditor',     label: 'Auditor Dashboard' },
@@ -630,11 +646,11 @@ export default class UnifiedDashboard extends Component {
     } else if (activePersona === 'it') {
       headlineValue = String(it.deploymentStatus?.pendingUpdates || 0);
       headlineLabel = 'Pending Updates';
-      headlineSubtitle = `${it.inventory?.totalDevices || 0} devices Â· ${it.inventory?.totalApps || 0} apps tracked`;
+      headlineSubtitle = `${it.inventory?.totalDevices || 0} devices · ${it.inventory?.totalApps || 0} apps tracked`;
     } else if (activePersona === 'security') {
       headlineValue = String(sec.criticalCveCount || 0);
       headlineLabel = 'Critical CVEs';
-      headlineSubtitle = sec.exploitCount > 0 ? `âš  ${sec.exploitCount} actively exploited (KEV)` : `${sec.highCveCount || 0} high severity CVEs`;
+      headlineSubtitle = sec.exploitCount > 0 ? `⚠  ${sec.exploitCount} actively exploited (KEV)` : `${sec.highCveCount || 0} high severity CVEs`;
     } else {
       headlineValue = `${compPct}%`;
       headlineLabel = 'Audit Readiness';
@@ -644,12 +660,12 @@ export default class UnifiedDashboard extends Component {
     // Build metric row (row 1 of sheet body)
     let metricCards = [];
     if (activePersona === 'business') {
-      const risk = bo.riskSummary?.overallRisk || 'â€”';
+      const risk = bo.riskSummary?.overallRisk || '—';
       const riskColor = risk === 'low' ? '#34d399' : risk === 'medium' ? '#fbbf24' : '#f87171';
       metricCards = [
         { label: 'Security Score', value: score.score || 0, valueColor: score.score >= 80 ? '#16a34a' : score.score >= 60 ? '#2563eb' : '#d97706', suffix: '', sub: score.grade || '' },
         { label: 'Compliance',     value: `${compPct}%`,   valueColor: compPct >= 80 ? '#16a34a' : compPct >= 60 ? '#2563eb' : '#dc2626', suffix: '', sub: bo.complianceCard?.gapCount > 0 ? `${bo.complianceCard.gapCount} gaps` : 'clean' },
-        { label: 'Risk Level',     value: risk,            valueColor: riskColor,   suffix: '', sub: `Score: ${bo.riskSummary?.riskScore || 'â€”'}` },
+        { label: 'Risk Level',     value: risk,            valueColor: riskColor,   suffix: '', sub: `Score: ${bo.riskSummary?.riskScore || '—'}` },
         { label: 'License',        value: `${bo.licenseCard?.seatsUsed || 0}/${bo.licenseCard?.seatsTotal || 0}`, valueColor: '#6366f1', suffix: '', sub: `${bo.licenseCard?.daysRemaining || 0}d remaining` }
       ];
     } else if (activePersona === 'it') {
@@ -671,7 +687,7 @@ export default class UnifiedDashboard extends Component {
       metricCards = [
         { label: 'Compliance',   value: `${compPct}%`,                          valueColor: compPct >= 80 ? '#16a34a' : compPct >= 60 ? '#2563eb' : '#dc2626', suffix: '', sub: '' },
         { label: 'Control Gaps', value: gapCount,                               valueColor: gapCount > 0 ? '#d97706' : '#16a34a', suffix: '', sub: '' },
-        { label: 'Risk Score',   value: bo.riskSummary?.riskScore || 'â€”',       valueColor: '#6366f1', suffix: '', sub: '' },
+        { label: 'Risk Score',   value: bo.riskSummary?.riskScore || '—',       valueColor: '#6366f1', suffix: '', sub: '' },
         { label: 'Status',       value: compPct >= 80 ? 'Ready' : 'Not Ready',  valueColor: compPct >= 80 ? '#16a34a' : '#d97706', suffix: '', sub: '' }
       ];
     }
@@ -690,17 +706,17 @@ export default class UnifiedDashboard extends Component {
         badge: `${a.cveCount} CVEs`,
         badgeColor: '#dc2626',
         title: a.appName || '',
-        sub: a.kevCount > 0 ? `${a.kevCount} KEV Â· ${a.deviceCount} devices` : `${a.deviceCount} devices affected`
+        sub: a.kevCount > 0 ? `${a.kevCount} KEV · ${a.deviceCount} devices` : `${a.deviceCount} devices affected`
       }));
     } else if (activePersona === 'security') {
       if (sec.exploitCount > 0) {
-        actionRows = [{ badge: 'KEV', badgeColor: '#ea580c', title: `${sec.exploitCount} actively exploited vulnerability${sec.exploitCount !== 1 ? 'ies' : 'y'}`, sub: 'Patch immediately â€” these are in CISA KEV catalog' }];
+        actionRows = [{ badge: 'KEV', badgeColor: '#ea580c', title: `${sec.exploitCount} actively exploited vulnerability${sec.exploitCount !== 1 ? 'ies' : 'y'}`, sub: 'Patch immediately — these are in CISA KEV catalog' }];
       }
       actionRows = [...actionRows, ...(data.securityPro?.attackSurface?.layers || []).slice(0, 2).map(l => ({
         badge: l.riskLevel || 'medium',
         badgeColor: l.riskLevel === 'critical' ? '#dc2626' : l.riskLevel === 'high' ? '#d97706' : '#6b7280',
         title: l.name || '',
-        sub: `${l.cveCount || 0} CVEs${l.criticalCount > 0 ? ` Â· ${l.criticalCount} critical` : ''}`
+        sub: `${l.cveCount || 0} CVEs${l.criticalCount > 0 ? ` · ${l.criticalCount} critical` : ''}`
       }))].slice(0, 3);
     } else {
       const gapDesc = bo.complianceCard?.gapDescription || '';
@@ -720,7 +736,7 @@ export default class UnifiedDashboard extends Component {
           style="
             position: fixed;
             inset: 0;
-            z-index: 1039;
+            z-index: 1028;
             background: rgba(0,0,0,0.5);
             backdrop-filter: blur(2px);
             -webkit-backdrop-filter: blur(2px);
@@ -733,7 +749,7 @@ export default class UnifiedDashboard extends Component {
         <!-- Persona sheet -->
         <div style="
           position: fixed;
-          bottom: 0;
+          bottom: 58px;
           left: 0;
           right: 0;
           z-index: 1040;
@@ -788,7 +804,7 @@ export default class UnifiedDashboard extends Component {
               background: var(--tblr-bg-surface, #fff);
               overflow-y: auto;
               flex: 1;
-              padding-bottom: 72px;
+              padding-bottom: 8px;
             ">
 
               <!-- Row 1: Metric cards -->
@@ -848,7 +864,7 @@ export default class UnifiedDashboard extends Component {
               ` : html`
                 <div style="padding: 16px 16px 4px; color: var(--tblr-success, #2fb344); font-size: 0.875rem; display: flex; align-items: center; gap: 8px;">
                   <svg width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10-10"/></svg>
-                  All clear â€” no immediate actions required
+                  All clear — no immediate actions required
                 </div>
               `}
 
@@ -869,10 +885,216 @@ export default class UnifiedDashboard extends Component {
                       text-decoration: none;
                       transition: opacity 0.15s;
                     "
-                  >${cta.label} â†’</a>
+                  >${cta.label} →</a>
                 `)}
               </div>
 
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderSecurityOfficerDrawer() {
+    const { data, officerNoteOpen, officerNoteDismissed } = this.state;
+    if (!data || officerNoteDismissed) return null;
+
+    const score = data.securityScore || {};
+    const threats = data.securityPro?.threatIntel || {};
+    const actions = data.businessOwner?.topActions || [];
+
+    const secScore = typeof score.score === 'number' ? score.score : 100;
+    const grade = score.grade || '—';
+    const critical = threats.criticalCveCount || 0;
+    const high = threats.highCveCount || 0;
+
+    // Only show when there's something to flag
+    if (secScore >= 80 && critical === 0 && high === 0) return null;
+
+    const urgentAction = actions.find(a => a.urgency === 'critical' || a.urgency === 'urgent') || actions[0];
+    const rc = data.reportCard || null;
+
+    const isGreenGrade = ['A+','A','A-','B+','B','B-'].includes(grade);
+    const isAmberGrade = ['C+','C','C-'].includes(grade);
+    const gradeColor = isGreenGrade ? '#16a34a' : isAmberGrade ? '#d97706' : '#dc2626';
+    const borderColor = isGreenGrade ? 'rgba(22,163,74,0.4)' : isAmberGrade ? 'rgba(217,119,6,0.4)' : 'rgba(239,68,68,0.5)';
+    const bgColor = isGreenGrade ? 'rgba(22,163,74,0.08)' : isAmberGrade ? 'rgba(217,119,6,0.08)' : 'rgba(239,68,68,0.06)';
+
+    let situationText = '';
+    if (critical > 0) situationText = `${critical} critical CVE${critical !== 1 ? 's' : ''} require immediate attention.`;
+    else if (high > 0) situationText = `${high} high-severity CVE${high !== 1 ? 's' : ''} detected across your fleet.`;
+    else situationText = `Security posture is below target threshold.`;
+
+    return html`
+      <div style="max-width: 960px; margin: 0 auto 12px; padding: 0 16px;">
+        <div style="
+          border: 1px solid ${borderColor};
+          border-radius: 12px;
+          overflow: hidden;
+          background: ${bgColor};
+        ">
+          <!-- Clickable header row -->
+          <div
+            onClick=${() => this.setState({ officerNoteOpen: !officerNoteOpen })}
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 10px 14px;
+              cursor: pointer;
+              user-select: none;
+            "
+          >
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" stroke-width="2" stroke="${gradeColor}" fill="none">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/>
+                <path d="M9 12l2 2l4-4"/>
+              </svg>
+              <span style="font-size: 0.78rem; font-weight: 700; color: var(--tblr-body-color, #333); letter-spacing: 0.01em;">Security Officer's Note</span>
+              <span style="
+                font-size: 0.65rem; font-weight: 700;
+                color: ${gradeColor};
+                background: ${gradeColor}18;
+                border: 1px solid ${gradeColor}33;
+                padding: 1px 7px; border-radius: 4px;
+              ">${grade}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 0.72rem; color: var(--tblr-secondary, #888);">${officerNoteOpen ? 'Collapse' : 'View'}</span>
+              <svg
+                width="14" height="14" viewBox="0 0 24 24" stroke-width="2.5"
+                stroke="var(--tblr-secondary, #888)" fill="none"
+                style="transition: transform 0.25s; transform: rotate(${officerNoteOpen ? '180' : '0'}deg);"
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Slide-down body -->
+          <div style="
+            max-height: ${officerNoteOpen ? '480px' : '0'};
+            overflow: hidden;
+            transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          ">
+            <div style="padding: 0 14px 14px; border-top: 1px solid ${borderColor};">
+              <div style="padding-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+
+                <!-- Situation summary -->
+                <div style="font-size: 0.84rem; color: var(--tblr-body-color, #333);">
+                  ${situationText}
+                  ${critical > 0 || high > 0 ? html`
+                    <span style="margin-left: 6px;">
+                      <a href="#!/security" style="color: ${gradeColor}; font-weight: 600; text-decoration: none; font-size: 0.8rem;">View threat details →</a>
+                    </span>
+                  ` : ''}
+                </div>
+
+                <!-- Threat counts row -->
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  ${critical > 0 ? html`
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                      <span style="width: 7px; height: 7px; border-radius: 50%; background: #dc2626; display: inline-block;"></span>
+                      <span style="font-size: 0.78rem; color: var(--tblr-secondary, #666);">${critical} critical</span>
+                    </div>
+                  ` : ''}
+                  ${high > 0 ? html`
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                      <span style="width: 7px; height: 7px; border-radius: 50%; background: #d97706; display: inline-block;"></span>
+                      <span style="font-size: 0.78rem; color: var(--tblr-secondary, #666);">${high} high severity</span>
+                    </div>
+                  ` : ''}
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="font-size: 0.78rem; font-weight: 600; color: ${gradeColor};">Score ${secScore}/100</span>
+                  </div>
+                </div>
+
+                <!-- Report card (from last generated daily report) -->
+                ${rc ? html`
+                  <div style="
+                    background: var(--tblr-bg-surface-secondary, #f8f9fa);
+                    border: 1px solid var(--tblr-border-color, #e6e7e9);
+                    border-radius: 8px;
+                    padding: 10px 12px;
+                  ">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="
+                          font-size: 0.72rem; font-weight: 700;
+                          color: ${gradeColor};
+                          background: ${gradeColor}18;
+                          border: 1px solid ${gradeColor}33;
+                          padding: 2px 8px; border-radius: 4px;
+                        ">${rc.grade || grade}</span>
+                        <span style="font-size: 0.74rem; font-weight: 600; color: var(--tblr-body-color, #333);">Daily Report</span>
+                        ${rc.generatedAt ? html`<span style="font-size: 0.69rem; color: var(--tblr-secondary, #999);">${(() => { const ageMs = Date.now() - new Date(rc.generatedAt).getTime(); const h = Math.floor(ageMs / 3600000); const m = Math.floor((ageMs % 3600000) / 60000); return h >= 1 ? h + 'h ago' : m + 'm ago'; })()}</span>` : ''}
+                      </div>
+                      <a href="#!/security" style="font-size: 0.72rem; color: ${gradeColor}; font-weight: 600; text-decoration: none;">View Report →</a>
+                    </div>
+                    ${(rc.criticalCount > 0 || rc.highCount > 0) ? html`
+                      <div style="font-size: 0.75rem; margin-bottom: 5px;">
+                        ${rc.criticalCount > 0 ? html`<span style="color: #dc2626; font-weight: 600;">${rc.criticalCount} critical</span>` : ''}
+                        ${rc.criticalCount > 0 && rc.highCount > 0 ? html`<span style="color: var(--tblr-secondary, #999);"> · </span>` : ''}
+                        ${rc.highCount > 0 ? html`<span style="color: #d97706;">${rc.highCount} high</span>` : ''}
+                      </div>
+                    ` : ''}
+                    ${rc.topActionText ? html`
+                      <div style="font-size: 0.78rem; color: var(--tblr-body-color, #333); font-weight: 500; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+                        <span style="color: var(--tblr-secondary, #888); font-size: 0.72rem; flex-shrink: 0;">Priority:</span>
+                        <span>${rc.topActionText}</span>
+                        ${rc.isKev ? html`<span style="font-size: 0.62rem; color: #ea580c; font-weight: 700; background: rgba(234,88,12,0.12); border: 1px solid rgba(234,88,12,0.25); padding: 1px 5px; border-radius: 3px; flex-shrink: 0;">KEV</span>` : ''}
+                      </div>
+                    ` : ''}
+                    <div style="font-size: 0.72rem; color: var(--tblr-secondary, #888);">
+                      ${rc.emailSentAt
+                        ? `✉ Emailed to ${rc.emailRecipientCount || 1} recipient${rc.emailRecipientCount !== 1 ? 's' : ''}${rc.whatsAppSentAt ? ' · WhatsApp sent' : ''}`
+                        : 'Report not yet sent today'
+                      }
+                    </div>
+                  </div>
+                ` : ''}
+
+                <!-- Top urgent action -->
+                ${urgentAction ? html`
+                  <div style="
+                    background: var(--tblr-bg-surface-secondary, #f8f9fa);
+                    border: 1px solid var(--tblr-border-color, #e6e7e9);
+                    border-radius: 8px;
+                    padding: 8px 12px;
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 8px;
+                  ">
+                    <span style="
+                      flex-shrink: 0; margin-top: 1px;
+                      font-size: 0.62rem; font-weight: 700;
+                      color: #d97706; background: #d9770618;
+                      border: 1px solid #d9770633;
+                      padding: 1px 6px; border-radius: 4px;
+                      text-transform: uppercase; letter-spacing: 0.04em;
+                    ">${urgentAction.urgency || 'action'}</span>
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="font-size: 0.82rem; font-weight: 500; color: var(--tblr-body-color, #333);">${urgentAction.title}</div>
+                      ${urgentAction.description ? html`<div style="font-size: 0.74rem; color: var(--tblr-secondary, #888); margin-top: 2px;">${urgentAction.description}</div>` : ''}
+                    </div>
+                  </div>
+                ` : ''}
+
+                <!-- Footer links -->
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                  <div style="display: flex; gap: 8px;">
+                    <a href="#!/security" style="font-size: 0.76rem; font-weight: 600; color: ${gradeColor}; text-decoration: none;">Full Security Report →</a>
+                    <a href="#!/analyst" style="font-size: 0.76rem; color: var(--tblr-secondary, #888); text-decoration: none;">Ask MAGI →</a>
+                  </div>
+                  <button
+                    onClick=${(e) => { e.stopPropagation(); this.setState({ officerNoteDismissed: true }); }}
+                    style="background: none; border: none; font-size: 0.72rem; color: var(--tblr-secondary, #aaa); cursor: pointer; padding: 0;"
+                  >Dismiss</button>
+                </div>
+
+              </div>
             </div>
           </div>
         </div>
@@ -920,6 +1142,7 @@ export default class UnifiedDashboard extends Component {
       <div>
         ${this.renderRefreshBanner()}
         ${this.renderSearchHeader()}
+        ${this.renderSecurityOfficerDrawer()}
         <${PersonaNav} activePersona=${this.state.activePersona} onPersonaChange=${this.handlePersonaChange} />
         ${this.renderPersonaSheet()}
       </div>

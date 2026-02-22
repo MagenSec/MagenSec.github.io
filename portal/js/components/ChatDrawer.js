@@ -149,7 +149,7 @@ export class ChatDrawer extends Component {
     return html`
       <button
         onClick=${this.toggle}
-        title="${open ? 'Close AI Analyst' : 'Ask AI Analyst'}"
+        title="${open ? 'Close Analyst' : 'Ask 🕵️MAGI'}"
         style="
           position: fixed;
           bottom: 24px;
@@ -208,7 +208,7 @@ export class ChatDrawer extends Component {
         <div style="padding: 14px 16px; border-bottom: 1px solid var(--tblr-border-color, #e6e7e9); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="#6366f1" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-            <span style="font-weight: 600; font-size: 0.9rem;">AI Analyst</span>
+            <span style="font-weight: 600; font-size: 0.9rem;">🕵️MAGI (AI Security Officer)</span>
             ${contextHint ? html`<span style="font-size: 0.75rem; color: var(--tblr-secondary, #666); background: var(--tblr-bg-surface-secondary, #f8f9fa); padding: 2px 8px; border-radius: 999px;">${contextHint}</span>` : ''}
           </div>
           <div style="display: flex; gap: 4px;">
@@ -236,7 +236,7 @@ export class ChatDrawer extends Component {
           ${messages.length === 0 ? html`
             <div style="text-align: center; color: var(--tblr-secondary, #888); margin-top: 40px;">
               <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" stroke-width="1.5" stroke="#c4b5fd" fill="none" style="display: block; margin: 0 auto 12px;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-              <div style="font-size: 0.875rem; font-weight: 500; margin-bottom: 4px;">Ask the AI Analyst</div>
+              <div style="font-size: 0.875rem; font-weight: 500; margin-bottom: 4px;">Ask 🕵️MAGI (AI Security Officer)</div>
               <div style="font-size: 0.8rem;">
                 ${contextHint
                   ? `Ask about ${contextHint}`

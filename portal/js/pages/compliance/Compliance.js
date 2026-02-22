@@ -38,13 +38,20 @@ const FRAMEWORKS = [
   }
 ];
 
+// Shared sessionStorage key used across Dashboard, Compliance, and Auditor pages
+const SESSION_DASH_KEY = (orgId) => `dashboard_data_${orgId}`;
+// Compliance-specific localStorage key with TTL
+const LS_COMPLIANCE_KEY = (orgId) => `compliance_${orgId}`;
+const LS_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
 export class CompliancePage extends Component {
   constructor(props) {
     super(props);
     this.state = {
       loading: true,
       error: null,
-      data: null
+      data: null,
+      cachedAt: null   // timestamp of the data currently displayed
     };
     this.orgUnsubscribe = null;
   }
@@ -68,14 +75,59 @@ export class CompliancePage extends Component {
       return;
     }
 
-    this.setState({ loading: true, error: null });
+    // ── 1. Try cross-page sessionStorage cache (zero cost if Dashboard loaded this session) ──
+    let cachedData = null;
+    let cachedAt = null;
 
     try {
+      const sessionRaw = sessionStorage.getItem(SESSION_DASH_KEY(orgId));
+      if (sessionRaw) {
+        const parsed = JSON.parse(sessionRaw);
+        // Handle both wrapped {data, ts} and raw data formats
+        cachedData = parsed?.data ?? parsed;
+        cachedAt = parsed?.ts ?? null;
+      }
+    } catch {}
+
+    // ── 2. Fall back to localStorage with TTL (survives tab close, good for 15 min) ──────────
+    if (!cachedData) {
+      try {
+        const lsRaw = localStorage.getItem(LS_COMPLIANCE_KEY(orgId));
+        if (lsRaw) {
+          const parsed = JSON.parse(lsRaw);
+          if (parsed?.ts && Date.now() - parsed.ts < LS_TTL_MS) {
+            cachedData = parsed.data;
+            cachedAt = parsed.ts;
+          }
+        }
+      } catch {}
+    }
+
+    // ── 3. Render cached data immediately (stale-while-revalidate) ────────────────────────────
+    if (cachedData) {
+      this.setState({ data: cachedData, loading: false, cachedAt });
+    } else {
+      this.setState({ loading: true, error: null });
+    }
+
+    // ── 4. Background refresh — always fetch fresh data ───────────────────────────────────────
+    try {
       const response = await api.get(`/api/v1/orgs/${orgId}/dashboard?format=unified&include=cached-summary`);
-      if (!response.success) throw new Error(response.message || 'Failed to load compliance data');
-      this.setState({ data: response.data, loading: false });
+      if (!response.success) {
+        if (!cachedData) throw new Error(response.message || 'Failed to load compliance data');
+        return; // keep showing cached data on refresh failure
+      }
+      const now = Date.now();
+      // Update both caches for cross-page sharing
+      try {
+        sessionStorage.setItem(SESSION_DASH_KEY(orgId), JSON.stringify({ data: response.data, ts: now }));
+        localStorage.setItem(LS_COMPLIANCE_KEY(orgId), JSON.stringify({ data: response.data, ts: now }));
+      } catch {}
+      this.setState({ data: response.data, loading: false, cachedAt: now, error: null });
     } catch (err) {
-      this.setState({ error: err?.message || 'Failed to load compliance data', loading: false });
+      if (!cachedData) {
+        this.setState({ error: err?.message || 'Failed to load compliance data', loading: false });
+      }
     }
   }
 
@@ -85,18 +137,33 @@ export class CompliancePage extends Component {
     return 'danger';
   }
 
-  getFrameworkPercent(frameworkId, overallPercent) {
-    // Without per-framework endpoint, we derive rough estimates from the overall score.
-    // These are approximate — full breakdown available via AI Posture report.
-    const offsets = { cis: 0, nist: -3, certin: +4, iso27001: -2 };
-    const base = overallPercent + (offsets[frameworkId] || 0);
-    return Math.min(100, Math.max(0, base));
+  // Returns real per-framework score from the pre-cooked cron snapshot.
+  // Falls back to overall score when the framework key is absent (e.g. older cache entries).
+  getFrameworkPercent(frameworkId, overallPercent, frameworkScores) {
+    const keyMap = { cis: 'CIS', nist: 'NIST', certin: 'CERT-In', iso27001: 'ISO27001' };
+    const key = keyMap[frameworkId];
+    if (frameworkScores && key != null && frameworkScores[key] != null) {
+      const raw = frameworkScores[key];
+      // Stored as 0-100 integer by cron; guard against accidentally decimal (0-1) values
+      return Math.round(raw > 1 ? raw : raw * 100);
+    }
+    return overallPercent; // graceful fallback
   }
 
-  renderHeader(compliance, score) {
+  formatCachedAt(ts) {
+    if (!ts) return null;
+    const diffMs = Date.now() - ts;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    return `${Math.floor(mins / 60)}h ago`;
+  }
+
+  renderHeader(compliance, score, cachedAt) {
     const percent = compliance?.percent || 0;
     const color = this.getComplianceColor(percent);
     const auditReady = percent >= 80;
+    const asOf = this.formatCachedAt(cachedAt);
 
     return html`
       <div class="page-header d-print-none mb-4">
@@ -107,9 +174,16 @@ export class CompliancePage extends Component {
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5 2 1.5v-4.5" /><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v3.5" /></svg>
                 Compliance
               </h2>
-              <div class="page-subtitle text-muted">Framework scores, controls coverage, and gap analysis</div>
+              <div class="page-subtitle text-muted d-flex align-items-center gap-2">
+                Framework scores, controls coverage, and gap analysis
+                ${asOf ? html`<span class="badge bg-secondary-lt text-muted fw-normal" title="Data last refreshed">as of ${asOf}</span>` : ''}
+              </div>
             </div>
-            <div class="col-auto">
+            <div class="col-auto d-flex gap-2">
+              <button class="btn btn-outline-secondary btn-sm" onClick=${() => this.loadData()} title="Refresh data">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                Refresh
+              </button>
               <a href="#!/posture-ai" class="btn btn-primary">
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><circle cx="12" cy="12" r="4" /></svg>
                 AI Posture Report
@@ -171,16 +245,20 @@ export class CompliancePage extends Component {
     `;
   }
 
-  renderFrameworkGrid(overallPercent) {
+  renderFrameworkGrid(overallPercent, frameworkScores) {
+    const hasRealScores = frameworkScores && Object.keys(frameworkScores).length > 0;
     return html`
       <div class="container-xl mb-4">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h3 class="mb-0">Framework Coverage</h3>
-          <span class="badge bg-secondary-lt text-muted">Estimates — see AI Posture for full breakdown</span>
+          ${hasRealScores
+            ? html`<span class="badge bg-success-lt text-success">Live scores from posture engine</span>`
+            : html`<span class="badge bg-secondary-lt text-muted">Based on overall score — run posture engine for per-framework data</span>`
+          }
         </div>
         <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3">
           ${FRAMEWORKS.map(fw => {
-            const pct = this.getFrameworkPercent(fw.id, overallPercent);
+            const pct = this.getFrameworkPercent(fw.id, overallPercent, frameworkScores);
             const color = this.getComplianceColor(pct);
             return html`
               <div class="col">
@@ -284,7 +362,7 @@ export class CompliancePage extends Component {
   }
 
   render() {
-    const { loading, error, data } = this.state;
+    const { loading, error, data, cachedAt } = this.state;
 
     if (loading) {
       return html`
@@ -311,12 +389,14 @@ export class CompliancePage extends Component {
     const score = data?.securityScore || {};
     const topActions = bo?.topActions || [];
     const overallPercent = compliance?.percent || 0;
+    // Real per-framework scores pre-cooked by OrgInsightsCronTask into complianceCard.frameworkScores
+    const frameworkScores = compliance?.frameworkScores || null;
 
     return html`
       <div style="padding-bottom: 80px;">
-        ${this.renderHeader(compliance, score)}
+        ${this.renderHeader(compliance, score, cachedAt)}
         ${this.renderNotice(compliance?.gapDescription)}
-        ${this.renderFrameworkGrid(overallPercent)}
+        ${this.renderFrameworkGrid(overallPercent, frameworkScores)}
         ${this.renderGapList(topActions)}
 
         <div class="container-xl">

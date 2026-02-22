@@ -1054,6 +1054,7 @@ export function BusinessMatrixPage() {
                             <div>
                                 <strong>Overall Profit Margin: ${platformSummary.profitMargin.toFixed(1)}%</strong>
                                 · ${platformSummary.totalOrgs} Organizations
+                                ${(revenueBreakdown.demoOrgCount || 0) > 0 ? html`<span class="badge bg-warning-lt ms-1">${revenueBreakdown.demoOrgCount} Demo</span>` : ''}
                                 · ${deviceHealth.activeCount} Active Devices
                                 · ${(metrics.telemetryVolumes?.platform?.totalRows || 0).toLocaleString()} Daily Telemetry Rows
                             </div>
@@ -1147,7 +1148,11 @@ export function BusinessMatrixPage() {
                                     : html`<span class="text-body-secondary"><em>Org trend collecting...</em></span>`
                                 }
                             </div>
-                            <div class="text-body-secondary small mt-2">
+                            <div class="text-body-secondary small mt-1">
+                                ${revenueBreakdown.personalCount || 0} Personal · ${revenueBreakdown.businessCount || 0} Business
+                                ${(revenueBreakdown.demoOrgCount || 0) > 0 ? html` · <span class="text-warning">${revenueBreakdown.demoOrgCount} Demo</span>` : ''}
+                            </div>
+                            <div class="text-body-secondary small mt-1">
                                 ${deviceHealth.activeCount} Active · ${deviceHealth.disabledCount} Disabled
                             </div>
                         </div>
@@ -1275,6 +1280,7 @@ export function BusinessMatrixPage() {
                                         </td>
                                         <td>
                                             <strong>${org.orgName || org.orgId}</strong>
+                                            ${org.isDemoOrg ? html`<span class="badge bg-warning-lt ms-1">Demo</span>` : ''}
                                             <div class="text-body-secondary small">${org.licenseType} · ${org.seats} seats (${org.deviceCount} used)</div>
                                         </td>
                                         <td class="text-end">${org.deviceCount || 0}</td>

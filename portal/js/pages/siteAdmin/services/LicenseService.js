@@ -17,9 +17,8 @@ export async function createLicense(api, orgId, seats, durationDays) {
 /**
  * Toggle license enabled/disabled status
  */
-export async function toggleLicenseStatus(api, licenseId, isCurrentlyDisabled) {
-    const endpoint = isCurrentlyDisabled ? 'enable' : 'disable';
-    return await api.put(`/api/v1/licenses/${licenseId}/${endpoint}`);
+export async function toggleLicenseStatus(api, licenseId, orgId, isCurrentlyDisabled) {
+    return await api.put(`/api/v1/licenses/${licenseId}/state`, { orgId, active: isCurrentlyDisabled });
 }
 
 /**

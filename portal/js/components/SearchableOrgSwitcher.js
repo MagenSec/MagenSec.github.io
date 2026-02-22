@@ -105,13 +105,20 @@ export class SearchableOrgSwitcher extends Component {
     handleOrgSelect = (org) => {
         if (org.orgId !== this.state.currentOrg?.orgId) {
             logger.info('[SearchableOrgSwitcher] Switching to org:', org.orgId);
-            orgContext.selectOrg(org.orgId);
-            if (this.props.onOrgChange) {
-                this.props.onOrgChange(org);
+            // Clear all org-specific localStorage caches before switching
+            const prevOrgId = this.state.currentOrg?.orgId;
+            if (prevOrgId) {
+                try {
+                    for (const key of [...Object.keys(localStorage)]) {
+                        if (key.includes(prevOrgId)) localStorage.removeItem(key);
+                    }
+                } catch (_) {}
             }
+            orgContext.selectOrg(org.orgId, { reload: true });
+            return; // page will reload
         }
-        this.setState({ 
-            isOpen: false, 
+        this.setState({
+            isOpen: false,
             searchQuery: '',
             selectedIndex: -1
         });

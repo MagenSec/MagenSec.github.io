@@ -386,7 +386,7 @@ export class AnalystPage extends Component {
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div class="d-flex align-items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon text-azure me-2" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M12 3l0 3" /><path d="M12 18l0 3" /><path d="M3 12l3 0" /><path d="M18 12l3 0" /></svg>
-                                <span class="text-muted small">AI Analyst</span>
+                                <span class="text-muted small">🕵️MAGI</span>
                             </div>
                             <div class="btn-group btn-group-sm" role="group">
                                 <button type="button" class="btn ${feedback.rating === 'ThumbsUp' ? 'btn-success' : 'btn-ghost-secondary'}" 

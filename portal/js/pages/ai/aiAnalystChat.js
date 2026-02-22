@@ -14,6 +14,7 @@
 
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { auth } from '@auth';
 
 const { html, Component, createRef } = window;
 
@@ -80,7 +81,10 @@ export default class AIAnalystChatPage extends Component {
             sending: false,
             error: null,
             persona: 'it_admin',
-            conversationId: this.generateConversationId()
+            conversationId: this.generateConversationId(),
+            proactiveInsights: null,
+            insightsLoading: true,
+            insightsExpanded: null  // id of expanded insight card (null = all collapsed)
         };
         this.chatEndRef = createRef();
         this.inputRef = createRef();
@@ -96,9 +100,15 @@ export default class AIAnalystChatPage extends Component {
             this.setState({
                 messages: [],
                 conversationId: this.generateConversationId(),
-                error: null
+                error: null,
+                proactiveInsights: null,
+                insightsLoading: true
             });
+            this.fetchProactiveInsights();
         });
+
+        // Fetch proactive insights for today
+        this.fetchProactiveInsights();
 
         // Try to hydrate from sessionStorage (pre-load from Home — no extra API call)
         const prefill = this.loadPrefill();
@@ -113,6 +123,58 @@ export default class AIAnalystChatPage extends Component {
             this.setState({ inputText: initialQuestion }, () => {
                 this.sendMessage(initialQuestion);
             });
+            return;
+        }
+
+        // B5: Load today's persisted session from server (resume yesterday's conversation)
+        this.loadChatSessionFromServer();
+    }
+
+    async loadChatSessionFromServer() {
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId) return;
+        try {
+            const res = await api.get(`/api/v1/orgs/${org.orgId}/ai/chat-session`);
+            if (res.success && res.data?.messages?.length > 0) {
+                this.setState({
+                    messages: res.data.messages,
+                    conversationId: res.data.conversationId || this.generateConversationId()
+                });
+            }
+        } catch (_) {
+            // Session restore is best-effort — silently ignore errors
+        }
+    }
+
+    async saveChatSessionToServer(messages) {
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId || !messages?.length) return;
+        try {
+            await api.post(`/api/v1/orgs/${org.orgId}/ai/chat-session`, {
+                conversationId: this.state.conversationId,
+                messages,
+                date: new Date().toISOString().slice(0, 10)
+            });
+        } catch (_) {
+            // Save is fire-and-forget — silently ignore errors
+        }
+    }
+
+    async fetchProactiveInsights() {
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId) {
+            this.setState({ insightsLoading: false });
+            return;
+        }
+        try {
+            const res = await api.get(`/api/v1/orgs/${org.orgId}/ai/proactive-insights`);
+            if (res.success && res.data?.insights?.length > 0) {
+                this.setState({ proactiveInsights: res.data, insightsLoading: false });
+            } else {
+                this.setState({ insightsLoading: false });
+            }
+        } catch (_) {
+            this.setState({ insightsLoading: false });
         }
     }
 
@@ -206,13 +268,15 @@ export default class AIAnalystChatPage extends Component {
                     citations: response.data.citations || [],
                     timestamp: new Date().toISOString()
                 };
-                this.setState(prev => ({
-                    messages: [...prev.messages, assistantMessage],
-                    sending: false
-                }));
+                this.setState(prev => {
+                    const updatedMessages = [...prev.messages, assistantMessage];
+                    // B5: Persist session after every assistant turn (fire-and-forget)
+                    this.saveChatSessionToServer(updatedMessages);
+                    return { messages: updatedMessages, sending: false };
+                });
             } else {
                 this.setState({
-                    error: response.message || 'Failed to get response from AI analyst',
+                    error: response.message || 'Failed to get response from 🕵️MAGI',
                     sending: false
                 });
             }
@@ -326,20 +390,116 @@ export default class AIAnalystChatPage extends Component {
     }
 
     renderSuggestions() {
-        const { persona, messages, sending } = this.state;
+        const { persona, messages, sending, proactiveInsights } = this.state;
         if (messages.length > 0) return null;
+
+        // Dynamic suggestions: use insight's suggestedQuestion first, then persona defaults
+        const dynamicSuggestions = proactiveInsights?.insights
+            ?.map(i => i.suggestedQuestion)
+            .filter(Boolean) || [];
+
         const personaConfig = PERSONAS.find(p => p.id === persona);
-        if (!personaConfig) return null;
+        const staticSuggestions = personaConfig?.suggestions || [];
+
+        // Blend: up to 2 dynamic first, fill remainder from persona defaults (no duplicates)
+        const combined = [
+            ...dynamicSuggestions.slice(0, 2),
+            ...staticSuggestions.filter(s => !dynamicSuggestions.includes(s))
+        ].slice(0, 4);
+
+        if (!combined.length) return null;
+
         return html`
             <div class="chat-suggestions">
-                <div class="suggestions-label text-muted small mb-2">Suggested questions</div>
+                <div class="suggestions-label text-muted small mb-2">
+                    ${dynamicSuggestions.length > 0 ? 'Based on today\'s posture' : 'Suggested questions'}
+                </div>
                 <div class="suggestions-list">
-                    ${personaConfig.suggestions.map(s => html`
+                    ${combined.map(s => html`
                         <button
                             class="suggestion-chip"
                             disabled=${sending}
                             onClick=${() => this.sendMessage(s)}
                         >${s}</button>
+                    `)}
+                </div>
+            </div>
+        `;
+    }
+
+    renderProactiveInsights() {
+        const { messages, proactiveInsights, insightsLoading, insightsExpanded, sending } = this.state;
+
+        // Hide after user has started a conversation
+        if (messages.length > 0) return null;
+
+        // Loading shimmer
+        if (insightsLoading) {
+            return html`
+                <div class="proactive-insights-card mb-3" style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:16px;">
+                    <div class="chat-shimmer" style="margin:0;">
+                        <div class="chat-shimmer-line" style="width:60%;"></div>
+                        <div class="chat-shimmer-line" style="width:80%;"></div>
+                        <div class="chat-shimmer-line" style="width:50%;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (!proactiveInsights?.insights?.length) return null;
+
+        const insights = proactiveInsights.insights;
+        const typeIcons = {
+            KEV_DEADLINE:  '🚨',
+            SCORE_DROP:    '📉',
+            OFFLINE_DEVICE:'📵',
+            SLA_BREACH:    '⏱',
+            NEW_CRITICAL:  '🔴',
+            CLEAN_WEEK:    '✅',
+            LOADING:       '⏳'
+        };
+
+        return html`
+            <div class="proactive-insights-card mb-3"
+                 style="background:#faf5ff;border:1px solid #c4b5fd;border-radius:10px;padding:16px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <div style="width:32px;height:32px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="white" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 7a5 5 0 1 0 5 5" /></svg>
+                    </div>
+                    <div>
+                        <div style="font-weight:600;font-size:14px;color:#4c1d95;">Your Security Officer noticed</div>
+                        <div style="font-size:12px;color:#7c3aed;">Today's insights from your posture data</div>
+                    </div>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${insights.map((insight, i) => html`
+                        <div key=${i}
+                             style="background:white;border:1px solid #ede9fe;border-radius:8px;overflow:hidden;">
+                            <button
+                                style="width:100%;text-align:left;padding:10px 12px;background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:8px;"
+                                onClick=${() => this.setState({
+                                    insightsExpanded: insightsExpanded === i ? null : i
+                                })}
+                            >
+                                <span style="font-size:16px;">${typeIcons[insight.type] || '🔒'}</span>
+                                <span style="flex:1;font-size:13px;font-weight:500;color:#1e1b4b;">${insight.headline}</span>
+                                <span style="font-size:10px;color:#7c3aed;">${insightsExpanded === i ? '▲' : '▼'}</span>
+                            </button>
+                            ${insightsExpanded === i ? html`
+                                <div style="padding:0 12px 12px 36px;">
+                                    <div style="font-size:13px;color:#374151;margin-bottom:10px;">${insight.detail}</div>
+                                    ${insight.suggestedQuestion ? html`
+                                        <button
+                                            class="btn btn-sm"
+                                            style="background:#f3f0ff;color:#6d28d9;border:1px solid #c4b5fd;font-size:12px;"
+                                            disabled=${sending}
+                                            onClick=${() => this.sendMessage(insight.suggestedQuestion)}
+                                        >Ask: "${insight.suggestedQuestion}" →</button>
+                                    ` : ''}
+                                </div>
+                            ` : ''}
+                        </div>
                     `)}
                 </div>
             </div>
@@ -384,11 +544,7 @@ export default class AIAnalystChatPage extends Component {
                 <div class="chat-container">
                     <div class="chat-messages">
                         ${messages.length === 0 && !sending ? html`
-                            <div class="chat-empty-state">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" stroke-width="1.5" stroke="#c4b5fd" fill="none" style="margin-bottom: 12px;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-                                <div class="fw-medium mb-1">Your AI Security Analyst is ready</div>
-                                <div class="text-muted small">Ask about vulnerabilities, patches, compliance gaps, or your overall risk posture</div>
-                            </div>
+                            ${this.renderProactiveInsights()}
                         ` : ''}
 
                         ${messages.map(msg => this.renderMessage(msg))}

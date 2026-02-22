@@ -278,53 +278,17 @@ export class ApiClient {
     }
 
     // === DASHBOARD ===
-    async getDashboardData(orgId) {
-        return this.get(`/api/v1/orgs/${orgId}/dashboard`);
-    }
-
     async getUnifiedDashboard(orgId, params = {}) {
         return this.get(`/api/v1/orgs/${orgId}/dashboard`, params);
     }
 
     // === SNAPSHOTS ===
-    async getAuditSnapshot(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/snapshots/audit`, params);
-    }
-
-    async getComplianceSnapshot(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/snapshots/compliance`, params);
-    }
-
-    async getRemediationSnapshot(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/snapshots/remediation`, params);
-    }
-
-    async getSecuritySnapshot(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/snapshots/security`, params);
-    }
-
-    async getRiskSnapshot(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/snapshots/risk`, params);
-    }
-
     async getTrendSnapshots(orgId, params = {}) {
         const query = {
             from: params.from,
             to: params.to
         };
         return this.get(`/api/v1/orgs/${orgId}/snapshots/trends`, query);
-    }
-
-    async getAdminBusinessSnapshot() {
-        return this.get('/api/v1/admin/snapshots/business-metrics');
-    }
-
-    async getAdminComplianceSnapshot() {
-        return this.get('/api/v1/admin/snapshots/compliance-metrics');
-    }
-
-    async getAdminSecuritySnapshot() {
-        return this.get('/api/v1/admin/snapshots/security-metrics');
     }
 
     async triggerSnapshotCron(taskId) {
@@ -396,8 +360,8 @@ export class ApiClient {
         return this.put(`/api/v1/licenses/${licenseId}/rotate`);
     }
 
-    async toggleLicense(licenseId, enabled) {
-        return this.put(`/api/v1/licenses/${licenseId}/toggle`, { enabled });
+    async toggleLicense(licenseId, orgId, enabled) {
+        return this.put(`/api/v1/licenses/${licenseId}/state`, { orgId, active: enabled });
     }
 
     async deleteLicense(licenseId) {
@@ -550,15 +514,6 @@ export class ApiClient {
         return this.post('/api/v1/admin/remediation/reset', { orgId, resetApps, resetCves });
     }
 
-    // === SECURITY ===
-    async getSecurityTelemetry(params) {
-        return this.get('/api/v1/security/telemetry', params);
-    }
-
-    async submitSecurityTelemetry(data) {
-        return this.post('/api/v1/security/telemetry', data);
-    }
-
     // === VULNERABILITIES ===
     async getVulnerabilities(orgId, params) {
         return this.get(`/api/v1/orgs/${orgId}/vulnerabilities`, params);
@@ -580,54 +535,9 @@ export class ApiClient {
         return this.getOrgInsights(orgId, { cves: cveId });
     }
 
-    // === RESPONSE ACTIONS ===
-    async getResponseActions(params) {
-        return this.get('/api/v1/response-actions', params);
-    }
-
-    async createResponseAction(data) {
-        return this.post('/api/v1/response-actions', data);
-    }
-
-    async getResponseAction(actionId) {
-        return this.get(`/api/v1/response-actions/${actionId}`);
-    }
-
-    async updateResponseAction(actionId, data) {
-        return this.put(`/api/v1/response-actions/${actionId}`, data);
-    }
-
-    async deleteResponseAction(actionId) {
-        return this.delete(`/api/v1/response-actions/${actionId}`);
-    }
-
     // === ANALYTICS & TRENDS ===
-    async getAnalytics(params) {
-        return this.get('/api/v1/analytics', params);
-    }
-
-    async getAggregations(orgId, metric, params) {
-        return this.get(`/api/v1/orgs/${orgId}/aggregations/${metric}`, params);
-    }
-
     async getSoftwareInventory(orgId) {
         return this.get(`/api/v1/orgs/${orgId}/apps`);
-    }
-
-    async getHardwareInventory(orgId) {
-        return this.get(`/api/v1/orgs/${orgId}/hardware`);
-    }
-
-    async getCompliance(params) {
-        return this.get('/api/v1/compliance', params);
-    }
-
-    async getAlerts(params) {
-        return this.get(`/api/v1/orgs/${params.orgId}/alerts`, params);
-    }
-
-    async getPlatformInsights(params) {
-        return this.get('/api/v1/platform-insights', params);
     }
 
     // === AI ANALYST (ORG-SCOPED) ===
@@ -679,19 +589,15 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/audit${qs}`);
     }
 
-    async getReportPreview(orgId) {
-        // Get report preview data (snapshot, org details, default tier)
-        return this.get(`/api/v1/orgs/${orgId}/reports/preview`);
+    async getReportPreview(orgId, refresh = false) {
+        // Get report preview data. Pass ?refresh=true to bypass cached email HTML and regenerate.
+        const qs = refresh ? '?refresh=true' : '';
+        return this.get(`/api/v1/orgs/${orgId}/reports/preview${qs}`);
     }
 
-    async sendReport(orgId, tier, recipient = 'owner', customEmail = '') {
+    async sendReport(orgId, reportType, recipient = 'owner', customEmail = '') {
         // Send security report email to selected recipient (owner/admin/custom)
-        return this.post(`/api/v1/orgs/${orgId}/reports/send`, { tier, recipient, customEmail });
-    }
-
-    async runAnalytics(orgId, payload) {
-        const qs = orgId ? `?orgId=${encodeURIComponent(orgId)}` : '';
-        return this.post(`/api/v1/ai-analyst/analytics${qs}`, payload);
+        return this.post(`/api/v1/orgs/${orgId}/reports/send`, { reportType, recipient, customEmail });
     }
 
     // === TEST SEEDING ===
@@ -737,19 +643,31 @@ export class ApiClient {
         return this.post(`/api/v1/admin/users/${userId}/downgrade`);
     }
 
-    // === SECURITY & TELEMETRY ===
-    async getSecurityDetections(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/security/detections`, params);
-    }
-
     // === RESPONSE ACTIONS ===
-    async executeCommand(orgId, data) {
-        return this.post(`/api/v1/orgs/${orgId}/response/commands`, data);
+    async queueCommand(orgId, commandType, targetDevices, parameters) {
+        return this.post(`/api/v1/orgs/${orgId}/response/commands`, {
+            commandType,
+            targetDevices: targetDevices ?? null,
+            parameters: parameters ?? null
+        });
     }
 
-    async getCommandHistory(orgId) {
-        return this.get(`/api/v1/orgs/${orgId}/response/commands`);
+    async getCommands(orgId, deviceId, limit) {
+        const params = new URLSearchParams();
+        if (deviceId) params.set('deviceId', deviceId);
+        if (limit) params.set('limit', limit);
+        const qs = params.toString();
+        return this.get(`/api/v1/orgs/${orgId}/response/commands${qs ? '?' + qs : ''}`);
     }
+
+    async getCommandDetail(orgId, commandId) {
+        return this.get(`/api/v1/orgs/${orgId}/response/commands/${commandId}`);
+    }
+
+    async cancelCommand(orgId, commandId) {
+        return this.delete(`/api/v1/orgs/${orgId}/response/commands/${commandId}`);
+    }
+
 }
 
 // Global instance

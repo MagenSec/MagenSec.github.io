@@ -58,7 +58,8 @@ export class DashboardPage extends Component {
             postureSnapshot: null,
             trendSnapshots: [],
             loadingPosture: false,
-            isRefreshingInBackground: false
+            isRefreshingInBackground: false,
+            officerNoteDismissed: false  // Security Officer's Note banner state
         };
         this.orgUnsubscribe = null;
         this.threatChart = null;
@@ -116,22 +117,23 @@ export class DashboardPage extends Component {
     }
 
     componentDidUpdate(prevProps, prevState) {
-        const dataChanged = prevState.dashboardData !== this.state.dashboardData;
-        const tabChanged = prevState.activeTab !== this.state.activeTab;
-        
+        const dataChanged   = prevState.dashboardData  !== this.state.dashboardData;
+        const trendsChanged = prevState.trendSnapshots !== this.state.trendSnapshots;
+        const tabChanged    = prevState.activeTab      !== this.state.activeTab;
+
         // Render charts when:
-        // 1. Data changes while on overview tab
+        // 1. Data or trends change while on overview tab
         // 2. Switching TO overview tab (even if data hasn't changed)
-        const shouldRenderCharts = (dataChanged && this.state.activeTab === 'overview') || 
+        const shouldRenderCharts = ((dataChanged || trendsChanged) && this.state.activeTab === 'overview') ||
                                    (tabChanged && this.state.activeTab === 'overview');
-        
+
         if (shouldRenderCharts) {
             // Use requestAnimationFrame for better performance
             requestAnimationFrame(() => {
                 // Render critical charts first
                 this.renderThreatChart(this.state.threatSummary);
                 this.renderComplianceDonut(this.state.complianceSummary);
-                
+
                 // Defer less critical charts to next frame
                 requestAnimationFrame(() => {
                     this.renderCoveragePolar(this.state.coverage);
@@ -1037,6 +1039,7 @@ export class DashboardPage extends Component {
         console.log('[Dashboard] Overview tab - seats:', seats, 'deviceCount:', deviceCount, 'deviceStats:', deviceStats, 'threatSummary:', threatSummary);
         
         return html`
+            ${this.renderSecurityOfficerBanner()}
             ${this.renderValuePanel(riskColor)}
             ${this.renderHero(riskScore, riskColor)}
             ${this.renderHighlights()}
@@ -1840,6 +1843,123 @@ export class DashboardPage extends Component {
         `;
     }
 
+    renderSecurityOfficerBanner() {
+        if (this.state.officerNoteDismissed) return null;
+
+        const { securityScore, securityGrade, threatSummary, actions } = this.state;
+        const critical = threatSummary?.critical || 0;
+        const high     = threatSummary?.high || 0;
+        const score    = securityScore || 0;
+
+        // Only show if there's something noteworthy (grade C or below, or any critical/high)
+        if (score >= 80 && critical === 0 && high === 0) return null;
+
+        // Determine urgency colour palette
+        const isUrgent = score < 70 || critical > 0;
+        const bgColor     = isUrgent ? '#fef2f2' : '#fffbeb';
+        const borderColor = isUrgent ? '#fca5a5' : '#fde68a';
+        const accentColor = isUrgent ? '#dc2626' : '#d97706';
+        const titleColor  = isUrgent ? '#991b1b' : '#92400e';
+
+        // Top action
+        const topAction = actions?.[0];
+        const topActionText = topAction
+            ? `Top action: ${topAction.title}${topAction.sla ? ` (${topAction.sla})` : ''}`
+            : null;
+
+        // Situation line
+        const situationParts = [];
+        if (critical > 0) situationParts.push(`${critical.toLocaleString()} critical`);
+        if (high > 0)     situationParts.push(`${high.toLocaleString()} high`);
+        const situationLine = situationParts.length
+            ? `${situationParts.join(' · ')} vulnerabilities require immediate remediation.`
+            : 'Security posture requires attention.';
+
+        return html`
+            <div
+                class="mb-3"
+                style="animation: slideDownFadeIn 0.4s ease-out both;"
+            >
+                <div style="
+                    background: ${bgColor};
+                    border: 1px solid ${borderColor};
+                    border-left: 4px solid ${accentColor};
+                    border-radius: 8px;
+                    padding: 0;
+                    overflow: hidden;
+                ">
+                    <!-- Chevron header -->
+                    <div style="
+                        text-align: center;
+                        padding: 6px 0 0;
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: ${titleColor};
+                        letter-spacing: 1.5px;
+                        text-transform: uppercase;
+                    ">
+                        <span style="
+                            display: inline-block;
+                            background: ${accentColor};
+                            color: #fff;
+                            padding: 3px 20px;
+                            clip-path: polygon(0 0, 100% 0, 92% 100%, 8% 100%);
+                            font-size: 10px;
+                            letter-spacing: 2px;
+                        ">Security Officer's Note</span>
+                    </div>
+                    <!-- Body -->
+                    <div class="d-flex align-items-start gap-3" style="padding: 12px 16px 14px;">
+                        <!-- Grade badge -->
+                        <div style="
+                            background: ${accentColor};
+                            color: #fff;
+                            border-radius: 8px;
+                            padding: 8px 12px;
+                            text-align: center;
+                            min-width: 60px;
+                            flex-shrink: 0;
+                        ">
+                            <div style="font-size: 24px; font-weight: 800; line-height: 1;">${securityGrade || 'D'}</div>
+                            <div style="font-size: 9px; letter-spacing: 1px; opacity: 0.85;">GRADE</div>
+                        </div>
+                        <!-- Text -->
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 13px; font-weight: 700; color: ${titleColor}; margin-bottom: 4px;">
+                                ${situationLine}
+                            </div>
+                            ${topActionText ? html`
+                                <div style="font-size: 12px; color: #374151; margin-bottom: 4px;">
+                                    <strong>Priority:</strong> ${topActionText}
+                                </div>
+                            ` : ''}
+                            <div style="font-size: 11px; color: #6b7280;">
+                                Score ${score}/100 · Updated ${this.state.lastScan || 'recently'}
+                                · <a href="#!/posture" style="color: ${accentColor}; font-weight: 600;">View full report →</a>
+                            </div>
+                        </div>
+                        <!-- Dismiss -->
+                        <button
+                            type="button"
+                            onClick=${() => this.setState({ officerNoteDismissed: true })}
+                            style="
+                                background: none;
+                                border: none;
+                                cursor: pointer;
+                                color: #9ca3af;
+                                font-size: 18px;
+                                padding: 0 4px;
+                                line-height: 1;
+                                flex-shrink: 0;
+                            "
+                            title="Dismiss"
+                        >×</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     renderValuePanel(riskColor) {
         const { threatSummary, licenseInfo } = this.state;
         const coveragePercents = this.getCoveragePercents();
@@ -1848,7 +1968,7 @@ export class DashboardPage extends Component {
         const licenseDisplay = this.formatLicenseDaysDisplay(licenseDuration.days);
 
         return html`
-            <div class="card mb-3" style="background: linear-gradient(120deg, #0b7285 0%, #1c7ed6 50%, #4263eb 100%); color: #fff;">
+            <div class="card mb-3" style="background: linear-gradient(120deg, #1657a8 0%, #1a73e8 100%); color: #fff; border: none; box-shadow: 0 4px 16px rgba(26,115,232,0.25) !important;">
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-lg-7">
@@ -1915,7 +2035,7 @@ export class DashboardPage extends Component {
         const gradeBadgeClass = this.getGradeBadge(riskScore);
 
         return html`
-            <div class="card mb-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+            <div class="card mb-3" style="background: linear-gradient(135deg, #0f172a 0%, #1657a8 100%); border: none; box-shadow: 0 4px 16px rgba(15,23,42,0.3) !important;">
                 <div class="card-body text-white">
                     <div class="row align-items-center">
                         <div class="col-lg-7">
@@ -2509,28 +2629,32 @@ export class DashboardPage extends Component {
     }
 
     renderDeviceSparkline() {
-        // Mock data - replace with real historical device count data
-        const sparklineData = [28, 29, 30, 29, 31, 32, this.state.deviceStats?.active || 32];
-        
-        // Wait for next frame to ensure canvas is rendered
+        const trends = this.state.trendSnapshots || [];
+        // Use real 30-day ORG_TRENDS data (onlineDevices per point), fall back to current value
+        const points = trends.length >= 2
+            ? trends.slice(-30).map(t => t.snapshot?.onlineDevices ?? t.snapshot?.deviceCount ?? 0)
+            : [];
+        const labels = trends.length >= 2
+            ? trends.slice(-30).map(t => t.date ? t.date.slice(5) : '') // MM-DD
+            : [];
+        const currentValue = this.state.deviceStats?.active || 0;
+        const sparklineData = points.length >= 2 ? points : [currentValue];
+
         requestAnimationFrame(() => {
             const canvas = document.getElementById('device-sparkline');
             if (!canvas) return;
-            
-            // Destroy existing chart if any
             if (this.deviceSparklineChart) {
                 this.deviceSparklineChart.destroy();
             }
-            
             this.deviceSparklineChart = new Chart(canvas, {
                 type: 'line',
                 data: {
-                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    labels: labels.length >= 2 ? labels : sparklineData.map((_, i) => i),
                     datasets: [{
                         data: sparklineData,
-                        borderColor: '#0054a6',
-                        backgroundColor: 'rgba(0, 84, 166, 0.1)',
-                        borderWidth: 2,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                        borderWidth: 1.5,
                         pointRadius: 0,
                         tension: 0.4,
                         fill: true
@@ -2539,14 +2663,8 @@ export class DashboardPage extends Component {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { 
-                        legend: { display: false },
-                        tooltip: { enabled: false }
-                    },
-                    scales: {
-                        x: { display: false },
-                        y: { display: false }
-                    },
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    scales: { x: { display: false }, y: { display: false } },
                     interaction: { mode: 'index', intersect: false }
                 }
             });
@@ -2554,26 +2672,38 @@ export class DashboardPage extends Component {
     }
 
     renderScoreSparkline() {
-        // Mock data - replace with real historical security score data
-        const sparklineData = [75, 78, 82, 80, 85, 87, this.state.dashboardData?.securityScore || 85];
-        
+        const trends = this.state.trendSnapshots || [];
+        // Use real 30-day ORG_TRENDS data (riskScore per point)
+        const points = trends.length >= 2
+            ? trends.slice(-30).map(t => t.snapshot?.riskScore ?? 0)
+            : [];
+        const labels = trends.length >= 2
+            ? trends.slice(-30).map(t => t.date ? t.date.slice(5) : '')
+            : [];
+        const currentScore = this.state.securityScore || 0;
+        const sparklineData = points.length >= 2 ? points : [currentScore];
+        // Colour: green if improving or stable, red if declining
+        const first = sparklineData[0] ?? 0;
+        const last  = sparklineData[sparklineData.length - 1] ?? 0;
+        const improving = last >= first;
+        const lineColor = improving ? '#10b981' : '#ef4444';
+        const fillColor = improving ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)';
+
         requestAnimationFrame(() => {
             const canvas = document.getElementById('score-sparkline');
             if (!canvas) return;
-            
             if (this.scoreSparklineChart) {
                 this.scoreSparklineChart.destroy();
             }
-            
             this.scoreSparklineChart = new Chart(canvas, {
                 type: 'line',
                 data: {
-                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    labels: labels.length >= 2 ? labels : sparklineData.map((_, i) => i),
                     datasets: [{
                         data: sparklineData,
-                        borderColor: '#2fb344',
-                        backgroundColor: 'rgba(47, 179, 68, 0.1)',
-                        borderWidth: 2,
+                        borderColor: lineColor,
+                        backgroundColor: fillColor,
+                        borderWidth: 1.5,
                         pointRadius: 0,
                         tension: 0.4,
                         fill: true
@@ -2582,14 +2712,8 @@ export class DashboardPage extends Component {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { 
-                        legend: { display: false },
-                        tooltip: { enabled: false }
-                    },
-                    scales: {
-                        x: { display: false },
-                        y: { display: false }
-                    },
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    scales: { x: { display: false }, y: { display: false } },
                     interaction: { mode: 'index', intersect: false }
                 }
             });
@@ -2602,10 +2726,15 @@ export class DashboardPage extends Component {
         const mlTrend = this.getLatestReliableMlTrendInsight();
         const mlConfidence = Math.round((mlTrend?.confidence || 0) * 100);
         const mlForecastNext = Number.isFinite(mlTrend?.forecastNext) ? Math.round(mlTrend.forecastNext) : null;
-        
-        // Calculate trends (mock previous values - in real implementation, fetch from history)
-        const scoreTrend = this.calculateTrend(riskScore, riskScore - 5);
-        const deviceTrend = this.calculateTrend(deviceStats.active, deviceStats.active - 2);
+
+        // Calculate trends from real 30-day history (compare last point vs oldest visible point)
+        const trends = this.state.trendSnapshots || [];
+        const trendSlice = trends.slice(-30);
+        const oldestPoint   = trendSlice.length >= 2 ? trendSlice[0] : null;
+        const previousScore = oldestPoint?.snapshot?.riskScore ?? riskScore;
+        const previousDevices = oldestPoint?.snapshot?.onlineDevices ?? oldestPoint?.snapshot?.deviceCount ?? deviceStats.active;
+        const scoreTrend  = this.calculateTrend(riskScore, previousScore);
+        const deviceTrend = this.calculateTrend(deviceStats.active, previousDevices);
         const colClass = compact ? 'col-6' : 'col-sm-6 col-lg-3';
 
         const scoreCard = html`
@@ -2974,10 +3103,42 @@ export class DashboardPage extends Component {
         `;
     }
 
+    async queueOrgCommand(commandType) {
+        const currentOrg = orgContext.getCurrentOrg();
+        const orgId = currentOrg?.orgId;
+        if (!orgId) {
+            if (window.toast) window.toast.error('No organization selected');
+            return;
+        }
+        try {
+            const result = await api.queueCommand(orgId, commandType, null);
+            if (result?.success) {
+                const count = result.data?.targetCount ?? 0;
+                if (window.toast) window.toast.success(`${commandType} queued for ${count} device(s). Will execute on next check-in.`);
+            } else {
+                if (window.toast) window.toast.error(result?.message || `Failed to queue ${commandType}`);
+            }
+        } catch (err) {
+            if (window.toast) window.toast.error(`Failed to queue command: ${err.message}`);
+        }
+    }
+
     renderQuickActions() {
         return html`
             <div class="btn-list">
                 ${this.renderDisabledAddDeviceButton('Add device', 'btn btn-white')}
+                <button type="button" class="btn btn-white" onclick=${() => this.queueOrgCommand('ScanAll')}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
+                    Scan All
+                </button>
+                <button type="button" class="btn btn-white" onclick=${() => this.queueOrgCommand('CheckUpdates')}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                    Check Updates
+                </button>
+                <button type="button" class="btn btn-white" onclick=${() => this.queueOrgCommand('RefreshInventory')}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74" /><path d="M3 4v4h4" /></svg>
+                    Refresh Inventory
+                </button>
                 <a href="#!/settings" class="btn btn-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><circle cx="12" cy="12" r="3" /></svg>
                     Settings

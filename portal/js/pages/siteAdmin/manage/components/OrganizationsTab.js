@@ -44,18 +44,21 @@ export function OrganizationsTab({
     // Form state for updating org
     const [updateOrgName, setUpdateOrgName] = useState('');
 
-    // Report configuration state
-    const [newReportEnabled, setNewReportEnabled] = useState(false);
-    const [newBusinessTier, setNewBusinessTier] = useState('Professional');
-    const [newWeeklyEnabled, setNewWeeklyEnabled] = useState(true);
-    const [newDailySnapshotEnabled, setNewDailySnapshotEnabled] = useState(true);
+    // Report configuration state (daily + weekly only — no tier concept)
+    const [newDailyReportEnabled, setNewDailyReportEnabled] = useState(true);
+    const [newWeeklyReportEnabled, setNewWeeklyReportEnabled] = useState(false);
     const [newSendToAllMembers, setNewSendToAllMembers] = useState(false);
+    const [newIsDemoOrg, setNewIsDemoOrg] = useState(false);
 
-    const [updateReportEnabled, setUpdateReportEnabled] = useState(false);
-    const [updateBusinessTier, setUpdateBusinessTier] = useState('Professional');
-    const [updateWeeklyEnabled, setUpdateWeeklyEnabled] = useState(true);
-    const [updateDailySnapshotEnabled, setUpdateDailySnapshotEnabled] = useState(true);
+    const [updateDailyReportEnabled, setUpdateDailyReportEnabled] = useState(true);
+    const [updateWeeklyReportEnabled, setUpdateWeeklyReportEnabled] = useState(false);
     const [updateSendToAllMembers, setUpdateSendToAllMembers] = useState(false);
+    const [updateIsDemoOrg, setUpdateIsDemoOrg] = useState(false);
+
+    // AI context fields (B2 / C8)
+    const [updateIndustry, setUpdateIndustry] = useState('');
+    const [updateOrgSize, setUpdateOrgSize] = useState('');
+    const [updateNextAuditDate, setUpdateNextAuditDate] = useState('');
 
     // License state
     const [orgLicenses, setOrgLicenses] = useState([]);
@@ -126,17 +129,19 @@ export function OrganizationsTab({
         setSelectedOrgId(org.orgId);
         setUpdateOrgName(org.orgName || org.name || '');
         setNewTransferOwner(org.ownerEmail);
+        setUpdateIsDemoOrg(!!org.isDemoOrg);
+        setUpdateIndustry(org.industry || '');
+        setUpdateOrgSize(org.orgSize || '');
+        setUpdateNextAuditDate(org.nextAuditDate || '');
         setShowDangerZone(false);
 
         // Load report config + licenses lazily
         try {
             const configRes = await window.api.get(`/api/v1/orgs/${org.orgId}/report-config`);
             if (configRes?.success !== false && configRes?.data) {
-                setUpdateReportEnabled(configRes.data.dailyReportEnabled !== false);
-                setUpdateWeeklyEnabled(!!configRes.data.weeklyEnabled);
-                setUpdateDailySnapshotEnabled(!!configRes.data.dailySnapshotEnabled);
+                setUpdateDailyReportEnabled(configRes.data.dailyReportEnabled !== false);
+                setUpdateWeeklyReportEnabled(!!configRes.data.weeklyReportEnabled);
                 setUpdateSendToAllMembers(configRes.data.sendToAllTeamMembers !== false);
-                setUpdateBusinessTier(configRes.data.weeklyReportTier || 'Professional');
             }
         } catch (err) {
             console.warn('[OrganizationsTab] Failed to load report config', err);
@@ -175,11 +180,10 @@ export function OrganizationsTab({
             ownerEmail: newOwnerEmail,
             seats: parseInt(newOrgSeats) || 20,
             duration: parseInt(newOrgDuration) || 365,
-            reportEnabled: newReportEnabled,
-            weeklyEnabled: newWeeklyEnabled,
-            dailySnapshotEnabled: newDailySnapshotEnabled,
+            dailyReportEnabled: newDailyReportEnabled,
+            weeklyReportEnabled: newWeeklyReportEnabled,
             sendToAllTeamMembers: newSendToAllMembers,
-            reportTier: newBusinessTier
+            isDemoOrg: newIsDemoOrg
         });
 
         if (result?.success) {
@@ -200,11 +204,13 @@ export function OrganizationsTab({
         const result = await onUpdateOrg?.({
             orgId: selectedOrgId,
             orgName: updateOrgName,
-            reportEnabled: updateReportEnabled,
-            weeklyEnabled: updateWeeklyEnabled,
-            dailySnapshotEnabled: updateDailySnapshotEnabled,
+            dailyReportEnabled: updateDailyReportEnabled,
+            weeklyReportEnabled: updateWeeklyReportEnabled,
             sendToAllTeamMembers: updateSendToAllMembers,
-            reportTier: updateBusinessTier
+            isDemoOrg: updateIsDemoOrg,
+            industry: updateIndustry || null,
+            orgSize: updateOrgSize || null,
+            nextAuditDate: updateNextAuditDate || null
         });
 
         if (result?.success) {
@@ -391,112 +397,75 @@ export function OrganizationsTab({
                                         </select>
                                     </div>
 
-                                    <!-- Enable Reports Toggle -->
+                                    <!-- Report Toggles -->
                                     <div class="col-12">
-                                        <div class="form-check form-switch d-flex align-items-start gap-2">
-                                            <input 
-                                                class="form-check-input" 
-                                                type="checkbox" 
-                                                id="newReportEnabled"
-                                                checked=${newReportEnabled}
-                                                onChange=${(e) => setNewReportEnabled(e.target.checked)}
-                                                style="width: 40px; height: 20px; margin-top: 4px; flex-shrink: 0;"
-                                            />
-                                            <label class="form-check-label" for="newReportEnabled">
-                                                <strong>Enable Security Reports</strong>
-                                                <div class="small text-muted">Configure automated security reporting for this organization</div>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <!-- Report Configuration - Only shown when reports enabled -->
-                                    ${newReportEnabled ? html`
-                                        <div class="col-12">
-                                            <div class="card border border-light">
-                                                <div class="card-header">
-                                                    <h5 class="card-title mb-0"><i class="ti ti-mail me-2"></i>Report Configuration</h5>
-                                                </div>
-                                                <div class="card-body">
-                                                    <div class="d-flex gap-4 flex-wrap">
-                                                        <!-- Business Tier Toggle -->
-                                                        <div class="d-flex flex-column gap-2">
-                                                            <label class="form-label mb-0"><strong>Business Tier</strong></label>
-                                                            <div class="btn-group" role="group">
-                                                                <input 
-                                                                    type="radio" 
-                                                                    class="btn-check" 
-                                                                    id="newTierPro"
-                                                                    name="newTier"
-                                                                    value="Professional"
-                                                                    checked=${newBusinessTier === 'Professional'}
-                                                                    onChange=${(e) => setNewBusinessTier(e.target.value)}
-                                                                />
-                                                                <label class="btn btn-outline-primary" for="newTierPro">Professional</label>
-                                                                <input 
-                                                                    type="radio" 
-                                                                    class="btn-check" 
-                                                                    id="newTierPrem"
-                                                                    name="newTier"
-                                                                    value="Premium"
-                                                                    checked=${newBusinessTier === 'Premium'}
-                                                                    onChange=${(e) => setNewBusinessTier(e.target.value)}
-                                                                />
-                                                                <label class="btn btn-outline-primary" for="newTierPrem">Premium</label>
-                                                            </div>
+                                        <div class="card border border-light">
+                                            <div class="card-header">
+                                                <h5 class="card-title mb-0"><i class="ti ti-mail me-2"></i>Report Configuration</h5>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="d-flex gap-4 flex-wrap">
+                                                    <div class="d-flex flex-column gap-2">
+                                                        <label class="form-label mb-0"><strong>Daily Report</strong></label>
+                                                        <div class="form-check form-switch">
+                                                            <input
+                                                                class="form-check-input"
+                                                                type="checkbox"
+                                                                id="newDailyReportEnabled"
+                                                                checked=${newDailyReportEnabled}
+                                                                onChange=${(e) => setNewDailyReportEnabled(e.target.checked)}
+                                                                style="width: 40px; height: 20px; margin-top: 0px;"
+                                                            />
                                                         </div>
-
-                                                        <!-- Weekly Report Toggle -->
-                                                        <div class="d-flex flex-column gap-2">
-                                                            <label class="form-label mb-0"><strong>Weekly Report</strong></label>
-                                                            <div class="form-check form-switch">
-                                                                <input 
-                                                                    class="form-check-input" 
-                                                                    type="checkbox" 
-                                                                    id="newWeeklyEnabled"
-                                                                    checked=${newWeeklyEnabled}
-                                                                    onChange=${(e) => setNewWeeklyEnabled(e.target.checked)}
-                                                                    style="width: 40px; height: 20px; margin-top: 0px;"
-                                                                />
-                                                            </div>
-                                                            <small class="text-muted">Every Monday</small>
+                                                        <small class="text-muted">Every day</small>
+                                                    </div>
+                                                    <div class="d-flex flex-column gap-2">
+                                                        <label class="form-label mb-0"><strong>Weekly Brief</strong></label>
+                                                        <div class="form-check form-switch">
+                                                            <input
+                                                                class="form-check-input"
+                                                                type="checkbox"
+                                                                id="newWeeklyReportEnabled"
+                                                                checked=${newWeeklyReportEnabled}
+                                                                onChange=${(e) => setNewWeeklyReportEnabled(e.target.checked)}
+                                                                style="width: 40px; height: 20px; margin-top: 0px;"
+                                                            />
                                                         </div>
-
-                                                        <!-- Daily Snapshot Toggle -->
-                                                        <div class="d-flex flex-column gap-2">
-                                                            <label class="form-label mb-0"><strong>Daily Snapshot</strong></label>
-                                                            <div class="form-check form-switch">
-                                                                <input 
-                                                                    class="form-check-input" 
-                                                                    type="checkbox" 
-                                                                    id="newDailySnapshotEnabled"
-                                                                    checked=${newDailySnapshotEnabled}
-                                                                    onChange=${(e) => setNewDailySnapshotEnabled(e.target.checked)}
-                                                                    style="width: 40px; height: 20px; margin-top: 0px;"
-                                                                />
-                                                            </div>
-                                                            <small class="text-muted">Basic snapshot</small>
+                                                        <small class="text-muted">Every Monday</small>
+                                                    </div>
+                                                    <div class="d-flex flex-column gap-2">
+                                                        <label class="form-label mb-0"><strong>Send To All Members</strong></label>
+                                                        <div class="form-check form-switch">
+                                                            <input
+                                                                class="form-check-input"
+                                                                type="checkbox"
+                                                                id="newSendToAllMembers"
+                                                                checked=${newSendToAllMembers}
+                                                                onChange=${(e) => setNewSendToAllMembers(e.target.checked)}
+                                                                style="width: 40px; height: 20px; margin-top: 0px;"
+                                                            />
                                                         </div>
-
-                                                        <!-- Send To All Members Toggle -->
-                                                        <div class="d-flex flex-column gap-2">
-                                                            <label class="form-label mb-0"><strong>Send To All Members</strong></label>
-                                                            <div class="form-check form-switch">
-                                                                <input 
-                                                                    class="form-check-input" 
-                                                                    type="checkbox" 
-                                                                    id="newSendToAllMembers"
-                                                                    checked=${newSendToAllMembers}
-                                                                    onChange=${(e) => setNewSendToAllMembers(e.target.checked)}
-                                                                    style="width: 40px; height: 20px; margin-top: 0px;"
-                                                                />
-                                                            </div>
-                                                            <small class="text-muted">Owner + team</small>
+                                                        <small class="text-muted">Owner + team</small>
+                                                    </div>
+                                                    <div class="d-flex flex-column gap-2">
+                                                        <label class="form-label mb-0"><strong>Demo Org</strong></label>
+                                                        <div class="form-check form-switch">
+                                                            <input
+                                                                class="form-check-input"
+                                                                type="checkbox"
+                                                                id="newIsDemoOrg"
+                                                                checked=${newIsDemoOrg}
+                                                                onChange=${(e) => setNewIsDemoOrg(e.target.checked)}
+                                                                style="width: 40px; height: 20px; margin-top: 0px;"
+                                                            />
                                                         </div>
+                                                        <small class="text-muted">$0 revenue</small>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    ` : null}
+                                    </div>
+
                                     <div class="col-12">
                                         <button 
                                             class="btn btn-primary" 
@@ -697,9 +666,20 @@ export function OrganizationsTab({
                                                     title=${isPersonalOrg(selectedOrg) ? 'Transfer not available for Personal organizations' : 'Transfer ownership'}
                                                 >
                                                     <i class="ti ti-arrows-exchange me-1"></i>
-                                                    </div>
-                                                    <div ref=${sentinelRef} class="py-2 text-center text-muted small">${visibleCount < filteredOrgs.length ? 'Loading more…' : 'End of list'}</div>
-                                                Update Organization
+                                                    Transfer
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Save button -->
+                                        <div class="col-12">
+                                            <button
+                                                class="btn btn-primary"
+                                                onClick=${handleUpdateOrg}
+                                                disabled=${!updateOrgName.trim() || updateOrgName.trim().length < 4}
+                                            >
+                                                <i class="ti ti-device-floppy me-1"></i>
+                                                Save Changes
                                             </button>
                                         </div>
 
@@ -707,78 +687,91 @@ export function OrganizationsTab({
                                             <hr class="my-3" />
                                         </div>
 
-                                        <!-- Enable Reports Toggle -->
-                                        <div class="col-12">
-                                            <div class="form-check form-switch d-flex align-items-start gap-2">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="checkbox" 
-                                                    id="updateReportEnabled"
-                                                    checked=${updateReportEnabled}
-                                                    onChange=${(e) => setUpdateReportEnabled(e.target.checked)}
-                                                    style="width: 40px; height: 20px; margin-top: 4px; flex-shrink: 0;"
-                                                />
-                                                <label class="form-check-label" for="updateReportEnabled">
-                                                    <strong>Enable Security Reports</strong>
-                                                    <div class="small text-muted">Configure automated security reporting for this organization</div>
-                                                </label>
-                                            </div>
-                                        </div>
-
                                         <!-- Report Configuration -->
-                                        ${updateReportEnabled ? html`
-                                            <div class="col-12">
-                                                <div class="card border border-light">
-                                                    <div class="card-header">
-                                                        <h5 class="card-title mb-0"><i class="ti ti-mail me-2"></i>Report Configuration</h5>
-                                                    </div>
-                                                    <div class="card-body">
-                                                        <div class="d-flex gap-4 flex-wrap">
-                                                            <!-- Business Tier -->
-                                                            <div class="d-flex flex-column gap-2">
-                                                                <label class="form-label mb-0">
-                                                                    <strong>Business Tier</strong>
-                                                                    ${isPersonalOrg(selectedOrg) ? html`<span class="badge bg-warning-lt ms-2"><i class="ti ti-alert-triangle me-1"></i>Business Only</span>` : ''}
-                                                                </label>
-                                                                <div class="btn-group" role="group" ${isPersonalOrg(selectedOrg) ? 'disabled' : ''}>
-                                                                    <input type="radio" class="btn-check" id="updateTierPro" value="Professional" checked=${updateBusinessTier === 'Professional'} onChange=${(e) => setUpdateBusinessTier(e.target.value)} disabled=${isPersonalOrg(selectedOrg)} />
-                                                                    <label class="btn btn-outline-primary" for="updateTierPro">Professional</label>
-                                                                    <input type="radio" class="btn-check" id="updateTierPrem" value="Premium" checked=${updateBusinessTier === 'Premium'} onChange=${(e) => setUpdateBusinessTier(e.target.value)} disabled=${isPersonalOrg(selectedOrg)} />
-                                                                    <label class="btn btn-outline-primary" for="updateTierPrem">Premium</label>
-                                                                </div>
+                                        <div class="col-12">
+                                            <div class="card border border-light">
+                                                <div class="card-header">
+                                                    <h5 class="card-title mb-0"><i class="ti ti-mail me-2"></i>Report Configuration</h5>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="d-flex gap-4 flex-wrap">
+                                                        <div class="d-flex flex-column gap-2">
+                                                            <label class="form-label mb-0"><strong>Daily Report</strong></label>
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="updateDailyReportEnabled" checked=${updateDailyReportEnabled} onChange=${(e) => setUpdateDailyReportEnabled(e.target.checked)} style="width: 40px; height: 20px;" />
                                                             </div>
-
-                                                            <!-- Weekly Report -->
-                                                            <div class="d-flex flex-column gap-2">
-                                                                <label class="form-label mb-0"><strong>Weekly Report</strong></label>
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox" id="updateWeeklyEnabled" checked=${updateWeeklyEnabled} onChange=${(e) => setUpdateWeeklyEnabled(e.target.checked)} style="width: 40px; height: 20px;" />
-                                                                </div>
-                                                                <small class="text-muted">Every Monday</small>
+                                                            <small class="text-muted">Every day</small>
+                                                        </div>
+                                                        <div class="d-flex flex-column gap-2">
+                                                            <label class="form-label mb-0"><strong>Weekly Brief</strong></label>
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="updateWeeklyReportEnabled" checked=${updateWeeklyReportEnabled} onChange=${(e) => setUpdateWeeklyReportEnabled(e.target.checked)} style="width: 40px; height: 20px;" />
                                                             </div>
-
-                                                            <!-- Daily Snapshot -->
-                                                            <div class="d-flex flex-column gap-2">
-                                                                <label class="form-label mb-0"><strong>Daily Snapshot</strong></label>
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox" id="updateDailySnapshotEnabled" checked=${updateDailySnapshotEnabled} onChange=${(e) => setUpdateDailySnapshotEnabled(e.target.checked)} style="width: 40px; height: 20px;" />
-                                                                </div>
-                                                                <small class="text-muted">Basic snapshot</small>
+                                                            <small class="text-muted">Every Monday</small>
+                                                        </div>
+                                                        <div class="d-flex flex-column gap-2">
+                                                            <label class="form-label mb-0"><strong>Send To All Members</strong></label>
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="updateSendToAllMembers" checked=${updateSendToAllMembers} onChange=${(e) => setUpdateSendToAllMembers(e.target.checked)} disabled=${isPersonalOrg(selectedOrg)} style="width: 40px; height: 20px;" />
                                                             </div>
-
-                                                            <!-- Send To All -->
-                                                            <div class="d-flex flex-column gap-2">
-                                                                <label class="form-label mb-0"><strong>Send To All Members</strong></label>
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox" id="updateSendToAllMembers" checked=${updateSendToAllMembers} onChange=${(e) => setUpdateSendToAllMembers(e.target.checked)} disabled=${isPersonalOrg(selectedOrg)} style="width: 40px; height: 20px;" />
-                                                                </div>
-                                                                <small class="text-muted">${isPersonalOrg(selectedOrg) ? 'Business only' : 'Owner + team'}</small>
+                                                            <small class="text-muted">${isPersonalOrg(selectedOrg) ? 'Business only' : 'Owner + team'}</small>
+                                                        </div>
+                                                        <div class="d-flex flex-column gap-2">
+                                                            <label class="form-label mb-0"><strong>Demo Org</strong></label>
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="updateIsDemoOrg" checked=${updateIsDemoOrg} onChange=${(e) => setUpdateIsDemoOrg(e.target.checked)} style="width: 40px; height: 20px;" />
                                                             </div>
+                                                            <small class="text-muted">$0 revenue</small>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        ` : null}
+                                        </div>
+
+                                        <!-- AI Context (B2 / C8) -->
+                                        <div class="col-12">
+                                            <div class="card border border-light">
+                                                <div class="card-header">
+                                                    <h5 class="card-title mb-0"><i class="ti ti-brain me-2"></i>AI Context</h5>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="row g-3">
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Industry</label>
+                                                            <input
+                                                                type="text"
+                                                                class="form-control"
+                                                                placeholder="e.g. Healthcare, Finance, Legal"
+                                                                value=${updateIndustry}
+                                                                onInput=${(e) => setUpdateIndustry(e.target.value)}
+                                                            />
+                                                            <small class="form-text text-muted">Used by AI to add industry-specific threat context</small>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Organisation Size</label>
+                                                            <input
+                                                                type="text"
+                                                                class="form-control"
+                                                                placeholder="e.g. 1-10, 11-50, 50-200"
+                                                                value=${updateOrgSize}
+                                                                onInput=${(e) => setUpdateOrgSize(e.target.value)}
+                                                            />
+                                                            <small class="form-text text-muted">Used by AI for size-appropriate risk framing</small>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Next Audit Date</label>
+                                                            <input
+                                                                type="date"
+                                                                class="form-control"
+                                                                value=${updateNextAuditDate}
+                                                                onInput=${(e) => setUpdateNextAuditDate(e.target.value)}
+                                                            />
+                                                            <small class="form-text text-muted">Shown as compliance countdown in weekly email</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
                                         <!-- Licenses Section -->
                                         <div class="col-12 mt-3">

@@ -2,8 +2,7 @@ const { html, Component } = window;
 
 /**
  * Report Preview Page - Visualize email reports that customers receive
- * Shows Basic, Professional, and Premium tier email templates
- * Site Admins can switch between tiers, regular users see their tier
+ * Shows Daily and Weekly report templates
  */
 class ReportPreviewPage extends Component {
     constructor(props) {
@@ -13,14 +12,16 @@ class ReportPreviewPage extends Component {
             error: null,
             snapshot: null,
             orgData: null,
-            renderedByTier: null,
-            selectedTier: null, // Basic, Professional, Premium
+            rendered: null,
+            reportType: 'daily', // 'daily' or 'weekly'
             isSiteAdmin: false,
             sendingEmail: false,
             emailSent: false,
             emailMessage: null,
             showSendMenu: false,
-            selectedFramework: 'Both' // CIS, NIST, or Both
+            refreshing: false,
+            isFromCache: false,
+            cachedAt: null
         };
     }
 
@@ -37,15 +38,17 @@ class ReportPreviewPage extends Component {
         }
     }
 
-    async loadReportData() {
-        this.setState({ loading: true, error: null });
+    async loadReportData(refresh = false) {
+        this.setState(refresh
+            ? { refreshing: true, error: null }
+            : { loading: true, error: null });
 
         try {
             const orgContext = window.orgContext;
             const currentOrg = orgContext.getCurrentOrg();
 
             if (!currentOrg) {
-                this.setState({ error: 'No organization selected', loading: false });
+                this.setState({ error: 'No organization selected', loading: false, refreshing: false });
                 return;
             }
 
@@ -54,49 +57,52 @@ class ReportPreviewPage extends Component {
             const isSiteAdmin = user?.userType === 'SiteAdmin';
 
             // Fetch latest snapshot and org details using API client
-            const response = await window.api.getReportPreview(currentOrg.orgId);
+            const response = await window.api.getReportPreview(currentOrg.orgId, refresh);
 
             if (!response.success) {
                 throw new Error(response.message || 'Failed to load report preview');
             }
 
-            const { snapshot, org, defaultTier, history, rendered } = response.data;
+            const { snapshot, org, history, rendered } = response.data;
 
             this.setState({
                 loading: false,
+                refreshing: false,
                 snapshot,
                 orgData: org,
-                selectedTier: this.state.selectedTier || defaultTier,
                 isSiteAdmin,
                 history: history || [],
-                renderedByTier: rendered || null
+                rendered: rendered || null,
+                isFromCache: rendered?.isFromCache ?? false,
+                cachedAt: rendered?.cachedAt ?? null
             });
         } catch (err) {
             console.error('Error loading report preview:', err);
-            this.setState({ 
-                loading: false, 
-                error: err.message || 'Failed to load report preview' 
+            this.setState({
+                loading: false,
+                refreshing: false,
+                error: err.message || 'Failed to load report preview'
             });
         }
     }
 
-    handleTierChange = (tier) => {
-        this.setState({ selectedTier: tier, emailSent: false });
+    handleReportTypeChange = (reportType) => {
+        this.setState({ reportType, emailSent: false });
     }
 
-    handleFrameworkChange = (framework) => {
-        this.setState({ selectedFramework: framework, emailSent: false });
+    handleRefreshPreview = () => {
+        this.loadReportData(true);
     }
 
     handleSendEmail = async (recipient = 'owner', customEmail = '') => {
-        const { selectedTier } = this.state;
+        const { reportType } = this.state;
         const orgContext = window.orgContext;
         const currentOrg = orgContext.getCurrentOrg();
 
         this.setState({ sendingEmail: true, emailSent: false, error: null, emailMessage: null, showSendMenu: false });
 
         try {
-            const response = await window.api.sendReport(currentOrg.orgId, selectedTier, recipient, customEmail);
+            const response = await window.api.sendReport(currentOrg.orgId, reportType, recipient, customEmail);
 
             if (!response.success) {
                 throw new Error(response.message || 'Failed to send report email');
@@ -109,126 +115,70 @@ class ReportPreviewPage extends Component {
             }, 5000);
         } catch (err) {
             console.error('Error sending test email:', err);
-            this.setState({ 
-                sendingEmail: false, 
-                error: err.message || 'Failed to send test email' 
+            this.setState({
+                sendingEmail: false,
+                error: err.message || 'Failed to send test email'
             });
         }
     }
 
-    renderTierSelector() {
-        const { selectedTier, isSiteAdmin, orgData } = this.state;
-        const tiers = [
-            { name: 'Basic', icon: '📰', description: 'Awareness' },
-            { name: 'Professional', icon: '📊', description: 'Direction' },
-            { name: 'Premium', icon: '⭐', description: 'Confidence' }
+    renderReportTypeSelector() {
+        const { reportType, orgData } = this.state;
+        const types = [
+            { id: 'daily', label: 'Daily Report', description: 'Security snapshot sent every day' },
+            { id: 'weekly', label: 'Weekly Brief', description: 'Business summary sent every Monday' }
         ];
 
         return html`
             <div className="tier-selector">
                 <div className="selector-header">
                     <div>
-                        <div className="eyebrow">Report Tier</div>
-                        <div className="selector-sub">Switch to preview exactly what emails render per tier</div>
+                        <div className="eyebrow">Report Type</div>
+                        <div className="selector-sub">Preview the email template delivered to your organization</div>
                     </div>
-                    <div className="pill-context">${orgData?.name || 'Org'} · Default: ${orgData?.licenseType === 'Personal' ? 'Basic' : 'Professional'}</div>
+                    <div className="pill-context">${orgData?.name || 'Org'}</div>
                 </div>
-                <div className="tier-segmented">
-                    ${tiers.map(tier => {
-                        const locked = !isSiteAdmin && orgData?.licenseType === 'Personal' && tier.name !== 'Basic';
-                        const active = selectedTier === tier.name;
-                        return html`
-                            <button
-                                key=${tier.name}
-                                className=${`segment ${active ? 'active' : ''}`}
-                                onClick=${() => this.handleTierChange(tier.name)}
-                                disabled=${locked}
-                                title=${tier.description}
-                            >
-                                <span className="segment-icon">${tier.icon}</span>
-                                <span className="segment-label">${tier.name}</span>
-                                ${locked && html`<span className="segment-locked">🔒</span>`}
-                            </button>`;
-                    })}
+                <div className="tier-segmented" style="grid-template-columns: repeat(2, 1fr);">
+                    ${types.map(t => html`
+                        <button
+                            key=${t.id}
+                            className=${`segment ${reportType === t.id ? 'active' : ''}`}
+                            onClick=${() => this.handleReportTypeChange(t.id)}
+                            title=${t.description}
+                        >
+                            <span className="segment-label">${t.label}</span>
+                        </button>`
+                    )}
                 </div>
-                ${!isSiteAdmin && html`
-                    <p className="tier-note">
-                        ${orgData?.licenseType === 'Personal' 
-                            ? 'Personal licenses: Basic tier only. Upgrade to Business for Professional tier.'
-                            : 'Business licenses: Professional tier included. Premium available as add-on.'
-                        }
-                    </p>
-                `}
-            </div>
-        `;
-    }
-
-    renderFrameworkSelector() {
-        const { selectedFramework } = this.state;
-        
-        return html`
-            <div className="framework-selector">
-                <div className="selector-header">
-                    <div>
-                        <div className="eyebrow">Compliance Framework</div>
-                        <div className="selector-sub">Choose which security frameworks to include in this report preview</div>
-                    </div>
-                </div>
-                <div className="framework-segmented">
-                    <button
-                        className=${`segment ${selectedFramework === 'CIS' ? 'active' : ''}`}
-                        onClick=${() => this.handleFrameworkChange('CIS')}
-                        title="CIS Controls v8 - Practical, prioritized security controls"
-                    >
-                        <span className="segment-label">CIS Controls Only</span>
-                    </button>
-                    <button
-                        className=${`segment ${selectedFramework === 'NIST' ? 'active' : ''}`}
-                        onClick=${() => this.handleFrameworkChange('NIST')}
-                        title="NIST CSF 2.0 - Governance, Protect, Detect, Respond, Recover"
-                    >
-                        <span className="segment-label">NIST CSF Only</span>
-                    </button>
-                    <button
-                        className=${`segment ${selectedFramework === 'Both' ? 'active' : ''}`}
-                        onClick=${() => this.handleFrameworkChange('Both')}
-                        title="Show all compliance gaps across both frameworks"
-                    >
-                        <span className="segment-label">Both CIS & NIST</span>
-                    </button>
-                </div>
-                <p className="framework-note">
-                    <strong>CIS:</strong> Practical controls for defense. 
-                    <strong className="ms-2">NIST:</strong> Governance and risk management framework. 
-                    <strong className="ms-2">Both:</strong> Comprehensive view (recommended).
-                </p>
             </div>
         `;
     }
 
     renderEmailPreview() {
-        const { snapshot, selectedTier, renderedByTier } = this.state;
+        const { snapshot, reportType, rendered } = this.state;
 
         if (!snapshot) {
             return html`<div className="email-preview-empty">No snapshot data available</div>`;
         }
 
-        if (!renderedByTier || !selectedTier) {
+        if (!rendered) {
             return html`<div className="email-preview-empty">Report preview is still loading</div>`;
         }
 
-        const key = selectedTier.toLowerCase();
-        const content = renderedByTier[key] || '';
+        const content = rendered[reportType] || '';
 
         if (!content) {
-            return html`<div className="email-preview-empty">No preview available for ${selectedTier}</div>`;
+            return html`<div className="email-preview-empty">No preview available for ${reportType}</div>`;
         }
 
         return html`
             <div className="email-preview-container">
                 <div className="preview-meta">
-                    <span className="chip">Latest Snapshot</span>
-                    <span className="chip">Daily</span>
+                    ${rendered.isFromCache && rendered.cachedAt
+                        ? html`<span className="chip chip-sent">Sent ${new Date(rendered.cachedAt).toLocaleString()}</span>`
+                        : html`<span className="chip">Live Preview</span>`
+                    }
+                    <span className="chip">${reportType === 'daily' ? 'Daily' : 'Weekly'}</span>
                     <span className="chip chip-muted">7d history loaded</span>
                 </div>
                 <div className="email-preview-frame" dangerouslySetInnerHTML=${{ __html: content }}></div>
@@ -237,7 +187,7 @@ class ReportPreviewPage extends Component {
     }
 
     render() {
-        const { loading, error, snapshot, selectedTier, sendingEmail, emailSent, emailMessage, orgData, showSendMenu } = this.state;
+        const { loading, error, snapshot, reportType, sendingEmail, emailSent, emailMessage, orgData, showSendMenu, refreshing } = this.state;
         const { embedded } = this.props;
         const containerClass = embedded ? 'embedded-preview' : 'page-container';
 
@@ -270,15 +220,13 @@ class ReportPreviewPage extends Component {
                                 Report Preview
                             </h2>
                             <div class="page-subtitle">
-                                <span class="text-muted">Preview ${selectedTier || 'security'} tier email reports for ${orgData?.name || 'your organization'}</span>
+                                <span class="text-muted">Preview email reports for ${orgData?.name || 'your organization'}</span>
                             </div>
                         </div>
                     </div>
                 `}
 
-                ${this.renderTierSelector()}
-                
-                ${this.renderFrameworkSelector()}
+                ${this.renderReportTypeSelector()}
 
                 <div className="report-actions">
                     <div className="send-group">
@@ -305,13 +253,21 @@ class ReportPreviewPage extends Component {
                             </div>
                         `}
                     </div>
-                    ${emailSent && html`<span className="success-message">${emailMessage || '✓ Sent successfully'}</span>`}
+                    <button
+                        className="btn btn-outline"
+                        onClick=${this.handleRefreshPreview}
+                        disabled=${refreshing || !snapshot}
+                        title="Regenerate preview from current backend logic (does not overwrite cached sent email)"
+                    >
+                        ${refreshing ? 'Refreshing\u2026' : '\u21ba Refresh Preview'}
+                    </button>
+                    ${emailSent && html`<span className="success-message">${emailMessage || '\u2713 Sent successfully'}</span>`}
                 </div>
 
                 <div className="report-preview-section">
                     <div className="preview-header">
                         <div>
-                            <h2>Email Preview: ${selectedTier} Tier</h2>
+                            <h2>Email Preview: ${reportType === 'daily' ? 'Daily Report' : 'Weekly Brief'}</h2>
                             <p className="preview-sub">Rendered HTML matches the outbound email template.</p>
                         </div>
                         <div className="preview-toggles">
@@ -332,22 +288,22 @@ class ReportPreviewPage extends Component {
                         align-items: center;
                         gap: 12px;
                     }
-                    .eyebrow { font-size: 12px; letter-spacing: 0.05em; color: #94a3b8; text-transform: uppercase; }
-                    .selector-sub { color: #475569; font-size: 14px; }
+                    .eyebrow { font-size: 12px; letter-spacing: 0.05em; color: var(--tblr-secondary, #94a3b8); text-transform: uppercase; }
+                    .selector-sub { color: var(--tblr-muted-color, #475569); font-size: 14px; }
                     .pill-context {
-                        background: #f1f5f9;
+                        background: var(--tblr-bg-surface-secondary, #f1f5f9);
                         padding: 8px 12px;
                         border-radius: 999px;
-                        color: #0f172a;
+                        color: var(--tblr-body-color, #0f172a);
                         font-weight: 600;
                         font-size: 13px;
                     }
                     .tier-selector {
-                        background: #f8fafc;
+                        background: var(--tblr-bg-surface-secondary, #f8fafc);
                         padding: 20px;
                         border-radius: 8px;
                         margin-bottom: 24px;
-                        border: 1px solid #e2e8f0;
+                        border: 1px solid var(--tblr-border-color, #e2e8f0);
                     }
                     .tier-segmented {
                         display: grid;
@@ -356,8 +312,8 @@ class ReportPreviewPage extends Component {
                         margin-top: 10px;
                     }
                     .segment {
-                        background: white;
-                        border: 2px solid #cbd5e1;
+                        background: var(--tblr-bg-surface, white);
+                        border: 2px solid var(--tblr-border-color, #cbd5e1);
                         border-radius: 8px;
                         padding: 8px 10px;
                         display: flex;
@@ -366,7 +322,7 @@ class ReportPreviewPage extends Component {
                         gap: 6px;
                         cursor: pointer;
                         font-weight: 600;
-                        color: #0f172a;
+                        color: var(--tblr-body-color, #0f172a);
                         transition: all 0.2s ease;
                         font-size: 13px;
                     }
@@ -378,25 +334,7 @@ class ReportPreviewPage extends Component {
                     .segment-locked { margin-left: auto; }
                     .tier-note {
                         font-size: 13px;
-                        color: #64748b;
-                        margin: 10px 0 0 0;
-                    }
-                    .framework-selector {
-                        background: #f8fafc;
-                        padding: 20px;
-                        border-radius: 8px;
-                        margin-bottom: 24px;
-                        border: 1px solid #e2e8f0;
-                    }
-                    .framework-segmented {
-                        display: grid;
-                        grid-template-columns: repeat(3, 1fr);
-                        gap: 6px;
-                        margin-top: 10px;
-                    }
-                    .framework-note {
-                        font-size: 13px;
-                        color: #64748b;
+                        color: var(--tblr-muted-color, #64748b);
                         margin: 10px 0 0 0;
                     }
                     .report-actions {
@@ -409,6 +347,9 @@ class ReportPreviewPage extends Component {
                     .btn { border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; cursor: pointer; font-size: 13px; }
                     .btn-primary { background: linear-gradient(135deg, #0ea5e9, #6366f1); color: white; }
                     .btn-secondary { background: #e2e8f0; color: #0f172a; }
+                    .btn-outline { background: white; border: 1px solid #cbd5e1; color: #374151; }
+                    .btn-outline:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
+                    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
                     .split-toggle { margin-left: 2px; padding: 8px 8px; }
                     .chevron { font-size: 12px; }
                     .split-menu {
@@ -440,6 +381,7 @@ class ReportPreviewPage extends Component {
                     .preview-toggles { display: flex; gap: 8px; align-items: center; }
                     .chip { background: #eef2ff; color: #3730a3; padding: 6px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; }
                     .chip-muted { background: #f1f5f9; color: #475569; }
+                    .chip-sent { background: #f0fdf4; color: #166534; }
                     .ghost-btn { background: transparent; border: 1px dashed #cbd5e1; padding: 6px 10px; border-radius: 6px; color: #94a3b8; cursor: not-allowed; }
                     .email-preview-container {
                         background: white;

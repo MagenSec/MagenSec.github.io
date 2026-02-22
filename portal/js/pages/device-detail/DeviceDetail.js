@@ -1824,6 +1824,35 @@ export class DeviceDetailPage extends window.Component {
 
     // isPrivateIp moved to NetworkService.js
 
+    async queueDeviceCommand(commandType) {
+        const { device } = this.state;
+        if (!device) return;
+
+        const deviceId = device.DeviceId || device.deviceId;
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg || !currentOrg.orgId) {
+            alert('Error: Organization context not available');
+            return;
+        }
+
+        try {
+            const result = await api.queueCommand(currentOrg.orgId, commandType, [deviceId]);
+            if (result?.success) {
+                const msg = `${commandType} queued. Will execute on next device check-in.`;
+                if (window.toast) window.toast.success(msg);
+                else alert(msg);
+            } else {
+                const msg = result?.message || `Failed to queue ${commandType}`;
+                if (window.toast) window.toast.error(msg);
+                else alert(`Error: ${msg}`);
+            }
+        } catch (err) {
+            const msg = `Failed to queue command: ${err.message}`;
+            if (window.toast) window.toast.error(msg);
+            else alert(msg);
+        }
+    }
+
     toggleVendor(vendorName) {
         const expanded = new Set(this.state.expandedVendors);
         if (expanded.has(vendorName)) {
@@ -2101,7 +2130,7 @@ export class DeviceDetailPage extends window.Component {
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 17v-6" /><path d="M9.5 14.5l2.5 2.5l2.5 -2.5" /></svg>
                                             Save as PDF
                                         </button>
-                                        <button class="btn" title="Trigger Windows Update (coming soon)" onclick=${(e) => { e.preventDefault(); console.info('Windows Update trigger requested'); }}>
+                                        <button class="btn" title="Check for Windows updates on this device" onclick=${() => this.queueDeviceCommand('CheckUpdates')}>
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5.5l7 -1.5v8l-7 .5z" /><path d="M20 4l-7 1.5v7.5l7 -.5z" /><path d="M4 15l7 .5v5l-7 -1.5z" /><path d="M20 13l-7 .5v6.5l7 -1.5z" /></svg>
                                             Patch Now
                                         </button>
@@ -2122,6 +2151,28 @@ export class DeviceDetailPage extends window.Component {
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 9a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" /><path d="M7 14l-3 3l-1 -1" /><path d="M9 13l2 2l4 -4" /></svg>
                                                     Update Client
                                                 </a>
+                                                <div class="dropdown-divider"></div>
+                                                <div class="dropdown-header">Response Actions</div>
+                                                <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('TriggerScan'); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
+                                                    Trigger Scan
+                                                </a>
+                                                <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('CollectLogs'); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>
+                                                    Collect Logs
+                                                </a>
+                                                ${(device.DeviceState || device.deviceState || '').toUpperCase() === 'ACTIVE' ? html`
+                                                    <a class="dropdown-item text-warning" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('Isolate'); }}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 3l0 18" /><path d="M3 12l18 0" /></svg>
+                                                        Isolate Device
+                                                    </a>
+                                                ` : ''}
+                                                ${(device.DeviceState || device.deviceState || '').toUpperCase() === 'ISOLATED' ? html`
+                                                    <a class="dropdown-item text-success" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('RemoveIsolation'); }}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l3 3l3 -3" /></svg>
+                                                        Remove Isolation
+                                                    </a>
+                                                ` : ''}
                                                 <div class="dropdown-divider"></div>
                                                 <a class="dropdown-item text-danger" href="#" onclick=${(e) => { e.preventDefault(); this.blockDevice(false); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M5.7 5.7l12.6 12.6" /></svg>
