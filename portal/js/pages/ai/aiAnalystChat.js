@@ -276,7 +276,7 @@ export default class AIAnalystChatPage extends Component {
                 });
             } else {
                 this.setState({
-                    error: response.message || 'Failed to get response from 🕵️MAGI',
+                    error: response.message || 'Failed to get response from 🛡️MAGI',
                     sending: false
                 });
             }

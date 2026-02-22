@@ -290,7 +290,7 @@ export default class UnifiedDashboard extends Component {
   getHeroGradient(score) {
     if (score >= 80) return 'linear-gradient(160deg, #0a1f12 0%, #0e2f1e 45%, #071a2a 100%)';
     if (score >= 60) return 'linear-gradient(160deg, #071829 0%, #0c2040 45%, #060e1c 100%)';
-    if (score >= 40) return 'linear-gradient(160deg, #1a1006 0%, #2a1c08 45%, #181006 100%)';
+    if (score >= 40) return 'linear-gradient(160deg, #1a1209 0%, #2b1d0e 30%, #1c1410 60%, #141218 100%)';
     return 'linear-gradient(160deg, #1a0608 0%, #2e0c0c 45%, #1a0508 100%)';
   }
 
@@ -344,7 +344,6 @@ export default class UnifiedDashboard extends Component {
   renderSearchHeader() {
     const { data, aiLoading, aiAnswer, aiError, refreshing } = this.state;
     const secScore = typeof data?.securityScore?.score === 'number' ? data.securityScore.score : 0;
-    const heroGradient = this.getHeroGradient(secScore);
     const freshness = this.getFreshnessInfo();
 
     return html`
@@ -355,22 +354,22 @@ export default class UnifiedDashboard extends Component {
         right: 50%;
         margin-left: -50vw;
         margin-right: -50vw;
-        background: ${heroGradient};
+        background: linear-gradient(160deg, #d8dbe2 0%, #e4e7ed 30%, #dde0e6 60%, #d2d5dc 100%);
         padding: 40px 16px 44px;
         overflow: hidden;
       ">
         <!-- Decorative glow orbs -->
-        <div style="position: absolute; top: -80px; right: -40px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 65%); pointer-events: none;"></div>
-        <div style="position: absolute; bottom: -60px; left: -40px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 65%); pointer-events: none;"></div>
+        <div style="position: absolute; top: -80px; right: -40px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 65%); pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -60px; left: -40px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(139,92,246,0.05) 0%, transparent 65%); pointer-events: none;"></div>
 
         <div style="max-width: 960px; margin: 0 auto; position: relative;">
 
           <!-- Title -->
           <div style="text-align: center; margin-bottom: 28px;">
             <h1 style="font-size: 2.6rem; font-weight: 800; letter-spacing: -1.5px; margin: 0 0 6px; line-height: 1.1;">
-              <span style="background: linear-gradient(135deg, #a5b4fc, #c4b5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Magen</span><span style="color: #fff;">Sec</span>
+              <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Magen</span><span style="color: #1e293b;">Sec</span>
             </h1>
-            <div style="color: rgba(255,255,255,0.42); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500;">Security Intelligence Platform</div>
+            <div style="color: rgba(0,0,0,0.4); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500;">Security Intelligence Platform</div>
           </div>
 
           <!-- Glassmorphism KR Tiles -->
@@ -382,17 +381,18 @@ export default class UnifiedDashboard extends Component {
               <div style="
                 display: flex;
                 align-items: center;
-                background: rgba(255,255,255,0.08);
+                background: rgba(255,255,255,0.6);
                 backdrop-filter: blur(16px) saturate(180%);
                 -webkit-backdrop-filter: blur(16px) saturate(180%);
-                border: 1px solid rgba(255,255,255,0.16);
+                border: 1px solid rgba(0,0,0,0.1);
                 border-radius: 50px;
                 overflow: hidden;
                 transition: border-color 0.2s;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
               ">
-                <span style="display: flex; align-items: center; padding: 0 10px 0 20px; color: rgba(255,255,255,0.35); flex-shrink: 0;">
+                <span style="display: flex; align-items: center; padding: 0 10px 0 20px; color: rgba(0,0,0,0.3); flex-shrink: 0;">
                   ${aiLoading
-                    ? html`<span class="spinner-border spinner-border-sm" style="color: #a5b4fc; width: 16px; height: 16px; border-width: 2px;" role="status"></span>`
+                    ? html`<span class="spinner-border spinner-border-sm" style="color: #6366f1; width: 16px; height: 16px; border-width: 2px;" role="status"></span>`
                     : html`<svg width="17" height="17" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>`}
                 </span>
                 <input
@@ -406,7 +406,7 @@ export default class UnifiedDashboard extends Component {
                     background: none;
                     border: none;
                     outline: none;
-                    color: #fff;
+                    color: #1e293b;
                     font-size: 0.9rem;
                     padding: 13px 8px;
                     min-width: 0;
@@ -431,7 +431,7 @@ export default class UnifiedDashboard extends Component {
                     transition: opacity 0.15s;
                     white-space: nowrap;
                   "
-                >${aiLoading ? 'Thinking…' : 'Ask 🕵️MAGI'}</button>
+                >${aiLoading ? 'Thinking…' : 'Ask 🛡️MAGI'}</button>
               </div>
             </form>
 
@@ -439,20 +439,21 @@ export default class UnifiedDashboard extends Component {
             ${aiAnswer ? html`
               <div style="
                 margin-top: 14px;
-                background: rgba(255,255,255,0.07);
+                background: rgba(255,255,255,0.7);
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
-                border: 1px solid rgba(255,255,255,0.12);
+                border: 1px solid rgba(0,0,0,0.08);
                 border-left: 3px solid #818cf8;
                 border-radius: 14px;
                 padding: 14px 16px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
               ">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="#a5b4fc" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-                    <span style="color: #c4b5fd; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;">🕵️MAGI</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="#6366f1" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
+                    <span style="color: #6366f1; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;">🛡️MAGI</span>
                     ${aiAnswer.confidence != null ? html`
-                      <span style="font-size: 0.7rem; background: rgba(99,102,241,0.25); color: #a5b4fc; padding: 1px 8px; border-radius: 20px;">${Math.round((aiAnswer.confidence || 0) * 100)}% confident</span>
+                      <span style="font-size: 0.7rem; background: rgba(99,102,241,0.12); color: #6366f1; padding: 1px 8px; border-radius: 20px;">${Math.round((aiAnswer.confidence || 0) * 100)}% confident</span>
                     ` : ''}
                   </div>
                   <div style="display: flex; gap: 6px; align-items: center;">
@@ -461,20 +462,20 @@ export default class UnifiedDashboard extends Component {
                         try { sessionStorage.setItem('ai_analyst_prefill', JSON.stringify({ question: aiAnswer.question, answer: aiAnswer.answer })); } catch (_) {}
                         window.location.hash = '#!/analyst';
                       }}
-                      style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18); color: #e0e7ff; font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; cursor: pointer;"
+                      style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: #475569; font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; cursor: pointer;"
                     >Continue →</button>
-                    <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">✕</button>
+                    <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: rgba(0,0,0,0.25); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">✕</button>
                   </div>
                 </div>
-                <div style="color: rgba(255,255,255,0.38); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
-                <div class="chat-markdown-content" style="color: rgba(255,255,255,0.82); font-size: 0.875rem; max-height: 280px; overflow-y: auto;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
+                <div style="color: rgba(0,0,0,0.4); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
+                <div class="chat-markdown-content" style="color: #334155; font-size: 0.875rem; max-height: 280px; overflow-y: auto;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
               </div>
             ` : ''}
 
             ${aiError ? html`
-              <div style="margin-top: 10px; background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); border-radius: 10px; padding: 10px 14px; color: #fca5a5; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+              <div style="margin-top: 10px; background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.2); border-radius: 10px; padding: 10px 14px; color: #dc2626; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
                 <span>${aiError}</span>
-                <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: #fca5a5; cursor: pointer; margin-left: 8px;">✕</button>
+                <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: #dc2626; cursor: pointer; margin-left: 8px;">✕</button>
               </div>
             ` : ''}
           </div>
@@ -482,14 +483,14 @@ export default class UnifiedDashboard extends Component {
           <!-- Quick nav + freshness -->
           <div style="text-align: center;">
             <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;">
-              <a href="#!/security" style="font-size: 0.72rem; color: rgba(255,255,255,0.38); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 1px solid rgba(255,255,255,0.09);">Security</a>
-              <a href="#!/compliance" style="font-size: 0.72rem; color: rgba(255,255,255,0.38); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 1px solid rgba(255,255,255,0.09);">Compliance</a>
-              <a href="#!/reports" style="font-size: 0.72rem; color: rgba(255,255,255,0.38); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.06); border-radius: 20px; border: 1px solid rgba(255,255,255,0.09);">Reports</a>
-              <button onClick=${() => this.refreshDashboard()} style="font-size: 0.72rem; color: rgba(255,255,255,0.38); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 3px 10px; cursor: pointer;">
+              <a href="#!/security" style="font-size: 0.72rem; color: rgba(0,0,0,0.45); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.5); border-radius: 20px; border: 1px solid rgba(0,0,0,0.08);">Security</a>
+              <a href="#!/compliance" style="font-size: 0.72rem; color: rgba(0,0,0,0.45); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.5); border-radius: 20px; border: 1px solid rgba(0,0,0,0.08);">Compliance</a>
+              <a href="#!/reports" style="font-size: 0.72rem; color: rgba(0,0,0,0.45); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.5); border-radius: 20px; border: 1px solid rgba(0,0,0,0.08);">Reports</a>
+              <button onClick=${() => this.refreshDashboard()} style="font-size: 0.72rem; color: rgba(0,0,0,0.45); background: rgba(255,255,255,0.5); border: 1px solid rgba(0,0,0,0.08); border-radius: 20px; padding: 3px 10px; cursor: pointer;">
                 ${refreshing ? 'Refreshing…' : '↻ Refresh'}
               </button>
               ${freshness ? html`
-                <span style="font-size: 0.68rem; color: rgba(255,255,255,0.25);">
+                <span style="font-size: 0.68rem; color: rgba(0,0,0,0.3);">
                   · ${freshness.ageText}${freshness.isStale ? ' (stale)' : ''}
                 </span>
               ` : ''}
@@ -517,15 +518,15 @@ export default class UnifiedDashboard extends Component {
     const totalDevices = stats.devices?.totalCount || 0;
     const offlineDevices = stats.devices?.offlineCount || 0;
 
-    const scoreHex   = secScore >= 80 ? '#34d399' : secScore >= 60 ? '#60a5fa' : secScore >= 40 ? '#fbbf24' : '#f87171';
-    const compHex    = compliancePercent >= 80 ? '#34d399' : compliancePercent >= 60 ? '#60a5fa' : compliancePercent >= 40 ? '#fbbf24' : '#f87171';
-    const threatHex  = criticalCount === 0 ? '#34d399' : criticalCount <= 3 ? '#fbbf24' : '#f87171';
-    const fleetHex   = offlineDevices === 0 ? '#60a5fa' : offlineDevices <= 2 ? '#fbbf24' : '#f87171';
+    const scoreHex   = secScore >= 80 ? '#16a34a' : secScore >= 60 ? '#2563eb' : secScore >= 40 ? '#d97706' : '#dc2626';
+    const compHex    = compliancePercent >= 80 ? '#16a34a' : compliancePercent >= 60 ? '#2563eb' : compliancePercent >= 40 ? '#d97706' : '#dc2626';
+    const threatHex  = criticalCount === 0 ? '#16a34a' : criticalCount <= 3 ? '#d97706' : '#dc2626';
+    const fleetHex   = offlineDevices === 0 ? '#2563eb' : offlineDevices <= 2 ? '#d97706' : '#dc2626';
 
-    const glass = 'height:100%;background:rgba(255,255,255,0.07);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,0.11);border-radius:14px;padding:16px 14px;cursor:pointer;transition:background 0.2s,border-color 0.2s;';
-    const label = 'color:rgba(255,255,255,0.45);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.09em;font-weight:600;margin-bottom:6px;';
+    const glass = 'height:100%;background:rgba(255,255,255,0.55);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(0,0,0,0.07);border-radius:14px;padding:16px 14px;cursor:pointer;transition:background 0.2s,border-color 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+    const label = 'color:rgba(0,0,0,0.45);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.09em;font-weight:600;margin-bottom:6px;';
     const bigNum = (color) => `font-size:2rem;font-weight:800;color:${color};line-height:1;margin-bottom:4px;`;
-    const sub = 'font-size:0.72rem;color:rgba(255,255,255,0.38);';
+    const sub = 'font-size:0.72rem;color:rgba(0,0,0,0.4);';
 
     return html`
       <div class="row g-2 mb-5">
@@ -535,9 +536,9 @@ export default class UnifiedDashboard extends Component {
             <div style="${label}">Security</div>
             <div style="display:flex;align-items:baseline;gap:8px;${bigNum(scoreHex)}">
               <span>${secScore}</span>
-              <span style="font-size:0.78rem;font-weight:700;color:${scoreHex};background:rgba(255,255,255,0.09);padding:2px 7px;border-radius:6px;">${score.grade || '—'}</span>
+              <span style="font-size:0.78rem;font-weight:700;color:${scoreHex};background:rgba(0,0,0,0.05);padding:2px 7px;border-radius:6px;">${score.grade || '—'}</span>
             </div>
-            <div style="${sub}${score.urgentActionCount > 0 ? 'color:#fca5a5;' : ''}">
+            <div style="${sub}${score.urgentActionCount > 0 ? 'color:#dc2626;' : ''}">
               ${score.urgentActionCount > 0 ? `⚠  ${score.urgentActionCount} urgent` : '✓ No alerts'}
             </div>
           </div>
@@ -547,7 +548,7 @@ export default class UnifiedDashboard extends Component {
           <div style="${glass}" onClick=${() => window.location.hash = '#!/compliance'}>
             <div style="${label}">Compliance</div>
             <div style="${bigNum(compHex)}">${compliancePercent}%</div>
-            <div style="background:rgba(255,255,255,0.12);border-radius:3px;height:3px;overflow:hidden;margin-bottom:5px;">
+            <div style="background:rgba(0,0,0,0.08);border-radius:3px;height:3px;overflow:hidden;margin-bottom:5px;">
               <div style="width:${compliancePercent}%;height:100%;background:${compHex};border-radius:3px;transition:width 0.9s ease;"></div>
             </div>
             <div style="${sub}">
@@ -561,9 +562,9 @@ export default class UnifiedDashboard extends Component {
             <div style="${label}">Threats</div>
             <div style="display:flex;align-items:baseline;gap:6px;${bigNum(threatHex)}">
               <span>${criticalCount}</span>
-              <span style="font-size:0.72rem;color:rgba(255,255,255,0.38);">critical</span>
+              <span style="font-size:0.72rem;color:rgba(0,0,0,0.4);">critical</span>
             </div>
-            <div style="${sub}${threats.exploitCount > 0 ? 'color:#fb923c;' : ''}">
+            <div style="${sub}${threats.exploitCount > 0 ? 'color:#ea580c;' : ''}">
               ${threats.exploitCount > 0 ? `${threats.exploitCount} KEV exploits` : `${threats.highCveCount || 0} high severity`}
             </div>
           </div>
@@ -574,9 +575,9 @@ export default class UnifiedDashboard extends Component {
             <div style="${label}">Fleet</div>
             <div style="display:flex;align-items:baseline;gap:4px;${bigNum(fleetHex)}">
               <span>${activeDevices}</span>
-              <span style="font-size:0.82rem;color:rgba(255,255,255,0.3);">/ ${totalDevices}</span>
+              <span style="font-size:0.82rem;color:rgba(0,0,0,0.35);">/ ${totalDevices}</span>
             </div>
-            <div style="${sub}${offlineDevices > 0 ? 'color:#fbbf24;' : ''}">
+            <div style="${sub}${offlineDevices > 0 ? 'color:#d97706;' : ''}">
               ${offlineDevices > 0 ? `${offlineDevices} offline` : '✓ All healthy'}
             </div>
           </div>
@@ -620,7 +621,7 @@ export default class UnifiedDashboard extends Component {
       security: [
         { href: '#!/security',    label: 'Full Analysis' },
         { href: '#!/reports',     label: 'Reports' },
-        { href: '#!/analyst',     label: 'Ask 🕵️MAGI' }
+        { href: '#!/analyst',     label: 'Ask 🛡️MAGI' }
       ],
       auditor: [
         { href: '#!/auditor',     label: 'Auditor Dashboard' },
@@ -926,177 +927,245 @@ export default class UnifiedDashboard extends Component {
     else if (high > 0) situationText = `${high} high-severity CVE${high !== 1 ? 's' : ''} detected across your fleet.`;
     else situationText = `Security posture is below target threshold.`;
 
+    const glowAnim = isGreenGrade ? 'gradeGlowGreen' : isAmberGrade ? 'gradeGlowAmber' : 'gradeGlowRed';
+
     return html`
-      <div style="max-width: 960px; margin: 0 auto 12px; padding: 0 16px;">
-        <div style="
-          border: 1px solid ${borderColor};
-          border-radius: 12px;
-          overflow: hidden;
-          background: ${bgColor};
-        ">
-          <!-- Clickable header row -->
-          <div
-            onClick=${() => this.setState({ officerNoteOpen: !officerNoteOpen })}
-            style="
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              padding: 10px 14px;
-              cursor: pointer;
-              user-select: none;
-            "
+      <style>
+        @keyframes officerSlideIn {
+          from { opacity: 0; transform: translateY(-12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes gradeGlowRed {
+          0%, 100% { box-shadow: 0 0 24px rgba(220,38,38,0.13), 0 0 48px rgba(220,38,38,0.06), inset 0 0 12px rgba(220,38,38,0.05); }
+          50%      { box-shadow: 0 0 36px rgba(220,38,38,0.22), 0 0 64px rgba(220,38,38,0.10), inset 0 0 16px rgba(220,38,38,0.08); }
+        }
+        @keyframes gradeGlowAmber {
+          0%, 100% { box-shadow: 0 0 24px rgba(217,119,6,0.13), 0 0 48px rgba(217,119,6,0.06), inset 0 0 12px rgba(217,119,6,0.05); }
+          50%      { box-shadow: 0 0 36px rgba(217,119,6,0.22), 0 0 64px rgba(217,119,6,0.10), inset 0 0 16px rgba(217,119,6,0.08); }
+        }
+        @keyframes gradeGlowGreen {
+          0%, 100% { box-shadow: 0 0 24px rgba(22,163,74,0.13), 0 0 48px rgba(22,163,74,0.06), inset 0 0 12px rgba(22,163,74,0.05); }
+          50%      { box-shadow: 0 0 36px rgba(22,163,74,0.22), 0 0 64px rgba(22,163,74,0.10), inset 0 0 16px rgba(22,163,74,0.08); }
+        }
+      </style>
+
+      <div style="
+        animation: officerSlideIn 0.45s ease-out both;
+      ">
+        <div style="max-width: 960px; margin: 0 auto; padding: 12px 16px 0;">
+
+        <!-- Dark glassmorphism collapsed tab -->
+        <div
+          onClick=${() => this.setState({ officerNoteOpen: !officerNoteOpen })}
+          style="
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 40px;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(15,15,25,0.95);
+            backdrop-filter: blur(16px) saturate(160%);
+            -webkit-backdrop-filter: blur(16px) saturate(160%);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: ${officerNoteOpen ? '14px 14px 0 0' : '14px'};
+            transition: border-radius 0.3s ease;
+          "
+        >
+          <!-- Decorative slash -->
+          <span style="color: ${gradeColor}; opacity: 0.35; font-weight: 300; font-size: 1.1rem; line-height: 1;">/</span>
+
+          <!-- Shield icon -->
+          <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="${gradeColor}" fill="none" style="flex-shrink: 0; opacity: 0.8;">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/>
+            <path d="M9 12l2 2l4-4"/>
+          </svg>
+
+          <!-- Title text -->
+          <span style="font-size: 0.68rem; font-weight: 700; color: rgba(255,255,255,0.55); letter-spacing: 0.12em; text-transform: uppercase;">Security Officer's Note</span>
+
+          <!-- Chevron -->
+          <svg
+            width="13" height="13" viewBox="0 0 24 24" stroke-width="2.5"
+            stroke="rgba(255,255,255,0.35)" fill="none"
+            style="transition: transform 0.3s ease; transform: rotate(${officerNoteOpen ? '180' : '0'}deg);"
           >
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <svg width="15" height="15" viewBox="0 0 24 24" stroke-width="2" stroke="${gradeColor}" fill="none">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/>
-                <path d="M9 12l2 2l4-4"/>
-              </svg>
-              <span style="font-size: 0.78rem; font-weight: 700; color: var(--tblr-body-color, #333); letter-spacing: 0.01em;">Security Officer's Note</span>
-              <span style="
-                font-size: 0.65rem; font-weight: 700;
-                color: ${gradeColor};
-                background: ${gradeColor}18;
-                border: 1px solid ${gradeColor}33;
-                padding: 1px 7px; border-radius: 4px;
-              ">${grade}</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 0.72rem; color: var(--tblr-secondary, #888);">${officerNoteOpen ? 'Collapse' : 'View'}</span>
-              <svg
-                width="14" height="14" viewBox="0 0 24 24" stroke-width="2.5"
-                stroke="var(--tblr-secondary, #888)" fill="none"
-                style="transition: transform 0.25s; transform: rotate(${officerNoteOpen ? '180' : '0'}deg);"
-              >
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </div>
-          </div>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
 
-          <!-- Slide-down body -->
+          <!-- Decorative backslash -->
+          <span style="color: ${gradeColor}; opacity: 0.35; font-weight: 300; font-size: 1.1rem; line-height: 1;">\\</span>
+
+          <!-- Dismiss X -->
+          <button
+            onClick=${(e) => { e.stopPropagation(); this.setState({ officerNoteDismissed: true }); }}
+            style="
+              position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+              background: none; border: none; color: rgba(255,255,255,0.2); cursor: pointer;
+              font-size: 0.85rem; line-height: 1; padding: 2px 4px;
+              transition: color 0.15s;
+            "
+            title="Dismiss"
+          >✕</button>
+        </div>
+
+        <!-- Slide-down dark body -->
+        <div style="
+          max-height: ${officerNoteOpen ? '560px' : '0'};
+          overflow: hidden;
+          transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        ">
           <div style="
-            max-height: ${officerNoteOpen ? '480px' : '0'};
-            overflow: hidden;
-            transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(180deg, rgba(15,15,25,0.97), rgba(20,18,30,0.97));
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-top: none;
+            border-radius: 0 0 16px 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.15);
+            position: relative;
           ">
-            <div style="padding: 0 14px 14px; border-top: 1px solid ${borderColor};">
-              <div style="padding-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+            <!-- Grade-colored glow line -->
+            <div style="height: 1px; background: linear-gradient(90deg, transparent, ${gradeColor}55, transparent);"></div>
 
-                <!-- Situation summary -->
-                <div style="font-size: 0.84rem; color: var(--tblr-body-color, #333);">
-                  ${situationText}
-                  ${critical > 0 || high > 0 ? html`
-                    <span style="margin-left: 6px;">
-                      <a href="#!/security" style="color: ${gradeColor}; font-weight: 600; text-decoration: none; font-size: 0.8rem;">View threat details →</a>
-                    </span>
-                  ` : ''}
+            <div style="padding: 20px 20px 16px; display: flex; flex-direction: column; gap: 14px;">
+
+              <!-- Large centered grade box -->
+              <div style="display: flex; justify-content: center;">
+                <div style="
+                  width: 100px; height: 100px;
+                  border-radius: 16px;
+                  display: flex; flex-direction: column;
+                  align-items: center; justify-content: center;
+                  background: ${gradeColor}14;
+                  border: 1px solid ${gradeColor}40;
+                  animation: ${glowAnim} 3s ease-in-out infinite;
+                  position: relative;
+                  overflow: hidden;
+                ">
+                  <!-- Radial overlay for depth -->
+                  <div style="position: absolute; inset: 0; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.06) 0%, transparent 60%); pointer-events: none;"></div>
+                  <span style="font-size: 2.8rem; font-weight: 900; color: ${gradeColor}; line-height: 1; position: relative;">${grade}</span>
+                  <span style="font-size: 0.65rem; font-weight: 600; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; position: relative;">Grade</span>
                 </div>
-
-                <!-- Threat counts row -->
-                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                  ${critical > 0 ? html`
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                      <span style="width: 7px; height: 7px; border-radius: 50%; background: #dc2626; display: inline-block;"></span>
-                      <span style="font-size: 0.78rem; color: var(--tblr-secondary, #666);">${critical} critical</span>
-                    </div>
-                  ` : ''}
-                  ${high > 0 ? html`
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                      <span style="width: 7px; height: 7px; border-radius: 50%; background: #d97706; display: inline-block;"></span>
-                      <span style="font-size: 0.78rem; color: var(--tblr-secondary, #666);">${high} high severity</span>
-                    </div>
-                  ` : ''}
-                  <div style="display: flex; align-items: center; gap: 5px;">
-                    <span style="font-size: 0.78rem; font-weight: 600; color: ${gradeColor};">Score ${secScore}/100</span>
-                  </div>
-                </div>
-
-                <!-- Report card (from last generated daily report) -->
-                ${rc ? html`
-                  <div style="
-                    background: var(--tblr-bg-surface-secondary, #f8f9fa);
-                    border: 1px solid var(--tblr-border-color, #e6e7e9);
-                    border-radius: 8px;
-                    padding: 10px 12px;
-                  ">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                      <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="
-                          font-size: 0.72rem; font-weight: 700;
-                          color: ${gradeColor};
-                          background: ${gradeColor}18;
-                          border: 1px solid ${gradeColor}33;
-                          padding: 2px 8px; border-radius: 4px;
-                        ">${rc.grade || grade}</span>
-                        <span style="font-size: 0.74rem; font-weight: 600; color: var(--tblr-body-color, #333);">Daily Report</span>
-                        ${rc.generatedAt ? html`<span style="font-size: 0.69rem; color: var(--tblr-secondary, #999);">${(() => { const ageMs = Date.now() - new Date(rc.generatedAt).getTime(); const h = Math.floor(ageMs / 3600000); const m = Math.floor((ageMs % 3600000) / 60000); return h >= 1 ? h + 'h ago' : m + 'm ago'; })()}</span>` : ''}
-                      </div>
-                      <a href="#!/security" style="font-size: 0.72rem; color: ${gradeColor}; font-weight: 600; text-decoration: none;">View Report →</a>
-                    </div>
-                    ${(rc.criticalCount > 0 || rc.highCount > 0) ? html`
-                      <div style="font-size: 0.75rem; margin-bottom: 5px;">
-                        ${rc.criticalCount > 0 ? html`<span style="color: #dc2626; font-weight: 600;">${rc.criticalCount} critical</span>` : ''}
-                        ${rc.criticalCount > 0 && rc.highCount > 0 ? html`<span style="color: var(--tblr-secondary, #999);"> · </span>` : ''}
-                        ${rc.highCount > 0 ? html`<span style="color: #d97706;">${rc.highCount} high</span>` : ''}
-                      </div>
-                    ` : ''}
-                    ${rc.topActionText ? html`
-                      <div style="font-size: 0.78rem; color: var(--tblr-body-color, #333); font-weight: 500; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
-                        <span style="color: var(--tblr-secondary, #888); font-size: 0.72rem; flex-shrink: 0;">Priority:</span>
-                        <span>${rc.topActionText}</span>
-                        ${rc.isKev ? html`<span style="font-size: 0.62rem; color: #ea580c; font-weight: 700; background: rgba(234,88,12,0.12); border: 1px solid rgba(234,88,12,0.25); padding: 1px 5px; border-radius: 3px; flex-shrink: 0;">KEV</span>` : ''}
-                      </div>
-                    ` : ''}
-                    <div style="font-size: 0.72rem; color: var(--tblr-secondary, #888);">
-                      ${rc.emailSentAt
-                        ? `✉ Emailed to ${rc.emailRecipientCount || 1} recipient${rc.emailRecipientCount !== 1 ? 's' : ''}${rc.whatsAppSentAt ? ' · WhatsApp sent' : ''}`
-                        : 'Report not yet sent today'
-                      }
-                    </div>
-                  </div>
-                ` : ''}
-
-                <!-- Top urgent action -->
-                ${urgentAction ? html`
-                  <div style="
-                    background: var(--tblr-bg-surface-secondary, #f8f9fa);
-                    border: 1px solid var(--tblr-border-color, #e6e7e9);
-                    border-radius: 8px;
-                    padding: 8px 12px;
-                    display: flex;
-                    align-items: flex-start;
-                    gap: 8px;
-                  ">
-                    <span style="
-                      flex-shrink: 0; margin-top: 1px;
-                      font-size: 0.62rem; font-weight: 700;
-                      color: #d97706; background: #d9770618;
-                      border: 1px solid #d9770633;
-                      padding: 1px 6px; border-radius: 4px;
-                      text-transform: uppercase; letter-spacing: 0.04em;
-                    ">${urgentAction.urgency || 'action'}</span>
-                    <div style="flex: 1; min-width: 0;">
-                      <div style="font-size: 0.82rem; font-weight: 500; color: var(--tblr-body-color, #333);">${urgentAction.title}</div>
-                      ${urgentAction.description ? html`<div style="font-size: 0.74rem; color: var(--tblr-secondary, #888); margin-top: 2px;">${urgentAction.description}</div>` : ''}
-                    </div>
-                  </div>
-                ` : ''}
-
-                <!-- Footer links -->
-                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-                  <div style="display: flex; gap: 8px;">
-                    <a href="#!/security" style="font-size: 0.76rem; font-weight: 600; color: ${gradeColor}; text-decoration: none;">Full Security Report →</a>
-                    <a href="#!/analyst" style="font-size: 0.76rem; color: var(--tblr-secondary, #888); text-decoration: none;">Ask MAGI →</a>
-                  </div>
-                  <button
-                    onClick=${(e) => { e.stopPropagation(); this.setState({ officerNoteDismissed: true }); }}
-                    style="background: none; border: none; font-size: 0.72rem; color: var(--tblr-secondary, #aaa); cursor: pointer; padding: 0;"
-                  >Dismiss</button>
-                </div>
-
               </div>
+
+              <!-- Situation summary -->
+              <div style="font-size: 0.84rem; color: rgba(255,255,255,0.82); text-align: center;">
+                ${situationText}
+                ${critical > 0 || high > 0 ? html`
+                  <span style="margin-left: 6px;">
+                    <a href="#!/security" style="color: ${gradeColor}; font-weight: 600; text-decoration: none; font-size: 0.8rem;">View threat details →</a>
+                  </span>
+                ` : ''}
+              </div>
+
+              <!-- Threat counts row -->
+              <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                ${critical > 0 ? html`
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #dc2626; display: inline-block;"></span>
+                    <span style="font-size: 0.78rem; color: rgba(255,255,255,0.55);">${critical} critical</span>
+                  </div>
+                ` : ''}
+                ${high > 0 ? html`
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #d97706; display: inline-block;"></span>
+                    <span style="font-size: 0.78rem; color: rgba(255,255,255,0.55);">${high} high severity</span>
+                  </div>
+                ` : ''}
+                <div style="display: flex; align-items: center; gap: 5px;">
+                  <span style="font-size: 0.78rem; font-weight: 600; color: ${gradeColor};">Score ${secScore}/100</span>
+                </div>
+              </div>
+
+              <!-- Report card (from last generated daily report) -->
+              ${rc ? html`
+                <div style="
+                  background: rgba(255,255,255,0.06);
+                  border: 1px solid rgba(255,255,255,0.1);
+                  border-radius: 8px;
+                  padding: 10px 12px;
+                ">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="
+                        font-size: 0.72rem; font-weight: 700;
+                        color: ${gradeColor};
+                        background: ${gradeColor}18;
+                        border: 1px solid ${gradeColor}33;
+                        padding: 2px 8px; border-radius: 4px;
+                      ">${rc.grade || grade}</span>
+                      <span style="font-size: 0.74rem; font-weight: 600; color: rgba(255,255,255,0.82);">Daily Report</span>
+                      ${rc.generatedAt ? html`<span style="font-size: 0.69rem; color: rgba(255,255,255,0.4);">${(() => { const ageMs = Date.now() - new Date(rc.generatedAt).getTime(); const h = Math.floor(ageMs / 3600000); const m = Math.floor((ageMs % 3600000) / 60000); return h >= 1 ? h + 'h ago' : m + 'm ago'; })()}</span>` : ''}
+                    </div>
+                    <a href="#!/security" style="font-size: 0.72rem; color: ${gradeColor}; font-weight: 600; text-decoration: none;">View Report →</a>
+                  </div>
+                  ${(rc.criticalCount > 0 || rc.highCount > 0) ? html`
+                    <div style="font-size: 0.75rem; margin-bottom: 5px;">
+                      ${rc.criticalCount > 0 ? html`<span style="color: #dc2626; font-weight: 600;">${rc.criticalCount} critical</span>` : ''}
+                      ${rc.criticalCount > 0 && rc.highCount > 0 ? html`<span style="color: rgba(255,255,255,0.3);"> · </span>` : ''}
+                      ${rc.highCount > 0 ? html`<span style="color: #d97706;">${rc.highCount} high</span>` : ''}
+                    </div>
+                  ` : ''}
+                  ${rc.topActionText ? html`
+                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.82); font-weight: 500; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+                      <span style="color: rgba(255,255,255,0.45); font-size: 0.72rem; flex-shrink: 0;">Priority:</span>
+                      <span>${rc.topActionText}</span>
+                      ${rc.isKev ? html`<span style="font-size: 0.62rem; color: #ea580c; font-weight: 700; background: rgba(234,88,12,0.12); border: 1px solid rgba(234,88,12,0.25); padding: 1px 5px; border-radius: 3px; flex-shrink: 0;">KEV</span>` : ''}
+                    </div>
+                  ` : ''}
+                  <div style="font-size: 0.72rem; color: rgba(255,255,255,0.45);">
+                    ${rc.emailSentAt
+                      ? `Emailed to ${rc.emailRecipientCount || 1} recipient${rc.emailRecipientCount !== 1 ? 's' : ''}${rc.whatsAppSentAt ? ' · WhatsApp sent' : ''}`
+                      : 'Report not yet sent today'
+                    }
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Top urgent action -->
+              ${urgentAction ? html`
+                <div style="
+                  background: rgba(255,255,255,0.06);
+                  border: 1px solid rgba(255,255,255,0.1);
+                  border-radius: 8px;
+                  padding: 8px 12px;
+                  display: flex;
+                  align-items: flex-start;
+                  gap: 8px;
+                ">
+                  <span style="
+                    flex-shrink: 0; margin-top: 1px;
+                    font-size: 0.62rem; font-weight: 700;
+                    color: #d97706; background: rgba(217,119,6,0.12);
+                    border: 1px solid rgba(217,119,6,0.25);
+                    padding: 1px 6px; border-radius: 4px;
+                    text-transform: uppercase; letter-spacing: 0.04em;
+                  ">${urgentAction.urgency || 'action'}</span>
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 0.82rem; font-weight: 500; color: rgba(255,255,255,0.82);">${urgentAction.title}</div>
+                    ${urgentAction.description ? html`<div style="font-size: 0.74rem; color: rgba(255,255,255,0.45); margin-top: 2px;">${urgentAction.description}</div>` : ''}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Footer links -->
+              <div style="display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;">
+                <a href="#!/security" style="font-size: 0.76rem; font-weight: 600; color: ${gradeColor}; text-decoration: none;">Full Security Report →</a>
+                <a href="#!/analyst" style="font-size: 0.76rem; color: rgba(255,255,255,0.45); text-decoration: none;">Ask MAGI →</a>
+              </div>
+
             </div>
+
+            <!-- Bottom fade gradient -->
+            <div style="height: 4px; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.15)); border-radius: 0 0 16px 16px;"></div>
           </div>
+        </div>
+
         </div>
       </div>
     `;
@@ -1139,10 +1208,10 @@ export default class UnifiedDashboard extends Component {
     }
 
     return html`
-      <div>
+      <div style="min-height: 100vh;">
+        ${this.renderSecurityOfficerDrawer()}
         ${this.renderRefreshBanner()}
         ${this.renderSearchHeader()}
-        ${this.renderSecurityOfficerDrawer()}
         <${PersonaNav} activePersona=${this.state.activePersona} onPersonaChange=${this.handlePersonaChange} />
         ${this.renderPersonaSheet()}
       </div>
