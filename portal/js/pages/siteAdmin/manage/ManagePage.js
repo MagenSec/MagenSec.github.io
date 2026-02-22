@@ -41,10 +41,13 @@ export class ManagePage extends Component {
     constructor(props) {
         super(props);
         this.state = {
-            activeTab: 'organizations', // 'organizations', 'accounts', 'admin-actions'
+            activeTab: 'organizations', // 'organizations', 'accounts', 'admin-actions', 'platform-settings'
             loading: true,
             orgs: [],
-            accounts: []
+            accounts: [],
+            platformSettings: { whatsappDailyEnabled: false },
+            platformLoading: false,
+            platformSaving: false
         };
     }
 
@@ -268,8 +271,41 @@ export class ManagePage extends Component {
         }
     }
 
+    loadPlatformSettings = async () => {
+        this.setState({ platformLoading: true });
+        try {
+            const res = await window.api.get('/api/v1/admin/platform/settings');
+            if (res?.data) {
+                this.setState({ platformSettings: res.data });
+            }
+        } catch (err) {
+            console.error('[ManagePage] Failed to load platform settings', err);
+        } finally {
+            this.setState({ platformLoading: false });
+        }
+    }
+
+    savePlatformSetting = async (key, value) => {
+        this.setState({ platformSaving: true });
+        try {
+            await window.api.request('/api/v1/admin/platform/settings', {
+                method: 'PUT',
+                body: JSON.stringify({ [key]: value })
+            });
+            this.setState(prev => ({
+                platformSettings: { ...prev.platformSettings, [key]: value }
+            }));
+        } catch (err) {
+            console.error('[ManagePage] Failed to save platform setting', err);
+            // Revert UI on failure
+            await this.loadPlatformSettings();
+        } finally {
+            this.setState({ platformSaving: false });
+        }
+    }
+
     render() {
-        const { activeTab, loading, orgs, accounts } = this.state;
+        const { activeTab, loading, orgs, accounts, platformSettings, platformLoading, platformSaving } = this.state;
 
         return html`
             <div class="container-xl">
@@ -309,13 +345,23 @@ export class ManagePage extends Component {
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a 
-                            class="nav-link ${activeTab === 'admin-actions' ? 'active' : ''}" 
-                            href="#" 
+                        <a
+                            class="nav-link ${activeTab === 'admin-actions' ? 'active' : ''}"
+                            href="#"
                             onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'admin-actions' }); }}
                         >
                             <i class="ti ti-bolt me-2"></i>
                             Admin Actions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a
+                            class="nav-link ${activeTab === 'platform-settings' ? 'active' : ''}"
+                            href="#"
+                            onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'platform-settings' }); this.loadPlatformSettings(); }}
+                        >
+                            <i class="ti ti-settings me-2"></i>
+                            Platform Settings
                         </a>
                     </li>
                 </ul>
@@ -337,7 +383,7 @@ export class ManagePage extends Component {
                         onRefresh=${() => this.loadData()}
                         onChangeUserType=${this.changeUserType}
                     />`}
-                    ${activeTab === 'admin-actions' && html`<${AdminActionsTab} 
+                    ${activeTab === 'admin-actions' && html`<${AdminActionsTab}
                         orgs=${orgs}
                         onTriggerCron=${this.handleTriggerCron}
                         onResetRemediation=${this.handleResetRemediation}
@@ -345,6 +391,48 @@ export class ManagePage extends Component {
                         setActiveTab=${(tab) => this.setState({ activeTab: tab })}
                         loadCronStatus=${() => {}}
                     />`}
+                    ${activeTab === 'platform-settings' && html`
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Platform-wide Settings</h3>
+                            </div>
+                            <div class="card-body">
+                                ${platformLoading ? html`<div class="text-muted">Loading settings...</div>` : html`
+                                    <div class="mb-4">
+                                        <h4 class="mb-2">WhatsApp Notifications</h4>
+                                        <div class="form-check form-switch d-flex align-items-start gap-2">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                id="whatsappDailyEnabled"
+                                                checked=${platformSettings.whatsappDailyEnabled}
+                                                disabled=${platformSaving}
+                                                onChange=${(e) => this.savePlatformSetting('whatsAppDailyEnabled', e.target.checked)}
+                                            />
+                                            <div>
+                                                <label class="form-check-label fw-bold" for="whatsappDailyEnabled">
+                                                    Daily WhatsApp Push Notifications
+                                                </label>
+                                                <div class="text-muted small mt-1">
+                                                    When enabled, sends a daily security brief via WhatsApp to each organisation's configured number.
+                                                    Requires the recipient to have messaged the MAGI number within the past 24 hours (Meta service window).
+                                                    Uses the Utility Conversation category. <strong>Disabled by default.</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4 pt-3 border-top">
+                                        <h4 class="mb-2">WhatsApp AI Chat</h4>
+                                        <div class="text-muted small">
+                                            AI Chat via WhatsApp is always active when the webhook is configured.
+                                            Users initiate conversations via <a href="https://wa.me/message/67GDBBIFLTSGG1" target="_blank" rel="noopener">wa.me/message/67GDBBIFLTSGG1</a>
+                                            and chat with Officer MAGI. This is free for user-initiated conversations (no template required).
+                                        </div>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `}
                 </div>
             </div>
         `;
