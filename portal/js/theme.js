@@ -37,6 +37,8 @@ class ThemeManager {
     applyTheme(theme) {
         // Use Tabler's built-in theme system
         document.documentElement.setAttribute('data-bs-theme', theme);
+        // Also set data-theme for custom CSS selectors in portal.css / ai-pages.css
+        document.documentElement.setAttribute('data-theme', theme);
         console.log('[Theme] Applied theme:', theme);
     }
 

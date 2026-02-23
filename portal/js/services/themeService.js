@@ -11,7 +11,8 @@ class ThemeService {
     }
 
     getStoredTheme() {
-        return localStorage.getItem('theme');
+        // Read from unified key first; fall back to legacy 'theme' key
+        return localStorage.getItem('magensec-theme') || localStorage.getItem('theme');
     }
 
     getPreferredTheme() {
@@ -23,7 +24,10 @@ class ThemeService {
 
     setTheme(theme) {
         this.currentTheme = theme;
-        localStorage.setItem('theme', theme);
+        // Use unified key (same as theme.js ThemeManager)
+        localStorage.setItem('magensec-theme', theme);
+        // Set both attributes: data-bs-theme for Tabler components, data-theme for custom CSS
+        document.documentElement.setAttribute('data-bs-theme', theme);
         document.documentElement.setAttribute('data-theme', theme);
         
         // Update theme color meta tag

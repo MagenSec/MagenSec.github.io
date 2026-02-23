@@ -354,7 +354,7 @@ export default class UnifiedDashboard extends Component {
         right: 50%;
         margin-left: -50vw;
         margin-right: -50vw;
-        background: linear-gradient(160deg, #d8dbe2 0%, #e4e7ed 30%, #dde0e6 60%, #d2d5dc 100%);
+        background: var(--tblr-body-bg, #f4f6fa);
         padding: 40px 16px 44px;
         overflow: hidden;
       ">
@@ -468,7 +468,7 @@ export default class UnifiedDashboard extends Component {
                   </div>
                 </div>
                 <div style="color: rgba(0,0,0,0.4); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
-                <div class="chat-markdown-content" style="color: #334155; font-size: 0.875rem; max-height: 280px; overflow-y: auto;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
+                <div class="chat-markdown-content" style="color: #334155; font-size: 0.875rem;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
               </div>
             ` : ''}
 
@@ -914,7 +914,6 @@ export default class UnifiedDashboard extends Component {
     if (secScore >= 80 && critical === 0 && high === 0) return null;
 
     const urgentAction = actions.find(a => a.urgency === 'critical' || a.urgency === 'urgent') || actions[0];
-    const rc = data.reportCard || null;
 
     const isGreenGrade = ['A+','A','A-','B+','B','B-'].includes(grade);
     const isAmberGrade = ['C+','C','C-'].includes(grade);
@@ -923,9 +922,27 @@ export default class UnifiedDashboard extends Component {
     const bgColor = isGreenGrade ? 'rgba(22,163,74,0.08)' : isAmberGrade ? 'rgba(217,119,6,0.08)' : 'rgba(239,68,68,0.06)';
 
     let situationText = '';
-    if (critical > 0) situationText = `${critical} critical CVE${critical !== 1 ? 's' : ''} require immediate attention.`;
-    else if (high > 0) situationText = `${high} high-severity CVE${high !== 1 ? 's' : ''} detected across your fleet.`;
-    else situationText = `Security posture is below target threshold.`;
+    if (critical > 0 && high > 0) {
+      situationText = `${critical} critical · ${high} high vulnerabilities require immediate remediation.`;
+    } else if (critical > 0) {
+      situationText = `${critical} critical CVE${critical !== 1 ? 's' : ''} require immediate attention.`;
+    } else if (high > 0) {
+      situationText = `${high} high-severity CVE${high !== 1 ? 's' : ''} detected across your fleet.`;
+    } else {
+      situationText = `Security posture is below target threshold.`;
+    }
+
+    // Styled version with severity color dots for display only
+    const situationNode = (critical > 0 && high > 0)
+      ? html`<span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> · <span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high</strong> vulnerabilities require immediate remediation.`
+      : (critical > 0)
+      ? html`<span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> CVE${critical !== 1 ? 's' : ''} require immediate attention.`
+      : (high > 0)
+      ? html`<span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high-severity</strong> CVE${high !== 1 ? 's' : ''} detected across your fleet.`
+      : html`Security posture is below target threshold.`;
+
+    const freshness = this.getFreshnessInfo();
+    const updatedText = freshness ? freshness.ageText : 'No scans yet';
 
     const glowAnim = isGreenGrade ? 'gradeGlowGreen' : isAmberGrade ? 'gradeGlowAmber' : 'gradeGlowRed';
 
@@ -949,10 +966,26 @@ export default class UnifiedDashboard extends Component {
         }
       </style>
 
-      <div style="
-        animation: officerSlideIn 0.45s ease-out both;
-      ">
-        <div style="max-width: 960px; margin: 0 auto; padding: 12px 16px 0;">
+      <div>
+
+        <!-- Scrim backdrop -->
+        <div
+          onClick=${() => this.setState({ officerNoteOpen: false })}
+          style="
+            position: fixed;
+            inset: 0;
+            z-index: 180;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            transition: opacity 0.3s ease;
+            opacity: ${officerNoteOpen ? '1' : '0'};
+            pointer-events: ${officerNoteOpen ? 'all' : 'none'};
+          "
+        ></div>
+
+        <!-- In-flow relative wrapper -->
+        <div style="position: relative; z-index: 200; max-width: 640px; margin: 0 auto;">
 
         <!-- Dark glassmorphism collapsed tab -->
         <div
@@ -1012,11 +1045,13 @@ export default class UnifiedDashboard extends Component {
           >✕</button>
         </div>
 
-        <!-- Slide-down dark body -->
+        <!-- Expanded body: absolute overlay below tab -->
         <div style="
+          position: absolute; top: 100%; left: 0; right: 0;
           max-height: ${officerNoteOpen ? '560px' : '0'};
           overflow: hidden;
           transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 200;
         ">
           <div style="
             background: linear-gradient(180deg, rgba(15,15,25,0.97), rgba(20,18,30,0.97));
@@ -1031,132 +1066,71 @@ export default class UnifiedDashboard extends Component {
             <!-- Grade-colored glow line -->
             <div style="height: 1px; background: linear-gradient(90deg, transparent, ${gradeColor}55, transparent);"></div>
 
-            <div style="padding: 20px 20px 16px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="padding: 0;">
 
-              <!-- Large centered grade box -->
-              <div style="display: flex; justify-content: center;">
+              <!-- Grade box — centered -->
+              <div style="display: flex; justify-content: center; padding: 16px 16px 10px;">
                 <div style="
-                  width: 100px; height: 100px;
-                  border-radius: 16px;
-                  display: flex; flex-direction: column;
-                  align-items: center; justify-content: center;
-                  background: ${gradeColor}14;
-                  border: 1px solid ${gradeColor}40;
+                  width: 80px; height: 80px; border-radius: 14px; flex-shrink: 0;
+                  display: flex; flex-direction: column; align-items: center; justify-content: center;
+                  background: ${gradeColor}14; border: 1px solid ${gradeColor}40;
                   animation: ${glowAnim} 3s ease-in-out infinite;
-                  position: relative;
-                  overflow: hidden;
+                  position: relative; overflow: hidden;
                 ">
-                  <!-- Radial overlay for depth -->
                   <div style="position: absolute; inset: 0; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.06) 0%, transparent 60%); pointer-events: none;"></div>
-                  <span style="font-size: 2.8rem; font-weight: 900; color: ${gradeColor}; line-height: 1; position: relative;">${grade}</span>
-                  <span style="font-size: 0.65rem; font-weight: 600; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; position: relative;">Grade</span>
+                  <span style="font-size: 2.2rem; font-weight: 900; color: ${gradeColor}; line-height: 1; position: relative;">${grade}</span>
+                  <span style="font-size: 0.58rem; font-weight: 600; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; position: relative;">Grade</span>
                 </div>
               </div>
 
-              <!-- Situation summary -->
-              <div style="font-size: 0.84rem; color: rgba(255,255,255,0.82); text-align: center;">
-                ${situationText}
-                ${critical > 0 || high > 0 ? html`
-                  <span style="margin-left: 6px;">
-                    <a href="#!/security" style="color: ${gradeColor}; font-weight: 600; text-decoration: none; font-size: 0.8rem;">View threat details →</a>
-                  </span>
-                ` : ''}
-              </div>
-
-              <!-- Threat counts row -->
-              <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
-                ${critical > 0 ? html`
-                  <div style="display: flex; align-items: center; gap: 5px;">
-                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #dc2626; display: inline-block;"></span>
-                    <span style="font-size: 0.78rem; color: rgba(255,255,255,0.55);">${critical} critical</span>
-                  </div>
-                ` : ''}
-                ${high > 0 ? html`
-                  <div style="display: flex; align-items: center; gap: 5px;">
-                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #d97706; display: inline-block;"></span>
-                    <span style="font-size: 0.78rem; color: rgba(255,255,255,0.55);">${high} high severity</span>
-                  </div>
-                ` : ''}
-                <div style="display: flex; align-items: center; gap: 5px;">
-                  <span style="font-size: 0.78rem; font-weight: 600; color: ${gradeColor};">Score ${secScore}/100</span>
+              <!-- Situation text — centered -->
+              <div style="text-align: center; padding: 0 16px 6px;">
+                <div style="font-size: 0.88rem; font-weight: 600; color: rgba(255,255,255,0.88); line-height: 1.4; margin-bottom: 6px;">
+                  ${situationNode}
+                </div>
+                <div style="font-size: 0.72rem; color: rgba(255,255,255,0.35);">
+                  · Score ${secScore}/100 · Updated ${updatedText}
                 </div>
               </div>
 
-              <!-- Report card (from last generated daily report) -->
-              ${rc ? html`
-                <div style="
-                  background: rgba(255,255,255,0.06);
-                  border: 1px solid rgba(255,255,255,0.1);
-                  border-radius: 8px;
-                  padding: 10px 12px;
-                ">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="
-                        font-size: 0.72rem; font-weight: 700;
-                        color: ${gradeColor};
-                        background: ${gradeColor}18;
-                        border: 1px solid ${gradeColor}33;
-                        padding: 2px 8px; border-radius: 4px;
-                      ">${rc.grade || grade}</span>
-                      <span style="font-size: 0.74rem; font-weight: 600; color: rgba(255,255,255,0.82);">Daily Report</span>
-                      ${rc.generatedAt ? html`<span style="font-size: 0.69rem; color: rgba(255,255,255,0.4);">${(() => { const ageMs = Date.now() - new Date(rc.generatedAt).getTime(); const h = Math.floor(ageMs / 3600000); const m = Math.floor((ageMs % 3600000) / 60000); return h >= 1 ? h + 'h ago' : m + 'm ago'; })()}</span>` : ''}
-                    </div>
-                    <a href="#!/security" style="font-size: 0.72rem; color: ${gradeColor}; font-weight: 600; text-decoration: none;">View Report →</a>
-                  </div>
-                  ${(rc.criticalCount > 0 || rc.highCount > 0) ? html`
-                    <div style="font-size: 0.75rem; margin-bottom: 5px;">
-                      ${rc.criticalCount > 0 ? html`<span style="color: #dc2626; font-weight: 600;">${rc.criticalCount} critical</span>` : ''}
-                      ${rc.criticalCount > 0 && rc.highCount > 0 ? html`<span style="color: rgba(255,255,255,0.3);"> · </span>` : ''}
-                      ${rc.highCount > 0 ? html`<span style="color: #d97706;">${rc.highCount} high</span>` : ''}
-                    </div>
-                  ` : ''}
-                  ${rc.topActionText ? html`
-                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.82); font-weight: 500; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
-                      <span style="color: rgba(255,255,255,0.45); font-size: 0.72rem; flex-shrink: 0;">Priority:</span>
-                      <span>${rc.topActionText}</span>
-                      ${rc.isKev ? html`<span style="font-size: 0.62rem; color: #ea580c; font-weight: 700; background: rgba(234,88,12,0.12); border: 1px solid rgba(234,88,12,0.25); padding: 1px 5px; border-radius: 3px; flex-shrink: 0;">KEV</span>` : ''}
-                    </div>
-                  ` : ''}
-                  <div style="font-size: 0.72rem; color: rgba(255,255,255,0.45);">
-                    ${rc.emailSentAt
-                      ? `Emailed to ${rc.emailRecipientCount || 1} recipient${rc.emailRecipientCount !== 1 ? 's' : ''}${rc.whatsAppSentAt ? ' · WhatsApp sent' : ''}`
-                      : 'Report not yet sent today'
-                    }
-                  </div>
-                </div>
-              ` : ''}
-
-              <!-- Top urgent action -->
+              <!-- Urgent action card (full width) -->
               ${urgentAction ? html`
-                <div style="
-                  background: rgba(255,255,255,0.06);
-                  border: 1px solid rgba(255,255,255,0.1);
-                  border-radius: 8px;
-                  padding: 8px 12px;
-                  display: flex;
-                  align-items: flex-start;
-                  gap: 8px;
-                ">
-                  <span style="
-                    flex-shrink: 0; margin-top: 1px;
-                    font-size: 0.62rem; font-weight: 700;
-                    color: #d97706; background: rgba(217,119,6,0.12);
-                    border: 1px solid rgba(217,119,6,0.25);
-                    padding: 1px 6px; border-radius: 4px;
-                    text-transform: uppercase; letter-spacing: 0.04em;
-                  ">${urgentAction.urgency || 'action'}</span>
-                  <div style="flex: 1; min-width: 0;">
-                    <div style="font-size: 0.82rem; font-weight: 500; color: rgba(255,255,255,0.82);">${urgentAction.title}</div>
-                    ${urgentAction.description ? html`<div style="font-size: 0.74rem; color: rgba(255,255,255,0.45); margin-top: 2px;">${urgentAction.description}</div>` : ''}
+                <div style="margin: 10px 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px 12px; text-align: center;">
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap;">
+                    <span style="
+                      flex-shrink: 0;
+                      font-size: 0.62rem; font-weight: 700;
+                      color: #d97706; background: rgba(217,119,6,0.12);
+                      border: 1px solid rgba(217,119,6,0.25);
+                      padding: 1px 6px; border-radius: 4px;
+                      text-transform: uppercase; letter-spacing: 0.04em;
+                    ">${urgentAction.urgency || 'action'}</span>
+                    <div style="font-size: 0.83rem; font-weight: 600; color: rgba(255,255,255,0.88);">${urgentAction.title}</div>
                   </div>
+                  ${urgentAction.description ? html`<div style="font-size: 0.75rem; color: rgba(255,255,255,0.5);">${urgentAction.description}</div>` : ''}
+                  ${urgentAction.deadlineText ? html`<div style="font-size: 0.72rem; color: rgba(255,255,255,0.4); margin-top: 2px;">${urgentAction.deadlineText}</div>` : ''}
                 </div>
               ` : ''}
 
-              <!-- Footer links -->
-              <div style="display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;">
+              <!-- Footer links — centered -->
+              <div style="display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 8px 16px 14px;">
                 <a href="#!/security" style="font-size: 0.76rem; font-weight: 600; color: ${gradeColor}; text-decoration: none;">Full Security Report →</a>
-                <a href="#!/analyst" style="font-size: 0.76rem; color: rgba(255,255,255,0.45); text-decoration: none;">Ask MAGI →</a>
+                <button
+                  onClick=${() => {
+                    const postureSummary = 'Security grade: ' + grade + ' (score ' + secScore + '/100). ' + situationText + ' Please explain our current security posture in brief and provide up to 5 prioritized action items to improve it.';
+                    try { sessionStorage.setItem('ai_analyst_prefill_prompt', postureSummary); } catch (_) {}
+                    this.setState({ officerNoteOpen: false });
+                    window.location.hash = '#!/analyst';
+                  }}
+                  style="
+                    font-size: 0.76rem; font-weight: 700; color: #fff;
+                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                    border: none; border-radius: 20px;
+                    padding: 5px 16px; cursor: pointer;
+                    box-shadow: 0 0 12px rgba(99,102,241,0.3);
+                    transition: box-shadow 0.2s, transform 0.15s;
+                  "
+                >Ask MAGI →</button>
               </div>
 
             </div>

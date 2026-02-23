@@ -46,7 +46,7 @@
 }
 
 /* Dark Mode Variables */
-[data-theme="dark"] {
+[data-bs-theme="dark"] {
   /* Severity colors remain consistent */
   --tblr-red: #ef4444;
   --tblr-orange: #f97316;
@@ -77,48 +77,48 @@
 }
 
 /* Apply dark mode to body */
-[data-theme="dark"] body {
+[data-bs-theme="dark"] body {
   background-color: var(--body-bg);
   color: var(--body-color);
 }
 
-[data-theme="dark"] .card {
+[data-bs-theme="dark"] .card {
   background-color: var(--card-bg);
   border-color: var(--border-color);
 }
 
-[data-theme="dark"] .table {
+[data-bs-theme="dark"] .table {
   color: var(--body-color);
 }
 
-[data-theme="dark"] .table thead th {
+[data-bs-theme="dark"] .table thead th {
   border-color: var(--border-color);
   background-color: rgba(255, 255, 255, 0.02);
 }
 
-[data-theme="dark"] .table tbody tr {
+[data-bs-theme="dark"] .table tbody tr {
   border-color: var(--border-color);
 }
 
-[data-theme="dark"] .modal-content {
+[data-bs-theme="dark"] .modal-content {
   background-color: var(--card-bg);
   border-color: var(--border-color);
 }
 
-[data-theme="dark"] .dropdown-menu {
+[data-bs-theme="dark"] .dropdown-menu {
   background-color: var(--card-bg);
   border-color: var(--border-color);
 }
 
-[data-theme="dark"] .dropdown-item {
+[data-bs-theme="dark"] .dropdown-item {
   color: var(--body-color);
 }
 
-[data-theme="dark"] .dropdown-item:hover {
+[data-bs-theme="dark"] .dropdown-item:hover {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
-[data-theme="dark"] .text-muted {
+[data-bs-theme="dark"] .text-muted {
   color: var(--tblr-muted) !important;
 }
 
@@ -751,7 +751,7 @@
    Dark Mode Support (Future)
    ======================================== */
 
-[data-theme="dark"] {
+[data-bs-theme="dark"] {
   --tblr-primary: #4299e1;
   --tblr-secondary: #cbd5e0;
   --tblr-success: #48bb78;
@@ -920,7 +920,7 @@
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
 }
 
-[data-theme="dark"] .persona-nav-sticky {
+[data-bs-theme="dark"] .persona-nav-sticky {
   background: rgba(30, 41, 59, 0.95);
 }
 
@@ -1090,8 +1090,105 @@ body, .antialiased {
 }
 
 /* ========================================
-   Security Officer's Note — Slide-down animation
+   Dark Mode Overrides for Tabler Framework
+   Counters the "Professional Clean Theme" light !important rules above.
+   Must come AFTER those rules so !important specificity wins on same selectors.
    ======================================== */
+
+[data-bs-theme="dark"] body,
+[data-bs-theme="dark"] .antialiased {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+}
+
+/* Cards */
+[data-bs-theme="dark"] .card {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35) !important;
+}
+[data-bs-theme="dark"] .card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+}
+
+/* Top navbar */
+[data-bs-theme="dark"] .navbar:not(.navbar-vertical) {
+  background-color: #1e293b !important;
+  border-bottom-color: #334155 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+}
+
+/* Sidebar */
+[data-bs-theme="dark"] .navbar-vertical,
+[data-bs-theme="dark"] .navbar-vertical.navbar-dark {
+  background-color: #1e293b !important;
+  border-right-color: #334155 !important;
+  box-shadow: none !important;
+}
+
+/* Sidebar nav links */
+[data-bs-theme="dark"] .navbar-vertical .navbar-nav .nav-link,
+[data-bs-theme="dark"] .navbar-vertical .navbar-nav .nav-link .icon {
+  color: #94a3b8 !important;
+}
+[data-bs-theme="dark"] .navbar-vertical .navbar-nav .nav-link:hover {
+  background-color: rgba(99,102,241,0.12) !important;
+  color: #a5b4fc !important;
+}
+[data-bs-theme="dark"] .navbar-vertical .navbar-nav .nav-link:hover .icon {
+  color: #a5b4fc !important;
+}
+[data-bs-theme="dark"] .navbar-vertical .navbar-nav .nav-link.active,
+[data-bs-theme="dark"] .navbar-vertical .navbar-nav .nav-item.active > .nav-link {
+  background-color: rgba(99,102,241,0.18) !important;
+  color: #a5b4fc !important;
+  font-weight: 600 !important;
+}
+[data-bs-theme="dark"] .navbar-vertical .navbar-nav .nav-link.active .icon,
+[data-bs-theme="dark"] .navbar-vertical .navbar-nav .nav-item.active > .nav-link .icon {
+  color: #a5b4fc !important;
+}
+
+/* Sidebar brand */
+[data-bs-theme="dark"] .navbar-brand-text,
+[data-bs-theme="dark"] .navbar-vertical .navbar-brand {
+  color: #a5b4fc !important;
+}
+
+/* Primary buttons */
+[data-bs-theme="dark"] .btn-primary {
+  background-color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+}
+[data-bs-theme="dark"] .btn-primary:hover:not(:disabled) {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59,130,246,0.35) !important;
+}
+
+/* Card header light bg */
+[data-bs-theme="dark"] .card-header.bg-light {
+  background: rgba(255,255,255,0.04) !important;
+  border-bottom-color: #334155 !important;
+}
+
+/* Table stripes and hover */
+[data-bs-theme="dark"] .table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255,255,255,0.03);
+}
+[data-bs-theme="dark"] .table-hover tbody tr:hover {
+  background-color: rgba(255,255,255,0.05);
+}
+
+/* Bulk actions bar */
+[data-bs-theme="dark"] .bulk-actions-bar {
+  background: rgba(99,102,241,0.12);
+  border-bottom-color: #6366f1;
+}
+
+/* Page center (login) stays light — intentionally excluded from dark overrides */
+
 
 @keyframes slideDownFadeIn {
   from {
