@@ -367,9 +367,9 @@ export default class UnifiedDashboard extends Component {
           <!-- Title -->
           <div style="text-align: center; margin-bottom: 28px;">
             <h1 style="font-size: 2.6rem; font-weight: 800; letter-spacing: -1.5px; margin: 0 0 6px; line-height: 1.1;">
-              <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Magen</span><span style="color: #1e293b;">Sec</span>
+              <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Magen</span><span style="color: var(--db-hero-title-color);">Sec</span>
             </h1>
-            <div style="color: rgba(0,0,0,0.4); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500;">Security Intelligence Platform</div>
+            <div style="color: var(--db-faint-text); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500;">Security Intelligence Platform</div>
           </div>
 
           <!-- Glassmorphism KR Tiles -->
@@ -381,16 +381,16 @@ export default class UnifiedDashboard extends Component {
               <div style="
                 display: flex;
                 align-items: center;
-                background: rgba(255,255,255,0.6);
+                background: var(--db-glass-bg);
                 backdrop-filter: blur(16px) saturate(180%);
                 -webkit-backdrop-filter: blur(16px) saturate(180%);
-                border: 1px solid rgba(0,0,0,0.1);
+                border: 1px solid var(--db-glass-border);
                 border-radius: 50px;
                 overflow: hidden;
                 transition: border-color 0.2s;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);
               ">
-                <span style="display: flex; align-items: center; padding: 0 10px 0 20px; color: rgba(0,0,0,0.3); flex-shrink: 0;">
+                <span style="display: flex; align-items: center; padding: 0 10px 0 20px; color: var(--db-faintest-text); flex-shrink: 0;">
                   ${aiLoading
                     ? html`<span class="spinner-border spinner-border-sm" style="color: #6366f1; width: 16px; height: 16px; border-width: 2px;" role="status"></span>`
                     : html`<svg width="17" height="17" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>`}
@@ -406,7 +406,7 @@ export default class UnifiedDashboard extends Component {
                     background: none;
                     border: none;
                     outline: none;
-                    color: #1e293b;
+                    color: var(--db-input-color);
                     font-size: 0.9rem;
                     padding: 13px 8px;
                     min-width: 0;
@@ -439,10 +439,10 @@ export default class UnifiedDashboard extends Component {
             ${aiAnswer ? html`
               <div style="
                 margin-top: 14px;
-                background: rgba(255,255,255,0.7);
+                background: var(--db-answer-bg);
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
-                border: 1px solid rgba(0,0,0,0.08);
+                border: 1px solid var(--db-card-border);
                 border-left: 3px solid #818cf8;
                 border-radius: 14px;
                 padding: 14px 16px;
@@ -462,13 +462,13 @@ export default class UnifiedDashboard extends Component {
                         try { sessionStorage.setItem('ai_analyst_prefill', JSON.stringify({ question: aiAnswer.question, answer: aiAnswer.answer })); } catch (_) {}
                         window.location.hash = '#!/analyst';
                       }}
-                      style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: #475569; font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; cursor: pointer;"
+                      style="background: var(--db-subtle-bg); border: 1px solid var(--db-subtle-border); color: var(--db-subtle-text); font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; cursor: pointer;"
                     >Continue →</button>
-                    <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: rgba(0,0,0,0.25); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">✕</button>
+                    <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: var(--db-faintest-text); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">✕</button>
                   </div>
                 </div>
-                <div style="color: rgba(0,0,0,0.4); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
-                <div class="chat-markdown-content" style="color: #334155; font-size: 0.875rem;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
+                <div style="color: var(--db-faint-text); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
+                <div class="chat-markdown-content" style="color: var(--db-answer-text); font-size: 0.875rem;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
               </div>
             ` : ''}
 
@@ -483,14 +483,14 @@ export default class UnifiedDashboard extends Component {
           <!-- Quick nav + freshness -->
           <div style="text-align: center;">
             <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;">
-              <a href="#!/security" style="font-size: 0.72rem; color: rgba(0,0,0,0.45); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.5); border-radius: 20px; border: 1px solid rgba(0,0,0,0.08);">Security</a>
-              <a href="#!/compliance" style="font-size: 0.72rem; color: rgba(0,0,0,0.45); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.5); border-radius: 20px; border: 1px solid rgba(0,0,0,0.08);">Compliance</a>
-              <a href="#!/reports" style="font-size: 0.72rem; color: rgba(0,0,0,0.45); text-decoration: none; padding: 3px 10px; background: rgba(255,255,255,0.5); border-radius: 20px; border: 1px solid rgba(0,0,0,0.08);">Reports</a>
-              <button onClick=${() => this.refreshDashboard()} style="font-size: 0.72rem; color: rgba(0,0,0,0.45); background: rgba(255,255,255,0.5); border: 1px solid rgba(0,0,0,0.08); border-radius: 20px; padding: 3px 10px; cursor: pointer;">
+              <a href="#!/security" style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);">Security</a>
+              <a href="#!/compliance" style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);">Compliance</a>
+              <a href="#!/reports" style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);">Reports</a>
+              <button onClick=${() => this.refreshDashboard()} style="font-size: 0.72rem; color: var(--db-muted-text); background: var(--db-pill-bg); border: 1px solid var(--db-pill-border); border-radius: 20px; padding: 3px 10px; cursor: pointer;">
                 ${refreshing ? 'Refreshing…' : '↻ Refresh'}
               </button>
               ${freshness ? html`
-                <span style="font-size: 0.68rem; color: rgba(0,0,0,0.3);">
+                <span style="font-size: 0.68rem; color: var(--db-faintest-text);">
                   · ${freshness.ageText}${freshness.isStale ? ' (stale)' : ''}
                 </span>
               ` : ''}
@@ -523,10 +523,10 @@ export default class UnifiedDashboard extends Component {
     const threatHex  = criticalCount === 0 ? '#16a34a' : criticalCount <= 3 ? '#d97706' : '#dc2626';
     const fleetHex   = offlineDevices === 0 ? '#2563eb' : offlineDevices <= 2 ? '#d97706' : '#dc2626';
 
-    const glass = 'height:100%;background:rgba(255,255,255,0.55);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(0,0,0,0.07);border-radius:14px;padding:16px 14px;cursor:pointer;transition:background 0.2s,border-color 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.05);';
-    const label = 'color:rgba(0,0,0,0.45);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.09em;font-weight:600;margin-bottom:6px;';
+    const glass = 'height:100%;background:var(--db-tile-bg);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--db-tile-border);border-radius:14px;padding:16px 14px;cursor:pointer;transition:background 0.2s,border-color 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+    const label = 'color:var(--db-muted-text);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.09em;font-weight:600;margin-bottom:6px;';
     const bigNum = (color) => `font-size:2rem;font-weight:800;color:${color};line-height:1;margin-bottom:4px;`;
-    const sub = 'font-size:0.72rem;color:rgba(0,0,0,0.4);';
+    const sub = 'font-size:0.72rem;color:var(--db-faint-text);';
 
     return html`
       <div class="row g-2 mb-5">
@@ -536,7 +536,7 @@ export default class UnifiedDashboard extends Component {
             <div style="${label}">Security</div>
             <div style="display:flex;align-items:baseline;gap:8px;${bigNum(scoreHex)}">
               <span>${secScore}</span>
-              <span style="font-size:0.78rem;font-weight:700;color:${scoreHex};background:rgba(0,0,0,0.05);padding:2px 7px;border-radius:6px;">${score.grade || '—'}</span>
+              <span style="font-size:0.78rem;font-weight:700;color:${scoreHex};background:var(--db-badge-bg);padding:2px 7px;border-radius:6px;">${score.grade || '—'}</span>
             </div>
             <div style="${sub}${score.urgentActionCount > 0 ? 'color:#dc2626;' : ''}">
               ${score.urgentActionCount > 0 ? `⚠  ${score.urgentActionCount} urgent` : '✓ No alerts'}
@@ -548,7 +548,7 @@ export default class UnifiedDashboard extends Component {
           <div style="${glass}" onClick=${() => window.location.hash = '#!/compliance'}>
             <div style="${label}">Compliance</div>
             <div style="${bigNum(compHex)}">${compliancePercent}%</div>
-            <div style="background:rgba(0,0,0,0.08);border-radius:3px;height:3px;overflow:hidden;margin-bottom:5px;">
+            <div style="background:var(--db-bar-track);border-radius:3px;height:3px;overflow:hidden;margin-bottom:5px;">
               <div style="width:${compliancePercent}%;height:100%;background:${compHex};border-radius:3px;transition:width 0.9s ease;"></div>
             </div>
             <div style="${sub}">
@@ -562,7 +562,7 @@ export default class UnifiedDashboard extends Component {
             <div style="${label}">Threats</div>
             <div style="display:flex;align-items:baseline;gap:6px;${bigNum(threatHex)}">
               <span>${criticalCount}</span>
-              <span style="font-size:0.72rem;color:rgba(0,0,0,0.4);">critical</span>
+              <span style="font-size:0.72rem;color:var(--db-faint-text);">critical</span>
             </div>
             <div style="${sub}${threats.exploitCount > 0 ? 'color:#ea580c;' : ''}">
               ${threats.exploitCount > 0 ? `${threats.exploitCount} KEV exploits` : `${threats.highCveCount || 0} high severity`}
@@ -575,7 +575,7 @@ export default class UnifiedDashboard extends Component {
             <div style="${label}">Fleet</div>
             <div style="display:flex;align-items:baseline;gap:4px;${bigNum(fleetHex)}">
               <span>${activeDevices}</span>
-              <span style="font-size:0.82rem;color:rgba(0,0,0,0.35);">/ ${totalDevices}</span>
+              <span style="font-size:0.82rem;color:var(--db-slash-color);">/ ${totalDevices}</span>
             </div>
             <div style="${sub}${offlineDevices > 0 ? 'color:#d97706;' : ''}">
               ${offlineDevices > 0 ? `${offlineDevices} offline` : '✓ All healthy'}

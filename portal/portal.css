@@ -76,6 +76,70 @@
   --tblr-success-lt: rgba(16, 185, 129, 0.15);
 }
 
+/* ========================================
+   Dashboard Hero / Glassmorphism Variables
+   ======================================== */
+
+:root {
+  /* Search bar & AI answer card */
+  --db-glass-bg: rgba(255,255,255,0.6);
+  --db-glass-border: rgba(0,0,0,0.1);
+  --db-answer-bg: rgba(255,255,255,0.7);
+  --db-card-border: rgba(0,0,0,0.08);
+  /* KR metric tiles */
+  --db-tile-bg: rgba(255,255,255,0.55);
+  --db-tile-border: rgba(0,0,0,0.07);
+  /* Quick-nav pills */
+  --db-pill-bg: rgba(255,255,255,0.5);
+  --db-pill-border: rgba(0,0,0,0.08);
+  /* Text shades */
+  --db-hero-title-color: #1e293b;
+  --db-input-color: #1e293b;
+  --db-muted-text: rgba(0,0,0,0.45);
+  --db-faint-text: rgba(0,0,0,0.4);
+  --db-faintest-text: rgba(0,0,0,0.3);
+  --db-slash-color: rgba(0,0,0,0.35);
+  --db-answer-text: #334155;
+  /* Subtle interactive elements */
+  --db-subtle-bg: rgba(0,0,0,0.05);
+  --db-subtle-border: rgba(0,0,0,0.1);
+  --db-subtle-text: #475569;
+  /* Progress bar track */
+  --db-bar-track: rgba(0,0,0,0.08);
+  /* Grade badge bg */
+  --db-badge-bg: rgba(0,0,0,0.05);
+}
+
+[data-bs-theme="dark"] {
+  /* Search bar & AI answer card */
+  --db-glass-bg: rgba(255,255,255,0.05);
+  --db-glass-border: rgba(255,255,255,0.12);
+  --db-answer-bg: rgba(255,255,255,0.07);
+  --db-card-border: rgba(255,255,255,0.1);
+  /* KR metric tiles */
+  --db-tile-bg: rgba(255,255,255,0.07);
+  --db-tile-border: rgba(255,255,255,0.1);
+  /* Quick-nav pills */
+  --db-pill-bg: rgba(255,255,255,0.07);
+  --db-pill-border: rgba(255,255,255,0.1);
+  /* Text shades */
+  --db-hero-title-color: #e2e8f0;
+  --db-input-color: #e2e8f0;
+  --db-muted-text: rgba(255,255,255,0.55);
+  --db-faint-text: rgba(255,255,255,0.5);
+  --db-faintest-text: rgba(255,255,255,0.4);
+  --db-slash-color: rgba(255,255,255,0.4);
+  --db-answer-text: #cbd5e1;
+  /* Subtle interactive elements */
+  --db-subtle-bg: rgba(255,255,255,0.08);
+  --db-subtle-border: rgba(255,255,255,0.14);
+  --db-subtle-text: #94a3b8;
+  /* Progress bar track */
+  --db-bar-track: rgba(255,255,255,0.1);
+  /* Grade badge bg */
+  --db-badge-bg: rgba(255,255,255,0.08);
+}
+
 /* Apply dark mode to body */
 [data-bs-theme="dark"] body {
   background-color: var(--body-bg);
