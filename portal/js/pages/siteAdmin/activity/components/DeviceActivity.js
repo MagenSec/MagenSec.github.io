@@ -345,7 +345,7 @@ export function DeviceActivityPage() {
         
         const statusCode = parseInt(metadata.StatusCode || '0');
         const isSuccess = statusCode >= 200 && statusCode < 300;
-        const duration = parseInt(metadata.DurationMs || '0');
+        const duration = parseInt(metadata.DurationMs || metadata.elapsedMs || '0');
         const deviceId = extractDeviceId(evt.targetId);
         
         const timestamp = new Date(evt.timestamp);
@@ -362,7 +362,7 @@ export function DeviceActivityPage() {
 
         return html`
             <div class="card border-0 mb-2" data-event-id=${evt.eventId}>
-                <div class="card-body p-3" style="cursor: pointer; background: ${isExpanded ? '#f5f5f5' : 'white'};" 
+                <div class=${`card-body p-3 activity-row ${isExpanded ? 'activity-row-expanded' : ''}`}
                      onClick=${() => setExpandedEvent(isExpanded ? null : evt.eventId)}>
                     <div class="row align-items-center g-3">
                         <div class="col-auto">
@@ -381,7 +381,7 @@ export function DeviceActivityPage() {
                     </div>
                 </div>
                 ${isExpanded ? html`
-                    <div class="card-footer bg-light">
+                    <div class="card-footer activity-details-footer">
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <h6 class="mb-2">Request Details</h6>

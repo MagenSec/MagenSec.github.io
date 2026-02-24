@@ -14,6 +14,19 @@ const { useState, useEffect, useRef } = window.preactHooks;
 let apiChartInstance = null;
 let responseChartInstance = null;
 
+function getChartForeColor() {
+    try {
+        const theme = document.documentElement.getAttribute('data-bs-theme');
+        if (theme && theme.toLowerCase() === 'dark') return '#ffffff';
+
+        const styles = getComputedStyle(document.documentElement);
+        const bodyColor = styles.getPropertyValue('--tblr-body-color')?.trim();
+        return bodyColor || '#1f2937';
+    } catch {
+        return '#ffffff';
+    }
+}
+
 export function ApiAuditPage() {
     logger.debug('[API Audit] Component rendering...');
     
@@ -167,9 +180,14 @@ export function ApiAuditPage() {
     function applyFilters() {
         let filtered = [...events];
 
+        const getHttpMethod = (e) => {
+            const meta = parseMetadata(e.metadata);
+            return meta.HttpMethod || meta.httpMethod || e.subType || '';
+        };
+
         // Filter by HTTP method
         if (filters.httpMethod !== 'all') {
-            filtered = filtered.filter(e => e.subType === filters.httpMethod);
+            filtered = filtered.filter(e => getHttpMethod(e) === filters.httpMethod);
         }
 
         // Filter by user
@@ -235,8 +253,8 @@ export function ApiAuditPage() {
                         bVal = new Date(b.timestamp).getTime();
                         break;
                     case 'method':
-                        aVal = a.subType || '';
-                        bVal = b.subType || '';
+                        aVal = getHttpMethod(a);
+                        bVal = getHttpMethod(b);
                         break;
                     case 'status':
                         aVal = parseInt(parseMetadata(a.metadata).StatusCode || 0);
@@ -355,12 +373,14 @@ export function ApiAuditPage() {
             error: timeGroups[key].error
         }));
 
+        const foreColor = getChartForeColor();
         const options = {
             chart: {
                 type: 'bar',
                 height: 300,
                 stacked: true,
-                toolbar: { show: false }
+                toolbar: { show: false },
+                foreColor
             },
             series: [
                 {
@@ -376,10 +396,15 @@ export function ApiAuditPage() {
             ],
             xaxis: {
                 type: 'category',
-                labels: { rotate: -45, rotateAlways: true }
+                labels: {
+                    rotate: -45,
+                    rotateAlways: true,
+                    style: { colors: foreColor }
+                }
             },
             yaxis: {
-                title: { text: 'API Calls' }
+                title: { text: 'API Calls', style: { color: foreColor } },
+                labels: { style: { colors: foreColor } }
             },
             tooltip: {
                 y: {
@@ -387,7 +412,8 @@ export function ApiAuditPage() {
                 }
             },
             legend: {
-                position: 'top'
+                position: 'top',
+                labels: { colors: foreColor }
             }
         };
 
@@ -442,12 +468,14 @@ export function ApiAuditPage() {
             return;
         }
 
+        const foreColor = getChartForeColor();
         const options = {
             chart: {
                 type: 'line',
                 height: 350,
                 toolbar: { show: false },
-                zoom: { enabled: false }
+                zoom: { enabled: false },
+                foreColor
             },
             series: [
                 {
@@ -476,27 +504,30 @@ export function ApiAuditPage() {
                 type: 'category',
                 labels: { 
                     rotate: -45, 
-                    rotateAlways: true 
+                    rotateAlways: true,
+                    style: { colors: foreColor }
                 },
                 tooltip: { enabled: false }
             },
             yaxis: [
                 {
-                    title: { text: 'Duration (ms)' },
+                    title: { text: 'Duration (ms)', style: { color: foreColor } },
                     min: 0,
                     seriesName: 'Response Duration (ms)',
                     labels: {
-                        formatter: (val) => Math.round(val)
+                        formatter: (val) => Math.round(val),
+                        style: { colors: foreColor }
                     }
                 },
                 {
                     opposite: true,
-                    title: { text: 'Status Code' },
+                    title: { text: 'Status Code', style: { color: foreColor } },
                     min: 0,
                     max: 600,
                     seriesName: 'Status Code',
                     labels: {
-                        formatter: (val) => Math.round(val)
+                        formatter: (val) => Math.round(val),
+                        style: { colors: foreColor }
                     }
                 }
             ],
@@ -506,18 +537,17 @@ export function ApiAuditPage() {
             tooltip: {
                 shared: true,
                 intersect: false,
-                y: [
-                    {
-                        formatter: (val) => `${Math.round(val)}ms`
-                    },
-                    {
-                        formatter: (val) => `Status: ${Math.round(val)}`
+                y: {
+                    formatter: (val, opts) => {
+                        if (opts?.seriesIndex === 0) return `${Math.round(val)}ms`;
+                        return `Status: ${Math.round(val)}`;
                     }
-                ]
+                }
             },
             legend: {
                 position: 'top',
-                horizontalAlign: 'left'
+                horizontalAlign: 'left',
+                labels: { colors: foreColor }
             },
             stroke: {
                 curve: 'smooth',
@@ -588,7 +618,11 @@ export function ApiAuditPage() {
     function parseMetadata(metadataJson) {
         if (!metadataJson) return {};
         try {
-            return typeof metadataJson === 'string' ? JSON.parse(metadataJson) : metadataJson;
+            const meta = typeof metadataJson === 'string' ? JSON.parse(metadataJson) : metadataJson;
+            // Normalize legacy vs new audit metadata keys
+            if (meta && meta.DurationMs === undefined && meta.elapsedMs !== undefined) meta.DurationMs = meta.elapsedMs;
+            if (meta && meta.DurationSeconds === undefined && meta.durationSeconds !== undefined) meta.DurationSeconds = meta.durationSeconds;
+            return meta;
         } catch {
             return {};
         }
@@ -611,7 +645,10 @@ export function ApiAuditPage() {
     }
 
     // Get unique values for filters
-    const httpMethods = [...new Set(events.map(e => e.subType).filter(Boolean))].sort();
+    const httpMethods = [...new Set(events.map(e => {
+        const meta = parseMetadata(e.metadata);
+        return meta.HttpMethod || meta.httpMethod || e.subType;
+    }).filter(Boolean))].sort();
     const users = [...new Set(events.map(e => e.performedBy).filter(Boolean))].sort();
     const orgIds = [...new Set(events.map(e => parseEndpointPath(e.targetId).orgId).filter(o => o !== 'N/A'))].sort();
     const deviceIds = [...new Set(events.map(e => parseEndpointPath(e.targetId).deviceId).filter(d => d !== 'N/A'))].sort();
@@ -619,7 +656,15 @@ export function ApiAuditPage() {
     
     // Debug logging
     if (events.length > 0) {
-        logger.debug('[API Audit] Sample events:', events.slice(0, 3).map(e => ({ performedBy: e.performedBy, subType: e.subType, eventType: e.eventType })));
+        logger.debug('[API Audit] Sample events:', events.slice(0, 3).map(e => {
+            const meta = parseMetadata(e.metadata);
+            return {
+                performedBy: e.performedBy,
+                eventType: e.eventType,
+                subType: e.subType,
+                httpMethod: meta.HttpMethod || meta.httpMethod
+            };
+        }));
         logger.debug('[API Audit] Unique users:', users);
     }
 
@@ -839,11 +884,15 @@ export function ApiAuditPage() {
                                 const durationMs = metadata.DurationMs || 0;
                                 const isExpanded = expandedEvent === event.eventId;
                                 const endpoint = parseEndpointPath(event.targetId);
+                                const httpMethod = (() => {
+                                    const meta = parseMetadata(event.metadata);
+                                    return meta.HttpMethod || meta.httpMethod || event.subType;
+                                })();
 
                                 return html`
                                     <tr key=${event.eventId}>
                                         <td class="text-muted">${formatTimestamp(event.timestamp)}</td>
-                                        <td>${getHttpMethodBadge(event.subType)}</td>
+                                        <td>${getHttpMethodBadge(httpMethod)}</td>
                                         <td class="small"><code>${endpoint.orgId}</code></td>
                                         <td class="small">${endpoint.deviceId === 'N/A' ? '-' : html`<code>${endpoint.deviceId.substring(0, 8)}...</code>`}</td>
                                         <td class="small"><strong>${endpoint.endpoint}</strong></td>
@@ -861,7 +910,7 @@ export function ApiAuditPage() {
                                     </tr>
                                     ${isExpanded ? html`
                                         <tr key="${event.eventId}-details">
-                                            <td colspan="9" class="bg-light">
+                                            <td colspan="9" class="activity-details-cell">
                                                 <div class="p-3">
                                                     <div class="row">
                                                         <div class="col-md-6">
@@ -959,7 +1008,7 @@ export function ApiAuditPage() {
                                                         </div>
                                                         <div class="col-md-6">
                                                             <h4 class="text-muted mb-2">Full Metadata</h4>
-                                                            <pre class="json-metadata p-2 rounded" style="max-height: 300px; overflow-y: auto; font-size: 11px;">${JSON.stringify(metadata, null, 2)}</pre>
+                                                            <pre class="json-metadata activity-details-pre p-2 rounded" style="max-height: 300px; overflow-y: auto; font-size: 11px;">${JSON.stringify(metadata, null, 2)}</pre>
                                                         </div>
                                                     </div>
                                                 </div>

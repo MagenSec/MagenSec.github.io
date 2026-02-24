@@ -187,6 +187,34 @@
 }
 
 /* ========================================
+   SiteAdmin Activity Page (Audit Details)
+   ======================================== */
+
+.activity-details-row,
+.activity-details-cell,
+.activity-details-footer {
+  background-color: var(--db-subtle-bg) !important;
+  color: var(--body-color);
+}
+
+.activity-details-pre,
+pre.json-metadata {
+  background-color: var(--db-subtle-bg);
+  border: 1px solid var(--db-subtle-border);
+  color: var(--body-color);
+}
+
+.activity-row {
+  cursor: pointer;
+  background-color: var(--card-bg);
+  color: var(--body-color);
+}
+
+.activity-row.activity-row-expanded {
+  background-color: var(--db-subtle-bg);
+}
+
+/* ========================================
    Status Dots
    ======================================== */
 

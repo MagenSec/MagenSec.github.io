@@ -113,15 +113,25 @@ export class CVEDetailsPage extends Component {
 
         try {
             // Step 3: Fetch fresh data
-            const response = await api.get(
-                `/api/v1/orgs/${orgId}/cves/${this.state.cveId}?include=cached-remediation,affected-devices`
-            );
+            const response = await api.getCveDetails(this.state.cveId, orgId);
 
             if (response.success) {
+                const cve = response.data?.cves?.[0] || null;
+
+                const remediationFromRefs = Array.isArray(cve?.references)
+                    ? cve.references
+                        .filter(ref => ref && (ref.title || ref.url))
+                        .slice(0, 10)
+                        .map(ref => ({
+                            title: ref.title || 'Reference',
+                            description: ref.url || ''
+                        }))
+                    : [];
+
                 const data = {
-                    cveDetails: response.data?.cve,
-                    affectedDevices: response.data?.affectedDevices || [],
-                    remediationSteps: response.data?.remediationSteps || []
+                    cveDetails: cve,
+                    affectedDevices: cve?.affectedDevices || [],
+                    remediationSteps: remediationFromRefs
                 };
 
                 // Cache the response

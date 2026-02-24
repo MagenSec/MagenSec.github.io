@@ -145,6 +145,7 @@ export function OrganizationsTab({
             }
         } catch (err) {
             console.warn('[OrganizationsTab] Failed to load report config', err);
+            window.toast?.show?.(err?.message || 'Failed to load report config', 'error');
         }
 
         try {
@@ -247,6 +248,19 @@ export function OrganizationsTab({
 
     const handleTransferOwnership = async () => {
         if (!selectedOrgId || !newTransferOwner) return;
+        if (!confirm(`Transfer ownership of ${selectedOrg.orgName} to ${newTransferOwner}?`)) {
+            return;
+        }
+
+        const result = await onTransferOwnership?.(selectedOrgId, newTransferOwner);
+
+        if (result?.success) {
+            setShowTransferOwner(false);
+            setSelectedOrg(null);
+            setSelectedOrgId('');
+        }
+    };
+
     const handleCreateLicense = async () => {
         if (!selectedOrgId) return;
         try {
@@ -266,7 +280,7 @@ export function OrganizationsTab({
             }
         } catch (err) {
             console.error('[OrganizationsTab] create license failed', err);
-            window.toast?.show?.('Failed to create license', 'error');
+            window.toast?.show?.(err?.message || 'Failed to create license', 'error');
         }
     };
 
@@ -275,7 +289,10 @@ export function OrganizationsTab({
         const action = license.isDisabled ? 'enable' : 'disable';
         if (!confirm(`Are you sure you want to ${action} this license?`)) return;
         try {
-            const res = await window.api.put(`/api/v1/licenses/${license.licenseId}/${action}`);
+            const res = await window.api.put(`/api/v1/licenses/${license.licenseId}/state`, {
+                orgId: selectedOrgId,
+                active: !!license.isDisabled
+            });
             if (res?.success !== false) {
                 window.toast?.show?.(`License ${action}d successfully`, 'success');
                 await handleSelectOrg(selectedOrg);
@@ -284,7 +301,7 @@ export function OrganizationsTab({
             }
         } catch (err) {
             console.error('[OrganizationsTab] toggle license failed', err);
-            window.toast?.show?.(`Failed to ${action} license`, 'error');
+            window.toast?.show?.(err?.message || `Failed to ${action} license`, 'error');
         }
     };
 
@@ -301,21 +318,7 @@ export function OrganizationsTab({
             }
         } catch (err) {
             console.error('[OrganizationsTab] delete license failed', err);
-            window.toast?.show?.('Failed to delete license', 'error');
-        }
-    };
-
-
-        if (!confirm(`Transfer ownership of ${selectedOrg.orgName} to ${newTransferOwner}?`)) {
-            return;
-        }
-
-        const result = await onTransferOwnership?.(selectedOrgId, newTransferOwner);
-
-        if (result?.success) {
-            setShowTransferOwner(false);
-            setSelectedOrg(null);
-            setSelectedOrgId('');
+            window.toast?.show?.(err?.message || 'Failed to delete license', 'error');
         }
     };
 

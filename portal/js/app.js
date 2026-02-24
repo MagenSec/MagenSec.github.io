@@ -17,6 +17,7 @@ import DevicesPage from './pages/devices/Devices.js';
 import { DeviceDetailPage } from './pages/device-detail/DeviceDetail.js';
 import { AnalystPage } from './pages/analyst/Analyst.js';
 import AIAnalystChatPage from './pages/ai/aiAnalystChat.js';
+import AIReportsPage from './pages/ai/aiReports.js';
 import { PosturePage } from './pages/posture/Posture.js';
 import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
 import { AssetsPage } from './pages/inventory/Assets.js';
@@ -78,6 +79,8 @@ function App() {
         
         case 'analyst':
             return html`<${AIAnalystChatPage} />`;
+        case 'ai-reports':
+            return html`<${AIReportsPage} />`;
         case 'analyst-old':
             return html`<${AnalystPage} />`;
         case 'posture':

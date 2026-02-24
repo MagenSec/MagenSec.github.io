@@ -83,6 +83,15 @@ export function initRouter(renderApp) {
         renderApp({ page: 'device-detail', ctx, params: { deviceId: ctx.params.id } });
     });
 
+    // CVE Detail (protected)
+    page('/cves/:id', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'cves', ctx, params: { cveId: ctx.params.id } });
+    });
+
     // AI Analyst (protected)
     page('/analyst', (ctx) => {
         if (!ctx.isAuthenticated) {
@@ -90,6 +99,16 @@ export function initRouter(renderApp) {
             return;
         }
         renderApp({ page: 'analyst', ctx });
+    });
+
+    // AI Reports (protected) - org-scoped report generation/listing (ai-analyst endpoints)
+    // Route: #!/ai-reports
+    page('/ai-reports', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'ai-reports', ctx });
     });
 
     // Security Posture - New PostureEngine Snapshot (protected)

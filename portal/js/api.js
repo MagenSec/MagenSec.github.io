@@ -494,11 +494,11 @@ export class ApiClient {
 
     // === ADMIN - TELEMETRY CONFIG ===
     async adminGetTelemetryConfig(orgId) {
-        return this.get(`/api/v1/admin/telemetry/config/${orgId}`);
+        return this.get(`/api/v1/admin/telemetry/config/orgs/${orgId}`);
     }
 
     async adminUpdateTelemetryConfig(orgId, config) {
-        return this.put(`/api/v1/admin/telemetry/config/${orgId}`, config);
+        return this.put(`/api/v1/admin/telemetry/config/orgs/${orgId}`, config);
     }
 
     // === ADMIN - CRON MANAGEMENT ===

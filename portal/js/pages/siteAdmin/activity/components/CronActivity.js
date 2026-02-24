@@ -141,18 +141,30 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         let icon = 'ti-clock';
         
         if (e.eventType === 'CRONRUN') {
-            const isManual = e.subType === 'Manual';
+            const isManual = e.subType === 'CronRunManual' || e.subType === 'Manual';
             eventCategory = isManual ? 'Manual Trigger' : 'Scheduled Run';
             badgeClass = isManual ? 'bg-purple-lt' : 'bg-blue-lt';
             icon = isManual ? 'ti-hand-click' : 'ti-player-play';
-        } else if (e.eventType === 'SECURITY_REPORT' || e.eventType === 'SecurityReportEmailSent' || e.eventType === 'SECURITY_REPORT_SENT') {
-            eventCategory = e.subType === 'BATCH' ? 'Report Batch' : 'Report Sent';
-            badgeClass = 'bg-green-lt';
-            icon = 'ti-mail-check';
-        } else if (e.eventType === 'SECURITY_REPORT_FAILED' || e.eventType === 'SecurityReportEmailFailed') {
-            eventCategory = 'Report Failed';
-            badgeClass = 'bg-red-lt';
-            icon = 'ti-mail-x';
+        } else if (e.eventType === 'SECURITY_REPORT') {
+            const stRaw = e.subType || '';
+            const st = stRaw.toLowerCase();
+            if (st.includes('failed')) {
+                eventCategory = 'Report Failed';
+                badgeClass = 'bg-red-lt';
+                icon = 'ti-mail-x';
+            } else if (st.includes('batch')) {
+                eventCategory = 'Report Batch';
+                badgeClass = 'bg-green-lt';
+                icon = 'ti-mail-check';
+            } else if (st.includes('emailsent') || st.includes('dispatchcomplete') || st.endsWith('sent')) {
+                eventCategory = 'Report Sent';
+                badgeClass = 'bg-green-lt';
+                icon = 'ti-mail-check';
+            } else {
+                eventCategory = 'Report Activity';
+                badgeClass = 'bg-green-lt';
+                icon = 'ti-mail';
+            }
         }
         
         // Extract metadata for detailed view
@@ -201,7 +213,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                 </td>
             </tr>
             ${isExpanded && html`
-                <tr class="bg-light">
+                <tr class="activity-details-row">
                     <td colspan="6">
                         <div class="p-3">
                             <div class="row g-3">
@@ -234,7 +246,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                     <div class="col-12">
                                         <details>
                                             <summary class="cursor-pointer text-muted small">Raw Metadata</summary>
-                                            <pre class="mt-2 mb-0 small">${JSON.stringify(meta, null, 2)}</pre>
+                                            <pre class="activity-details-pre mt-2 mb-0 small p-2 rounded">${JSON.stringify(meta, null, 2)}</pre>
                                         </details>
                                     </div>
                                 `}
@@ -251,15 +263,35 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         if (filterJob !== 'all') {
             const jobMatch = 
                 (filterJob === 'CronExecution' && e.eventType === 'CRONRUN') ||
-                (filterJob === 'ReportSent' && (e.eventType === 'SecurityReportEmailSent' || (e.eventType === 'SECURITY_REPORT' && e.subType === 'SENT'))) ||
-                (filterJob === 'ReportFailed' && (e.eventType === 'SecurityReportEmailFailed' || (e.eventType === 'SECURITY_REPORT' && e.subType === 'FAILED'))) ||
-                (filterJob === 'BatchComplete' && (e.eventType === 'SECURITY_REPORT' && e.subType === 'BATCH'));
+                (filterJob === 'ReportSent' && (e.eventType === 'SECURITY_REPORT' && (e.subType === 'SecurityReportEmailSent' || e.subType === 'SecurityReportDispatchComplete' || e.subType === 'SecurityReportSent' || e.subType === 'SENT'))) ||
+                (filterJob === 'ReportFailed' && (e.eventType === 'SECURITY_REPORT' && (e.subType === 'SecurityReportFailed' || e.subType === 'FAILED'))) ||
+                (filterJob === 'BatchComplete' && (e.eventType === 'SECURITY_REPORT' && (e.subType === 'SecurityReportBatchComplete' || e.subType === 'BATCH')));
             if (!jobMatch) return false;
         }
         if (filterStatus !== 'all') {
-            const statusMatch = 
-                (filterStatus === 'success' && (e.eventType === 'CRONRUN' && (e.subType === 'Scheduled' || (e.subType === 'Manual' && e.metadata?.status === 'Completed')) || (e.eventType === 'SECURITY_REPORT' && (e.subType === 'SENT' || e.subType === 'BATCH' && e.metadata?.failed === 0)) || e.eventType.includes('Sent'))) ||
-                (filterStatus === 'failed' && (e.eventType.includes('Failed') || e.eventType.includes('FAILED')));
+            const statusMatch = (() => {
+                if (filterStatus === 'success') {
+                    if (e.eventType === 'CRONRUN') {
+                        const status = e.metadata?.status || e.metadata?.Status;
+                        return !status || status === 'Completed';
+                    }
+                    if (e.eventType === 'SECURITY_REPORT') {
+                        return ((e.subType || '').toLowerCase().includes('failed')) === false;
+                    }
+                    return false;
+                }
+                if (filterStatus === 'failed') {
+                    if (e.eventType === 'CRONRUN') {
+                        const status = e.metadata?.status || e.metadata?.Status;
+                        return !!status && status !== 'Completed';
+                    }
+                    if (e.eventType === 'SECURITY_REPORT') {
+                        return e.subType === 'SecurityReportFailed' || e.subType === 'FAILED';
+                    }
+                    return false;
+                }
+                return true;
+            })();
             if (!statusMatch) return false;
         }
         if (filterOrg && filterOrg.trim() !== '') {
@@ -292,14 +324,12 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                     ${(() => {
                         const totalEvents = events.length;
                         const successCount = events.filter(e => 
-                            e.eventType === 'CRONRUN' || 
-                            e.eventType === 'SecurityReportEmailSent' || 
-                            e.eventType === 'SECURITY_REPORT_SENT' ||
-                            e.eventType === 'SECURITY_REPORT_BATCH'
+                            (e.eventType === 'CRONRUN' && (!e.metadata?.status || e.metadata?.status === 'Completed' || e.metadata?.Status === 'Completed')) ||
+                            (e.eventType === 'SECURITY_REPORT' && ((e.subType || '').toLowerCase().includes('failed')) === false)
                         ).length;
                         const failureCount = events.filter(e => 
-                            e.eventType === 'SecurityReportEmailFailed' || 
-                            e.eventType === 'SECURITY_REPORT_FAILED'
+                            (e.eventType === 'CRONRUN' && (e.metadata?.status || e.metadata?.Status) && (e.metadata?.status || e.metadata?.Status) !== 'Completed') ||
+                            (e.eventType === 'SECURITY_REPORT' && e.subType === 'SecurityReportFailed')
                         ).length;
                         const successRate = totalEvents > 0 ? ((successCount / totalEvents) * 100).toFixed(1) : 0;
                         const lastEvent = events[0];
@@ -337,15 +367,20 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                     <div class="card-body">
                                         <div class="text-muted small mb-2">Last Activity</div>
                                         <div class="small mb-0">${lastEventTime}</div>
-                                        ${lastEvent && html`<span class="badge bg-${lastEvent.eventType.includes('Failed') ? 'danger' : 'success'}-lt mt-2 mt-sm-0">${(() => {
+                                        ${lastEvent && html`<span class="badge bg-${(lastEvent.eventType === 'SECURITY_REPORT' && (lastEvent.subType === 'SecurityReportFailed' || lastEvent.subType === 'FAILED')) ? 'danger' : 'success'}-lt mt-2 mt-sm-0">${(() => {
                                             if (lastEvent.eventType === 'CRONRUN') {
-                                                return lastEvent.subType === 'Manual' 
-                                                    ? `Manual: ${lastEvent.metadata?.taskId || 'Unknown'}` 
+                                                return (lastEvent.subType === 'CronRunManual' || lastEvent.subType === 'Manual')
+                                                    ? `Manual: ${lastEvent.metadata?.taskId || 'Unknown'}`
                                                     : 'Scheduled';
                                             }
-                                            if (lastEvent.eventType.includes('Sent')) return 'Success';
-                                            if (lastEvent.eventType.includes('Failed')) return 'Failed';
-                                            if (lastEvent.eventType === 'SECURITY_REPORT_BATCH') return 'Batch';
+                                            if (lastEvent.eventType === 'SECURITY_REPORT') {
+                                                if (lastEvent.subType === 'SecurityReportFailed' || lastEvent.subType === 'FAILED') return 'Failed';
+                                                if (lastEvent.subType === 'SecurityReportBatchComplete') return 'Batch Complete';
+                                                if (lastEvent.subType === 'SecurityReportEmailSent') return 'Email Sent';
+                                                if (((lastEvent.subType || '').toLowerCase().includes('batch'))) return 'Batch';
+                                                if (((lastEvent.subType || '').toLowerCase().includes('sent'))) return 'Sent';
+                                                return 'Report';
+                                            }
                                             return 'Other';
                                         })()}</span>`}
                                     </div>
@@ -422,7 +457,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                 <div class="card mb-3">
                     <div class="card-header">
                         <h3 class="card-title">Scheduled Tasks</h3>
-                        <div class="card-subtitle text-muted">Last 7 days of execution history</div>
+                        <div class="card-subtitle text-muted">Includes latest execution per task</div>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-vcenter card-table">
@@ -430,8 +465,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                 <tr>
                                     <th>Task ID</th>
                                     <th>Frequency</th>
-                                    <th>Last Run</th>
-                                    <th>Hours Since</th>
+                                    <th>Last Execution</th>
                                     <th>Next Scheduled</th>
                                     <th>Executions</th>
                                     <th>Avg Duration</th>
@@ -443,6 +477,22 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                     const hoursOverdue = task.hoursSinceLastRun ? task.hoursSinceLastRun - task.frequencyHours : 0;
                                     const isOverdue = task.isOverdue;
                                     const failureRate = task.totalExecutions > 0 ? (task.failedExecutions / task.totalExecutions * 100).toFixed(1) : 0;
+
+                                    const execHistory = Array.isArray(task.executionHistory) ? task.executionHistory : [];
+                                    const lastExec = execHistory
+                                        .slice()
+                                        .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0];
+
+                                    const lastExecStatus = lastExec?.status || null;
+                                    const lastExecAt = lastExec?.completedAt ? new Date(lastExec.completedAt).toLocaleString() : null;
+                                    const lastExecBadgeClass =
+                                        lastExecStatus === 'Success'
+                                            ? 'bg-success-lt text-success'
+                                            : lastExecStatus === 'Failed'
+                                                ? 'bg-danger-lt text-danger'
+                                                : lastExecStatus
+                                                    ? 'bg-warning-lt text-warning'
+                                                    : 'bg-secondary-lt text-secondary';
                                     
                                     return html`
                                         <tr>
@@ -453,14 +503,13 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                                 <span class="badge bg-blue-lt">${task.frequencyHours}h</span>
                                             </td>
                                             <td>
-                                                ${task.lastRunAt 
-                                                    ? new Date(task.lastRunAt).toLocaleString() 
-                                                    : html`<span class="text-muted">Never</span>`}
-                                            </td>
-                                            <td>
-                                                ${task.hoursSinceLastRun != null 
-                                                    ? html`<span class="${isOverdue ? 'text-danger fw-bold' : ''}">${task.hoursSinceLastRun.toFixed(1)}h</span>`
-                                                    : html`<span class="text-muted">-</span>`}
+                                                <span class="badge ${lastExecBadgeClass}">
+                                                    ${lastExecAt ? lastExecAt : 'Never'}
+                                                    ${lastExecStatus ? ` · ${lastExecStatus}` : ''}
+                                                </span>
+                                                ${lastExec?.durationMs != null
+                                                    ? html`<div class="text-muted small mt-1">${(lastExec.durationMs / 1000).toFixed(2)}s</div>`
+                                                    : ''}
                                             </td>
                                             <td>
                                                 ${task.nextScheduledRun 
@@ -497,47 +546,6 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                         </tr>
                                     `;
                                 })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `}
-
-            <!-- Recent Executions -->
-            ${cronStatus && cronStatus.tasks && cronStatus.tasks.some(t => t.executionHistory && t.executionHistory.length > 0) && html`
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h3 class="card-title">Recent Executions</h3>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-vcenter card-table">
-                            <thead>
-                                <tr>
-                                    <th>Task</th>
-                                    <th>Completed At</th>
-                                    <th>Status</th>
-                                    <th>Duration</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${cronStatus.tasks.flatMap(task => 
-                                    (task.executionHistory || []).map(exec => html`
-                                        <tr>
-                                            <td>${task.taskId}</td>
-                                            <td>${new Date(exec.completedAt).toLocaleString()}</td>
-                                            <td>
-                                                <span class="badge bg-${exec.status === 'Success' ? 'success' : exec.status === 'Failed' ? 'danger' : 'warning'}">
-                                                    ${exec.status}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                ${exec.durationMs != null 
-                                                    ? html`${(exec.durationMs / 1000).toFixed(2)}s`
-                                                    : html`<span class="text-muted">-</span>`}
-                                            </td>
-                                        </tr>
-                                    `)
-                                )}
                             </tbody>
                         </table>
                     </div>

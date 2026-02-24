@@ -59,6 +59,8 @@ const getCachedAuditData = (key, ttlMinutes = 30) => {
     return null;
 };
 
+const getActorLabel = (evt) => evt?.performedByDisplay || evt?.performedBy || 'System';
+
 const setCachedAuditData = (key, data) => {
     try {
         localStorage.setItem(key, JSON.stringify({
@@ -83,6 +85,7 @@ export function AuditPage() {
     const scrollObserverRef = useRef(null);
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'timeline', 'user-activity', or 'device-activity'
     const [events, setEvents] = useState([]);
+    const [uxSummary, setUxSummary] = useState(null);
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [creditJobEvents, setCreditJobEvents] = useState([]);
     const [analytics, setAnalytics] = useState(null);
@@ -655,6 +658,7 @@ export function AuditPage() {
                 if (cached) {
                     console.log('[Audit] ⚡ Loading from cache immediately (even if stale)...');
                     setEvents(cached.data.events || []);
+                    setUxSummary(cached.data.uxSummary || null);
                     setHasMore(cached.data.hasMore || false);
                     
                     const analyticsData = computeAnalytics(cached.data.events || []);
@@ -676,13 +680,16 @@ export function AuditPage() {
             // Step 3: Fetch fresh data
             const baseQuery = new URLSearchParams({
                 pageSize: '500',
-                days: String(rangeDays)
+                days: String(rangeDays),
+                includeUxSummary: 'true',
+                normalize: 'true'
             });
 
             const allEvents = [];
             let continuationToken = null;
             let pageFetches = 0;
             const maxPages = 50; // safety guard
+            let latestUxSummary = null;
 
             do {
                 const query = new URLSearchParams(baseQuery);
@@ -697,6 +704,10 @@ export function AuditPage() {
                     const eventsData = res.data.events || [];
                     logger.debug('[Audit] Events loaded (page):', eventsData.length);
                     allEvents.push(...eventsData);
+                    if (res.data.uxSummary) {
+                        latestUxSummary = res.data.uxSummary;
+                        setUxSummary(res.data.uxSummary);
+                    }
                     continuationToken = res.data.continuationToken;
                     pageFetches += 1;
 
@@ -713,7 +724,8 @@ export function AuditPage() {
             // Cache the response
             setCachedAuditData(cacheKey, {
                 events: allEvents,
-                hasMore: Boolean(continuationToken)
+                hasMore: Boolean(continuationToken),
+                uxSummary: latestUxSummary || uxSummary
             });
 
             setEvents(allEvents);
@@ -739,13 +751,16 @@ export function AuditPage() {
 
             const baseQuery = new URLSearchParams({
                 pageSize: '500',
-                days: String(rangeDays)
+                days: String(rangeDays),
+                includeUxSummary: 'true',
+                normalize: 'true'
             });
 
             const allEvents = [];
             let continuationToken = null;
             let pageFetches = 0;
             const maxPages = 50;
+            let latestUxSummary = null;
 
             do {
                 const query = new URLSearchParams(baseQuery);
@@ -757,6 +772,10 @@ export function AuditPage() {
 
                 if (res.success && res.data) {
                     allEvents.push(...(res.data.events || []));
+                    if (res.data.uxSummary) {
+                        latestUxSummary = res.data.uxSummary;
+                        setUxSummary(res.data.uxSummary);
+                    }
                     continuationToken = res.data.continuationToken;
                     pageFetches += 1;
 
@@ -771,7 +790,8 @@ export function AuditPage() {
             // Cache fresh data
             setCachedAuditData(cacheKey, {
                 events: allEvents,
-                hasMore: Boolean(continuationToken)
+                hasMore: Boolean(continuationToken),
+                uxSummary: latestUxSummary || uxSummary
             });
 
             // Silent update
@@ -1161,6 +1181,7 @@ export function AuditPage() {
             filtered = filtered.filter(e =>
                 e.description?.toLowerCase().includes(searchLower) ||
                 e.performedBy?.toLowerCase().includes(searchLower) ||
+                e.performedByDisplay?.toLowerCase().includes(searchLower) ||
                 e.targetId?.toLowerCase().includes(searchLower) ||
                 e.eventType?.toLowerCase().includes(searchLower) ||
                 (e.subType && e.subType.toLowerCase().includes(searchLower))
@@ -1187,8 +1208,17 @@ export function AuditPage() {
     };
 
     const getEventIcon = (evt) => {
-        const base = getBaseType(evt);
+        const base = String(getBaseType(evt) || '').toUpperCase();
         const iconMap = {
+            'CREDIT': 'ti-coins',
+            'EMAIL': 'ti-mail',
+            'LICENSE': 'ti-key',
+            'ORG': 'ti-building',
+            'DEVICE': 'ti-device-desktop',
+            'CONFIG': 'ti-settings',
+            'WHATSAPP': 'ti-brand-whatsapp',
+            'SECURITY_REPORT': 'ti-report',
+            'CRONRUN': 'ti-clock',
             'Credit': 'ti-coins',
             'CreditConsumption': 'ti-coins',
             'Email': 'ti-mail',
@@ -1217,13 +1247,22 @@ export function AuditPage() {
         };
         const key = typeof evt === 'string' ? evt : evt?.eventType;
         if (key && specificMap[key]) return specificMap[key];
-        return iconMap[base] || iconMap['Default'];
+        return iconMap[base] || iconMap[getBaseType(evt)] || iconMap['Default'];
     };
 
     const getEventColor = (evt) => {
-        const base = getBaseType(evt);
+        const base = String(getBaseType(evt) || '').toUpperCase();
         const key = typeof evt === 'string' ? evt : evt?.eventType;
         const colorMap = {
+            'CREDIT': 'info',
+            'EMAIL': 'info',
+            'LICENSE': 'secondary',
+            'ORG': 'secondary',
+            'DEVICE': 'secondary',
+            'CONFIG': 'info',
+            'WHATSAPP': 'success',
+            'SECURITY_REPORT': 'info',
+            'CRONRUN': 'info',
             'CreditConsumptionJobStarted': 'info',
             'CreditConsumptionJobCompleted': 'success',
             'CreditConsumptionJobFailed': 'danger',
@@ -1256,7 +1295,7 @@ export function AuditPage() {
             'Login': key && key.toLowerCase().includes('failure') ? 'danger' : 'success',
             'CreditConsumption': 'info'
         };
-        return colorMap[key] || colorMap[base] || 'secondary';
+        return colorMap[key] || colorMap[base] || colorMap[getBaseType(evt)] || 'secondary';
     };
 
     const formatTimestamp = (timestamp) => {
@@ -1759,10 +1798,10 @@ export function AuditPage() {
                                                 <div>
                                                     <strong>${getTypeLabel(event)}</strong>
                                                     <div class="text-muted small">${event.description || 'No description'}</div>
-                                                    ${event.performedBy && html`
+                                                    ${getActorLabel(event) && html`
                                                         <div class="text-muted small mt-1">
                                                             <i class="ti ti-user me-1"></i>
-                                                            ${event.performedBy}
+                                                            ${getActorLabel(event)}
                                                         </div>
                                                     `}
                                                     ${event.targetId && html`
