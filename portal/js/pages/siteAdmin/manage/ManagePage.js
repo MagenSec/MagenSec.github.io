@@ -45,7 +45,11 @@ export class ManagePage extends Component {
             loading: true,
             orgs: [],
             accounts: [],
-            platformSettings: { whatsappDailyEnabled: false },
+            platformSettings: {
+                whatsappDailyEnabled: false,
+                aiExecutiveSummaryEnabled: false,
+                aiExecutiveSummaryInternetEnabled: false,
+            },
             platformLoading: false,
             platformSaving: false
         };
@@ -417,6 +421,47 @@ export class ManagePage extends Component {
                                                     When enabled, sends a daily security brief via WhatsApp to each organisation's configured number.
                                                     Requires the recipient to have messaged the MAGI number within the past 24 hours (Meta service window).
                                                     Uses the Utility Conversation category. <strong>Disabled by default.</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <h4 class="mb-2">AI Reports</h4>
+                                        <div class="form-check form-switch d-flex align-items-start gap-2">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                id="aiExecutiveSummaryEnabled"
+                                                checked=${platformSettings.aiExecutiveSummaryEnabled}
+                                                disabled=${platformSaving}
+                                                onChange=${(e) => this.savePlatformSetting('aiExecutiveSummaryEnabled', e.target.checked)}
+                                            />
+                                            <div>
+                                                <label class="form-check-label fw-bold" for="aiExecutiveSummaryEnabled">
+                                                    AI Executive Summary in Reports
+                                                </label>
+                                                <div class="text-muted small mt-1">
+                                                    When enabled, daily security reports include a short AI-written executive summary based on the current posture snapshot.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-check form-switch d-flex align-items-start gap-2 mt-3">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                id="aiExecutiveSummaryInternetEnabled"
+                                                checked=${platformSettings.aiExecutiveSummaryInternetEnabled}
+                                                disabled=${platformSaving || !platformSettings.aiExecutiveSummaryEnabled}
+                                                onChange=${(e) => this.savePlatformSetting('aiExecutiveSummaryInternetEnabled', e.target.checked)}
+                                            />
+                                            <div>
+                                                <label class="form-check-label fw-bold" for="aiExecutiveSummaryInternetEnabled">
+                                                    Include Threat Intel Enrichment
+                                                </label>
+                                                <div class="text-muted small mt-1">
+                                                    When enabled, the AI summary may include KEV/EPSS/CVE description context (if available). Disable to keep the summary strictly snapshot-only.
                                                 </div>
                                             </div>
                                         </div>
