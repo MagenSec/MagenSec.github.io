@@ -197,13 +197,13 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                     <span class="badge ${badgeClass}">${eventCategory}</span>
                 </td>
                 <td>
-                    <span class="badge bg-secondary-lt">${e.orgId || 'SYSTEM'}</span>
+                    <span class="badge bg-secondary-lt text-secondary">${e.orgId || 'SYSTEM'}</span>
                 </td>
                 <td class="text-muted small">${ts}</td>
                 <td>
-                    ${tier && html`<span class="badge bg-purple-lt me-1">${tier}</span>`}
-                    ${recipientCount > 0 && html`<span class="badge bg-info-lt me-1">${recipientCount} recipient${recipientCount > 1 ? 's' : ''}</span>`}
-                    ${itemsProcessed > 0 && html`<span class="badge bg-yellow-lt">${itemsProcessed} processed</span>`}
+                    ${tier && html`<span class="badge bg-purple-lt text-purple me-1">${tier}</span>`}
+                    ${recipientCount > 0 && html`<span class="badge bg-info-lt text-info me-1">${recipientCount} recipient${recipientCount > 1 ? 's' : ''}</span>`}
+                    ${itemsProcessed > 0 && html`<span class="badge bg-yellow-lt text-yellow">${itemsProcessed} processed</span>`}
                 </td>
                 <td class="text-truncate" style="max-width: 300px;" title=${e.description}>
                     ${e.description || '-'}
@@ -500,7 +500,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                                 <div class="fw-bold">${task.taskId}</div>
                                             </td>
                                             <td>
-                                                <span class="badge bg-blue-lt">${task.frequencyHours}h</span>
+                                                <span class="badge bg-blue-lt text-blue">${task.frequencyHours}h</span>
                                             </td>
                                             <td>
                                                 <span class="badge ${lastExecBadgeClass}">
@@ -518,7 +518,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                             </td>
                                             <td>
                                                 <div>
-                                                    <span class="badge bg-info-lt">${task.totalExecutions} total</span>
+                                                    <span class="badge bg-info-lt text-info">${task.totalExecutions} total</span>
                                                     ${task.failedExecutions > 0 ? html`<span class="badge bg-danger ms-1">${task.failedExecutions} failed</span>` : ''}
                                                 </div>
                                                 ${task.totalExecutions > 0 && html`<small class="text-muted">${failureRate}% failure rate</small>`}

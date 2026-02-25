@@ -120,7 +120,7 @@ export default class UnifiedDashboard extends Component {
       }
 
       let url = `/api/v1/orgs/${orgId}/dashboard?format=unified`;
-      if (isRefresh && !isBackground) {
+      if (isRefresh) {
         url += '&refresh=true';
       } else {
         url += '&include=cached-summary';

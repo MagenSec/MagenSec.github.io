@@ -86,7 +86,7 @@ export function renderDeviceModal(component) {
                                             const primary = ips[0];
                                             const count = ips.length;
                                             if (count > 1) {
-                                                return html`${primary} <span class="badge badge-sm bg-azure-lt ms-1">(+${count - 1})</span>`;
+                                                return html`${primary} <span class="badge badge-sm bg-azure-lt text-azure ms-1">(+${count - 1})</span>`;
                                             }
                                             return primary;
                                         })()}</li>

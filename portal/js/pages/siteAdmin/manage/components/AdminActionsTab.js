@@ -268,7 +268,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
             <!-- Remediation Reset - Privilege Action -->
             <div class="col-12">
                 <div class="card border-warning">
-                    <div class="card-header bg-warning-lt">
+                    <div class="card-header bg-warning-lt text-warning">
                         <h3 class="card-title mb-0">
                             <i class="ti ti-alert-triangle me-2"></i>
                             Reset Remediation Status

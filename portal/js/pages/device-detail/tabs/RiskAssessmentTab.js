@@ -138,7 +138,7 @@ export function renderRiskAssessment(component) {
                         <div class="text-muted small mb-1">Network exposure</div>
                         <div class="d-flex align-items-baseline gap-2">
                             <div class="h3 mb-0">${networkRisk?.publicIpPresent ? 'Public' : networkRisk?.apipaPresent ? 'APIPA' : 'Limited'}</div>
-                            <span class="badge ${networkRisk?.publicIpPresent ? 'bg-danger-lt' : networkRisk?.apipaPresent ? 'bg-warning-lt' : 'bg-secondary-lt'}">${networkRisk?.publicIpPresent ? 'Internet-exposed' : networkRisk?.apipaPresent ? 'Internal only' : 'Low signal'}</span>
+                            <span class="badge ${networkRisk?.publicIpPresent ? 'bg-danger-lt text-danger' : networkRisk?.apipaPresent ? 'bg-warning-lt text-warning' : 'bg-secondary-lt text-secondary'}">${networkRisk?.publicIpPresent ? 'Internet-exposed' : networkRisk?.apipaPresent ? 'Internal only' : 'Low signal'}</span>
                         </div>
                         <div class="text-muted small">Exposure derived from latest IP signals.</div>
                     </div>
@@ -171,21 +171,21 @@ export function renderRiskAssessment(component) {
                                     <span class="badge ${component.getSeverityColor('LOW')}">${low.length} Low</span>
                                 </div>
                             </div>
-                            <span class="badge bg-secondary-lt text-white">${activeCves.length}</span>
+                            <span class="badge bg-secondary-lt text-secondary">${activeCves.length}</span>
                         </div>
                         <div class="list-group-item d-flex justify-content-between align-items-start">
                             <div>
                                 <div class="text-sm fw-bold">Known Exploits</div>
                                 <div class="text-muted small">CVEs with public exploits detected</div>
                             </div>
-                            ${knownExploitCount > 0 ? html`<span class="badge bg-danger-lt text-white">${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}</span>` : html`<span class="text-muted">None known</span>`}
+                            ${knownExploitCount > 0 ? html`<span class="badge bg-danger-lt text-danger">${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}</span>` : html`<span class="text-muted">None known</span>`}
                         </div>
                         <div class="list-group-item d-flex justify-content-between align-items-start">
                             <div>
                                 <div class="text-sm fw-bold">Network Exposure</div>
                                 <div class="text-muted small">Public or APIPA signals from device IPs</div>
                             </div>
-                            <span class="badge ${networkRisk?.publicIpPresent ? 'bg-danger-lt' : networkRisk?.apipaPresent ? 'bg-warning-lt' : 'bg-secondary-lt'} text-white">
+                            <span class="badge ${networkRisk?.publicIpPresent ? 'bg-danger-lt text-danger' : networkRisk?.apipaPresent ? 'bg-warning-lt text-warning' : 'bg-secondary-lt text-secondary'}">
                                 ${networkRisk?.publicIpPresent ? 'Public IP seen' : networkRisk?.apipaPresent ? 'APIPA detected' : 'Limited signals'}
                             </span>
                         </div>

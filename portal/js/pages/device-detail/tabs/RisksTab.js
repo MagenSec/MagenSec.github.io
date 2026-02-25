@@ -129,7 +129,7 @@ export function renderRisksTab(component) {
                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                                     </a>
                                     ${isKnownExploit ? html`
-                                        <span class="badge bg-danger-lt ms-2" title="Active exploitation detected in the wild">
+                                        <span class="badge bg-danger-lt text-danger ms-2" title="Active exploitation detected in the wild">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                                             Known Exploit
                                         </span>
@@ -163,7 +163,7 @@ export function renderRisksTab(component) {
                                 <td>
                                     ${cve.epss ? html`
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="badge ${Number(cve.epss) > 0.5 ? 'bg-danger-lt' : Number(cve.epss) > 0.2 ? 'bg-warning-lt' : 'bg-success-lt'}">
+                                            <span class="badge ${Number(cve.epss) > 0.5 ? 'bg-danger-lt text-danger' : Number(cve.epss) > 0.2 ? 'bg-warning-lt text-warning' : 'bg-success-lt text-success'}">
                                                 ${(Number(cve.epss) * 100).toFixed(1)}%
                                             </span>
                                             ${cve.score ? html`<span class="text-muted small">CVSS ${Number(cve.score).toFixed(1)}</span>` : ''}

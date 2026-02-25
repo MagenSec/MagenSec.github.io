@@ -568,11 +568,11 @@ export function OrganizationsTab({
                                                 <td>
                                                     <div class="d-flex align-items-center gap-2">
                                                         ${isPersonalOrg(org) ? html`
-                                                            <span class="badge bg-info-lt" style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;">
+                                                            <span class="badge bg-info-lt text-info" style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;">
                                                                 <i class="ti ti-user" style="font-size: 16px;"></i>
                                                             </span>
                                                         ` : html`
-                                                            <span class="badge bg-primary-lt" style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;">
+                                                            <span class="badge bg-primary-lt text-primary" style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;">
                                                                 <i class="ti ti-building" style="font-size: 16px;"></i>
                                                             </span>
                                                         `}
@@ -841,7 +841,7 @@ export function OrganizationsTab({
                                         <!-- Danger Zone -->
                                         <div class="col-12 mt-4">
                                             <div class="card border-danger">
-                                                <div class="card-header bg-danger-lt" style="cursor: pointer;" onClick=${() => setShowDangerZone(!showDangerZone)}>
+                                                <div class="card-header bg-danger-lt text-danger" style="cursor: pointer;" onClick=${() => setShowDangerZone(!showDangerZone)}>
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <h5 class="card-title mb-0"><i class="ti ti-alert-triangle me-2"></i>Danger Zone</h5>
                                                         <i class=${`ti ${showDangerZone ? 'ti-chevron-down' : 'ti-chevron-right'}`}></i>

@@ -93,7 +93,7 @@ export class RiskAnalysisService {
 
         const exposure = {
             label: 'Unknown',
-            badgeClass: 'bg-secondary-lt',
+            badgeClass: 'bg-secondary-lt text-secondary',
             reasons: [],
             missingAdmin: [
                 'Firewall status',
@@ -121,15 +121,15 @@ export class RiskAnalysisService {
 
         if (publicIpCount > 0) {
             exposure.label = 'Public Internet';
-            exposure.badgeClass = 'bg-danger-lt';
+            exposure.badgeClass = 'bg-danger-lt text-danger';
             exposure.reasons.push(`${publicIpCount} public IP${publicIpCount > 1 ? 's' : ''}`);
         } else if (vpnInterfaces > 0) {
             exposure.label = 'VPN Protected';
-            exposure.badgeClass = 'bg-success-lt';
+            exposure.badgeClass = 'bg-success-lt text-success';
             exposure.reasons.push(`${vpnInterfaces} VPN interface${vpnInterfaces > 1 ? 's' : ''}`);
         } else if (privateIpCount > 0) {
             exposure.label = 'Private Network';
-            exposure.badgeClass = 'bg-info-lt';
+            exposure.badgeClass = 'bg-info-lt text-info';
             exposure.reasons.push(`${privateIpCount} private IP${privateIpCount > 1 ? 's' : ''}`);
             if (wirelessInterfaces > 0) {
                 exposure.reasons.push(`${wirelessInterfaces} Wi-Fi`);
@@ -153,7 +153,7 @@ export class RiskAnalysisService {
 
         if (exposure.reasons.length === 0) {
             exposure.label = 'Limited Data';
-            exposure.badgeClass = 'bg-secondary-lt';
+            exposure.badgeClass = 'bg-secondary-lt text-secondary';
             exposure.reasons.push('Partial network data available');
         }
 

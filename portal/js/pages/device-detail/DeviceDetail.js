@@ -1546,7 +1546,7 @@ export class DeviceDetailPage extends window.Component {
                                                 <tr>
                                                     <td>${FormattingUtils.escapeHtml(a.appName)}</td>
                                                     <td>${FormattingUtils.escapeHtml(a.cveCount)}</td>
-                                                    <td><span class="badge bg-secondary-lt">${FormattingUtils.escapeHtml(a.worstSeverity)}</span></td>
+                                                    <td><span class="badge bg-secondary-lt text-secondary">${FormattingUtils.escapeHtml(a.worstSeverity)}</span></td>
                                                 </tr>
                                             `).join('') : `
                                                 <tr><td colspan="3" class="text-muted">No vulnerable applications detected in current inventory.</td></tr>
@@ -2429,7 +2429,7 @@ export class DeviceDetailPage extends window.Component {
                                         <div class="text-muted small">Activity</div>
                                         <div class="d-flex align-items-center justify-content-between">
                                             <div class="h3 mb-0">${recentChangeCount}</div>
-                                            <span class="badge bg-blue-lt">Changes</span>
+                                            <span class="badge bg-blue-lt text-blue">Changes</span>
                                         </div>
                                         <div class="text-muted small mt-1">Recent hardware/system changes tracked</div>
                                     </div>

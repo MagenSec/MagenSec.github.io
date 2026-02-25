@@ -1054,7 +1054,7 @@ export function BusinessMatrixPage() {
                             <div>
                                 <strong>Overall Profit Margin: ${platformSummary.profitMargin.toFixed(1)}%</strong>
                                 · ${platformSummary.totalOrgs} Organizations
-                                ${(revenueBreakdown.demoOrgCount || 0) > 0 ? html`<span class="badge bg-warning-lt ms-1">${revenueBreakdown.demoOrgCount} Demo</span>` : ''}
+                                ${(revenueBreakdown.demoOrgCount || 0) > 0 ? html`<span class="badge bg-warning-lt text-warning ms-1">${revenueBreakdown.demoOrgCount} Demo</span>` : ''}
                                 · ${deviceHealth.activeCount} Active Devices
                                 · ${(metrics.telemetryVolumes?.platform?.totalRows || 0).toLocaleString()} Daily Telemetry Rows
                             </div>
@@ -1194,7 +1194,7 @@ export function BusinessMatrixPage() {
                             <div class="d-flex align-items-center justify-content-between">
                                 <h5 class="card-title mb-0">MRR Trend (30 Days)</h5>
                                 <span 
-                                    class="badge bg-info-lt cursor-help" 
+                                    class="badge bg-info-lt text-info cursor-help" 
                                     data-bs-toggle="tooltip" 
                                     data-bs-placement="bottom"
                                     title="Monthly Recurring Revenue (MRR) represents your predictable monthly income from active subscriptions. Upward trend = growing user base; downward trend = lost customers or reduced activity."
@@ -1280,7 +1280,7 @@ export function BusinessMatrixPage() {
                                         </td>
                                         <td>
                                             <strong>${org.orgName || org.orgId}</strong>
-                                            ${org.isDemoOrg ? html`<span class="badge bg-warning-lt ms-1">Demo</span>` : ''}
+                                            ${org.isDemoOrg ? html`<span class="badge bg-warning-lt text-warning ms-1">Demo</span>` : ''}
                                             <div class="text-body-secondary small">${org.licenseType} · ${org.seats} seats (${org.deviceCount} used)</div>
                                         </td>
                                         <td class="text-end">${org.deviceCount || 0}</td>

@@ -341,7 +341,7 @@ class DevicesPage extends window.Component {
                                                         const primary = ips[0];
                                                         const count = ips.length;
                                                         if (count > 1) {
-                                                            return html`${primary} <span class="badge badge-sm bg-azure-lt ms-1">(+${count - 1})</span>`;
+                                                            return html`${primary} <span class="badge badge-sm bg-azure-lt text-azure ms-1">(+${count - 1})</span>`;
                                                         }
                                                         return primary;
                                                     })()}</li>
@@ -361,7 +361,7 @@ class DevicesPage extends window.Component {
                                                                                                 <div class="d-flex flex-column gap-1 align-items-start" style="min-width: 140px;">
                                                                                                     <div class="d-flex align-items-center gap-2">
                                                                                                         <span class="text-muted small">Risk Score:</span>
-                                                                                                        <span class="badge ${summary.worstSeverity === 'CRITICAL' ? 'bg-danger-lt' : summary.worstSeverity === 'HIGH' ? 'bg-warning-lt' : summary.worstSeverity === 'MEDIUM' ? 'bg-secondary-lt' : 'bg-success-lt'}">${summary.worstSeverity}</span>
+                                                                                                        <span class="badge ${summary.worstSeverity === 'CRITICAL' ? 'bg-danger-lt text-danger' : summary.worstSeverity === 'HIGH' ? 'bg-warning-lt text-warning' : summary.worstSeverity === 'MEDIUM' ? 'bg-secondary-lt text-secondary' : 'bg-success-lt text-success'}">${summary.worstSeverity}</span>
                                                                                                     </div>
                                                                                                     <div class="text-muted small">Click for details</div>
                                                                                                 </div>
@@ -475,7 +475,7 @@ class DevicesPage extends window.Component {
                                                 <div class="text-muted small">Number of apps with known vulnerabilities</div>
                                             </div>
                                             <div class="text-end">
-                                                ${summary.vulnerableApps ? html`<span class="badge bg-warning-lt">${summary.vulnerableApps} apps</span>` : html`<span class="text-muted">None found</span>`}
+                                                ${summary.vulnerableApps ? html`<span class="badge bg-warning-lt text-warning">${summary.vulnerableApps} apps</span>` : html`<span class="text-muted">None found</span>`}
                                             </div>
                                         </div>
                                     </div>
@@ -489,10 +489,10 @@ class DevicesPage extends window.Component {
                                             <div class="text-end">
                                                 ${summary.criticalCves + summary.highCves + summary.mediumCves + summary.lowCves > 0 ? html`
                                                     <div>
-                                                        ${summary.criticalCves > 0 ? html`<span class="badge bg-danger-lt me-1">${summary.criticalCves} Critical</span>` : ''}
-                                                        ${summary.highCves > 0 ? html`<span class="badge bg-orange-lt me-1">${summary.highCves} High</span>` : ''}
-                                                        ${summary.mediumCves > 0 ? html`<span class="badge bg-yellow-lt me-1">${summary.mediumCves} Medium</span>` : ''}
-                                                        ${summary.lowCves > 0 ? html`<span class="badge bg-azure-lt me-1">${summary.lowCves} Low</span>` : ''}
+                                                        ${summary.criticalCves > 0 ? html`<span class="badge bg-danger-lt text-danger me-1">${summary.criticalCves} Critical</span>` : ''}
+                                                        ${summary.highCves > 0 ? html`<span class="badge bg-orange-lt text-orange me-1">${summary.highCves} High</span>` : ''}
+                                                        ${summary.mediumCves > 0 ? html`<span class="badge bg-yellow-lt text-yellow me-1">${summary.mediumCves} Medium</span>` : ''}
+                                                        ${summary.lowCves > 0 ? html`<span class="badge bg-azure-lt text-azure me-1">${summary.lowCves} Low</span>` : ''}
                                                     </div>
                                                 ` : html`<span class="text-muted">No CVEs</span>`}
                                             </div>
@@ -507,7 +507,7 @@ class DevicesPage extends window.Component {
                                             </div>
                                             <div class="text-end">
                                                 ${constituents.maxEpssStored ? html`
-                                                    <span class="badge ${constituents.maxEpssStored > 0.5 ? 'bg-danger-lt' : constituents.maxEpssStored > 0.3 ? 'bg-warning-lt' : 'bg-info-lt'}">
+                                                    <span class="badge ${constituents.maxEpssStored > 0.5 ? 'bg-danger-lt text-danger' : constituents.maxEpssStored > 0.3 ? 'bg-warning-lt text-warning' : 'bg-info-lt text-info'}">
                                                         ${(constituents.maxEpssStored * 100).toFixed(0)}%
                                                     </span>
                                                 ` : html`<span class="text-muted">Unknown</span>`}
@@ -522,7 +522,7 @@ class DevicesPage extends window.Component {
                                                 <div class="text-muted small">CVEs with publicly available exploits</div>
                                             </div>
                                             <div class="text-end">
-                                                ${hasKnownExploit ? html`<span class="badge bg-danger-lt">${knownExploitCount > 0 ? `${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}` : '1+ Exploits'}</span>` : html`<span class="text-muted">None known</span>`}
+                                                ${hasKnownExploit ? html`<span class="badge bg-danger-lt text-danger">${knownExploitCount > 0 ? `${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}` : '1+ Exploits'}</span>` : html`<span class="text-muted">None known</span>`}
                                             </div>
                                         </div>
                                     </div>
@@ -2093,12 +2093,12 @@ class DevicesPage extends window.Component {
 
         const value = normalize(matchType);
         if (value === 2) {
-            return window.html`<span class="badge bg-danger-lt"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>Vulnerable</span>`;
+            return window.html`<span class="badge bg-danger-lt text-danger"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>Vulnerable</span>`;
         }
         if (value === 1) {
-            return window.html`<span class="badge bg-warning-lt"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14l-2 10h-10z" /><path d="M9 10h.01" /><path d="M15 10h.01" /><path d="M9.5 14h5" /></svg>AI Bot (med)</span>`;
+            return window.html`<span class="badge bg-warning-lt text-warning"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14l-2 10h-10z" /><path d="M9 10h.01" /><path d="M15 10h.01" /><path d="M9.5 14h5" /></svg>AI Bot (med)</span>`;
         }
-        return window.html`<span class="badge bg-success-lt"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>Clean</span>`;
+        return window.html`<span class="badge bg-success-lt text-success"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>Clean</span>`;
     }
 
     getStateBadgeClass(state) {
@@ -2502,11 +2502,11 @@ class DevicesPage extends window.Component {
                         <div class="dropdown-menu dropdown-menu-end">
                             <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.openDownloadModal('x64'); }}>
                                 Windows x64 Installer
-                                <span class="badge bg-blue-lt ms-auto">v${this.state.installers.X64.VERSION}</span>
+                                <span class="badge bg-blue-lt text-blue ms-auto">v${this.state.installers.X64.VERSION}</span>
                             </a>
                             <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.openDownloadModal('arm64'); }}>
                                 Windows ARM64 Installer
-                                <span class="badge bg-blue-lt ms-auto">v${this.state.installers.ARM64.VERSION}</span>
+                                <span class="badge bg-blue-lt text-blue ms-auto">v${this.state.installers.ARM64.VERSION}</span>
                             </a>
                         </div>
                     </div>
@@ -2553,25 +2553,25 @@ class DevicesPage extends window.Component {
                                                             <div class="text-muted small mb-1">Filter by Device State</div>
                                                             <div class="row g-2 align-items-start">
                                                                 <div class="col-6">
-                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'active' ? 'bg-green' : 'bg-green-lt'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'active' ? 'all' : 'active')}>
+                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'active' ? 'bg-green text-white' : 'bg-green-lt text-green'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'active' ? 'all' : 'active')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
                                                                         Active (${stats.active})
                                                                     </span>
                                                                 </div>
                                                                 <div class="col-6">
-                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'enabled' ? 'bg-blue' : 'bg-blue-lt'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'enabled' ? 'all' : 'enabled')}>
+                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'enabled' ? 'bg-blue text-white' : 'bg-blue-lt text-blue'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'enabled' ? 'all' : 'enabled')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /></svg>
                                                                         Enabled (${stats.enabled})
                                                                     </span>
                                                                 </div>
                                                                 <div class="col-6">
-                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'blocked' ? 'bg-red' : 'bg-red-lt'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'blocked' ? 'all' : 'blocked')}>
+                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'blocked' ? 'bg-red text-white' : 'bg-red-lt text-danger'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'blocked' ? 'all' : 'blocked')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                                                                         Blocked (${stats.blocked})
                                                                     </span>
                                                                 </div>
                                                                 <div class="col-6">
-                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'deleted' ? 'bg-secondary' : 'bg-secondary-lt'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'deleted' ? 'all' : 'deleted')}>
+                                                                    <span class="badge w-100 ${this.state.deviceFilters.license === 'deleted' ? 'bg-secondary text-white' : 'bg-secondary-lt text-secondary'}" style="cursor: pointer; min-height: 28px;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'deleted' ? 'all' : 'deleted')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /></svg>
                                                                         Deleted (${stats.deleted})
                                                                     </span>
@@ -2604,13 +2604,13 @@ class DevicesPage extends window.Component {
                                                         <tr key=${d.deviceId}>
                                                             <td class="fw-medium">${d.deviceName || d.deviceId}</td>
                                                             <td>
-                                                                <span class="badge ${d.riskLevel === 'critical' ? 'bg-danger' : d.riskLevel === 'high' ? 'bg-orange' : 'bg-warning-lt'}">
+                                                                <span class="badge ${d.riskLevel === 'critical' ? 'bg-danger text-white' : d.riskLevel === 'high' ? 'bg-orange text-white' : 'bg-warning-lt text-warning'}">
                                                                     ${d.riskLevel || 'medium'}
                                                                 </span>
                                                             </td>
                                                             <td class="text-danger fw-bold">${d.cveCount || '—'}</td>
                                                             <td>
-                                                                <span class="badge ${d.status === 'online' ? 'bg-success-lt' : d.status === 'offline' ? 'bg-danger-lt' : 'bg-warning-lt'}">
+                                                                <span class="badge ${d.status === 'online' ? 'bg-success-lt text-success' : d.status === 'offline' ? 'bg-danger-lt text-danger' : 'bg-warning-lt text-warning'}">
                                                                     ${d.status || '—'}
                                                                 </span>
                                                             </td>
@@ -2732,7 +2732,7 @@ class DevicesPage extends window.Component {
                                                                 : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
                                                                 : patch.badge;
                                                             const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
-                                                            const versionBadgeClass = isOutdated ? 'bg-warning-lt text-dark' : 'bg-secondary-lt';
+                                                            const versionBadgeClass = isOutdated ? 'bg-warning-lt text-dark' : 'bg-secondary-lt text-secondary';
                                                             const versionTitle = isOutdated ? `Update available: v${config.INSTALLERS.ENGINE.VERSION}` : 'Current installed MagenSec version';
                                                             const versionLabel = device.clientVersion || 'Unknown version';
                                                             return html`

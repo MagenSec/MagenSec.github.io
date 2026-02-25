@@ -17,7 +17,7 @@ export function renderRiskExplanationModal(component) {
     const derivedCvss = RiskAnalysisService.deriveCvss(constituents, summary);
     const networkExposure = RiskAnalysisService.deriveNetworkExposure(component.state.telemetryDetail);
     const cvssBadgeClass = derivedCvss !== null
-        ? (derivedCvss >= 9 ? 'bg-danger-lt' : derivedCvss >= 7 ? 'bg-warning-lt' : derivedCvss >= 4 ? 'bg-info-lt' : 'bg-success-lt')
+        ? (derivedCvss >= 9 ? 'bg-danger-lt text-danger' : derivedCvss >= 7 ? 'bg-warning-lt text-warning' : derivedCvss >= 4 ? 'bg-info-lt text-info' : 'bg-success-lt text-success')
         : '';
 
     return html`
@@ -66,7 +66,7 @@ export function renderRiskExplanationModal(component) {
                                             <div class="text-muted small">Number of apps with known vulnerabilities</div>
                                         </div>
                                         <div class="text-end">
-                                            ${summary.vulnerableApps ? html`<span class="badge bg-warning-lt">${summary.vulnerableApps} apps</span>` : html`<span class="text-muted">None found</span>`}
+                                            ${summary.vulnerableApps ? html`<span class="badge bg-warning-lt text-warning">${summary.vulnerableApps} apps</span>` : html`<span class="text-muted">None found</span>`}
                                         </div>
                                     </div>
                                 </div>
@@ -81,9 +81,9 @@ export function renderRiskExplanationModal(component) {
                                             ${summary.criticalCves + summary.highCves + summary.mediumCves + summary.lowCves > 0 ? html`
                                                 <div>
                                                     ${summary.criticalCves > 0 ? html`<span class="badge bg-danger-lt text-danger me-1">${summary.criticalCves} Critical</span>` : ''}
-                                                    ${summary.highCves > 0 ? html`<span class="badge bg-orange-lt text-warning me-1">${summary.highCves} High</span>` : ''}
-                                                    ${summary.mediumCves > 0 ? html`<span class="badge bg-yellow-lt text-warning me-1">${summary.mediumCves} Medium</span>` : ''}
-                                                    ${summary.lowCves > 0 ? html`<span class="badge bg-azure-lt text-info me-1">${summary.lowCves} Low</span>` : ''}
+                                                    ${summary.highCves > 0 ? html`<span class="badge bg-orange-lt text-orange me-1">${summary.highCves} High</span>` : ''}
+                                                    ${summary.mediumCves > 0 ? html`<span class="badge bg-yellow-lt text-yellow me-1">${summary.mediumCves} Medium</span>` : ''}
+                                                    ${summary.lowCves > 0 ? html`<span class="badge bg-azure-lt text-azure me-1">${summary.lowCves} Low</span>` : ''}
                                                 </div>
                                             ` : html`<span class="text-muted">No CVEs</span>`}
                                         </div>
@@ -113,7 +113,7 @@ export function renderRiskExplanationModal(component) {
                                             <div class="text-muted small">CVEs with publicly available exploits</div>
                                         </div>
                                         <div class="text-end">
-                                            ${hasKnownExploit ? html`<span class="badge bg-danger-lt">${knownExploitCount > 0 ? `${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}` : '1+ Exploits'}</span>` : html`<span class="text-muted">None known</span>`}
+                                            ${hasKnownExploit ? html`<span class="badge bg-danger-lt text-danger">${knownExploitCount > 0 ? `${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}` : '1+ Exploits'}</span>` : html`<span class="text-muted">None known</span>`}
                                         </div>
                                     </div>
                                 </div>

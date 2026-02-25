@@ -37,7 +37,7 @@ export function renderVendorGroupedView(component) {
                                 <div class="d-flex justify-content-between align-items-center w-100 pe-3">
                                     <span class="fw-bold">${vendorName}</span>
                                     <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
-                                        <span class="badge bg-secondary-lt">${vendorApps.length} apps</span>
+                                        <span class="badge bg-secondary-lt text-secondary">${vendorApps.length} apps</span>
                                         ${totalCves > 0 ? html`<span class="badge ${component.getSeverityColor(component.severityLabelFromWeight(Math.max(...vendorCves.map(c => component.severityWeight(c.severity || '')), 0)))}">${totalCves} CVEs</span>` : ''}
                                         ${component.renderDetectionButtons(vendorDetection, {
                                             size: 'sm',
@@ -90,7 +90,7 @@ export function renderVendorGroupedView(component) {
                                                             </svg>
                                                         ` : ''}
                                                         <span class="fw-medium">${appGroup.appName}</span>
-                                                        ${hasMultipleVersions ? html`<span class="badge bg-blue-lt">${appGroup.versions.length} versions</span>` : ''}
+                                                        ${hasMultipleVersions ? html`<span class="badge bg-blue-lt text-blue">${appGroup.versions.length} versions</span>` : ''}
                                                     </div>
                                                     <div class="text-muted small">v${latestVersion.version || '—'} • ${formatDate(latestVersion.lastSeen)}</div>
                                                 </div>

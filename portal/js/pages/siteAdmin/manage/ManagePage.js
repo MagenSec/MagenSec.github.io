@@ -334,7 +334,7 @@ export class ManagePage extends Component {
                         >
                             <i class="ti ti-building me-2"></i>
                             Organizations
-                            <span class="badge bg-blue-lt ms-2">${orgs.length}</span>
+                            <span class="badge bg-blue-lt text-blue ms-2">${orgs.length}</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -345,7 +345,7 @@ export class ManagePage extends Component {
                         >
                             <i class="ti ti-users me-2"></i>
                             Accounts
-                            <span class="badge bg-blue-lt ms-2">${accounts.length}</span>
+                            <span class="badge bg-blue-lt text-blue ms-2">${accounts.length}</span>
                         </a>
                     </li>
                     <li class="nav-item">
