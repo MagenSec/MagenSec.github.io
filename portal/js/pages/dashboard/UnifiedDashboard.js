@@ -704,10 +704,10 @@ export default class UnifiedDashboard extends Component {
       }));
     } else if (activePersona === 'it') {
       actionRows = (it.appRisks || []).slice(0, 3).map(a => ({
-        badge: `${a.cveCount} CVEs`,
+        badge: `${a.cveSummary?.total ?? 0} CVEs`,
         badgeColor: '#dc2626',
         title: a.appName || '',
-        sub: a.kevCount > 0 ? `${a.kevCount} KEV · ${a.deviceCount} devices` : `${a.deviceCount} devices affected`
+        sub: a.kevCount > 0 ? `${a.kevCount} KEV · ${a.deviceCount} device${a.deviceCount !== 1 ? 's' : ''}` : `${a.deviceCount} device${a.deviceCount !== 1 ? 's' : ''} affected`
       }));
     } else if (activePersona === 'security') {
       if (sec.exploitCount > 0) {

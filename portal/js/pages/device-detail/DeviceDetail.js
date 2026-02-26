@@ -439,7 +439,7 @@ export class DeviceDetailPage extends window.Component {
                 throw new Error(detailResp.message || 'Failed to load device detail');
             }
 
-            const { device: deviceData, telemetry: telemetryData, apps: appsData, cves: cvesData, TelemetryStatus: telemetryStatus } = detailResp.data;
+            const { device: deviceData, telemetry: telemetryData, apps: appsData, cves: cvesData, telemetryStatus } = detailResp.data;
 
             // Decrypt PII fields from device
             const decryptedDevice = {
@@ -3387,10 +3387,10 @@ export class DeviceDetailPage extends window.Component {
         const status = this.state.telemetryStatus;
         if (!status) return '';
 
-        const lastTelemetry = status.LastTelemetry ? new Date(status.LastTelemetry).getTime() : null;
-        const lastHeartbeat = status.LastHeartbeat ? new Date(status.LastHeartbeat).getTime() : null;
-        const consecutiveFailures = status.ConsecutiveFailures || 0;
-        const errors = status.Errors || '';
+        const lastTelemetry = status.lastTelemetry ? new Date(status.lastTelemetry).getTime() : null;
+        const lastHeartbeat = status.lastHeartbeat ? new Date(status.lastHeartbeat).getTime() : null;
+        const consecutiveFailures = status.consecutiveFailures || 0;
+        const errors = status.errors || '';
         const now = Date.now();
         const oneDayMs = 24 * 60 * 60 * 1000;
 

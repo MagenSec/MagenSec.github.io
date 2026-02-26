@@ -13,6 +13,8 @@ class OrgContext {
         this.availableOrgs = [];
         this.listeners = [];
         this.loading = false;
+        this.userDefaultOrgId = null;    // Backend-saved default org preference
+        this.defaultOrgMissing = null;   // Set if saved default org is inaccessible
         
         // Load selected org from localStorage
         const savedOrgId = localStorage.getItem('selectedOrgId');
@@ -73,18 +75,23 @@ class OrgContext {
                 }];
             }
 
-            // Determine which org to select: saved -> default from API -> first
+            // Determine which org to select: saved -> backend default -> owner org -> first
             const savedOrgId = localStorage.getItem('selectedOrgId');
             const defaultOrgId = (this.availableOrgs.length > 0)
                 ? (this.availableOrgs.find(o => o.role === 'Owner')?.orgId || this.availableOrgs[0].orgId)
                 : null;
-            const targetOrgId = savedOrgId || defaultOrgId || session.orgId || user.email;
+            const targetOrgId = savedOrgId || this.userDefaultOrgId || defaultOrgId || session.orgId || user.email;
 
             const found = this.availableOrgs.find(o => o.orgId === targetOrgId) || this.availableOrgs[0];
             if (found) {
                 this.currentOrg = found;
                 localStorage.setItem('selectedOrgId', found.orgId);
             }
+
+            // Flag if the user's backend-saved default org is no longer accessible
+            this.defaultOrgMissing = (this.userDefaultOrgId &&
+                !this.availableOrgs.find(o => o.orgId === this.userDefaultOrgId))
+                ? this.userDefaultOrgId : null;
 
             logger.debug('[OrgContext] Initialized:', {
                 currentOrg: this.currentOrg,
@@ -116,6 +123,9 @@ class OrgContext {
             }
             
             const { user, orgs } = response.data;
+
+            // Capture the user's backend-saved default org preference
+            this.userDefaultOrgId = user?.defaultOrgId || null;
             
             // Map API response to availableOrgs format
             const mappedOrgs = orgs.map(org => ({
@@ -124,7 +134,10 @@ class OrgContext {
                 type: org.type,
                 role: org.role,
                 deviceCount: org.deviceCount,
-                totalSeats: org.totalSeats
+                totalSeats: org.totalSeats,
+                isEnabled: org.isEnabled !== false,
+                remainingCredits: org.remainingCredits ?? -1,
+                totalCredits: org.totalCredits ?? -1
             }));
 
             // De-duplicate by orgId to avoid duplicate personal org entries
@@ -279,6 +292,9 @@ class OrgContext {
      * Notify all listeners of org change
      */
     notifyListeners() {
+        // Update org status banner for current org
+        this.updateOrgStatusBanner(this.currentOrg);
+
         this.listeners.forEach(callback => {
             try {
                 callback(this.currentOrg);
@@ -293,6 +309,82 @@ class OrgContext {
             window.dispatchEvent(evt);
         } catch (error) {
             logger.error('[OrgContext] Failed to dispatch orgChanged event:', error);
+        }
+    }
+
+    /**
+     * Show/hide the org status banner based on the selected org's state.
+     * Handles: disabled org, expired license, expiring soon.
+     */
+    updateOrgStatusBanner(org) {
+        const banner = document.getElementById('org-status-banner');
+        const alertEl = document.getElementById('org-status-alert');
+        if (!banner || !alertEl) return;
+
+        if (!org) { banner.style.display = 'none'; return; }
+
+        const isDisabled = org.isEnabled === false;
+        const isExpired  = org.remainingCredits === 0;
+        const totalSeats = org.totalSeats > 0 ? org.totalSeats : 5;
+        const isExpiring = !isExpired && org.remainingCredits > 0 && org.remainingCredits <= (totalSeats * 7);
+
+        // Icon SVG paths (Tabler icon style)
+        const iconBan = `<svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <circle cx="12" cy="12" r="9" />
+            <line x1="5.7" y1="5.7" x2="18.3" y2="18.3" />
+        </svg>`;
+        const iconAlertCircle = `<svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>`;
+        const iconClock = `<svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <circle cx="12" cy="12" r="9" />
+            <polyline points="12 7 12 12 15 15" />
+        </svg>`;
+
+        const buildAlert = (colorClass, icon, title, detail) => `
+            <div class="alert alert-important ${colorClass} alert-dismissible mb-0" role="alert">
+                <div class="d-flex">
+                    <div>${icon}</div>
+                    <div class="ms-2">
+                        <h4 class="alert-title">${title}</h4>
+                        <div>${detail}</div>
+                    </div>
+                </div>
+                <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+            </div>`;
+
+        if (isDisabled) {
+            alertEl.innerHTML = buildAlert(
+                'alert-danger',
+                iconBan,
+                'Account Disabled',
+                'This organization has been disabled. Contact <a href="mailto:support@magensec.com" class="text-reset fw-bold text-decoration-underline">support@magensec.com</a> to reinstate access.'
+            );
+            banner.style.display = 'block';
+        } else if (isExpired) {
+            alertEl.innerHTML = buildAlert(
+                'alert-danger',
+                iconAlertCircle,
+                'License Expired',
+                'Your MagenSec license has no remaining credits. <a href="#!/account" class="text-reset fw-bold text-decoration-underline">Renew now</a> to restore full access.'
+            );
+            banner.style.display = 'block';
+        } else if (isExpiring) {
+            const days = Math.floor(org.remainingCredits / (totalSeats || 1));
+            alertEl.innerHTML = buildAlert(
+                'alert-warning',
+                iconClock,
+                'License Expiring Soon',
+                `Approximately ${days} day${days !== 1 ? 's' : ''} of credits remaining. <a href="#!/account" class="text-reset fw-bold text-decoration-underline">Renew now</a> to avoid interruption.`
+            );
+            banner.style.display = 'block';
+        } else {
+            banner.style.display = 'none';
         }
     }
 

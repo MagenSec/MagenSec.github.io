@@ -24,7 +24,8 @@ import { AssetsPage } from './pages/inventory/Assets.js';
 import { AppsInventoryPage } from './pages/inventory/AppsInventory.js';
 import { Vulnerabilities } from './pages/vulnerabilities/index.js';
 import { CVEDetails } from './pages/cves/index.js';
-import { AccountPage, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage, ReviewPage } from './pages/placeholders.js';
+import { AccountPage as AccountPagePlaceholder, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage, ReviewPage } from './pages/placeholders.js';
+import { AccountPage } from './pages/account/Account.js';
 import { CompliancePage } from './pages/compliance/Compliance.js';
 import { AuditorPage } from './pages/auditor/Auditor.js';
 import { ReportsPage } from './pages/reports/Reports.js';
@@ -113,6 +114,8 @@ function App() {
             return html`<${ReportsPage} />`;
         case 'siteadmin/review':
             return html`<${ReviewPage} />`;
+        case 'account':
+            return html`<${AccountPage} />`;
         case 'settings':
             return html`<${SettingsPage} />`;
         case 'audit':
@@ -241,10 +244,37 @@ async function init() {
             // Initialize org context after successful login
             await orgContext.initialize();
             logger.info('[App] Org context initialized');
+
+            // Redirect to Account page if saved default org is no longer accessible
+            if (orgContext.defaultOrgMissing) {
+                window.location.hash = '#!/account';
+                setTimeout(() => window.toast?.show(
+                    `<strong>Default organization not accessible</strong> &mdash; Your saved default organization is no longer available. Please select a new one in <a href="#!/account" style="color:inherit;font-weight:600;">Account</a>.`,
+                    'warning', 0
+                ), 800);
+            }
             
             // Show authenticated state
             setAuthenticationState(true);
-            
+
+            // Toast if phone number not yet set
+            setTimeout(() => {
+                if (!sessionStorage.getItem('phone_toast_shown')) {
+                    try {
+                        const u = auth.getUser();
+                        const phoneKey = u?.email ? `magensec_phone_${u.email}` : null;
+                        if (phoneKey && !localStorage.getItem(phoneKey)) {
+                            sessionStorage.setItem('phone_toast_shown', '1');
+                            window.toast?.show(
+                                `<strong>Add your phone number</strong> &mdash; Set a contact number in your <a href="#!/account" style="color:inherit;font-weight:600;">Account</a> for security alerts.`,
+                                'warning',
+                                0
+                            );
+                        }
+                    } catch (_) {}
+                }
+            }, 1200);
+
             // Use hash navigation instead of full page redirect
             window.location.hash = '#!/dashboard';
             // Clear query params
@@ -266,6 +296,35 @@ async function init() {
         logger.debug('[App] User already authenticated, initializing org context');
         await orgContext.initialize();
         setAuthenticationState(true);
+
+        // Redirect to Account page if saved default org is no longer accessible
+        if (orgContext.defaultOrgMissing) {
+            setTimeout(() => {
+                window.location.hash = '#!/account';
+                setTimeout(() => window.toast?.show(
+                    `<strong>Default organization not accessible</strong> &mdash; Your saved default organization is no longer available. Please select a new one in <a href="#!/account" style="color:inherit;font-weight:600;">Account</a>.`,
+                    'warning', 0
+                ), 800);
+            }, 500);
+        }
+
+        // Toast if phone number not set (once per session)
+        setTimeout(() => {
+            if (!sessionStorage.getItem('phone_toast_shown')) {
+                try {
+                    const u = auth.getUser();
+                    const phoneKey = u?.email ? `magensec_phone_${u.email}` : null;
+                    if (phoneKey && !localStorage.getItem(phoneKey)) {
+                        sessionStorage.setItem('phone_toast_shown', '1');
+                        window.toast?.show(
+                            `<strong>Add your phone number</strong> &mdash; Set a contact number in your <a href="#!/account" style="color:inherit;font-weight:600;">Account</a> for security alerts.`,
+                            'warning',
+                            0
+                        );
+                    }
+                } catch (_) {}
+            }
+        }, 1500);
     } else {
         // Show login overlay
         setAuthenticationState(false);

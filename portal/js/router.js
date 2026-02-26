@@ -268,7 +268,14 @@ export function initRouter(renderApp) {
         renderApp({ page: 'documentation-hub', ctx });
     });
 
-    // Account route REMOVED - account page is placeholder (login-based signup/profile)
+    // Account (protected)
+    page('/account', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'account', ctx });
+    });
 
     // Start router with hash-bang mode
     // Set base to /portal/ for GitHub Pages, or current directory
