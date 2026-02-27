@@ -15,6 +15,8 @@ export function BusinessMatrixPage() {
     const [expandedOrgs, setExpandedOrgs] = useState(new Set());
     const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'USD');
     const [serviceCostDays, setServiceCostDays] = useState(30); // 7, 30, or 90 days
+    const [costTrendDays, setCostTrendDays] = useState(30);          // 7, 14, 30
+    const [costBreakdownPeriod, setCostBreakdownPeriod] = useState('mtd'); // 'latest', '7d', 'mtd'
     const [showMrrMlDetails, setShowMrrMlDetails] = useState(false);
     
     // Chart refs
@@ -49,6 +51,22 @@ export function BusinessMatrixPage() {
             if (costBreakdownChart) costBreakdownChart.destroy();
         };
     }, []);
+
+    // Re-render cost trend when period selector changes
+    useEffect(() => {
+        const snapshots = metrics?.costAnalytics?.dailySnapshots;
+        if (snapshots?.length > 0) {
+            setTimeout(() => renderCostTrendChart(snapshots, costTrendDays), 50);
+        }
+    }, [costTrendDays]);
+
+    // Re-render breakdown donut when period selector changes
+    useEffect(() => {
+        const snapshots = metrics?.costAnalytics?.dailySnapshots;
+        if (snapshots?.length > 0) {
+            setTimeout(() => renderCostBreakdownChart(snapshots, costBreakdownPeriod), 50);
+        }
+    }, [costBreakdownPeriod]);
 
     const loadBusinessMetrics = async () => {
         try {
@@ -280,11 +298,11 @@ export function BusinessMatrixPage() {
             return;
         }
 
-        renderCostTrendChart(costAnalytics.dailySnapshots);
-        renderCostBreakdownChart(costAnalytics.dailySnapshots);
+        renderCostTrendChart(costAnalytics.dailySnapshots, costTrendDays);
+        renderCostBreakdownChart(costAnalytics.dailySnapshots, costBreakdownPeriod);
     };
 
-    const renderCostTrendChart = (snapshots) => {
+    const renderCostTrendChart = (snapshots, days = 30) => {
         if (!costTrendChartRef.current) return;
 
         const ctx = costTrendChartRef.current.getContext('2d');
@@ -296,7 +314,9 @@ export function BusinessMatrixPage() {
         const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
         const currencySymbol = currency === 'INR' ? '₹' : '$';
 
-        const sortedSnapshots = [...snapshots].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const sortedSnapshots = [...snapshots]
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .slice(-days);
         const labels = sortedSnapshots.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
         const dailyCosts = sortedSnapshots.map(s => s.totalCost * currencyMultiplier);
         const runRate7 = dailyCosts.map((_, idx) => {
@@ -363,7 +383,7 @@ export function BusinessMatrixPage() {
         setCostTrendChart(chart);
     };
 
-    const renderCostBreakdownChart = (snapshots) => {
+    const renderCostBreakdownChart = (snapshots, period = 'mtd') => {
         if (!costBreakdownChartRef.current || snapshots.length === 0) return;
 
         const ctx = costBreakdownChartRef.current.getContext('2d');
@@ -372,21 +392,35 @@ export function BusinessMatrixPage() {
             costBreakdownChart.destroy();
         }
 
-        // Get latest snapshot's cost breakdown
-        const latest = snapshots[snapshots.length - 1];
-        const costsByType = latest.costsByResourceType || {};
+        // Select which snapshots to aggregate based on period
+        const sorted = [...snapshots].sort((a, b) => new Date(a.date) - new Date(b.date));
+        let relevantSnapshots;
+        let periodLabel;
+        if (period === 'latest') {
+            relevantSnapshots = sorted.slice(-1);
+            const d = relevantSnapshots[0] ? new Date(relevantSnapshots[0].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'today';
+            periodLabel = `Latest day (${d})`;
+        } else if (period === '7d') {
+            relevantSnapshots = sorted.slice(-7);
+            periodLabel = '7-day total';
+        } else {
+            relevantSnapshots = sorted;
+            periodLabel = 'Month-to-date total';
+        }
 
-        // Simplify resource type names and group
+        // Aggregate resource costs across selected snapshots
         const simplified = {};
-        Object.entries(costsByType).forEach(([type, cost]) => {
-            let category = 'Other';
-            if (type.includes('Container')) category = 'Container Apps';
-            else if (type.includes('Registry')) category = 'Container Registry';
-            else if (type.includes('Storage')) category = 'Storage';
-            else if (type.includes('KeyVault')) category = 'Key Vault';
-            else if (type.includes('Bandwidth')) category = 'Bandwidth';
-            
-            simplified[category] = (simplified[category] || 0) + cost;
+        relevantSnapshots.forEach(snap => {
+            const costsByType = snap.costsByResourceType || {};
+            Object.entries(costsByType).forEach(([type, cost]) => {
+                let category = 'Other';
+                if (type.includes('Container') && !type.includes('Registry')) category = 'Container Apps';
+                else if (type.includes('Registry')) category = 'Container Registry';
+                else if (type.includes('Storage')) category = 'Storage';
+                else if (type.includes('KeyVault') || type.includes('Key Vault')) category = 'Key Vault';
+                else if (type.includes('Bandwidth')) category = 'Bandwidth';
+                simplified[category] = (simplified[category] || 0) + cost;
+            });
         });
 
         const labels = Object.keys(simplified);
@@ -415,6 +449,13 @@ export function BusinessMatrixPage() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
+                    title: {
+                        display: true,
+                        text: periodLabel,
+                        color: '#6c757d',
+                        font: { size: 11, weight: 'normal' },
+                        padding: { bottom: 4 }
+                    },
                     legend: {
                         position: 'bottom'
                     },
@@ -424,7 +465,7 @@ export function BusinessMatrixPage() {
                                 const label = context.label || '';
                                 const value = context.parsed || 0;
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percent = ((value / total) * 100).toFixed(1);
+                                const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                                 return label + ': ' + currencySymbol + value.toFixed(2) + ' (' + percent + '%)';
                             }
                         }
@@ -1432,10 +1473,18 @@ export function BusinessMatrixPage() {
             <div class="row g-3 mb-4">
                 <div class="col-md-6">
                     <div class="card h-100">
-                        <div class="card-header">
+                        <div class="card-header d-flex align-items-center justify-content-between">
                             <h5 class="card-title mb-0">
-                                <i class="bi bi-bar-chart-line me-1"></i> Daily Expenses (Last 30 Days)
+                                <i class="bi bi-bar-chart-line me-1"></i> Daily Azure Expenses
                             </h5>
+                            <select
+                                class="form-select form-select-sm w-auto ms-3"
+                                value=${costTrendDays}
+                                onChange=${e => setCostTrendDays(parseInt(e.target.value))}>
+                                <option value="7">Last 7 days</option>
+                                <option value="14">Last 14 days</option>
+                                <option value="30">Last 30 days</option>
+                            </select>
                         </div>
                         <div class="card-body" style="height: 280px; position: relative;">
                             ${metrics?.costAnalytics?.dailySnapshots?.length > 0
@@ -1455,10 +1504,18 @@ export function BusinessMatrixPage() {
                 </div>
                 <div class="col-md-6">
                     <div class="card h-100">
-                        <div class="card-header">
+                        <div class="card-header d-flex align-items-center justify-content-between">
                             <h5 class="card-title mb-0">
-                                <i class="bi bi-pie-chart me-1"></i> Cost Breakdown by Resource Type
+                                <i class="bi bi-pie-chart me-1"></i> Cost by Resource Type
                             </h5>
+                            <select
+                                class="form-select form-select-sm w-auto ms-3"
+                                value=${costBreakdownPeriod}
+                                onChange=${e => setCostBreakdownPeriod(e.target.value)}>
+                                <option value="latest">Latest day</option>
+                                <option value="7d">7-day total</option>
+                                <option value="mtd">Month to date</option>
+                            </select>
                         </div>
                         <div class="card-body" style="height: 280px; position: relative;">
                             ${metrics?.costAnalytics?.dailySnapshots?.length > 0
