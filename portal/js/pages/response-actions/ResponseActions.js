@@ -65,6 +65,74 @@ function shortText(value, max = 140) {
     return `${text.slice(0, max)}…`;
 }
 
+function parseCommandResult(resultText) {
+    if (!resultText) return null;
+
+    const text = String(resultText).trim();
+    if (!text) return null;
+
+    const segments = text.split('|').map(s => s.trim()).filter(Boolean);
+    const map = {};
+    let hasPairs = false;
+
+    for (const segment of segments) {
+        const idx = segment.indexOf('=');
+        if (idx <= 0) continue;
+        const key = segment.slice(0, idx).trim().toLowerCase();
+        const value = segment.slice(idx + 1).trim();
+        if (!key) continue;
+        map[key] = value;
+        hasPairs = true;
+    }
+
+    if (!hasPairs) {
+        return {
+            status: null,
+            error: null,
+            code: null,
+            message: text,
+            executedAt: null,
+            raw: text
+        };
+    }
+
+    return {
+        status: map.status || null,
+        error: map.error || null,
+        code: map.code || null,
+        message: map.message || null,
+        executedAt: map.executedat || null,
+        raw: text
+    };
+}
+
+function renderCommandResult(resultText, explicitResultCode) {
+    const parsed = parseCommandResult(resultText);
+    if (!parsed) return '—';
+
+    const code = explicitResultCode || parsed.code;
+
+    const normalizedStatus = (parsed.status || '').toLowerCase();
+    const statusClass = normalizedStatus === 'success'
+        ? 'bg-success text-white'
+        : normalizedStatus === 'failed' || normalizedStatus === 'unknown'
+            ? 'bg-danger text-white'
+            : normalizedStatus
+                ? 'bg-secondary text-white'
+                : null;
+
+    return html`
+        <div class="d-flex flex-column gap-1">
+            ${parsed.status ? html`<div><span class="badge ${statusClass}">${parsed.status}</span></div>` : ''}
+            ${code ? html`<div><span class="badge bg-warning text-white">${code}</span></div>` : ''}
+            ${parsed.message ? html`<div class="text-muted">${shortText(parsed.message, 180)}</div>` : ''}
+            ${parsed.error ? html`<div class="text-danger">${shortText(parsed.error, 220)}</div>` : ''}
+            ${parsed.executedAt ? html`<div class="text-muted small">Executed ${formatDateTime(parsed.executedAt)}</div>` : ''}
+            ${(!parsed.status && !parsed.code && !parsed.message && !parsed.error) ? html`<div class="text-muted">${shortText(parsed.raw, 240)}</div>` : ''}
+        </div>
+    `;
+}
+
 function getResponseActionsQueryParam(name) {
     try {
         const hash = window.location.hash || '';
@@ -546,7 +614,7 @@ export class ResponseActionsPage extends Component {
 
     renderDeviceStatusRow(deviceStatus) {
         const diagnostic = deviceStatus?.diagnostic || '—';
-        const result = shortText(deviceStatus?.result);
+        const result = renderCommandResult(deviceStatus?.result, deviceStatus?.resultCode);
         const artifactUrl = deviceStatus?.artifactDownloadUrl;
         const retentionDays = deviceStatus?.artifactRetentionDays || 14;
         

@@ -248,7 +248,7 @@
             <div class="collapse navbar-collapse" id="navbar-menu">
                 <div class="navbar navbar-light">
                     <div class="container-xl">
-                        <ul class="navbar-nav w-100">
+                        <ul class="navbar-nav">
                             <!-- Home -->
                             <li class="nav-item">
                                 <a class="nav-link" href="#!/dashboard">
@@ -259,38 +259,33 @@
                                 </a>
                             </li>
 
-                            <!-- Security -->
+                            <!-- Dashboards -->
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
                                     </span>
-                                    <span class="nav-link-title">Security</span>
+                                    <span class="nav-link-title">Dashboards</span>
                                 </a>
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="#!/security">Dashboard</a>
-                                    <a class="dropdown-item" href="#!/security/response">Response</a>
+                                    <a class="dropdown-item" href="#!/security"><i class="ti ti-shield-check me-2"></i>Security</a>
+                                    <a class="dropdown-item" href="#!/compliance"><i class="ti ti-certificate me-2"></i>Compliance</a>
+                                    <a class="dropdown-item" href="#!/auditor"><i class="ti ti-file-search me-2"></i>Audit</a>
                                 </div>
                             </li>
 
-                            <!-- Compliance -->
-                            <li class="nav-item">
-                                <a class="nav-link" href="#!/compliance">
+                            <!-- Operations -->
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5 2 1.5v-4.5" /><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v3.5" /></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l10 -10" /><path d="M2 12l5 5m5 -5l5 -5" /></svg>
                                     </span>
-                                    <span class="nav-link-title">Compliance</span>
+                                    <span class="nav-link-title">Operations</span>
                                 </a>
-                            </li>
-
-                            <!-- Auditor -->
-                            <li class="nav-item">
-                                <a class="nav-link" href="#!/auditor">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 12l2 2l4 -4" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Auditor</span>
-                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/devices"><i class="ti ti-devices me-2"></i>Devices</a>
+                                    <a class="dropdown-item" href="#!/security/response"><i class="ti ti-shield-half me-2"></i>Response</a>
+                                </div>
                             </li>
 
                             <!-- Reports -->
@@ -312,11 +307,14 @@
                                     <span class="nav-link-title">Settings</span>
                                 </a>
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="#!/settings">General</a>
-                                    <a class="dropdown-item" href="#!/audit">Audit Log</a>
+                                    <a class="dropdown-item" href="#!/settings"><i class="ti ti-settings me-2"></i>General</a>
+                                    <a class="dropdown-item" href="#!/audit"><i class="ti ti-file-search me-2"></i>Audit Log</a>
                                 </div>
                             </li>
 
+                        </ul>
+
+                        <ul class="navbar-nav ms-auto">
                             <!-- Site Admin (hidden unless SiteAdmin) -->
                             <li class="nav-item dropdown site-admin-only" style="display:none">
                                 <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
