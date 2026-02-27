@@ -639,6 +639,8 @@ export default class UnifiedDashboard extends Component {
     const it = data.itAdmin || {};
     const sec = data.securityPro?.threatIntel || {};
     const compPct = bo.complianceCard?.percent || 0;
+    const businessTrends = bo.businessTrends || {};
+    const businessTrendPoints = Array.isArray(businessTrends.points) ? businessTrends.points : [];
 
     if (activePersona === 'business') {
       headlineValue = `${compPct}%`;
@@ -725,6 +727,49 @@ export default class UnifiedDashboard extends Component {
       actionRows.push({ badge: 'report', badgeColor: '#6366f1', title: 'Asset inventory', sub: 'Available now' });
       actionRows.push({ badge: 'report', badgeColor: '#6366f1', title: 'Compliance report', sub: 'Available now' });
       actionRows = actionRows.slice(0, 3);
+    }
+
+    let businessTrendChart = null;
+    if (activePersona === 'business' && businessTrendPoints.length > 1) {
+      const width = 360;
+      const height = 88;
+      const maxY = Math.max(1, ...businessTrendPoints.map(p => Math.max(p?.storeInstalls || 0, p?.storeStale24h || 0, p?.msiInstalls || 0)));
+      const xStep = businessTrendPoints.length > 1 ? width / (businessTrendPoints.length - 1) : width;
+
+      const toPath = (selector) => businessTrendPoints
+        .map((point, index) => {
+          const x = index * xStep;
+          const y = height - ((selector(point) || 0) / maxY) * height;
+          return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+        })
+        .join(' ');
+
+      const storePath = toPath(p => p?.storeInstalls || 0);
+      const stalePath = toPath(p => p?.storeStale24h || 0);
+      const msiPath = toPath(p => p?.msiInstalls || 0);
+
+      businessTrendChart = html`
+        <div style="padding: 12px 16px 0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tblr-secondary, #999);">
+              Business Trends (7d)
+            </div>
+            <div style="font-size: 0.72rem; color: var(--tblr-secondary, #888);">
+              Store ${businessTrends.storeInstalls || 0} · MSI ${businessTrends.msiInstalls || 0} · Stale 24h ${businessTrends.storeStale24h || 0}
+            </div>
+          </div>
+          <svg width="100%" height="88" viewBox=${`0 0 ${width} ${height}`} preserveAspectRatio="none" style="display:block; border:1px solid var(--tblr-border-color, #eceef1); border-radius:8px; background: var(--tblr-bg-surface-secondary, #fafafa);">
+            <path d=${msiPath} fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" />
+            <path d=${storePath} fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" />
+            <path d=${stalePath} fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="4 3" />
+          </svg>
+          <div style="display:flex; gap:12px; align-items:center; margin-top:6px; font-size:0.7rem; color:var(--tblr-secondary, #888);">
+            <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:2px; background:#6366f1; display:inline-block;"></span>MSI</span>
+            <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:2px; background:#10b981; display:inline-block;"></span>Store</span>
+            <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:2px; background:#ef4444; display:inline-block;"></span>Store stale 24h</span>
+          </div>
+        </div>
+      `;
     }
 
     const ctaList = PERSONA_CTAs[activePersona] || PERSONA_CTAs.business;
@@ -868,6 +913,8 @@ export default class UnifiedDashboard extends Component {
                   All clear — no immediate actions required
                 </div>
               `}
+
+              ${businessTrendChart}
 
               <!-- Row 3: CTA buttons -->
               <div style="padding: 12px 16px 4px; display: flex; gap: 8px; flex-wrap: wrap;">
