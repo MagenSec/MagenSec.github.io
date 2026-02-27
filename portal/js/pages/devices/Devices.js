@@ -2004,6 +2004,11 @@ class DevicesPage extends window.Component {
         }
     }
 
+    openResponseActionsForDevice(device) {
+        if (!device?.id) return;
+        window.location.hash = `#!/response-actions?deviceIds=${encodeURIComponent(device.id)}`;
+    }
+
     severityWeight(sev) {
         const s = (sev || '').toUpperCase();
         if (s === 'CRITICAL') return 3;
@@ -2352,6 +2357,11 @@ class DevicesPage extends window.Component {
                                                 <button type="button" class="dropdown-item" onclick=${() => { window.location.hash = `#!/devices/${device.id}`; }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>
                                                     View Device
+                                                </button>
+                                                <div class="dropdown-divider"></div>
+                                                <button type="button" class="dropdown-item" onclick=${() => this.openResponseActionsForDevice(device)}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" /><path d="M13 18l6 -6l-6 -6" /></svg>
+                                                    Open Response Actions
                                                 </button>
                                                 <div class="dropdown-divider"></div>
                                                 <button type="button" class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'TriggerScan')}>
@@ -2884,6 +2894,10 @@ class DevicesPage extends window.Component {
                                                                     <div class="dropdown-divider"></div>
                                                                     <!-- Response Actions -->
                                                                     <div class="dropdown-header">Response Actions</div>
+                                                                    <button type="button" class="dropdown-item" onclick=${() => this.openResponseActionsForDevice(device)}>
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" /><path d="M13 18l6 -6l-6 -6" /></svg>
+                                                                        Open Response Actions
+                                                                    </button>
                                                                     <button type="button" class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'TriggerScan')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
                                                                         Trigger Scan

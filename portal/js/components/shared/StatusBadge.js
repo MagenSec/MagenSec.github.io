@@ -40,11 +40,25 @@ export function StatusBadge({ status, showIcon = true, size = 'md', showTooltip 
  * @returns {Object} Status config with status, color, icon, tooltip
  */
 export function getConnectionStatus(device) {
-    if (!device || !device.health) {
-        return { 
-            status: 'Error', 
-            color: 'bg-danger-lt text-danger', 
-            icon: '⚠️',
+    if (!device) {
+        return {
+            status: 'Unknown',
+            color: 'bg-secondary-lt text-secondary',
+            icon: '?',
+            tooltip: 'Device information unavailable.'
+        };
+    }
+
+    if (!device.health) {
+        const derived = deriveStatusFromDeviceFields(device);
+        if (derived) {
+            return derived;
+        }
+
+        return {
+            status: 'Unknown',
+            color: 'bg-secondary-lt text-secondary',
+            icon: '?',
             tooltip: 'Device health information unavailable.'
         };
     }
@@ -82,6 +96,58 @@ export function getConnectionStatus(device) {
     };
 
     return statusMap[healthStatus] || statusMap['unknown'];
+}
+
+function deriveStatusFromDeviceFields(device) {
+    const state = String(device?.state || device?.deviceState || '').toUpperCase();
+    const isEnabled = device?.isEnabled !== false;
+    const lastHeartbeat = device?.lastHeartbeat || device?.lastSeen;
+    const heartbeatMs = lastHeartbeat ? new Date(lastHeartbeat).getTime() : null;
+    const nowMs = Date.now();
+
+    if (!isEnabled || state === 'BLOCKED' || state === 'DELETED') {
+        return {
+            status: 'Error',
+            color: 'bg-danger-lt text-danger',
+            icon: '⚠️',
+            tooltip: 'Device is disabled or blocked.'
+        };
+    }
+
+    if (!heartbeatMs || Number.isNaN(heartbeatMs)) {
+        return {
+            status: 'Offline',
+            color: 'bg-warning-lt text-warning',
+            icon: '⊗',
+            tooltip: 'No heartbeat received yet.'
+        };
+    }
+
+    const heartbeatMinutes = (nowMs - heartbeatMs) / 60000;
+    if (heartbeatMinutes <= 15) {
+        return {
+            status: 'Online',
+            color: 'bg-success-lt text-success',
+            icon: '✓',
+            tooltip: 'Device heartbeat is current.'
+        };
+    }
+
+    if (heartbeatMinutes > 60) {
+        return {
+            status: 'Offline',
+            color: 'bg-warning-lt text-warning',
+            icon: '⊗',
+            tooltip: `Device is offline. Last seen ${formatDuration(heartbeatMinutes)} ago.`
+        };
+    }
+
+    return {
+        status: 'Offline',
+        color: 'bg-warning-lt text-warning',
+        icon: '⊗',
+        tooltip: 'Awaiting next heartbeat.'
+    };
 }
 
 function formatDuration(minutes) {

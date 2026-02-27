@@ -15,6 +15,7 @@ import { DashboardPage } from './pages/dashboard/Dashboard.js';
 import UnifiedDashboard from './pages/dashboard/UnifiedDashboard.js';
 import DevicesPage from './pages/devices/Devices.js';
 import { DeviceDetailPage } from './pages/device-detail/DeviceDetail.js';
+import { ResponseActionsPage } from './pages/response-actions/ResponseActions.js';
 import { AnalystPage } from './pages/analyst/Analyst.js';
 import AIAnalystChatPage from './pages/ai/aiAnalystChat.js';
 import AIReportsPage from './pages/ai/aiReports.js';
@@ -75,6 +76,8 @@ function App() {
             return html`<div><${DashboardPage} /><${ChatDrawer} contextHint="security threats and vulnerabilities" /></div>`;
         case 'devices':
             return html`<${DevicesPage} />`;
+        case 'response-actions':
+            return html`<${ResponseActionsPage} />`;
         case 'device-detail':
             return html`<${DeviceDetailPage} params=${{ deviceId: currentParams?.deviceId ?? currentCtx?.params?.deviceId ?? currentCtx?.params?.id }} />`;
         

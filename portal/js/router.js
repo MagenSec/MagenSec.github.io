@@ -74,6 +74,24 @@ export function initRouter(renderApp) {
         renderApp({ page: 'devices', ctx });
     });
 
+    // Response Actions (protected)
+    page('/response-actions', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        page.redirect('/security/response');
+    });
+
+    // Security -> Response submenu route (protected)
+    page('/security/response', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'response-actions', ctx });
+    });
+
     // Device Detail (protected)
     page('/devices/:id', (ctx) => {
         if (!ctx.isAuthenticated) {

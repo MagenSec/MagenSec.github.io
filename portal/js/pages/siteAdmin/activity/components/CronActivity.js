@@ -497,7 +497,11 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                     return html`
                                         <tr>
                                             <td>
-                                                <div class="fw-bold">${task.taskId}</div>
+                                                <div class="fw-bold">${task.displayName || task.taskId}</div>
+                                                ${(task.displayName && task.displayName !== task.taskId)
+                                                    ? html`<div class="text-muted small">${task.taskId}</div>`
+                                                    : ''}
+                                                ${task.description ? html`<div class="text-muted small mt-1">${task.description}</div>` : ''}
                                             </td>
                                             <td>
                                                 <span class="badge bg-blue-lt text-blue">${task.frequencyHours}h</span>
