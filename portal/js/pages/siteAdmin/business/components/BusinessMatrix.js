@@ -296,20 +296,39 @@ export function BusinessMatrixPage() {
         const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
         const currencySymbol = currency === 'INR' ? '₹' : '$';
 
+        const sortedSnapshots = [...snapshots].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const labels = sortedSnapshots.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        const dailyCosts = sortedSnapshots.map(s => s.totalCost * currencyMultiplier);
+        const runRate7 = dailyCosts.map((_, idx) => {
+            const start = Math.max(0, idx - 6);
+            const window = dailyCosts.slice(start, idx + 1);
+            const avg = window.reduce((sum, value) => sum + value, 0) / window.length;
+            return Number.isFinite(avg) ? avg : 0;
+        });
+
         const chart = new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             data: {
-                labels: snapshots.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                labels,
                 datasets: [{
-                    label: 'Daily Cost',
-                    data: snapshots.map(s => s.totalCost * currencyMultiplier),
+                    type: 'bar',
+                    label: 'Daily Expense',
+                    data: dailyCosts,
                     borderColor: '#f76707',
-                    backgroundColor: 'rgba(247, 103, 7, 0.1)',
+                    backgroundColor: 'rgba(247, 103, 7, 0.25)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }, {
+                    type: 'line',
+                    label: '7-day Run-rate',
+                    data: runRate7,
+                    borderColor: '#0054a6',
+                    backgroundColor: 'rgba(0, 84, 166, 0.08)',
                     borderWidth: 2,
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    tension: 0.4,
-                    fill: true
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    tension: 0.3,
+                    fill: false
                 }]
             },
             options: {
@@ -317,12 +336,13 @@ export function BusinessMatrixPage() {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        display: false
+                        display: true,
+                        position: 'bottom'
                     },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return 'Cost: ' + currencySymbol + context.parsed.y.toFixed(2);
+                                return context.dataset.label + ': ' + currencySymbol + context.parsed.y.toFixed(2);
                             }
                         }
                     }
@@ -778,7 +798,7 @@ export function BusinessMatrixPage() {
                 <div class="text-center py-5">
                     <h5 class="text-body-secondary">Service Cost Data Collecting</h5>
                     <p class="text-body-secondary small mb-0">
-                        Daily Azure service costs will appear here once the Cost Management API returns data.<br>
+                        Daily Azure service costs will appear here once the Cost Management API returns data.<br />
                         This typically requires 24-48 hours of Azure usage to populate.
                     </p>
                 </div>
@@ -799,6 +819,74 @@ export function BusinessMatrixPage() {
         `;
     };
 
+    const getAiServiceDailySeries = (currentMetrics) => {
+        const entries = currentMetrics?.costAnalytics?.dailyServiceCosts || [];
+        return entries
+            .filter(e => (e.service || '').toLowerCase() === 'azure ai models')
+            .map(e => ({
+                date: new Date(e.date),
+                cost: Number(e.cost || 0)
+            }))
+            .sort((a, b) => a.date - b.date);
+    };
+
+    const getAiMtdSpend = (currentMetrics) => {
+        const now = new Date();
+        const currentYear = now.getUTCFullYear();
+        const currentMonth = now.getUTCMonth();
+        return getAiServiceDailySeries(currentMetrics)
+            .filter(entry => entry.date.getUTCFullYear() === currentYear && entry.date.getUTCMonth() === currentMonth)
+            .reduce((sum, entry) => sum + entry.cost, 0);
+    };
+
+    const getAiTrailingAverage = (currentMetrics, days) => {
+        const now = new Date();
+        const cutoff = new Date(now);
+        cutoff.setUTCDate(cutoff.getUTCDate() - Math.max(1, days - 1));
+
+        const samples = getAiServiceDailySeries(currentMetrics)
+            .filter(entry => entry.date >= cutoff)
+            .map(entry => entry.cost);
+
+        if (samples.length === 0) {
+            return 0;
+        }
+
+        return samples.reduce((sum, value) => sum + value, 0) / samples.length;
+    };
+
+    const getFinancialKrMetrics = (currentMetrics) => {
+        const mrr = Number(currentMetrics?.platformSummary?.mrr || 0);
+        const mtdCost = Number(currentMetrics?.platformSummary?.actualMonthlyAzureCost || 0);
+        const dayOfMonth = Math.max(1, new Date().getUTCDate());
+        const avgDailyCost = mtdCost / dayOfMonth;
+        const snapshots = currentMetrics?.costAnalytics?.dailySnapshots || [];
+        const sortedSnapshots = [...snapshots].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const last7 = sortedSnapshots.slice(-7).map(s => Number(s.totalCost || 0));
+        const runRate7 = last7.length > 0 ? (last7.reduce((sum, value) => sum + value, 0) / last7.length) : avgDailyCost;
+
+        const now = new Date();
+        const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+        const remainingDays = Math.max(0, daysInMonth - dayOfMonth);
+        const projectedMonthEndCost = mtdCost + (runRate7 * remainingDays);
+
+        const runRateProfit = mrr - projectedMonthEndCost;
+        const costToRevenue = mrr > 0 ? (projectedMonthEndCost / mrr) * 100 : 0;
+
+        const aiMtd = getAiMtdSpend(currentMetrics);
+        const aiShareOfCost = projectedMonthEndCost > 0 ? (aiMtd / projectedMonthEndCost) * 100 : 0;
+        const aiShareOfMrr = mrr > 0 ? (aiMtd / mrr) * 100 : 0;
+
+        return {
+            projectedMonthEndCost,
+            runRateProfit,
+            costToRevenue,
+            aiShareOfCost,
+            aiShareOfMrr,
+            runRate7
+        };
+    };
+
     const getMarginBadgeLightStyle = (band) => {
         const bandNum = typeof band === 'number' ? band : 0;
         const styles = {
@@ -810,6 +898,49 @@ export function BusinessMatrixPage() {
             5: { bg: '#fff9e6', text: '#b8860b' }   // Bliss (Gold with darker text)
         };
         return styles[bandNum] || { bg: '#f5f5f5', text: '#6c757d' };
+    };
+
+    const buildBusinessAlerts = () => {
+        const alerts = [];
+
+        if (krMetrics.runRateProfit < 0) {
+            alerts.push({ level: 'danger', icon: 'bi-x-circle-fill', text: `Run-rate profit is ${formatCurrency(krMetrics.runRateProfit)} — costs will exceed MRR by month-end` });
+        }
+
+        if (krMetrics.costToRevenue > 60) {
+            alerts.push({ level: 'danger', icon: 'bi-exclamation-octagon-fill', text: `Cost/Revenue at ${krMetrics.costToRevenue.toFixed(1)}% (target ≤ 40%) — critical overspend` });
+        } else if (krMetrics.costToRevenue > 40) {
+            alerts.push({ level: 'warning', icon: 'bi-exclamation-triangle-fill', text: `Cost/Revenue at ${krMetrics.costToRevenue.toFixed(1)}% (target ≤ 40%) — above target` });
+        }
+
+        if (krMetrics.aiShareOfCost > 25) {
+            alerts.push({ level: 'danger', icon: 'bi-cpu-fill', text: `AI models consuming ${krMetrics.aiShareOfCost.toFixed(1)}% of costs (target ≤ 15%) — review AI usage` });
+        } else if (krMetrics.aiShareOfCost > 15) {
+            alerts.push({ level: 'warning', icon: 'bi-cpu', text: `AI models at ${krMetrics.aiShareOfCost.toFixed(1)}% of costs (target ≤ 15%)` });
+        }
+
+        const expiringCount = (atRiskOrganizations || []).filter(o => o.daysToExpiry !== null && o.daysToExpiry < 7).length;
+        if (expiringCount > 0) {
+            alerts.push({ level: 'danger', icon: 'bi-calendar-x-fill', text: `${expiringCount} organization${expiringCount > 1 ? 's' : ''} expiring in < 7 days — immediate action required` });
+        } else {
+            const expiring30 = (atRiskOrganizations || []).filter(o => o.daysToExpiry !== null && o.daysToExpiry < 30).length;
+            if (expiring30 > 0) {
+                alerts.push({ level: 'warning', icon: 'bi-calendar-event', text: `${expiring30} organization${expiring30 > 1 ? 's' : ''} expiring within 30 days` });
+            }
+        }
+
+        if (alerts.length === 0) return null;
+
+        return html`
+            <div class="mb-3">
+                ${alerts.map((alert, i) => html`
+                    <div class="alert alert-${alert.level} d-flex align-items-center py-2 px-3 mb-1" key=${i}>
+                        <i class="bi ${alert.icon} me-2 flex-shrink-0"></i>
+                        <div class="small fw-medium">${alert.text}</div>
+                    </div>
+                `)}
+            </div>
+        `;
     };
 
     if (loading) {
@@ -837,7 +968,7 @@ export function BusinessMatrixPage() {
     const buildProjectedCostsSection = (currentMetrics) => {
         if (!currentMetrics || !currentMetrics.costAnalytics) return null;
 
-        const orgAllocations = currentMetrics.costAnalytics.orgAllocations || {};
+        const orgAllocations = currentMetrics.costAnalytics.latestOrgAllocations || {};
         const orgsWithProjections = Object.values(orgAllocations).filter(org => 
             org.projectedCosts && org.projectedCosts.inactiveSeats > 0
         );
@@ -852,6 +983,9 @@ export function BusinessMatrixPage() {
         const totalAdditionalCostAvg = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.additionalCostAvg, 0) * currencyMultiplier;
         const totalAdditionalCostPeak = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.additionalCostPeak, 0) * currencyMultiplier;
         const totalCurrentMonthlyCost = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.currentMonthlyCost, 0) * currencyMultiplier;
+        const projectionRangePercent = totalAdditionalCostAvg > 0
+            ? ((totalAdditionalCostPeak - totalAdditionalCostAvg) / totalAdditionalCostAvg) * 100
+            : 0;
 
         return html`
             <div class="card mb-4">
@@ -894,7 +1028,7 @@ export function BusinessMatrixPage() {
                             <div class="card bg-info-lt">
                                 <div class="card-body text-center">
                                     <div class="text-body-secondary small mb-1">Cost Range</div>
-                                    <div class="h4 mb-0 text-info">${((totalAdditionalCostPeak - totalAdditionalCostAvg) / totalAdditionalCostAvg * 100).toFixed(0)}%</div>
+                                    <div class="h4 mb-0 text-info">${projectionRangePercent.toFixed(0)}%</div>
                                     <div class="text-body-secondary small">Peak vs Avg variance</div>
                                 </div>
                             </div>
@@ -1008,9 +1142,25 @@ export function BusinessMatrixPage() {
     const atRiskOrganizations = metrics.atRiskOrganizations || [];
     const costOutliers = metrics.costOutliers || [];
     const serviceCostTrendsSection = buildServiceCostTrendsSection(metrics);
+    const dayOfMonth = Math.max(1, new Date().getUTCDate());
+    const avgDailyAzureSpend = (platformSummary.actualMonthlyAzureCost || 0) / dayOfMonth;
+    const aiMtdSpend = getAiMtdSpend(metrics);
+    const aiAvg7dSpend = getAiTrailingAverage(metrics, 7);
+    const aiAvg14dSpend = getAiTrailingAverage(metrics, 14);
+    const krMetrics = getFinancialKrMetrics(metrics);
+    const aiTrend = aiAvg14dSpend > 0
+        ? {
+            percentage: Math.abs(((aiAvg7dSpend - aiAvg14dSpend) / aiAvg14dSpend) * 100).toFixed(1),
+            isPositive: aiAvg7dSpend > aiAvg14dSpend,
+            isNegative: aiAvg7dSpend < aiAvg14dSpend
+        }
+        : null;
 
     return html`
         <div class="business-matrix-container">
+            <!-- Business Alerts Strip -->
+            ${buildBusinessAlerts()}
+
             <!-- Hero Section with Platform Summary -->
             <div class="card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                 <div class="card-body p-4">
@@ -1080,8 +1230,8 @@ export function BusinessMatrixPage() {
 
             <!-- KPI Cards Row -->
             <div class="row g-3 mb-4">
-                <div class="col-md-3">
-                    <div class="card">
+                <div class="col-md-4">
+                    <div class="card h-100">
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">Monthly Recurring Revenue</div>
                             <div class="h2 mb-0 text-success">${formatCurrency(platformSummary.mrr || 0)}</div>
@@ -1094,21 +1244,37 @@ export function BusinessMatrixPage() {
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card">
+                <div class="col-md-4">
+                    <div class="card h-100">
                         <div class="card-body text-center">
-                            <div class="text-body-secondary small mb-2">Azure Monthly Cost</div>
-                            <div class="h2 mb-0 text-danger">${formatCurrency(platformSummary.actualMonthlyAzureCost || 0)}</div>
+                            <div class="text-body-secondary small mb-2">Avg Daily Azure Spend (MTD)</div>
+                            <div class="h2 mb-0 text-danger">${formatCurrency(avgDailyAzureSpend || 0)}</div>
                             ${platformSummary.trends && platformSummary.trends.length >= 2
-                                ? renderTrendIndicator(calculateTrend(platformSummary.actualMonthlyAzureCost || 0, platformSummary.trends, 'cost'), true)
+                                ? renderTrendIndicator(calculateTrend(avgDailyAzureSpend || 0, platformSummary.trends, 'cost'), true)
                                 : html`<div class="text-body-secondary small mt-1"><em>Trend data collecting...</em></div>`
                             }
-                            <div class="text-body-secondary small mt-2">Infrastructure</div>
+                            <div class="text-body-secondary small mt-2">MTD total: ${formatCurrency(platformSummary.actualMonthlyAzureCost || 0)}</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card ${atRiskOrganizations && atRiskOrganizations.length > 0 ? 'border-warning' : ''}">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">AI Models Spend (MTD)</div>
+                            <div class="h2 mb-0 text-warning">${formatCurrency(aiMtdSpend || 0)}</div>
+                            ${aiTrend
+                                ? renderTrendIndicator(aiTrend, true)
+                                : html`<div class="text-body-secondary small mt-1"><em>Trend data collecting...</em></div>`
+                            }
+                            <div class="text-body-secondary small mt-2">7-day avg: ${formatCurrency(aiAvg7dSpend || 0)}/day</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card h-100 ${atRiskOrganizations && atRiskOrganizations.length > 0 ? 'border-warning' : ''}">
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">
                                 <i class="bi bi-exclamation-triangle-fill text-warning"></i> Revenue Leak Alert
@@ -1120,12 +1286,12 @@ export function BusinessMatrixPage() {
                                 </div>
                                 <div class="d-flex justify-content-center gap-2 flex-wrap">
                                     ${atRiskOrganizations.filter(o => o.daysToExpiry !== null && o.daysToExpiry < 30).length > 0 ? html`
-                                        <span class="badge bg-danger">
+                                        <span class="badge bg-danger text-white">
                                             ${atRiskOrganizations.filter(o => o.daysToExpiry !== null && o.daysToExpiry < 30).length} Expiring
                                         </span>
                                     ` : ''}
                                     ${atRiskOrganizations.filter(o => (o.marginPercent || 0) < 20).length > 0 ? html`
-                                        <span class="badge bg-warning">
+                                        <span class="badge bg-warning text-white">
                                             ${atRiskOrganizations.filter(o => (o.marginPercent || 0) < 20).length} Low Margin
                                         </span>
                                     ` : ''}
@@ -1137,8 +1303,8 @@ export function BusinessMatrixPage() {
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card">
+                <div class="col-md-4">
+                    <div class="card h-100">
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">Organizations & Devices</div>
                             <div class="h2 mb-0">${platformSummary.totalOrgs || 0} <span class="h4 text-body-secondary">orgs</span></div>
@@ -1158,11 +1324,8 @@ export function BusinessMatrixPage() {
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="row g-3 mb-4">
-                <div class="col-md-12">
-                    <div class="card">
+                <div class="col-md-4">
+                    <div class="card h-100">
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">Daily Telemetry Volume</div>
                             <div class="h2 mb-0 text-primary">${formatCompactNumber(metrics.telemetryVolumes?.platform?.totalRows || 0)}</div>
@@ -1170,7 +1333,52 @@ export function BusinessMatrixPage() {
                                 ? renderTrendIndicator(calculateTrend(metrics.telemetryVolumes?.platform?.totalRows || 0, platformSummary.trends, 'telemetryVolume'), true)
                                 : html`<div class="text-body-secondary small mt-1"><em>Trend data collecting...</em></div>`
                             }
-                            <div class="text-body-secondary small mt-2">rows / day</div>
+                            <div class="text-body-secondary small mt-2">
+                                ${(() => {
+                                    const tv = metrics.telemetryVolumes?.platform;
+                                    if (!tv || tv.totalRows === 0) return 'rows / day (no telemetry yet)';
+                                    return `App: ${formatCompactNumber(tv.appTelemetryRows || 0)} · CVE: ${formatCompactNumber(tv.cveTelemetryRows || 0)} · Machine: ${formatCompactNumber(tv.machineTelemetryRows || 0)}`;
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">KR: Run-rate Profit</div>
+                            <div class="h3 mb-0 ${krMetrics.runRateProfit >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(krMetrics.runRateProfit || 0)}</div>
+                            <div class="text-body-secondary small mt-2">MRR minus projected month-end cost</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">KR: Cost / Revenue</div>
+                            <div class="h3 mb-0 ${krMetrics.costToRevenue <= 40 ? 'text-success' : krMetrics.costToRevenue <= 60 ? 'text-warning' : 'text-danger'}">${krMetrics.costToRevenue.toFixed(1)}%</div>
+                            <div class="text-body-secondary small mt-2">Target ≤ 40%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">KR: AI Share of Cost</div>
+                            <div class="h3 mb-0 ${krMetrics.aiShareOfCost <= 15 ? 'text-success' : krMetrics.aiShareOfCost <= 25 ? 'text-warning' : 'text-danger'}">${krMetrics.aiShareOfCost.toFixed(1)}%</div>
+                            <div class="text-body-secondary small mt-2">Target ≤ 15%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">KR: 7-day Daily Run-rate</div>
+                            <div class="h3 mb-0 text-primary">${formatCurrency(krMetrics.runRate7 || 0)}</div>
+                            <div class="text-body-secondary small mt-2">Projected month-end: ${formatCurrency(krMetrics.projectedMonthEndCost || 0)}</div>
                         </div>
                     </div>
                 </div>
@@ -1220,31 +1428,55 @@ export function BusinessMatrixPage() {
                 </div>
             </div>
 
-            <!-- Cost Analytics Charts Row -->
-            ${metrics && metrics.costAnalytics && (metrics.costAnalytics.dailySnapshots && metrics.costAnalytics.dailySnapshots.length > 0) ? html`
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">Daily Cost Trend (Last 30 Days)</h5>
-                            </div>
-                            <div class="card-body" style="height: 280px;">
-                                <canvas ref=${costTrendChartRef}></canvas>
-                            </div>
+            <!-- Cost Analytics Charts Row (always visible; shows empty state when data is collecting) -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-bar-chart-line me-1"></i> Daily Expenses (Last 30 Days)
+                            </h5>
                         </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">Cost Breakdown by Resource Type</h5>
-                            </div>
-                            <div class="card-body" style="height: 280px;">
-                                <canvas ref=${costBreakdownChartRef}></canvas>
-                            </div>
+                        <div class="card-body" style="height: 280px; position: relative;">
+                            ${metrics?.costAnalytics?.dailySnapshots?.length > 0
+                                ? html`<canvas ref=${costTrendChartRef} style="width:100%;height:100%;"></canvas>`
+                                : html`
+                                    <div class="d-flex align-items-center justify-content-center h-100 text-body-secondary">
+                                        <div class="text-center">
+                                            <i class="bi bi-bar-chart-line fs-2 d-block mb-2 opacity-25"></i>
+                                            <div class="small">Daily expense data collecting</div>
+                                            <div class="small opacity-75">Populated by cost allocation cron (runs daily)</div>
+                                        </div>
+                                    </div>
+                                `
+                            }
                         </div>
                     </div>
                 </div>
-            ` : ''}
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-pie-chart me-1"></i> Cost Breakdown by Resource Type
+                            </h5>
+                        </div>
+                        <div class="card-body" style="height: 280px; position: relative;">
+                            ${metrics?.costAnalytics?.dailySnapshots?.length > 0
+                                ? html`<canvas ref=${costBreakdownChartRef} style="width:100%;height:100%;"></canvas>`
+                                : html`
+                                    <div class="d-flex align-items-center justify-content-center h-100 text-body-secondary">
+                                        <div class="text-center">
+                                            <i class="bi bi-pie-chart fs-2 d-block mb-2 opacity-25"></i>
+                                            <div class="small">Resource cost breakdown collecting</div>
+                                            <div class="small opacity-75">Requires Cost Management API data (24–48h delay)</div>
+                                        </div>
+                                    </div>
+                                `
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Azure Service Cost Trends Section -->
             ${serviceCostTrendsSection}
