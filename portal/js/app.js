@@ -39,6 +39,7 @@ import { ActivityPage } from './pages/siteAdmin/activity/ActivityPage.js';
 import { PreviewPage } from './pages/siteAdmin/preview/PreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 import { DocumentationHub } from './pages/docs/DocumentationHub/index.js';
+import { GettingStartedPage } from './pages/getting-started/GettingStarted.js';
 
 const { html, render } = window;
 
@@ -72,6 +73,8 @@ function App() {
             return html`<${LoginPage} />`;
         case 'dashboard':
             return html`<${UnifiedDashboard} />`;
+        case 'getting-started':
+            return html`<${GettingStartedPage} />`;
         case 'security':
             return html`<div><${DashboardPage} /><${ChatDrawer} contextHint="security threats and vulnerabilities" /></div>`;
         case 'devices':
@@ -260,6 +263,8 @@ async function init() {
             // Show authenticated state
             setAuthenticationState(true);
 
+            const hasOrgsAfterOAuth = orgContext.getAvailableOrgs().length > 0;
+
             // Toast if phone number not yet set
             setTimeout(() => {
                 if (!sessionStorage.getItem('phone_toast_shown')) {
@@ -279,7 +284,7 @@ async function init() {
             }, 1200);
 
             // Use hash navigation instead of full page redirect
-            window.location.hash = '#!/dashboard';
+            window.location.hash = hasOrgsAfterOAuth ? '#!/dashboard' : '#!/getting-started';
             // Clear query params
             window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             // Initialize router after callback
@@ -299,6 +304,12 @@ async function init() {
         logger.debug('[App] User already authenticated, initializing org context');
         await orgContext.initialize();
         setAuthenticationState(true);
+
+        if (orgContext.getAvailableOrgs().length === 0) {
+            setTimeout(() => {
+                window.location.hash = '#!/getting-started';
+            }, 100);
+        }
 
         // Redirect to Account page if saved default org is no longer accessible
         if (orgContext.defaultOrgMissing) {

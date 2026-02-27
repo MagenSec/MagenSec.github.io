@@ -23,7 +23,8 @@ export function initRouter(renderApp) {
     // Login page (public). If already authenticated, redirect to dashboard
     page('/', (ctx) => {
         if (ctx.isAuthenticated) {
-            page.redirect('/dashboard');
+            const noOrg = window.orgContext?.getAvailableOrgs?.().length === 0;
+            page.redirect(noOrg ? '/getting-started' : '/dashboard');
             return;
         }
         renderApp({ page: 'login', ctx });
@@ -32,7 +33,8 @@ export function initRouter(renderApp) {
     // Explicit /login route support (normalize to "/")
     page('/login', (ctx) => {
         if (ctx.isAuthenticated) {
-            page.redirect('/dashboard');
+            const noOrg = window.orgContext?.getAvailableOrgs?.().length === 0;
+            page.redirect(noOrg ? '/getting-started' : '/dashboard');
             return;
         }
         page.redirect('/');
@@ -45,6 +47,15 @@ export function initRouter(renderApp) {
             return;
         }
         renderApp({ page: 'dashboard', ctx });
+    });
+
+    // Getting started (protected, no-org onboarding)
+    page('/getting-started', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'getting-started', ctx });
     });
 
     // Security deep-dive (protected) - former /dashboard
@@ -309,7 +320,8 @@ export function initRouter(renderApp) {
     // Ensure we have a default route if at base
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#!/') {
         if (auth.isAuthenticated()) {
-            page.redirect('/dashboard');
+            const noOrg = window.orgContext?.getAvailableOrgs?.().length === 0;
+            page.redirect(noOrg ? '/getting-started' : '/dashboard');
         } else {
             page.redirect('/');
         }

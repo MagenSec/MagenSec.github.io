@@ -386,6 +386,30 @@ export class ApiClient {
         return this.get('/api/v1/admin/accounts', params);
     }
 
+    // === ADMIN - MAGICODES ===
+    async adminListMagiCodes(params = {}) {
+        return this.get('/api/v1/admin/magi-codes', params);
+    }
+
+    async adminCreateMagiCode(data) {
+        return this.post('/api/v1/admin/magi-codes', data);
+    }
+
+    async adminUpdateMagiCode(code, data) {
+        return this.put(`/api/v1/admin/magi-codes/${encodeURIComponent(code)}`, data);
+    }
+
+    async adminDisableMagiCode(code, comment = null) {
+        return this.post(`/api/v1/admin/magi-codes/${encodeURIComponent(code)}/disable`, { comment });
+    }
+
+    async adminDeleteMagiCode(code, comment = null) {
+        return this.request(`/api/v1/admin/magi-codes/${encodeURIComponent(code)}`, {
+            method: 'DELETE',
+            body: JSON.stringify({ comment })
+        });
+    }
+
     // === ADMIN - EMAIL ===
     async adminSendTestEmail(orgId) {
         return this.post('/api/v1/admin/email/test', { orgId });

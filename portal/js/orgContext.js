@@ -150,19 +150,6 @@ class OrgContext {
 
             this.availableOrgs = Array.from(deduped.values());
 
-            // If API returns no orgs for some reason, create a personal fallback from user
-            if (this.availableOrgs.length === 0 && user?.defaultOrgId) {
-                const isPersonalFallback = user.defaultOrgId === user.email;
-                this.availableOrgs = [{
-                    orgId: user.defaultOrgId,
-                    name: user.displayName ? `${user.displayName}'s Organization` : user.defaultOrgId,
-                    type: isPersonalFallback ? 'Personal' : 'Business',
-                    role: user.userType === 'SiteAdmin' ? 'SiteAdmin' : 'Owner',
-                    deviceCount: 0,
-                    totalSeats: 0
-                }];
-            }
-            
             logger.info('[OrgContext] Loaded', this.availableOrgs.length, 'organizations from API');
             
         } catch (error) {

@@ -79,6 +79,14 @@ export function OrganizationsTab({
             : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(org.orgId);
     };
 
+    const getMagiCodeForOrg = (org) => {
+        if (!isPersonalOrg(org)) return null;
+        const ownerEmail = (org.ownerEmail || '').toLowerCase();
+        if (!ownerEmail) return null;
+        const account = (accounts || []).find(a => (a.email || '').toLowerCase() === ownerEmail);
+        return account?.magiCodeUsed || account?.MagiCodeUsed || null;
+    };
+
     // Filter organizations
     const filteredOrgs = orgs.filter(org => {
         const matchesSearch = !orgSearch || 
@@ -556,6 +564,7 @@ export function OrganizationsTab({
                                         <tr>
                                             <th>Organization</th>
                                             <th>Owner</th>
+                                            <th>MAGICode</th>
                                             <th>Credits</th>
                                             <th>Status</th>
                                             <th>Created</th>
@@ -584,6 +593,11 @@ export function OrganizationsTab({
                                                 </td>
                                                 <td>${org.ownerEmail}</td>
                                                 <td>
+                                                    ${getMagiCodeForOrg(org)
+                                                        ? html`<span class="badge bg-success text-white">${getMagiCodeForOrg(org)}</span>`
+                                                        : html`<span class="text-muted">-</span>`}
+                                                </td>
+                                                <td>
                                                     <div>${org.remainingCredits ?? 0} / ${org.totalCredits ?? 0}</div>
                                                     <div class="progress progress-sm mt-1">
                                                         <div class="progress-bar bg-primary" style="width: ${org.totalCredits ? (org.remainingCredits / org.totalCredits) * 100 : 0}%"></div>
@@ -609,7 +623,7 @@ export function OrganizationsTab({
                                         `)}
                                         ${currentOrgs.length === 0 && html`
                                             <tr>
-                                                <td colspan="6" class="text-center py-4 text-muted">
+                                                <td colspan="7" class="text-center py-4 text-muted">
                                                     No organizations found
                                                 </td>
                                             </tr>

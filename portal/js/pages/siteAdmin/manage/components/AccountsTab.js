@@ -102,6 +102,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                             <tr>
                                 <th>Email</th>
                                 <th>User Type</th>
+                                <th>MAGICode</th>
                                 <th>Created</th>
                                 <th>Last Login</th>
                                 <th class="text-center">Actions</th>
@@ -112,6 +113,11 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                                 <tr>
                                     <td><span class="fw-semibold">${acc.email}</span></td>
                                     <td><span class="badge bg-primary-lt text-uppercase">${acc.userType === 'SiteAdmin' ? 'SITEADMIN' : 'ENDUSER'}</span></td>
+                                    <td>
+                                        ${acc.magiCodeUsed || acc.MagiCodeUsed
+                                            ? html`<span class="badge bg-success text-white" title=${acc.magiCodeUsed || acc.MagiCodeUsed}>${acc.magiCodeUsed || acc.MagiCodeUsed}</span>`
+                                            : html`<span class="text-muted">-</span>`}
+                                    </td>
                                     <td class="text-muted">${acc.createdAt ? new Date(acc.createdAt).toLocaleString() : 'N/A'}</td>
                                     <td class="text-muted">${acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString() : 'Never'}</td>
                                     <td class="text-center">

@@ -6,6 +6,7 @@
 import { OrganizationsTab } from './components/OrganizationsTab.js';
 import { AccountsTab } from './components/AccountsTab.js';
 import { AdminActionsTab } from './components/AdminActionsTab.js';
+import { MagiCodesTab } from './components/MagiCodesTab.js';
 
 const { html, Component } = window;
 const { useState, useEffect } = window.preactHooks;
@@ -41,7 +42,7 @@ export class ManagePage extends Component {
     constructor(props) {
         super(props);
         this.state = {
-            activeTab: 'organizations', // 'organizations', 'accounts', 'admin-actions', 'platform-settings'
+            activeTab: 'organizations', // 'organizations', 'accounts', 'magi-codes', 'admin-actions', 'platform-settings'
             loading: true,
             orgs: [],
             accounts: [],
@@ -350,6 +351,16 @@ export class ManagePage extends Component {
                     </li>
                     <li class="nav-item">
                         <a
+                            class="nav-link ${activeTab === 'magi-codes' ? 'active' : ''}"
+                            href="#"
+                            onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'magi-codes' }); }}
+                        >
+                            <i class="ti ti-sparkles me-2"></i>
+                            MAGICodes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a
                             class="nav-link ${activeTab === 'admin-actions' ? 'active' : ''}"
                             href="#"
                             onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'admin-actions' }); }}
@@ -387,6 +398,7 @@ export class ManagePage extends Component {
                         onRefresh=${() => this.loadData()}
                         onChangeUserType=${this.changeUserType}
                     />`}
+                    ${activeTab === 'magi-codes' && html`<${MagiCodesTab} />`}
                     ${activeTab === 'admin-actions' && html`<${AdminActionsTab}
                         orgs=${orgs}
                         onTriggerCron=${this.handleTriggerCron}
