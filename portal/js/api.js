@@ -560,8 +560,25 @@ export class ApiClient {
     }
 
     // === ANALYTICS & TRENDS ===
-    async getSoftwareInventory(orgId) {
-        return this.get(`/api/v1/orgs/${orgId}/apps`);
+    async getSoftwareInventory(orgId, deviceId, riskLevel) {
+        let url = `/api/v1/orgs/${orgId}/apps`;
+        const params = [];
+        if (deviceId) params.push(`deviceId=${encodeURIComponent(deviceId)}`);
+        if (riskLevel) params.push(`riskLevel=${encodeURIComponent(riskLevel)}`);
+        if (params.length) url += `?${params.join('&')}`;
+        return this.get(url);
+    }
+
+    async getAppLicenses(orgId) {
+        return this.get(`/api/v1/orgs/${orgId}/apps/licenses`);
+    }
+
+    async setAppLicense(orgId, appKey, licenseData) {
+        return this.put(`/api/v1/orgs/${orgId}/apps/${encodeURIComponent(appKey)}/license`, licenseData);
+    }
+
+    async deleteAppLicense(orgId, appKey) {
+        return this.delete(`/api/v1/orgs/${orgId}/apps/${encodeURIComponent(appKey)}/license`);
     }
 
     // === AI ANALYST (ORG-SCOPED) ===

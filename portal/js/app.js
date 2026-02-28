@@ -23,9 +23,10 @@ import { PosturePage } from './pages/posture/Posture.js';
 import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
 import { AssetsPage } from './pages/inventory/Assets.js';
 import { AppsInventoryPage } from './pages/inventory/AppsInventory.js';
+import { SoftwareInventoryPage } from './pages/inventory/SoftwareInventory.js';
 import { Vulnerabilities } from './pages/vulnerabilities/index.js';
 import { CVEDetails } from './pages/cves/index.js';
-import { AccountPage as AccountPagePlaceholder, SoftwareInventoryPage, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage, ReviewPage } from './pages/placeholders.js';
+import { AccountPage as AccountPagePlaceholder, HardwareInventoryPage, ComplianceReportPage, PlatformInsightsPage, ReviewPage } from './pages/placeholders.js';
 import { AccountPage } from './pages/account/Account.js';
 import { CompliancePage } from './pages/compliance/Compliance.js';
 import { AuditorPage } from './pages/auditor/Auditor.js';
@@ -99,7 +100,7 @@ function App() {
         case 'inventory':
             return html`<${AssetsPage} />`;
         case 'apps':
-            return html`<${AppsInventoryPage} />`;
+            return html`<${SoftwareInventoryPage} />`;
         case 'vulnerabilities':
             return html`<${Vulnerabilities} />`;
         case 'cves':

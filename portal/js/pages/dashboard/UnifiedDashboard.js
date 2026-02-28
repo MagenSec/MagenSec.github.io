@@ -642,6 +642,14 @@ export default class UnifiedDashboard extends Component {
     const businessTrends = bo.businessTrends || {};
     const businessTrendPoints = Array.isArray(businessTrends.points) ? businessTrends.points : [];
 
+    // AI KR velocity metrics (from aiTrends field)
+    const aiTrends = data.aiTrends || {};
+    const mttdDays  = typeof aiTrends?.dwellTime?.averageDwellTimeDays === 'number'      ? aiTrends.dwellTime.averageDwellTimeDays      : null;
+    const mttrDays  = typeof aiTrends?.patchLatency?.averageLatencyDays === 'number'     ? aiTrends.patchLatency.averageLatencyDays     : null;
+    const patchCovPct = typeof aiTrends?.patchLatency?.patchCoveragePercent === 'number' ? aiTrends.patchLatency.patchCoveragePercent   : null;
+    const vulnGrowth  = typeof aiTrends?.vulnerabilityGrowth?.growthRatePercent === 'number' ? aiTrends.vulnerabilityGrowth.growthRatePercent : null;
+    const newVulnsWeek = aiTrends?.vulnerabilityGrowth?.newThisWeek ?? null;
+
     if (activePersona === 'business') {
       headlineValue = `${compPct}%`;
       headlineLabel = 'Compliance';
@@ -672,18 +680,31 @@ export default class UnifiedDashboard extends Component {
         { label: 'License',        value: `${bo.licenseCard?.seatsUsed || 0}/${bo.licenseCard?.seatsTotal || 0}`, valueColor: '#6366f1', suffix: '', sub: `${bo.licenseCard?.daysRemaining || 0}d remaining` }
       ];
     } else if (activePersona === 'it') {
+      const osEntries = it.inventory?.osBreakdown ? Object.entries(it.inventory.osBreakdown) : [];
       metricCards = [
-        { label: 'Managed Devices', value: it.inventory?.totalDevices || 0,         valueColor: '#2563eb', suffix: '', sub: '' },
+        { label: 'Managed Devices', value: it.inventory?.totalDevices || 0,         valueColor: '#2563eb', suffix: '', sub: osEntries.slice(0,2).map(([k,v])=>`${k}: ${v}`).join(' · ') || '' },
         { label: 'Pending Patches', value: it.deploymentStatus?.pendingUpdates || 0, valueColor: it.deploymentStatus?.pendingUpdates > 0 ? '#d97706' : '#16a34a', suffix: '', sub: '' },
-        { label: 'Patched Today',   value: it.deploymentStatus?.completedToday || 0, valueColor: '#16a34a', suffix: '', sub: '' },
-        { label: 'Apps Tracked',    value: it.inventory?.totalApps || 0,             valueColor: '#6366f1', suffix: '', sub: '' }
+        { label: 'Patch Coverage',  value: patchCovPct != null ? `${Math.round(patchCovPct)}%` : `${it.deploymentStatus?.completedToday || 0} today`,
+          valueColor: patchCovPct != null ? (patchCovPct >= 90 ? '#16a34a' : patchCovPct >= 70 ? '#d97706' : '#dc2626') : '#16a34a',
+          suffix: '', sub: patchCovPct != null ? 'across fleet' : 'patched today' },
+        { label: 'MTTR',            value: mttrDays != null ? `${Math.round(mttrDays)}d` : `${it.inventory?.totalApps || 0}`,
+          valueColor: mttrDays != null ? (mttrDays < 30 ? '#16a34a' : mttrDays < 60 ? '#d97706' : '#dc2626') : '#6366f1',
+          suffix: '', sub: mttrDays != null ? 'avg remediation' : 'apps tracked' }
       ];
     } else if (activePersona === 'security') {
+      const critDelta = sec.criticalCveDelta;
+      const highDelta = sec.highCveDelta;
       metricCards = [
-        { label: 'Critical CVEs', value: sec.criticalCveCount || 0, valueColor: sec.criticalCveCount > 0 ? '#dc2626' : '#16a34a', suffix: '', sub: '' },
-        { label: 'High Severity', value: sec.highCveCount || 0,     valueColor: sec.highCveCount > 0 ? '#d97706' : '#16a34a',    suffix: '', sub: '' },
-        { label: 'KEV Exploits',  value: sec.exploitCount || 0,     valueColor: sec.exploitCount > 0 ? '#ea580c' : '#16a34a',    suffix: '', sub: 'active' },
-        { label: 'Risk Score',    value: 100 - (score.score || 0),  valueColor: '#6366f1', suffix: '', sub: '' }
+        { label: 'Critical CVEs', value: sec.criticalCveCount || 0,
+          valueColor: sec.criticalCveCount > 0 ? '#dc2626' : '#16a34a', suffix: '',
+          sub: critDelta > 0 ? `▲ +${critDelta} new` : critDelta < 0 ? `▼ ${Math.abs(critDelta)} fixed` : '' },
+        { label: 'High Severity', value: sec.highCveCount || 0,
+          valueColor: sec.highCveCount > 0 ? '#d97706' : '#16a34a', suffix: '',
+          sub: highDelta > 0 ? `▲ +${highDelta} new` : highDelta < 0 ? `▼ ${Math.abs(highDelta)} fixed` : '' },
+        { label: 'KEV / In-Wild', value: `${sec.exploitCount || 0} / ${sec.activeExploitCount || 0}`,
+          valueColor: sec.exploitCount > 0 ? '#ea580c' : '#16a34a', suffix: '', sub: 'catalog / exploited' },
+        { label: 'High EPSS',     value: sec.highEpssCount || 0,
+          valueColor: sec.highEpssCount > 0 ? '#7c3aed' : '#16a34a', suffix: '', sub: 'EPSS > 80%' }
       ];
     } else {
       const gapCount = bo.complianceCard?.gapCount || 0;
@@ -915,6 +936,78 @@ export default class UnifiedDashboard extends Component {
               `}
 
               ${businessTrendChart}
+
+              <!-- Row 2b: Persona KR metrics (aiTrends) -->
+              ${(activePersona === 'security' || activePersona === 'auditor') && (mttdDays != null || mttrDays != null || vulnGrowth != null) ? html`
+                <div style="padding: 12px 16px 0;">
+                  <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tblr-secondary, #999); margin-bottom: 8px;">Key Result Metrics</div>
+                  <div class="row g-2" style="margin: 0;">
+                    ${mttdDays != null ? html`<div class="col-6"><div style="background:var(--tblr-bg-surface-secondary,#f8f9fa);border-radius:8px;padding:8px 10px;border:1px solid var(--tblr-border-color,#e6e7e9);">
+                      <div style="font-size:1rem;font-weight:800;color:${mttdDays<14?'#16a34a':mttdDays<30?'#d97706':'#dc2626'}">${mttdDays.toFixed(1)}d</div>
+                      <div style="font-size:0.6rem;color:var(--tblr-secondary,#666);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">MTTD <span style="font-weight:400;opacity:0.7">(detect)</span></div>
+                    </div></div>` : ''}
+                    ${mttrDays != null ? html`<div class="col-6"><div style="background:var(--tblr-bg-surface-secondary,#f8f9fa);border-radius:8px;padding:8px 10px;border:1px solid var(--tblr-border-color,#e6e7e9);">
+                      <div style="font-size:1rem;font-weight:800;color:${mttrDays<30?'#16a34a':mttrDays<60?'#d97706':'#dc2626'}">${mttrDays.toFixed(1)}d</div>
+                      <div style="font-size:0.6rem;color:var(--tblr-secondary,#666);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">MTTR <span style="font-weight:400;opacity:0.7">(remediate)</span></div>
+                    </div></div>` : ''}
+                    ${patchCovPct != null ? html`<div class="col-6"><div style="background:var(--tblr-bg-surface-secondary,#f8f9fa);border-radius:8px;padding:8px 10px;border:1px solid var(--tblr-border-color,#e6e7e9);">
+                      <div style="font-size:1rem;font-weight:800;color:${patchCovPct>=90?'#16a34a':patchCovPct>=70?'#d97706':'#dc2626'}">${patchCovPct.toFixed(0)}%</div>
+                      <div style="font-size:0.6rem;color:var(--tblr-secondary,#666);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Patch Coverage</div>
+                    </div></div>` : ''}
+                    ${vulnGrowth != null ? html`<div class="col-6"><div style="background:var(--tblr-bg-surface-secondary,#f8f9fa);border-radius:8px;padding:8px 10px;border:1px solid var(--tblr-border-color,#e6e7e9);">
+                      <div style="font-size:1rem;font-weight:800;color:${vulnGrowth<=0?'#16a34a':vulnGrowth<5?'#d97706':'#dc2626'}">${vulnGrowth>0?'+':''}${vulnGrowth.toFixed(1)}%</div>
+                      <div style="font-size:0.6rem;color:var(--tblr-secondary,#666);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Vuln Growth <span style="font-weight:400;opacity:0.7">/wk</span></div>
+                    </div></div>` : ''}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Row 2c: IT KR metrics (aiTrends) -->
+              ${activePersona === 'it' && (mttdDays != null || patchCovPct != null || (it.inventory?.osBreakdown && Object.keys(it.inventory.osBreakdown).length > 0)) ? html`
+                <div style="padding: 12px 16px 0;">
+                  <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tblr-secondary, #999); margin-bottom: 8px;">Operational Metrics</div>
+                  ${it.inventory?.osBreakdown && Object.keys(it.inventory.osBreakdown).length > 0 ? html`
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                      ${Object.entries(it.inventory.osBreakdown).map(([os, count]) => html`
+                        <span style="font-size:0.7rem;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--tblr-bg-surface-secondary,#f0f0f0);color:var(--tblr-body-color,#333);border:1px solid var(--tblr-border-color,#e0e0e0);">
+                          ${os} <span style="font-weight:400;opacity:0.7">×${count}</span>
+                        </span>
+                      `)}
+                    </div>
+                  ` : ''}
+                  ${mttdDays != null ? html`<div style="font-size:0.8rem;color:var(--tblr-secondary,#666);margin-top:2px;">MTTD: <strong style="color:${mttdDays<14?'#16a34a':mttdDays<30?'#d97706':'#dc2626'}">${mttdDays.toFixed(1)} days</strong></div>` : ''}
+                </div>
+              ` : ''}
+
+              <!-- Row 2d: Top CVE table (security only) -->
+              ${activePersona === 'security' && (data.securityPro?.cveDetails || []).length > 0 ? html`
+                <div style="padding: 12px 16px 0;">
+                  <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tblr-secondary, #999); margin-bottom: 8px;">Top Vulnerabilities</div>
+                  <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.75rem;">
+                      <thead>
+                        <tr style="border-bottom:1px solid var(--tblr-border-color,#e6e7e9);">
+                          <th style="text-align:left;padding:4px 6px 4px 0;font-weight:600;color:var(--tblr-secondary,#666);">CVE</th>
+                          <th style="text-align:right;padding:4px 4px;font-weight:600;color:var(--tblr-secondary,#666);">CVSS</th>
+                          <th style="text-align:right;padding:4px 0;font-weight:600;color:var(--tblr-secondary,#666);">EPSS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${(data.securityPro.cveDetails || []).slice(0,5).map(c => html`
+                          <tr style="border-bottom:1px solid var(--tblr-border-color,#f0f0f0);">
+                            <td style="padding:5px 6px 5px 0;">
+                              <span style="font-weight:600;color:${c.severity==='Critical'?'#dc2626':c.severity==='High'?'#d97706':'#6366f1'}">${c.cveId}</span>
+                              ${c.hasKevExploit ? html`<span style="font-size:0.6rem;font-weight:700;color:#ea580c;background:#ea580c18;border:1px solid #ea580c33;border-radius:3px;padding:1px 4px;margin-left:4px;">KEV</span>` : ''}
+                            </td>
+                            <td style="text-align:right;padding:5px 4px;color:${(c.cvssScore||0)>=9?'#dc2626':(c.cvssScore||0)>=7?'#d97706':'#6b7280'};font-weight:600;">${c.cvssScore?.toFixed(1) || '—'}</td>
+                            <td style="text-align:right;padding:5px 0;color:${(c.epssScore||0)>=0.5?'#7c3aed':'#6b7280'};font-weight:${(c.epssScore||0)>=0.5?'700':'400'}">${c.epssScore != null ? `${(c.epssScore*100).toFixed(0)}%` : '—'}</td>
+                          </tr>
+                        `)}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ` : ''}
 
               <!-- Row 3: CTA buttons -->
               <div style="padding: 12px 16px 4px; display: flex; gap: 8px; flex-wrap: wrap;">
