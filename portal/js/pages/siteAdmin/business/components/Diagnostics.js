@@ -127,6 +127,11 @@ export class DiagnosticsPage extends Component {
         const { overview } = this.state;
         if (!overview) return null;
 
+        const telemetryRate = Number(overview.systemHealth?.telemetrySuccessRate || 0);
+        const telemetryBadgeClass = telemetryRate >= 95 ? 'bg-success text-white' : telemetryRate >= 85 ? 'bg-warning text-white' : 'bg-danger text-white';
+        const healthScore = Number(overview.systemHealthScore || 0);
+        const healthBadgeClass = healthScore >= 90 ? 'bg-success text-white' : healthScore >= 75 ? 'bg-warning text-white' : 'bg-danger text-white';
+
         return html`
             <div class="row row-cards mb-3">
                 <div class="col-sm-6 col-lg-3">
@@ -203,10 +208,10 @@ export class DiagnosticsPage extends Component {
                                 </div>
                                 <div class="col">
                                     <div class="font-weight-medium">
-                                        ${overview.systemHealthScore || 0}% Health
+                                        <span class="badge ${healthBadgeClass}">${healthScore.toFixed(1)}% Health</span>
                                     </div>
                                     <div class="text-muted">
-                                        Platform health score
+                                        Telemetry: <span class="badge ${telemetryBadgeClass}">${telemetryRate.toFixed(1)}%</span>
                                     </div>
                                 </div>
                             </div>
@@ -450,6 +455,12 @@ export class DiagnosticsPage extends Component {
             return html`<div class="text-muted">No health data available</div>`;
         }
 
+        const telemetryRate = Number(systemHealth.telemetrySuccessRate || 0);
+        const healthScore = Number(systemHealth.deviceHealthScore || 0);
+        const usedSeats = Number(systemHealth.usedSeats || 0);
+        const totalSeats = Number(systemHealth.totalSeats || 0);
+        const seatPct = totalSeats > 0 ? (usedSeats / totalSeats) * 100 : 0;
+
         return html`
             <div class="row row-cards">
                 <div class="col-md-6">
@@ -458,10 +469,10 @@ export class DiagnosticsPage extends Component {
                             <h3 class="card-title">Device Health</h3>
                         </div>
                         <div class="card-body">
-                            <div class="h1 mb-3">${systemHealth.deviceHealthScore}%</div>
+                            <div class="h1 mb-3 ${healthScore >= 90 ? 'text-success' : healthScore >= 75 ? 'text-warning' : 'text-danger'}">${healthScore.toFixed(1)}%</div>
                             <div class="progress progress-sm">
-                                <div class="progress-bar bg-${systemHealth.deviceHealthScore >= 80 ? 'success' : 'warning'}" 
-                                     style="width: ${systemHealth.deviceHealthScore}%"></div>
+                                <div class="progress-bar bg-${healthScore >= 90 ? 'success' : healthScore >= 75 ? 'warning' : 'danger'}" 
+                                     style="width: ${healthScore}%"></div>
                             </div>
                         </div>
                     </div>
@@ -472,10 +483,13 @@ export class DiagnosticsPage extends Component {
                             <h3 class="card-title">Telemetry Success Rate</h3>
                         </div>
                         <div class="card-body">
-                            <div class="h1 mb-3">${systemHealth.telemetrySuccessRate}%</div>
+                            <div class="h1 mb-3 ${telemetryRate >= 95 ? 'text-success' : telemetryRate >= 85 ? 'text-warning' : 'text-danger'}">${telemetryRate.toFixed(1)}%</div>
                             <div class="progress progress-sm">
-                                <div class="progress-bar bg-${systemHealth.telemetrySuccessRate >= 90 ? 'success' : 'warning'}" 
-                                     style="width: ${systemHealth.telemetrySuccessRate}%"></div>
+                                <div class="progress-bar bg-${telemetryRate >= 95 ? 'success' : telemetryRate >= 85 ? 'warning' : 'danger'}" 
+                                     style="width: ${telemetryRate}%"></div>
+                            </div>
+                            <div class="text-muted small mt-2">
+                                ${formatNumber(systemHealth.successfulTelemetryChecks || 0)} successful checks / ${formatNumber(systemHealth.totalTelemetryChecks || 0)} total
                             </div>
                         </div>
                     </div>
@@ -486,9 +500,9 @@ export class DiagnosticsPage extends Component {
                             <h3 class="card-title">License Utilization</h3>
                         </div>
                         <div class="card-body">
-                            <div class="h2 mb-3">${systemHealth.usedSeats} / ${systemHealth.totalSeats} seats</div>
+                            <div class="h2 mb-3">${usedSeats} / ${totalSeats} seats</div>
                             <div class="progress progress-sm">
-                                <div class="progress-bar" style="width: ${(systemHealth.usedSeats / systemHealth.totalSeats) * 100}%"></div>
+                                <div class="progress-bar bg-${seatPct > 100 ? 'danger' : seatPct > 85 ? 'warning' : 'primary'}" style="width: ${Math.min(100, seatPct)}%"></div>
                             </div>
                         </div>
                     </div>
@@ -518,7 +532,7 @@ export class DiagnosticsPage extends Component {
                                         </div>
                                         <div class="col">
                                             <div>Telemetry Ingestion</div>
-                                            <div class="text-muted small">${systemHealth.telemetrySuccessRate}% success</div>
+                                            <div class="text-muted small">${telemetryRate.toFixed(1)}% success · ${formatNumber(systemHealth.totalDevices || 0)} devices monitored</div>
                                         </div>
                                     </div>
                                 </div>

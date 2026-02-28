@@ -27,6 +27,9 @@ export function BusinessMatrixPage() {
     const marginBandChartRef = useRef(null);
     const costTrendChartRef = useRef(null);
     const costBreakdownChartRef = useRef(null);
+    const telemetryByTypeChartRef = useRef(null);
+    const topOrgTelemetryChartRef = useRef(null);
+    const telemetryCostMixChartRef = useRef(null);
     
     // Service cost trend chart refs (dynamic)
     const [serviceChartRefs, setServiceChartRefs] = useState({});
@@ -38,6 +41,9 @@ export function BusinessMatrixPage() {
     const [marginBandChart, setMarginBandChart] = useState(null);
     const [costTrendChart, setCostTrendChart] = useState(null);
     const [costBreakdownChart, setCostBreakdownChart] = useState(null);
+    const [telemetryByTypeChart, setTelemetryByTypeChart] = useState(null);
+    const [topOrgTelemetryChart, setTopOrgTelemetryChart] = useState(null);
+    const [telemetryCostMixChart, setTelemetryCostMixChart] = useState(null);
 
     const USD_INR_RATE = 83.5;
 
@@ -82,6 +88,9 @@ export function BusinessMatrixPage() {
             if (marginBandChart) marginBandChart.destroy();
             if (costTrendChart) costTrendChart.destroy();
             if (costBreakdownChart) costBreakdownChart.destroy();
+            if (telemetryByTypeChart) telemetryByTypeChart.destroy();
+            if (topOrgTelemetryChart) topOrgTelemetryChart.destroy();
+            if (telemetryCostMixChart) telemetryCostMixChart.destroy();
         };
     }, []);
 
@@ -152,6 +161,7 @@ export function BusinessMatrixPage() {
         // Cost Analytics Charts (if available)
         if (data.costAnalytics) {
             renderCostAnalytics(data.costAnalytics);
+            renderTelemetryEconomicsCharts(data.costAnalytics);
             
             // Service cost trend charts (if available)
             if (data.costAnalytics.dailyServiceCosts && data.costAnalytics.dailyServiceCosts.length > 0) {
@@ -515,6 +525,177 @@ export function BusinessMatrixPage() {
         });
 
         setCostBreakdownChart(chart);
+    };
+
+    const renderTelemetryEconomicsCharts = (costAnalytics) => {
+        const dailyTelemetry = costAnalytics?.dailyTelemetryTypeVolumes || [];
+        if (dailyTelemetry.length > 0) {
+            renderTelemetryByTypeChart(dailyTelemetry);
+            renderTopOrgTelemetryChart(dailyTelemetry);
+            renderTelemetryCostMixChart(dailyTelemetry[dailyTelemetry.length - 1]);
+        }
+    };
+
+    const renderTelemetryByTypeChart = (dailyTelemetry) => {
+        if (!telemetryByTypeChartRef.current) return;
+
+        const ctx = telemetryByTypeChartRef.current.getContext('2d');
+        if (telemetryByTypeChart) {
+            telemetryByTypeChart.destroy();
+        }
+
+        const series = [...dailyTelemetry]
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .slice(-30);
+
+        const labels = series.map(t => new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Heartbeat', data: series.map(t => Number(t.heartbeatRows || 0)), backgroundColor: 'rgba(0, 84, 166, 0.75)' },
+                    { label: 'App', data: series.map(t => Number(t.appTelemetryRows || 0)), backgroundColor: 'rgba(47, 179, 68, 0.75)' },
+                    { label: 'CVE', data: series.map(t => Number(t.cveTelemetryRows || 0)), backgroundColor: 'rgba(245, 159, 0, 0.8)' },
+                    { label: 'Perf', data: series.map(t => Number(t.perfTelemetryRows || 0)), backgroundColor: 'rgba(247, 103, 7, 0.75)' },
+                    { label: 'Machine', data: series.map(t => Number(t.machineTelemetryRows || 0)), backgroundColor: 'rgba(102, 126, 234, 0.75)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: (context) => `${context.dataset.label}: ${formatCompactNumber(context.parsed.y || 0)} rows`
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        ticks: { callback: (value) => formatCompactNumber(value) }
+                    }
+                }
+            }
+        });
+
+        setTelemetryByTypeChart(chart);
+    };
+
+    const renderTopOrgTelemetryChart = (dailyTelemetry) => {
+        if (!topOrgTelemetryChartRef.current) return;
+
+        const ctx = topOrgTelemetryChartRef.current.getContext('2d');
+        if (topOrgTelemetryChart) {
+            topOrgTelemetryChart.destroy();
+        }
+
+        const rows = [...dailyTelemetry]
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .slice(-30);
+
+        const latest = rows[rows.length - 1] || {};
+        const topOrgs = [...(latest.topTelemetryOrgs || [])]
+            .sort((a, b) => Number(b.telemetryRows || 0) - Number(a.telemetryRows || 0))
+            .slice(0, 5);
+
+        const labels = rows.map(t => new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        const colors = ['#0054a6', '#2fb344', '#f59f00', '#f76707', '#667eea'];
+
+        const datasets = topOrgs.map((org, index) => {
+            const orgId = org.orgId;
+            return {
+                label: orgId,
+                data: rows.map(day => {
+                    const match = (day.topTelemetryOrgs || []).find(x => x.orgId === orgId);
+                    return Number(match?.telemetryRows || 0);
+                }),
+                borderColor: colors[index % colors.length],
+                backgroundColor: `${colors[index % colors.length]}33`,
+                borderWidth: 2,
+                tension: 0.25,
+                pointRadius: 2,
+                fill: false
+            };
+        });
+
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${context.dataset.label}: ${formatCompactNumber(context.parsed.y || 0)} rows`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: (value) => formatCompactNumber(value) }
+                    }
+                }
+            }
+        });
+
+        setTopOrgTelemetryChart(chart);
+    };
+
+    const renderTelemetryCostMixChart = (latestTelemetrySnapshot) => {
+        if (!telemetryCostMixChartRef.current || !latestTelemetrySnapshot) return;
+
+        const ctx = telemetryCostMixChartRef.current.getContext('2d');
+        if (telemetryCostMixChart) {
+            telemetryCostMixChart.destroy();
+        }
+
+        const costByType = latestTelemetrySnapshot.costByType || {};
+        const labels = Object.keys(costByType);
+        const values = labels.map(k => convertFromBilling(costByType[k] || 0));
+        const currencySymbol = getCurrencySymbolForDisplay();
+
+        const chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: ['#0054a6', '#2fb344', '#f59f00', '#f76707', '#667eea'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const total = (context.dataset.data || []).reduce((sum, value) => sum + Number(value || 0), 0);
+                                const val = Number(context.parsed || 0);
+                                const share = total > 0 ? (val / total) * 100 : 0;
+                                return `${context.label}: ${currencySymbol}${val.toFixed(2)} (${share.toFixed(1)}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        setTelemetryCostMixChart(chart);
     };
 
     const toggleOrgExpand = (orgId) => {
@@ -1228,6 +1409,7 @@ export function BusinessMatrixPage() {
     const aiAvg7dSpend = getAiTrailingAverage(metrics, kpiWindowDays);
     const aiAvg14dSpend = getAiTrailingAverage(metrics, 14);
     const krMetrics = getFinancialKrMetrics(metrics, kpiWindowDays);
+    const investorSummary = metrics?.costAnalytics?.investorCostSummary || {};
     const aiTrend = aiAvg14dSpend > 0
         ? {
             percentage: Math.abs(((aiAvg7dSpend - aiAvg14dSpend) / aiAvg14dSpend) * 100).toFixed(1),
@@ -1480,6 +1662,117 @@ export function BusinessMatrixPage() {
                             <div class="text-body-secondary small mb-2">KR: ${kpiWindowDays}D Daily Run-rate</div>
                             <div class="h3 mb-0 text-primary">${formatCurrency(krMetrics.runRate || 0)}</div>
                             <div class="text-body-secondary small mt-2">Projected month-end: ${formatCurrency(krMetrics.projectedMonthEndCost || 0)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">Avg Cost / Org / Day</div>
+                            <div class="h3 mb-0 text-primary">${formatCurrency(investorSummary.avgDailyCostPerOrg || 0)}</div>
+                            <div class="text-body-secondary small mt-2">Max: ${formatCurrency(investorSummary.maxDailyCostPerOrg || 0)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">Avg Cost / Device / Day</div>
+                            <div class="h3 mb-0 text-info">${formatCurrency(investorSummary.avgDailyCostPerDevice || 0)}</div>
+                            <div class="text-body-secondary small mt-2">Max: ${formatCurrency(investorSummary.maxDailyCostPerDevice || 0)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">Projected Cost @ Avg Utilization</div>
+                            <div class="h3 mb-0 text-warning">${formatCurrency(investorSummary.projectedMonthlyCostAtAvgUtilization || 0)}</div>
+                            <div class="text-body-secondary small mt-2">+${formatCurrency(investorSummary.additionalCostAtAvgUtilization || 0)} vs current</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <div class="text-body-secondary small mb-2">Projected Margin @ Max Utilization</div>
+                            <div class="h3 mb-0 ${(investorSummary.estimatedProjectedMarginAtMaxUtilization || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                                ${(investorSummary.estimatedProjectedMarginAtMaxUtilization || 0).toFixed(1)}%
+                            </div>
+                            <div class="text-body-secondary small mt-2">Peak cost: ${formatCurrency(investorSummary.projectedMonthlyCostAtMaxUtilization || 0)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Telemetry Volume by Type (Daily)</h5>
+                        </div>
+                        <div class="card-body" style="height: 290px;">
+                            ${metrics?.costAnalytics?.dailyTelemetryTypeVolumes?.length > 0
+                                ? html`<canvas ref=${telemetryByTypeChartRef}></canvas>`
+                                : html`<div class="text-body-secondary text-center py-5">Telemetry type trends are building from daily cost snapshots.</div>`}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Top 5 Orgs by Telemetry (30D)</h5>
+                        </div>
+                        <div class="card-body" style="height: 290px;">
+                            ${metrics?.costAnalytics?.dailyTelemetryTypeVolumes?.length > 0
+                                ? html`<canvas ref=${topOrgTelemetryChartRef}></canvas>`
+                                : html`<div class="text-body-secondary text-center py-5">Top-organization telemetry trends are not available yet.</div>`}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Telemetry Cost Mix (Latest Day)</h5>
+                        </div>
+                        <div class="card-body" style="height: 290px;">
+                            ${metrics?.costAnalytics?.dailyTelemetryTypeVolumes?.length > 0
+                                ? html`<canvas ref=${telemetryCostMixChartRef}></canvas>`
+                                : html`<div class="text-body-secondary text-center py-5">Telemetry cost attribution will appear after daily snapshot rebuild.</div>`}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Top Org Telemetry Economics</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-vcenter mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Org</th>
+                                            <th class="text-end">Rows (30D)</th>
+                                            <th class="text-end">Avg Cost/Day</th>
+                                            <th class="text-end">Cost/Device/Day</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${(metrics?.costAnalytics?.topOrgTelemetryAggregates || []).slice(0, 10).map(item => html`
+                                            <tr key=${item.orgId}>
+                                                <td>${item.orgId}</td>
+                                                <td class="text-end">${formatCompactNumber(item.totalTelemetryRows || 0)}</td>
+                                                <td class="text-end">${formatCurrency(item.avgCostPerDay || 0)}</td>
+                                                <td class="text-end">${formatCurrency(item.avgCostPerDevicePerDay || 0)}</td>
+                                            </tr>
+                                        `)}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
