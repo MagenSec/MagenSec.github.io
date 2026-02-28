@@ -52,6 +52,7 @@ class DevicesPage extends window.Component {
             knownExploits: new Set(),
             deviceFilters: { license: 'active', connection: 'all', spec: 'all' },
             viewMode: 'tiles',
+            adminView: 'security', // 'security' or 'it'
             installers: { X64: {}, ARM64: {}, ENGINE: {} },
             manifestError: null,
             refreshingManifest: false,
@@ -475,7 +476,7 @@ class DevicesPage extends window.Component {
                                                 <div class="text-muted small">Number of apps with known vulnerabilities</div>
                                             </div>
                                             <div class="text-end">
-                                                ${summary.vulnerableApps ? html`<span class="badge bg-warning-lt text-warning">${summary.vulnerableApps} apps</span>` : html`<span class="text-muted">None found</span>`}
+                                                ${summary.vulnerableApps ? html`<a href="#!/devices/${device.id}?tab=inventory" class="badge bg-warning-lt text-warning text-decoration-none">${summary.vulnerableApps} apps</a>` : html`<span class="text-muted">None found</span>`}
                                             </div>
                                         </div>
                                     </div>
@@ -2464,6 +2465,94 @@ class DevicesPage extends window.Component {
         `;
     }
 
+        renderITTable(filteredDevices) {
+        const { html } = window;
+        if (!filteredDevices || filteredDevices.length === 0) return null;
+        
+        return html`
+            ${renderBulkActionsBar(this)}
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table table-vcenter table-nowrap card-table">
+                        <thead>
+                            <tr>
+                                <th>Device Name</th>
+                                <th>IP Address</th>
+                                <th>OS Version</th>
+                                <th>Agent Version</th>
+                                <th>Last Seen</th>
+                                <th>Local IPs</th>
+                                <th>RAM / CPU</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredDevices.map(device => {
+                                const parseIPs = (raw) => {
+                                    if (!raw || raw === '{}') return [];
+                                    if (typeof raw === 'object') return raw;
+                                    return (typeof raw === 'string'
+                                        ? (() => {
+                                            try {
+                                                const parsed = JSON.parse(raw);
+                                                if (Array.isArray(parsed)) return parsed;
+                                            } catch (e) { }
+                                            return raw.split(/[;,\s]+/).filter(Boolean);
+                                        })() : []);
+                                };
+                                const ips = parseIPs(device.localIps);
+                                const ipDisplay = ips.length > 0 ? html`${ips[0]} ${ips.length > 1 ? html`<span class="badge badge-sm bg-azure-lt text-azure ms-1">(+${ips.length - 1})</span>` : ''}` : 'No IP';
+                                
+                                const specStr = device.osProductType ? `${device.osProductType}` : device.osVersion;
+                                
+                                return html`
+                                <tr>
+                                    <td>
+                                        <div class="d-flex py-1 align-items-center">
+                                            <span class="avatar me-2 bg-blue-lt">${device.platform === 'Linux' ? 'L' : device.platform === 'macOS' ? 'M' : 'W'}</span>
+                                            <div class="flex-fill">
+                                                <div class="font-weight-medium">
+                                                    <a href="#!/devices/${device.id}" class="text-reset">${device.name || 'Unknown'}</a>
+                                                </div>
+                                                <div class="text-secondary"><a href="#" class="text-reset">${device.id.substring(0, 8)}...</a></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-secondary">${device.publicIp || 'Unknown'}</td>
+                                    <td>${specStr}</td>
+                                    <td class="text-secondary">${device.clientVersion || 'Unknown'}</td>
+                                    <td>
+                                        ${formatRelativeTime(device.lastSeen)}
+                                    </td>
+                                    <td>
+                                        ${ipDisplay}
+                                    </td>
+                                    <td class="text-secondary">
+                                        ${device.totalMemory ? Math.round(device.totalMemory/1024) + 'GB' : '-'} / ${device.cpuCores ? device.cpuCores + ' vCPU' : '-'}
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                                Actions
+                                            </button>
+                                            <div class="dropdown-menu dropdown-menu-end">
+                                                <a class="dropdown-item" href="#!/devices/${device.id}?tab=specs">View Specs</a>
+                                                <a class="dropdown-item" href="#!/devices/${device.id}?tab=perf">View Performance</a>
+                                                <div class="dropdown-divider"></div>
+                                                <a class="dropdown-item text-danger" href="#">Isolate Device</a>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                `;
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
     render() {
         const { html } = window;
         const { loading, devices, error, manifestError } = this.state;
@@ -2475,17 +2564,31 @@ class DevicesPage extends window.Component {
         return html`
             ${manifestError ? html`<div class="alert alert-danger mt-2">${manifestError}</div>` : null}
             
-            <!-- Header & Actions -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="d-flex align-items-center gap-2">
-                    <h3 class="mb-0">Security Overview</h3>
-                    ${this.state.isRefreshingInBackground ? html`
-                        <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" style="animation: pulse 1s infinite;">
-                            <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px; border-width: 2px;\"></span>
-                            Refreshing...
-                        </span>
-                    ` : ''}
-                </div>
+            <!-- Admin View Tabs -->
+<div class="row align-items-center mb-0 mt-2 border-bottom pb-2">
+    <div class="col">
+        <ul class="nav nav-pills">
+            <li class="nav-item">
+                <a href="#" class="nav-link ${this.state.adminView === 'security' ? 'active fw-bold' : ''}" onclick=${(e) => { e.preventDefault(); this.setState({ adminView: 'security' }); }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+                    Security Posture
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link ${this.state.adminView === 'it' ? 'active fw-bold' : ''}" onclick=${(e) => { e.preventDefault(); this.setState({ adminView: 'it' }); }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="16" height="16" rx="2" /><line x1="4" y1="10" x2="20" y2="10" /><line x1="10" y1="4" x2="10" y2="20" /></svg>
+                    Asset Inventory
+                </a>
+            </li>
+        </ul>
+    </div>
+    <div class="col-auto ms-auto d-print-none d-flex align-items-center gap-2">
+        ${this.state.isRefreshingInBackground ? html`
+            <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" style="animation: pulse 1s infinite;">
+                <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px; border-width: 2px;"></span>
+                Refreshing...
+            </span>
+        ` : ''}
                 <div class="d-flex gap-2">
                     <div class="btn-group">
                         <button class="btn btn-sm ${this.state.viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'}" onclick=${() => this.setState({ viewMode: 'list' })} title="List View">
@@ -2521,6 +2624,7 @@ class DevicesPage extends window.Component {
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
 
             <!-- Security Dashboard -->
@@ -2673,7 +2777,7 @@ class DevicesPage extends window.Component {
                                         </div>
                                     </div>
                                 </div>
-                            ` : this.state.viewMode === 'tiles' ? this.renderTiles(filteredDevices) : html`
+                            ` : this.state.adminView === 'it' ? this.renderITTable(filteredDevices) : this.state.viewMode === 'tiles' ? this.renderTiles(filteredDevices) : html`
                                 ${renderBulkActionsBar(this)}
                                 <div class="card">
                                     <div class="table-responsive">
@@ -2818,7 +2922,7 @@ class DevicesPage extends window.Component {
                                                                 <div class="d-flex flex-column gap-1">
                                                                     ${summary.vulnerableApps > 0 ? html`
                                                                         <div class="d-flex align-items-center gap-2">
-                                                                            <span class="badge bg-warning-lt text-warning">${summary.vulnerableApps} Vuln Apps</span>
+                                                                            <a href="#!/devices/${device.id}?tab=inventory" class="badge bg-warning-lt text-warning text-decoration-none">${summary.vulnerableApps} Vuln Apps</a>
                                                                         </div>
                                                                     ` : html`<span class="text-muted small">No vulnerable apps</span>`}
                                                                     
@@ -2826,7 +2930,7 @@ class DevicesPage extends window.Component {
                                                                         <div class="d-flex align-items-center gap-1 small">
                                                                             ${summary.criticalCves > 0 ? html`<span class="text-danger fw-bold">${summary.criticalCves} Critical</span>` : ''}
                                                                             ${summary.highCves > 0 ? html`<span class="text-warning fw-bold">${summary.highCves} High</span>` : ''}
-                                                                            <span class="text-muted">CVEs</span>
+                                                                            <a href="#!/devices/${device.id}?tab=risks" class="text-muted text-decoration-none">CVEs</a>
                                                                         </div>
                                                                     ` : ''}
                                                                     <div class="d-flex align-items-center gap-2 small">
@@ -3016,3 +3120,7 @@ class DevicesPage extends window.Component {
 }
 
 export default DevicesPage;
+
+
+
+

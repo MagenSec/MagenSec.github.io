@@ -40,6 +40,8 @@ class ThemeManager {
         // Also set data-theme for custom CSS selectors in portal.css / ai-pages.css
         document.documentElement.setAttribute('data-theme', theme);
         console.log('[Theme] Applied theme:', theme);
+        // Fire custom event for components that need to react (like ApexCharts)
+        window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
     }
 
     setupToggle() {
@@ -75,3 +77,4 @@ export const theme = new ThemeManager();
 
 // Expose globally for easy access
 window.themeManager = theme;
+

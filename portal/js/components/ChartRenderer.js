@@ -30,14 +30,30 @@ function ChartCard({ chart }) {
         }
 
         // Convert ChartSpecification to ApexCharts options
+        const isCurrentlyDark = document.body.classList.contains('theme-dark');
         const options = convertToApexOptions(chart);
+        if (options.theme) {
+            options.theme.mode = isCurrentlyDark ? 'dark' : 'light';
+        }
+
 
         // Create chart
         apexChartInstance.current = new ApexCharts(chartRef.current, options);
+
         apexChartInstance.current.render();
+        const handleThemeChange = (e) => {
+            if (apexChartInstance.current) {
+                const isDark = e.detail && e.detail.theme === 'dark';
+                apexChartInstance.current.updateOptions({
+                    theme: { mode: isDark ? 'dark' : 'light' }
+                });
+            }
+        };
+        window.addEventListener('theme-changed', handleThemeChange);
 
         // Cleanup on unmount
         return () => {
+            window.removeEventListener('theme-changed', handleThemeChange);
             if (apexChartInstance.current) {
                 apexChartInstance.current.destroy();
             }

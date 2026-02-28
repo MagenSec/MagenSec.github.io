@@ -39,6 +39,12 @@ export class DeviceDetailPage extends window.Component {
         super(props);
         const rawDeviceId = props.params?.deviceId || (window.location.hash.match(/\/devices\/([^/?]+)/) || [])[1];
         const deviceId = rawDeviceId ? decodeURIComponent(rawDeviceId) : null;
+        let initialTab = 'riskAssessment';
+        try { console.log('HASH:', window.location.hash);
+            const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+            const tabParam = urlParams.get('tab');
+            if (tabParam) initialTab = tabParam;
+        } catch (e) {}
 
         this.perfCharts = {};
 
@@ -62,7 +68,7 @@ export class DeviceDetailPage extends window.Component {
             knownExploits: null,
             exploitsLoadingError: null,
             enrichedScore: null,
-            activeTab: 'riskAssessment',
+            activeTab: initialTab,
             searchQuery: '',
             cveFilterSeverity: null,
             cveFilterApp: null,
@@ -135,7 +141,7 @@ export class DeviceDetailPage extends window.Component {
 
     // Load known exploits via shared KEV cache (local diag first, then GitHub)
     async loadKnownExploitsAsync() {
-        try {
+        try { console.log('HASH:', window.location.hash);
             const kevSet = await getKevSet();
             this.setState({ knownExploits: kevSet, exploitsLoadingError: null });
         } catch (error) {
@@ -413,9 +419,60 @@ export class DeviceDetailPage extends window.Component {
         };
     }
 
-    async loadDeviceData() {
+    
+    tryGetCachedDetail(orgId, deviceId) {
         try {
-            this.setState({ loading: true, error: null, perfLoading: false, perfError: null, perfData: null });
+            const cached = localStorage.getItem(`ms-device-detail-${orgId}-${deviceId}`);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                const age = Date.now() - parsed.timestamp;
+                if (age < 15 * 60 * 1000) { // 15 mins cache
+                    return parsed.data;
+                }
+            }
+        } catch (e) {
+            console.warn('Cache error', e);
+        }
+        return null;
+    }
+
+    setCachedDetail(orgId, deviceId, data) {
+        try {
+            localStorage.setItem(`ms-device-detail-${orgId}-${deviceId}`, JSON.stringify({
+                timestamp: Date.now(),
+                data: data
+            }));
+        } catch (e) { }
+    }
+
+    
+    tryGetCachedDetail(orgId, deviceId) {
+        try {
+            const cached = localStorage.getItem(`ms-device-detail-${orgId}-${deviceId}`);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                const age = Date.now() - parsed.timestamp;
+                if (age < 15 * 60 * 1000) { // 15 mins cache
+                    return parsed.data;
+                }
+            }
+        } catch (e) {
+            console.warn('Cache error', e);
+        }
+        return null;
+    }
+
+    setCachedDetail(orgId, deviceId, data) {
+        try {
+            localStorage.setItem(`ms-device-detail-${orgId}-${deviceId}`, JSON.stringify({
+                timestamp: Date.now(),
+                data: data
+            }));
+        } catch (e) { }
+    }
+
+    async loadDeviceData() {
+        try { 
             const currentOrg = orgContext.getCurrentOrg();
             if (!currentOrg || !currentOrg.orgId) {
                 throw new Error('No organization selected');
@@ -425,15 +482,31 @@ export class DeviceDetailPage extends window.Component {
                 throw new Error('Invalid device id');
             }
 
-            // USE UNIFIED DEVICE DETAIL ENDPOINT (reduces 4 API calls → 1 call)
-            // Fetch device + telemetry + apps + cves in single call
+            const cached = this.tryGetCachedDetail(currentOrg.orgId, this.state.deviceId);
+            if (cached) {
+                this.setState({
+                    loading: false,
+                    device: cached.device,
+                    deviceSummary: cached.summary,
+                    telemetryDetail: cached.telemetryDetail,
+                    appInventory: cached.apps || [],
+                    cveInventory: cached.cves || [],
+                    mitigatedCveInventory: cached.mitigatedCves || [],
+                    isRefreshingInBackground: true
+                });
+            } else {
+                this.setState({ loading: true, error: null, perfLoading: false, perfError: null, perfData: null });
+            }
+
             const detailResp = await api.getDeviceDetailUnified(currentOrg.orgId, this.state.deviceId, {
                 include: 'telemetry,apps,cves',
                 telemetryHistoryDays: 365,
                 telemetryHistoryLimit: 100,
                 appLimit: 1000,
-                cveLimit: 500
+                cveLimit: 500,
+                includeCachedSummary: true 
             });
+
 
             if (!detailResp.success) {
                 throw new Error(detailResp.message || 'Failed to load device detail');
@@ -593,7 +666,7 @@ export class DeviceDetailPage extends window.Component {
         const startUtc = new Date(endUtc.getTime() - (Number(rangeDays) || 1) * 24 * 60 * 60 * 1000);
 
         this.setState({ perfLoading: true, perfError: null });
-        try {
+        try { console.log('HASH:', window.location.hash);
             const perfResp = await api.get(
                 `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/perf`,
                 {
@@ -1058,7 +1131,7 @@ export class DeviceDetailPage extends window.Component {
         const ipAddresses = (() => {
             if (Array.isArray(ipRaw)) return ipRaw;
             if (typeof ipRaw === 'string') {
-                try {
+                try { console.log('HASH:', window.location.hash);
                     const parsed = JSON.parse(ipRaw);
                     if (Array.isArray(parsed)) return parsed;
                 } catch (err) { /* fall through */ }
@@ -1603,7 +1676,7 @@ export class DeviceDetailPage extends window.Component {
                         (function () {
                             const modelText = document.getElementById('report-model')?.textContent || '{}';
                             let model = {};
-                            try { model = JSON.parse(modelText); } catch (e) { model = {}; }
+                            try { console.log('HASH:', window.location.hash); model = JSON.parse(modelText); } catch (e) { model = {}; }
 
                             const risk = Number(model?.risk?.riskScore ?? 0);
                             const c = model?.inventory?.cvesBySeverity || {};
@@ -1684,7 +1757,7 @@ export class DeviceDetailPage extends window.Component {
         // Best-effort auto-open print dialog after a short delay.
         // Browser security policies may ignore this; user can still click the button.
         setTimeout(() => {
-            try { w.focus(); w.print(); } catch (err) { /* ignore */ }
+            try { console.log('HASH:', window.location.hash); w.focus(); w.print(); } catch (err) { /* ignore */ }
         }, 900);
     }
 
@@ -1724,7 +1797,7 @@ export class DeviceDetailPage extends window.Component {
 
         console.info('[DeviceDetail] Blocking device:', { deviceId, deviceName, deleteTelemetry, orgId: currentOrg.orgId });
 
-        try {
+        try { console.log('HASH:', window.location.hash);
             const response = await api.updateDeviceState(currentOrg.orgId, deviceId, 'BLOCKED', {
                 deleteTelemetry,
                 reason: deleteTelemetry 
@@ -1791,7 +1864,7 @@ export class DeviceDetailPage extends window.Component {
 
         console.info('[DeviceDetail] Enabling device:', { deviceId, deviceName, orgId: currentOrg.orgId });
 
-        try {
+        try { console.log('HASH:', window.location.hash);
             const response = await api.updateDeviceState(currentOrg.orgId, deviceId, 'ENABLED', {
                 reason: 'Admin enabled via Device Detail page'
             });
@@ -1835,7 +1908,7 @@ export class DeviceDetailPage extends window.Component {
             return;
         }
 
-        try {
+        try { console.log('HASH:', window.location.hash);
             const result = await api.queueCommand(currentOrg.orgId, commandType, [deviceId]);
             if (result?.success) {
                 const msg = `${commandType} queued. Will execute on next device check-in.`;
@@ -2189,7 +2262,8 @@ export class DeviceDetailPage extends window.Component {
                             </div>
                         </div>
 
-                        <!-- Metrics Row -->
+                        ${activeTab === 'riskAssessment' ? html`
+<!-- Metrics Row -->
                         <div class="row row-cards mb-3">
                             <div class="col-12">
                                 <div class="card">
@@ -2499,7 +2573,9 @@ export class DeviceDetailPage extends window.Component {
                             </div>
                         </div>
 
-                        <!-- Tabs -->
+                        
+` : ''}
+<!-- Tabs -->
                         <div class="card">
                             <div class="card-header border-bottom-0">
                                 ${(() => {
@@ -3328,7 +3404,7 @@ export class DeviceDetailPage extends window.Component {
         }
 
         this.setState({ sessionLoading: true, sessionError: null });
-        try {
+        try { console.log('HASH:', window.location.hash);
             const resp = await api.getDeviceSessions(
                 currentOrg.orgId,
                 this.state.deviceId,
@@ -3435,3 +3511,6 @@ export class DeviceDetailPage extends window.Component {
         return html`<span class="badge bg-success mt-1">✓ Telemetry Healthy</span>`;
     }
 }
+
+
+
