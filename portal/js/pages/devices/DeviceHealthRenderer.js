@@ -45,6 +45,13 @@ export function renderHealthStatus(device) {
         text = 'Offline';
         animated = false;
         reason = `Last seen ${inactiveMinutes}m ago`;
+    } else if (inactiveMinutes > 6) {
+        status = 'stale';
+        icon = '●';
+        color = 'warning';
+        text = 'Stale';
+        animated = false;
+        reason = `Last seen ${inactiveMinutes}m ago`;
     } else {
         status = 'online';
         icon = '●';
@@ -190,17 +197,21 @@ export function renderPatchStatus(device) {
 }
 
 export function getStatusDotClass(health) {
-    if (!health) return 'status-dot status-secondary';
+    if (!health) return 'status-dot status-gray';
+
+    // Accept either the health object or the status string directly
+    const status = typeof health === 'string' ? health : health.status;
 
     const map = {
-        'online': 'status-dot status-dot-animated status-green',
+        'online':  'status-dot status-dot-animated status-green',
+        'stale':   'status-dot status-yellow',
         'offline': 'status-dot status-red',
-        'blocked': 'status-dot status-dark',
-        'error': 'status-dot status-red',
-        'unknown': 'status-dot status-secondary'
+        'error':   'status-dot status-red',
+        'blocked': 'status-dot status-gray',
+        'unknown': 'status-dot status-gray'
     };
 
-    return map[health.status] || 'status-dot status-secondary';
+    return map[status] || 'status-dot status-gray';
 }
 
 export function getTrendIcon(trendValue) {

@@ -868,12 +868,20 @@ export class DeviceDetailPage extends window.Component {
         );
     }
 
-    getCvesByApp(appRowKey) {
+    getCvesByApp(appRowKey, appNameFallback) {
         // CVEs are linked to apps via appRowKey field extracted from CVE RowKey
-        if (!appRowKey) return [];
-        return this.state.cveInventory.filter(c => 
-            c.appRowKey && c.appRowKey === appRowKey
-        );
+        // Try primary key match first
+        const byKey = appRowKey
+            ? this.state.cveInventory.filter(c => c.appRowKey && c.appRowKey === appRowKey)
+            : [];
+        if (byKey.length > 0) return byKey;
+        // Fallback: match by normalized app name when appRowKey is absent or produces no results
+        if (appNameFallback) {
+            const norm = this.normalizeAppName(appNameFallback);
+            if (!norm) return [];
+            return this.state.cveInventory.filter(c => this.normalizeAppName(c.appName) === norm);
+        }
+        return [];
     }
 
     getSeverityStyles(severity) {

@@ -113,9 +113,22 @@ class DevicesPage extends window.Component {
         const currIds = filteredNow.map(d => d.id).join('|');
         const summariesChanged = prevState.deviceSummaries !== this.state.deviceSummaries || prevState.enrichedScores !== this.state.enrichedScores;
         if (prevIds !== currIds) {
-            this.setState({ filteredDevices: filteredNow }, () => this.renderTableApexCharts());
+            this.setState({ filteredDevices: filteredNow }, () => {
+                this.renderTableApexCharts();
+                setTimeout(() => this.renderDashboardCharts(), 80);
+            });
         } else if (summariesChanged) {
             this.renderTableApexCharts();
+            setTimeout(() => this.renderDashboardCharts(), 80);
+        }
+
+        // Re-render dashboard charts when view switches to security
+        if (prevState.adminView !== this.state.adminView) {
+            if (this.state.adminView === 'security') {
+                setTimeout(() => this.renderDashboardCharts(), 100);
+            } else {
+                this.destroyDashboardCharts();
+            }
         }
     }
 
@@ -265,6 +278,7 @@ class DevicesPage extends window.Component {
         if (this.orgChangeUnsubscribe) this.orgChangeUnsubscribe();
         this.destroyApexCharts();
         this.destroyTableApexCharts();
+        this.destroyDashboardCharts();
     }
 
     // Modal rendering moved to render() method
@@ -759,8 +773,7 @@ class DevicesPage extends window.Component {
         }
 
         devices.forEach(device => {
-            const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
-            const risk = renderRiskIndicator(device);
+            const risk = renderRiskIndicator(this.buildDeviceWithSummary(device));
             
             // Skip rendering if no risk data
             if (risk.score === null) {
@@ -1690,6 +1703,78 @@ class DevicesPage extends window.Component {
         return false;
     }
 
+    // Builds a device object with .summary attached from state, mapping normalized summary fields
+    // to the field names expected by renderRiskIndicator and renderPatchStatus.
+    buildDeviceWithSummary(device) {
+        const stateSummary = this.state.deviceSummaries[device.id] || {};
+        const enriched = this.state.enrichedScores[device.id];
+        return { ...device, summary: {
+            appCount: stateSummary.apps || 0,
+            vulnerableAppCount: stateSummary.vulnerableApps || 0,
+            cveCount: stateSummary.cves || 0,
+            criticalCveCount: stateSummary.criticalCves || 0,
+            highCveCount: stateSummary.highCves || 0,
+            mediumCveCount: stateSummary.mediumCves || 0,
+            lowCveCount: stateSummary.lowCves || 0,
+            score: enriched?.score ?? stateSummary.score ?? 0
+        }};
+    }
+
+    // Returns a short OS label like "Win 11 Pro", "Win 10 Home", "Server 2022"
+    getShortOsLabel(device) {
+        const osText = device.telemetry?.osEdition || device.os || device.osEdition || '';
+        if (!osText) return device.osProductType || device.osVersion || 'Unknown OS';
+        const lower = osText.toLowerCase();
+        if (lower.includes('windows 11')) {
+            if (lower.includes('pro')) return 'Win 11 Pro';
+            if (lower.includes('home')) return 'Win 11 Home';
+            if (lower.includes('enterprise')) return 'Win 11 Ent';
+            return 'Windows 11';
+        }
+        if (lower.includes('windows 10')) {
+            if (lower.includes('pro')) return 'Win 10 Pro';
+            if (lower.includes('home')) return 'Win 10 Home';
+            if (lower.includes('enterprise')) return 'Win 10 Ent';
+            return 'Windows 10';
+        }
+        if (lower.includes('server 2022')) return 'Server 2022';
+        if (lower.includes('server 2019')) return 'Server 2019';
+        if (lower.includes('server 2016')) return 'Server 2016';
+        if (lower.includes('server')) return 'Windows Server';
+        return osText.replace(/^Microsoft\s+/i, '').substring(0, 20);
+    }
+
+    // Returns the Tabler color token for the card-status-top ribbon (danger/warning/success/blue/null)
+    getDeviceStatusColor(device, risk, summary) {
+        const score = risk && Number.isFinite(risk.score) ? risk.score : null;
+        const critHigh = summary ? (summary.criticalCves || 0) + (summary.highCves || 0) : 0;
+        const isAgentOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+        const osText = (device.telemetry?.osEdition || device.os || '').toLowerCase();
+        const isWin10 = osText.includes('windows 10');
+        if (score !== null && score >= 70) return 'danger';
+        if (critHigh > 5) return 'danger';
+        if (score !== null && score >= 40) return 'warning';
+        if (isAgentOutdated) return 'warning';
+        if (isWin10) return 'blue';
+        if (score !== null && score < 40) return 'success';
+        return null;
+    }
+
+    // Returns alert badge descriptors: risk level, agent update, Win10 → Win11 upgrade
+    getDeviceAlertBadges(device, risk, summary) {
+        const badges = [];
+        const score = risk && Number.isFinite(risk.score) ? risk.score : null;
+        const isAgentOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+        const osText = (device.telemetry?.osEdition || device.os || '').toLowerCase();
+        const isWin10 = osText.includes('windows 10');
+        if (score !== null && score >= 70) badges.push({ color: 'danger', label: 'High Risk' });
+        else if (score !== null && score >= 40) badges.push({ color: 'warning', label: 'Moderate Risk' });
+        else if (score !== null && score < 40 && !isAgentOutdated && !isWin10) badges.push({ color: 'success', label: 'Healthy' });
+        if (isAgentOutdated) badges.push({ color: 'warning', label: 'Agent Update' });
+        if (isWin10) badges.push({ color: 'blue', label: 'Win10 → Win11' });
+        return badges;
+    }
+
     isDeviceInactive(device) {
         const state = device.state?.toLowerCase();
 
@@ -2216,95 +2301,419 @@ class DevicesPage extends window.Component {
         `;
     }
 
+    // ─── OS Distribution Helper ──────────────────────────────────────────────
+    computeOsDistribution(devices) {
+        const dist = { win11: 0, win10: 0, server: 0, other: 0 };
+        for (const d of devices) {
+            const os = (d.telemetry?.osEdition || d.os || '').toLowerCase();
+            if (os.includes('windows 11')) dist.win11++;
+            else if (os.includes('windows 10')) dist.win10++;
+            else if (os.includes('server')) dist.server++;
+            else dist.other++;
+        }
+        return dist;
+    }
+
+    // ─── Dashboard Charts (ApexCharts mounted after render) ─────────────────
+    renderDashboardCharts() {
+        if (!window.ApexCharts) return;
+        if (this.state.adminView !== 'security') return;
+
+        const devices = this.state.filteredDevices?.length ? this.state.filteredDevices : (this.state.devices || []);
+        if (!devices.length) return;
+
+        // --- Device Health Donut ---
+        if (this.dashboardHealthChartEl && this.dashboardHealthChartEl.getBoundingClientRect().width > 0) {
+            if (this._dashboardHealthChart) { this._dashboardHealthChart.destroy(); this._dashboardHealthChart = null; }
+            let online = 0, stale = 0, offline = 0;
+            for (const d of devices) {
+                const mins = d.inactiveMinutes ?? (d.lastHeartbeat ? 0 : 99999);
+                if (mins < 60) online++;
+                else if (mins < 1440) stale++;
+                else offline++;
+            }
+            const healthSeries = [online, stale, offline].filter((_, i) => [online, stale, offline][i] > 0);
+            const healthLabels = ['Online', 'Stale (1–24h)', 'Offline (>24h)'].filter((_, i) => [online, stale, offline][i] > 0);
+            const healthColors = ['#2fb344', '#f59f00', '#d63939'].filter((_, i) => [online, stale, offline][i] > 0);
+            const healthOptions = {
+                chart: { type: 'donut', height: 165, toolbar: { show: false }, animations: { enabled: true, speed: 600 } },
+                series: healthSeries.length ? healthSeries : [1],
+                labels: healthSeries.length ? healthLabels : ['No data'],
+                colors: healthSeries.length ? healthColors : ['#e9ecef'],
+                legend: { position: 'bottom', fontSize: '12px', fontFamily: 'inherit' },
+                dataLabels: { enabled: false },
+                plotOptions: { pie: { donut: { size: '65%', labels: { show: true, total: { show: true, label: 'Total', fontSize: '13px', fontWeight: 600, formatter: () => devices.length.toString() } } } } },
+                stroke: { width: 2, colors: ['#fff'] },
+                tooltip: { style: { fontFamily: 'inherit' } }
+            };
+            this._dashboardHealthChart = new window.ApexCharts(this.dashboardHealthChartEl, healthOptions);
+            this._dashboardHealthChart.render();
+        }
+
+        // --- OS Distribution Horizontal Bar ---
+        if (this.dashboardOsChartEl && this.dashboardOsChartEl.getBoundingClientRect().width > 0) {
+            if (this._dashboardOsChart) { this._dashboardOsChart.destroy(); this._dashboardOsChart = null; }
+            const osDist = this.computeOsDistribution(devices);
+            const osEntries = [
+                { label: 'Windows 11', value: osDist.win11, color: '#4263eb' },
+                { label: 'Windows 10', value: osDist.win10, color: '#1c7ed6' },
+                { label: 'Server',     value: osDist.server, color: '#f76707' },
+                { label: 'Other/Unknown', value: osDist.other, color: '#868e96' },
+            ].filter(e => e.value > 0);
+            if (!osEntries.length) osEntries.push({ label: 'Unknown', value: devices.length, color: '#e9ecef' });
+            const osOptions = {
+                chart: { type: 'bar', height: 165, toolbar: { show: false }, animations: { enabled: true, speed: 600 } },
+                series: [{ name: 'Devices', data: osEntries.map(e => e.value) }],
+                xaxis: { categories: osEntries.map(e => e.label), labels: { style: { fontFamily: 'inherit', fontSize: '12px' } } },
+                yaxis: { labels: { style: { fontFamily: 'inherit', fontSize: '11px' } } },
+                colors: osEntries.map(e => e.color),
+                plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true, dataLabels: { position: 'top' } } },
+                dataLabels: { enabled: true, offsetX: 6, style: { fontSize: '12px', fontFamily: 'inherit', colors: ['#495057'] }, formatter: (val) => val > 0 ? val : '' },
+                legend: { show: false },
+                grid: { borderColor: '#f1f3f5', xaxis: { lines: { show: false } } },
+                tooltip: { style: { fontFamily: 'inherit' } }
+            };
+            this._dashboardOsChart = new window.ApexCharts(this.dashboardOsChartEl, osOptions);
+            this._dashboardOsChart.render();
+        }
+    }
+
+    destroyDashboardCharts() {
+        if (this._dashboardHealthChart) { this._dashboardHealthChart.destroy(); this._dashboardHealthChart = null; }
+        if (this._dashboardOsChart) { this._dashboardOsChart.destroy(); this._dashboardOsChart = null; }
+    }
+
+    // ─── Security Dashboard Dispatcher ───────────────────────────────────────
     renderSecurityDashboard(stats) {
+        const devices = this.state.filteredDevices?.length ? this.state.filteredDevices : (this.state.devices || []);
+        if (this.state.adminView === 'it') {
+            return this.renderITKpis(stats, devices);
+        }
+        return this.renderSecurityKpis(stats, devices);
+    }
+
+    // ─── Security Posture KPI Strip ────────────────────────────────────────
+    renderSecurityKpis(stats, devices) {
         const { html } = window;
+
+        const onlinePct = stats.total > 0 ? Math.round((stats.online / stats.total) * 100) : 0;
+        const offlineCount = stats.total - stats.online;
+        const outdatedCount = devices.filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
+        let highCves = 0, medCves = 0;
+        for (const d of devices) {
+            const s = this.state.deviceSummaries[d.id];
+            if (s) { highCves += s.highCves || 0; medCves += s.mediumCves || 0; }
+        }
+        // Risk (INVERTED scale: 0=best, 100=worst)
+        const riskColor = stats.avgRisk >= 80 ? 'danger' : stats.avgRisk >= 60 ? 'orange' : stats.avgRisk >= 40 ? 'warning' : 'success';
+        const riskGrade = stats.avgRisk >= 80 ? 'F' : stats.avgRisk >= 60 ? 'D' : stats.avgRisk >= 40 ? 'C' : stats.avgRisk >= 20 ? 'B' : 'A';
+        const riskBarClass = stats.avgRisk >= 80 ? 'bg-danger' : stats.avgRisk >= 60 ? 'bg-orange' : stats.avgRisk >= 40 ? 'bg-warning' : 'bg-success';
+        const riskBarWidth = Math.max(stats.avgRisk, 2);
+
         return html`
-            <div class="row row-cards mb-3">
-                <div class="col-sm-6 col-lg-3">
-                    <div class="card card-sm">
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <span class="bg-primary text-white avatar">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /></svg>
-                                    </span>
+        <!-- Security KPI Strip -->
+        <div class="row row-cards mb-2">
+            <!-- Card 1: Fleet Status -->
+            <div class="col-sm-6 col-xl">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class="bg-blue text-white avatar rounded">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 5m0 1a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1z"/><path d="M7 20h10"/><path d="M9 16v4"/><path d="M15 16v4"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <div class="h1 mb-0 lh-1 fw-bold">${stats.total}</div>
+                                    <div class="text-muted small">Devices</div>
                                 </div>
-                                <div class="col">
-                                    <div class="font-weight-medium">
-                                        ${stats.total} Managed Devices
-                                    </div>
-                                    <div class="text-muted">
-                                        ${stats.online} Online
-                                    </div>
+                                <div class="d-flex flex-wrap gap-1 mt-2">
+                                    <span class="badge bg-success text-white">${stats.online} Online</span>
+                                    <span class="badge bg-danger-lt text-danger">${offlineCount} Offline</span>
                                 </div>
                             </div>
                         </div>
+                        <div class="progress progress-sm mt-3" title=${onlinePct + "% online"}>
+                            <div class="progress-bar bg-success" style=${"width:" + onlinePct + "%"}></div>
+                        </div>
+                        <div class="text-muted small mt-1">${onlinePct}% fleet online</div>
                     </div>
                 </div>
-                <div class="col-sm-6 col-lg-3">
-                    <div class="card card-sm">
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <span class="bg-${stats.avgRisk >= 60 ? 'red' : stats.avgRisk >= 40 ? 'yellow' : 'green'} text-white avatar">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                                    </span>
+            </div>
+            <!-- Card 2: Risk Score -->
+            <div class="col-sm-6 col-xl">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class=${"bg-" + riskColor + " text-white avatar rounded"}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <div class="h1 mb-0 lh-1 fw-bold">${stats.avgRisk}</div>
+                                    <div class="text-muted small">/ 100 Risk Score</div>
                                 </div>
-                                <div class="col">
-                                    <div class="font-weight-medium">
-                                        ${stats.avgRisk}/100 Avg Risk
-                                    </div>
-                                    <div class="text-muted">
-                                        Security Score
-                                    </div>
+                                <div class="d-flex align-items-center gap-2 mt-1">
+                                    <span class=${"badge bg-" + riskColor + " text-white"}>Grade ${riskGrade}</span>
+                                    <span class="text-muted small">${stats.highRiskCount > 0 ? stats.highRiskCount + ' high risk' : 'Fleet healthy'}</span>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div class="col-sm-6 col-lg-3">
-                    <div class="card card-sm">
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <span class="bg-red text-white avatar">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>
-                                    </span>
-                                </div>
-                                <div class="col">
-                                    <div class="font-weight-medium">
-                                        ${stats.criticalRiskCount} Critical Devices
-                                    </div>
-                                    <div class="text-muted">
-                                        Require Attention
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="progress mt-3" style="height:6px;" title=${stats.avgRisk + "% risk"}>
+                            <div class=${"progress-bar " + riskBarClass} style=${"width:" + riskBarWidth + "%"}></div>
                         </div>
-                    </div>
-                </div>
-                <div class="col-sm-6 col-lg-3">
-                    <div class="card card-sm">
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <span class="bg-orange text-white avatar">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12c2 -2.96 0 -7 -1 -8c0 3.038 -1.773 4.741 -3 6c-1.226 1.26 -2 3.24 -2 5a6 6 0 1 0 12 0c0 -1.532 -1.056 -3.94 -2 -5c-1.786 3 -2.791 3 -4 2z" /></svg>
-                                    </span>
-                                </div>
-                                <div class="col">
-                                    <div class="font-weight-medium">
-                                        ${stats.criticalCves} Critical CVEs
-                                    </div>
-                                    <div class="text-muted">
-                                        Across ${stats.vulnerableApps} Apps
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="d-flex justify-content-between small text-muted mt-1">
+                            <span class="text-success">Safe</span><span>Moderate</span><span class="text-danger">Critical</span>
                         </div>
                     </div>
                 </div>
             </div>
+            <!-- Card 3: Critical Devices -->
+            <div class="col-sm-6 col-xl">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class="bg-red text-white avatar rounded">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.871l-8.106 -13.534a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <div class="h1 mb-0 lh-1 fw-bold">${stats.criticalRiskCount}</div>
+                                    <div class="text-muted small">Critical</div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    ${stats.criticalRiskCount > 0 ? html`<span class="badge bg-danger text-white">${stats.criticalRiskCount} Immediate</span>` : ''}
+                                    ${stats.highRiskCount > 0 ? html`<span class="badge bg-orange text-white">${stats.highRiskCount} High</span>` : ''}
+                                    ${stats.criticalRiskCount === 0 && stats.highRiskCount === 0 ? html`<span class="badge bg-success text-white">All Clear</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        ${(stats.criticalRiskCount + stats.highRiskCount) > 0 ? html`
+                        <div class="alert alert-danger alert-sm p-2 mt-3 mb-0 d-flex align-items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            <span class="small">${stats.criticalRiskCount + stats.highRiskCount} device${stats.criticalRiskCount + stats.highRiskCount !== 1 ? 's' : ''} need attention</span>
+                        </div>
+                        ` : html`<div class="text-success small mt-2">✓ No critical threats detected</div>`}
+                    </div>
+                </div>
+            </div>
+            <!-- Card 4: CVE Exposure -->
+            <div class="col-sm-6 col-xl">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class="bg-orange text-white avatar rounded">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12c2 -2.96 0 -7 -1 -8c0 3.038 -1.773 4.741 -3 6c-1.226 1.26 -2 3.24 -2 5a6 6 0 1 0 12 0c0 -1.532 -1.056 -3.94 -2 -5c-1.786 3 -2.791 3 -4 2z"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <div class="h1 mb-0 lh-1 fw-bold">${stats.criticalCves}</div>
+                                    <div class="text-muted small">Critical CVEs</div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    ${stats.criticalCves > 0 ? html`<span class="badge bg-danger text-white">${stats.criticalCves} Crit</span>` : ''}
+                                    ${highCves > 0 ? html`<span class="badge bg-orange text-white">${highCves} High</span>` : ''}
+                                    ${medCves > 0 ? html`<span class="badge bg-warning-lt text-warning">${medCves} Med</span>` : ''}
+                                    ${stats.criticalCves === 0 && highCves === 0 ? html`<span class="badge bg-success text-white">No CVEs</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-muted small mt-2">Across ${stats.vulnerableApps} apps · ${stats.total} devices</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 5: Agent Health -->
+            <div class="col-sm-6 col-xl">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class=${outdatedCount > 0 ? "bg-warning text-white avatar rounded" : "bg-teal text-white avatar rounded"}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <div class="h1 mb-0 lh-1 fw-bold">${outdatedCount}</div>
+                                    <div class="text-muted small">Outdated</div>
+                                </div>
+                                <div class="mt-1">
+                                    ${outdatedCount > 0 ? html`<span class="badge bg-warning text-white">${outdatedCount} Need Update</span>` : html`<span class="badge bg-success text-white">All Current</span>`}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-muted small mt-2">${stats.total - outdatedCount} / ${stats.total} agents up to date</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Chart Row: Device Health + OS Distribution -->
+        <div class="row row-cards mb-3">
+            <div class="col-md-5 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h4 class="card-title mb-0">Device Health</h4>
+                        <div class="card-options">
+                            <span class="text-muted small">Connection status</span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex align-items-center justify-content-center py-2">
+                        <div ref=${el => { this.dashboardHealthChartEl = el; }} style="width:100%;min-height:165px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-7 col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h4 class="card-title mb-0">OS Distribution</h4>
+                        <div class="card-options">
+                            <span class="text-muted small">Across managed fleet</span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex align-items-center py-2">
+                        <div ref=${el => { this.dashboardOsChartEl = el; }} style="width:100%;min-height:165px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    // ─── Asset Inventory (IT) KPI Strip ──────────────────────────────────────
+    renderITKpis(stats, devices) {
+        const { html } = window;
+
+        // Aggregate app/CVE data from deviceSummaries
+        let totalApps = 0, totalVulnApps = 0;
+        for (const d of devices) {
+            const s = this.state.deviceSummaries[d.id];
+            if (s) { totalApps += s.apps || 0; totalVulnApps += s.vulnerableApps || 0; }
+        }
+        const avgAppsPerDevice = devices.length > 0 ? Math.round(totalApps / devices.length) : 0;
+
+        // OS distribution from device telemetry
+        const osDist = this.computeOsDistribution(devices);
+
+        // Agent coverage
+        const outdatedCount = devices.filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
+        const upToDateCount = devices.length - outdatedCount;
+        const agentPct = devices.length > 0 ? Math.round((upToDateCount / devices.length) * 100) : 100;
+
+        // Device license states
+        const activeCount = devices.filter(d => (d.state || '').toLowerCase() === 'active').length;
+        const enabledCount = devices.filter(d => (d.state || '').toLowerCase() === 'enabled').length;
+        const blockedCount = devices.filter(d => (d.state || '').toLowerCase() === 'blocked').length;
+
+        return html`
+        <!-- IT Asset Inventory KPI Strip -->
+        <div class="row row-cards mb-3">
+            <!-- Card 1: Managed Fleet -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class="bg-blue text-white avatar rounded">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 5m0 1a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1z"/><path d="M7 20h10"/><path d="M9 16v4"/><path d="M15 16v4"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <div class="h1 mb-0 lh-1 fw-bold">${devices.length}</div>
+                                    <div class="text-muted small">Managed Devices</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-1 mt-3">
+                            <span class="badge bg-green-lt text-green">Active ${activeCount}</span>
+                            ${enabledCount > 0 ? html`<span class="badge bg-blue-lt text-blue">Enabled ${enabledCount}</span>` : ''}
+                            ${blockedCount > 0 ? html`<span class="badge bg-red-lt text-danger">Blocked ${blockedCount}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 2: OS Distribution -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class="bg-purple text-white avatar rounded">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17.8 20l-12 -1.5c-1 -.1 -1.8 -.9 -1.8 -1.9v-9.2c0 -1 .8 -1.8 1.8 -1.9l12 -1.5c1.2 -.1 2.2 .8 2.2 2v12c0 1.2 -1 2.1 -2.2 2z"/><path d="M12 7l0 10"/><path d="M4 12l16 0"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="text-muted small mb-1 fw-medium">OS Distribution</div>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-column gap-1 mt-2">
+                            ${osDist.win11 > 0 ? html`<div class="d-flex align-items-center gap-2"><span class="badge bg-blue-lt text-blue" style="min-width:24px;">${osDist.win11}</span><span class="small text-muted">Windows 11</span></div>` : ''}
+                            ${osDist.win10 > 0 ? html`<div class="d-flex align-items-center gap-2"><span class="badge bg-cyan-lt text-cyan" style="min-width:24px;">${osDist.win10}</span><span class="small text-muted">Windows 10</span></div>` : ''}
+                            ${osDist.server > 0 ? html`<div class="d-flex align-items-center gap-2"><span class="badge bg-orange-lt text-orange" style="min-width:24px;">${osDist.server}</span><span class="small text-muted">Server</span></div>` : ''}
+                            ${osDist.other > 0 ? html`<div class="d-flex align-items-center gap-2"><span class="badge bg-secondary-lt text-secondary" style="min-width:24px;">${osDist.other}</span><span class="small text-muted">Other/Unknown</span></div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 3: Software Inventory -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class="bg-teal text-white avatar rounded">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 12l2 2l4 -4"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <div class="h1 mb-0 lh-1 fw-bold">${totalApps.toLocaleString()}</div>
+                                    <div class="text-muted small">Installed Apps</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <span class="text-muted small">~${avgAppsPerDevice} per device</span>
+                            ${totalVulnApps > 0 ? html`<span class="badge bg-danger-lt text-danger">${totalVulnApps} vulnerable</span>` : html`<span class="badge bg-success-lt text-success">No vulnerable</span>`}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 4: Agent Coverage -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card card-sm h-100">
+                    <div class="card-body">
+                        <div class="row align-items-start">
+                            <div class="col-auto">
+                                <span class=${outdatedCount > 0 ? "bg-warning text-white avatar rounded" : "bg-green text-white avatar rounded"}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <div class="h1 mb-0 lh-1 fw-bold">${upToDateCount}</div>
+                                    <div class="text-muted small">/ ${devices.length} Current</div>
+                                </div>
+                                <div class="mt-1">
+                                    ${outdatedCount > 0 ? html`<span class="badge bg-warning text-white">${outdatedCount} need update</span>` : html`<span class="badge bg-success text-white">All up to date</span>`}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="progress progress-sm mt-3">
+                            <div class="progress-bar bg-success" style=${"width:" + agentPct + "%"}></div>
+                        </div>
+                        <div class="text-muted small mt-1">${agentPct}% agent coverage</div>
+                    </div>
+                </div>
+            </div>
+        </div>
         `;
     }
 
@@ -2317,9 +2726,10 @@ class DevicesPage extends window.Component {
                 ${filteredDevices.map(device => {
                     const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                     const enriched = this.state.enrichedScores[device.id];
+                    const deviceWithSummary = this.buildDeviceWithSummary(device);
                     const health = renderHealthStatus(device);
-                    const risk = renderRiskIndicator(device);
-                    const patch = renderPatchStatus(device);
+                    const risk = renderRiskIndicator(deviceWithSummary);
+                    const patch = renderPatchStatus(deviceWithSummary);
                     const displayScore = Number.isFinite(risk.score) ? risk.score : 0;
                     // INVERTED: 100=worst, 0=best
                     const scoreSeverity = risk.severity; // Use severity from renderRiskIndicator
@@ -2329,10 +2739,14 @@ class DevicesPage extends window.Component {
                         : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
                         : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
                         : patch.badge;
+                    const topStatusColor = this.getDeviceStatusColor(device, risk, summary);
+                    const alertBadges = this.getDeviceAlertBadges(device, risk, summary);
+                    const shortOs = this.getShortOsLabel(device);
                     
                     return html`
                         <div class="col-sm-6 col-lg-4">
                             <div class="card h-100">
+                                ${topStatusColor ? html`<div class=${"card-status-top bg-" + topStatusColor}></div>` : ''}
                                 <div class="card-body d-flex flex-column">
                                     <!-- Header: Avatar, Name & Menu -->
                                     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -2344,9 +2758,9 @@ class DevicesPage extends window.Component {
                                                 <h3 class="card-title mb-1 text-truncate">
                                                     <a href="#!/devices/${device.id}" class="text-reset" title="${device.name || device.id}">${device.name || device.id}</a>
                                                 </h3>
-                                                <div class="device-meta text-muted small text-truncate" title="${device.telemetry?.osEdition || 'Unknown OS'}">
+                                                <div class="device-meta text-muted small text-truncate" title=${device.telemetry?.osEdition || shortOs}>
                                                     <span class="${getStatusDotClass(health.status)} me-1"></span>
-                                                    ${health.text} · ${device.telemetry?.osEdition || 'Unknown OS'}
+                                                    ${health.text} · ${shortOs}
                                                 </div>
                                             </div>
                                         </div>
@@ -2414,8 +2828,13 @@ class DevicesPage extends window.Component {
                                             </div>
                                         </div>
                                     </div>
+                                    ${alertBadges.length > 0 ? html`
+                                        <div class="d-flex gap-1 flex-wrap mb-2">
+                                            ${alertBadges.map(b => html`<span class=${"badge bg-" + b.color + "-lt text-" + b.color}>${b.label}</span>`)}
+                                        </div>
+                                    ` : ''}
 
-                                    <!-- Center: Risk Score & Connection Status -->
+                                    <!-- Center: Risk Score -->
                                     <div class="text-center mb-4 flex-grow-1 d-flex flex-column justify-content-center">
                                         ${risk.score !== null ? html`
                                             <div class="mb-2 mx-auto" style="width: 80px; height: 80px; cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }}>
@@ -2429,15 +2848,12 @@ class DevicesPage extends window.Component {
                                                 <span class="badge bg-secondary-lt text-secondary">No risk data</span>
                                             </div>
                                         `}
-                                        <div class="d-flex align-items-center justify-content-center gap-2">
-                                            <div class="d-flex align-items-center">
-                                                <span class="${getStatusDotClass(health.status)} me-2"></span>
-                                                <span class="badge bg-${health.color} ${health.color === 'success' || health.color === 'danger' ? 'text-white' : ''}">${health.icon} ${health.text}</span>
-                                            </div>
+                                        <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
                                             ${patch.percent !== null 
                                                 ? html`<span class="badge ${patchBadgeClass}">${Math.round(patch.percent)}% patched</span>`
                                                 : html`<span class="badge bg-secondary-lt text-secondary">No patch data</span>`
                                             }
+                                            <span class="badge bg-secondary-lt text-secondary text-truncate" style="max-width:130px;" title=${shortOs}>${shortOs}</span>
                                         </div>
                                     </div>
 
@@ -2473,73 +2889,108 @@ class DevicesPage extends window.Component {
             ${renderBulkActionsBar(this)}
             <div class="card">
                 <div class="table-responsive">
-                    <table class="table table-vcenter table-nowrap card-table">
+                    <table class="table table-vcenter card-table">
                         <thead>
                             <tr>
-                                <th>Device Name</th>
-                                <th>IP Address</th>
-                                <th>OS Version</th>
-                                <th>Agent Version</th>
+                                <th>Device</th>
+                                <th>OS Edition</th>
+                                <th>Software</th>
                                 <th>Last Seen</th>
-                                <th>Local IPs</th>
-                                <th>RAM / CPU</th>
-                                <th>Actions</th>
+                                <th style="min-width:140px;">Agent &amp; Hardware</th>
+                                <th class="w-1">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${filteredDevices.map(device => {
+                                const summary = this.state.deviceSummaries[device.id] || { apps: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0 };
+                                const health = renderHealthStatus(device);
+                                const risk = renderRiskIndicator(this.buildDeviceWithSummary(device));
+                                const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+                                const shortOs = this.getShortOsLabel(device);
+                                const fullOs = device.telemetry?.osEdition || device.os || device.osEdition || shortOs;
+                                const alertBadges = this.getDeviceAlertBadges(device, risk, summary);
                                 const parseIPs = (raw) => {
                                     if (!raw || raw === '{}') return [];
-                                    if (typeof raw === 'object') return raw;
-                                    return (typeof raw === 'string'
-                                        ? (() => {
-                                            try {
-                                                const parsed = JSON.parse(raw);
-                                                if (Array.isArray(parsed)) return parsed;
-                                            } catch (e) { }
-                                            return raw.split(/[;,\s]+/).filter(Boolean);
-                                        })() : []);
+                                    if (Array.isArray(raw)) return raw;
+                                    if (typeof raw === 'object') return Object.values(raw);
+                                    return (typeof raw === 'string' ? (() => {
+                                        try { const p = JSON.parse(raw); return Array.isArray(p) ? p : []; } catch (e) {}
+                                        return raw.split(/[;,\s]+/).filter(Boolean);
+                                    })() : []);
                                 };
                                 const ips = parseIPs(device.localIps);
-                                const ipDisplay = ips.length > 0 ? html`${ips[0]} ${ips.length > 1 ? html`<span class="badge badge-sm bg-azure-lt text-azure ms-1">(+${ips.length - 1})</span>` : ''}` : 'No IP';
-                                
-                                const specStr = device.osProductType ? `${device.osProductType}` : device.osVersion;
+                                const primaryIp = ips[0] || device.publicIp || device.ip || null;
+                                const critHighCves = (summary.criticalCves || 0) + (summary.highCves || 0);
                                 
                                 return html`
                                 <tr>
                                     <td>
-                                        <div class="d-flex py-1 align-items-center">
-                                            <span class="avatar me-2 bg-blue-lt">${device.platform === 'Linux' ? 'L' : device.platform === 'macOS' ? 'M' : 'W'}</span>
-                                            <div class="flex-fill">
-                                                <div class="font-weight-medium">
-                                                    <a href="#!/devices/${device.id}" class="text-reset">${device.name || 'Unknown'}</a>
+                                        <div class="d-flex py-1 align-items-start gap-2">
+                                            <span class=${"avatar flex-shrink-0 bg-" + health.color + "-lt"}>
+                                                ${this.getDeviceInitials(device.name || device.id)}
+                                            </span>
+                                            <div class="flex-fill min-width-0">
+                                                <div class="font-weight-medium text-truncate">
+                                                    <a href=${"#!/devices/" + device.id} class="text-reset">${device.name || 'Unknown'}</a>
                                                 </div>
-                                                <div class="text-secondary"><a href="#" class="text-reset">${device.id.substring(0, 8)}...</a></div>
+                                                <div class="text-muted small">${device.id.substring(0, 10)}\u2026</div>
+                                                <div class="d-flex gap-1 flex-wrap mt-1">
+                                                    <span class=${"badge badge-sm bg-" + (health.color === 'success' || health.color === 'danger' ? health.color + " text-white" : health.color + "-lt text-" + health.color)}>${health.text}</span>
+                                                    ${alertBadges.map(b => html`<span class=${"badge badge-sm bg-" + b.color + "-lt text-" + b.color}>${b.label}</span>`)}
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="text-secondary">${device.publicIp || 'Unknown'}</td>
-                                    <td>${specStr}</td>
-                                    <td class="text-secondary">${device.clientVersion || 'Unknown'}</td>
                                     <td>
-                                        ${formatRelativeTime(device.lastSeen)}
+                                        <div title=${fullOs}>
+                                            <div class="fw-medium">${shortOs}</div>
+                                            ${device.osVersion ? html`<div class="text-muted small">${device.osVersion}</div>` : ''}
+                                        </div>
                                     </td>
                                     <td>
-                                        ${ipDisplay}
+                                        <div class="fw-medium">${summary.apps || 0} apps</div>
+                                        <div class="d-flex gap-1 mt-1 flex-wrap">
+                                            ${summary.vulnerableApps > 0
+                                                ? html`<span class="badge badge-sm bg-warning-lt text-warning">${summary.vulnerableApps} vuln</span>`
+                                                : html`<span class="badge badge-sm bg-success-lt text-success">Clean</span>`
+                                            }
+                                            ${critHighCves > 0 ? html`<span class="badge badge-sm bg-danger-lt text-danger">${critHighCves} crit/high CVE</span>` : ''}
+                                        </div>
                                     </td>
-                                    <td class="text-secondary">
-                                        ${device.totalMemory ? Math.round(device.totalMemory/1024) + 'GB' : '-'} / ${device.cpuCores ? device.cpuCores + ' vCPU' : '-'}
+                                    <td>
+                                        <div>${formatRelativeTime(device.lastSeen)}</div>
+                                        ${primaryIp
+                                            ? html`<div class="text-muted small">${primaryIp}${ips.length > 1 ? html` <span class="badge badge-sm bg-secondary-lt text-secondary">+${ips.length - 1}</span>` : ''}</div>`
+                                            : html`<div class="text-muted small">No IP</div>`
+                                        }
                                     </td>
-                                    <td class="text-end">
+                                    <td>
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            <span class="text-muted small">${device.clientVersion || '\u2014'}</span>
+                                            ${isOutdated ? html`<span class="badge badge-sm bg-warning text-white" title=${"Update to v" + (this.state.installers?.ENGINE?.VERSION || '')}>\u2191 Update</span>` : ''}
+                                        </div>
+                                        <div class="text-muted small mt-1">
+                                            ${device.totalMemory ? Math.round(device.totalMemory / 1024) + ' GB' : ''}${device.totalMemory && device.cpuCores ? ' \u00b7 ' : ''}${device.cpuCores ? device.cpuCores + ' vCPU' : ''}${!device.totalMemory && !device.cpuCores ? '\u2014' : ''}
+                                        </div>
+                                    </td>
+                                    <td>
                                         <div class="dropdown">
-                                            <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                            <button class="btn btn-sm btn-secondary dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown">
                                                 Actions
+                                                ${isOutdated ? html`<span class="badge bg-danger badge-notification" style="position:absolute;top:-4px;right:-4px;"></span>` : ''}
                                             </button>
                                             <div class="dropdown-menu dropdown-menu-end">
-                                                <a class="dropdown-item" href="#!/devices/${device.id}?tab=specs">View Specs</a>
-                                                <a class="dropdown-item" href="#!/devices/${device.id}?tab=perf">View Performance</a>
+                                                <a class="dropdown-item" href=${"#!/devices/" + device.id}>View Device</a>
+                                                <a class="dropdown-item" href=${"#!/devices/" + device.id + "?tab=specs"}>View Specs</a>
+                                                <a class="dropdown-item" href=${"#!/devices/" + device.id + "?tab=perf"}>View Performance</a>
                                                 <div class="dropdown-divider"></div>
-                                                <a class="dropdown-item text-danger" href="#">Isolate Device</a>
+                                                <button class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'TriggerScan')}>Trigger Scan</button>
+                                                <button class=${"dropdown-item" + (isOutdated ? " bg-warning-lt" : "")} onclick=${() => this.queueDeviceAction(device, 'CheckUpdates')}>
+                                                    Trigger Update${isOutdated ? html` <span class="badge bg-danger ms-1">!</span>` : ''}
+                                                </button>
+                                                <button class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'CollectLogs')}>Collect Logs</button>
+                                                <div class="dropdown-divider"></div>
+                                                <button class="dropdown-item text-danger" onclick=${() => this.deleteDevice(device.id)}>Delete Device</button>
                                             </div>
                                         </div>
                                     </td>
@@ -2831,9 +3282,10 @@ class DevicesPage extends window.Component {
                                                         ${(() => {
                                                             const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                                                             const enriched = this.state.enrichedScores[device.id];
+                                                            const deviceWithSummary = this.buildDeviceWithSummary(device);
                                                             const health = renderHealthStatus(device);
-                                                            const risk = renderRiskIndicator(device);
-                                                            const patch = renderPatchStatus(device);
+                                                            const risk = renderRiskIndicator(deviceWithSummary);
+                                                            const patch = renderPatchStatus(deviceWithSummary);
                                                             const displayScore = Number.isFinite(risk.score) ? risk.score : 0;
                                                             const clampedScore = Math.max(0, Math.min(100, Math.round(displayScore)));
                                                             const isEnriched = enriched && enriched.score !== (summary.score || 0);
@@ -2947,13 +3399,37 @@ class DevicesPage extends window.Component {
                                                             <!-- Status Column -->
                                                             <td>
                                                                 <div class="d-flex flex-column gap-1">
-                                                                    <div class="d-flex align-items-center gap-2">
+                                                                    <div class="d-flex align-items-center gap-2 flex-wrap">
                                                                         <span class="badge ${health.status === 'online' ? 'bg-success-lt text-success' : health.status === 'stale' ? 'bg-warning-lt text-warning' : health.status === 'offline' ? 'bg-danger-lt text-danger' : health.status === 'blocked' ? 'bg-dark-lt text-dark' : 'bg-secondary-lt text-secondary'}">
                                                                             <span class="${getStatusDotClass(device.health)} me-1"></span>
                                                                             ${health.text}
                                                                         </span>
-                                                                        <span class="text-muted small">${device.telemetry?.osEdition || 'Unknown OS'}</span>
+                                                                        ${(() => {
+                                                                            const osEdition = device.telemetry?.osEdition || '';
+                                                                            const osVersion = device.telemetry?.osVersion || '';
+                                                                            const osLabel = osVersion ? `${osEdition} ${osVersion}`.trim() : (osEdition || 'Unknown OS');
+                                                                            return html`<span class="text-muted small">${osLabel}</span>`;
+                                                                        })()}
                                                                     </div>
+                                                                    
+                                                                    ${(() => {
+                                                                        const ipRaw = device.telemetry?.ipAddresses || device.telemetry?.IPAddresses;
+                                                                        const ipList = Array.isArray(ipRaw) ? ipRaw
+                                                                            : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean)
+                                                                            : [];
+                                                                        const primaryIp = ipList.find(ip => {
+                                                                            const parts = ip.split('.');
+                                                                            if (parts.length !== 4) return false;
+                                                                            const first = parseInt(parts[0]);
+                                                                            const second = parseInt(parts[1]);
+                                                                            return (first === 10) || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
+                                                                        }) || ipList[0];
+                                                                        return primaryIp ? html`<div class="text-muted small d-flex align-items-center gap-1">
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-xs" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="15 10 20 15 15 20" /><path d="M4 4v7a4 4 0 0 0 4 4h12" /></svg>
+                                                                            <span>${primaryIp}</span>
+                                                                            ${ipList.length > 1 ? html`<span class="text-muted" style="font-size:10px;">+${ipList.length - 1}</span>` : ''}
+                                                                        </div>` : '';
+                                                                    })()}
                                                                     
                                                                     <!-- Offline Compliance Risk Indicator -->
                                                                     ${(() => {
@@ -2971,11 +3447,7 @@ class DevicesPage extends window.Component {
                                                                     })()}
                                                                     
                                                                     <div class="text-muted small">
-                                                                        ${device.telemetry?.connectionType || 'Unknown Network'} 
-                                                                        ${device.telemetry?.networkSpeedMbps ? `(${formatNetworkSpeed(device.telemetry.networkSpeedMbps)})` : ''}
-                                                                    </div>
-                                                                    <div class="text-muted small">
-                                                                        ${device.lastHeartbeat ? `Last heartbeat: ${formatDate(device.lastHeartbeat)}` : 'Last heartbeat: Never'}
+                                                                        ${device.lastHeartbeat ? `Last seen: ${formatDate(device.lastHeartbeat)}` : 'Never seen'}
                                                                     </div>
                                                                 </div>
                                                             </td>

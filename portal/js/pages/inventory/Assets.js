@@ -325,6 +325,75 @@ export class AssetsPage extends Component {
                 </div>
             </div>
 
+            ${(() => {
+                const totalApps = assets.length;
+                const vulnerableApps = assets.filter(a => (a.cveCount || 0) > 0).length;
+                const criticalHighApps = assets.filter(a => {
+                    const r = (a.riskScore || '').toLowerCase();
+                    return r === 'critical' || r === 'high';
+                }).length;
+                const freewareApps = assets.filter(a => a.isFreeware).length;
+                const totalDeviceExposure = assets.reduce((sum, a) => sum + (a.deviceCount || 0), 0);
+                const vulnerablePct = totalApps > 0 ? Math.round((vulnerableApps / totalApps) * 100) : 0;
+                return html`
+                    <div class="row row-cards mb-3">
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="subheader text-muted">Total Applications</div>
+                                    <div class="d-flex align-items-baseline">
+                                        <div class="h1 mb-0 me-2">${totalApps}</div>
+                                        <div class="text-muted">tracked</div>
+                                    </div>
+                                    <div class="text-muted small mt-1">${totalDeviceExposure} device-installs total</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="subheader text-muted">Vulnerable Apps</div>
+                                    <div class="d-flex align-items-baseline">
+                                        <div class="h1 mb-0 me-2 ${vulnerableApps > 0 ? 'text-danger' : 'text-success'}">${vulnerableApps}</div>
+                                        <div class="text-muted">with CVEs</div>
+                                    </div>
+                                    <div class="progress progress-sm mt-2">
+                                        <div class="progress-bar ${vulnerablePct > 30 ? 'bg-danger' : vulnerablePct > 10 ? 'bg-warning' : 'bg-success'}" style=${"width: " + vulnerablePct + "%"}></div>
+                                    </div>
+                                    <div class="text-muted small mt-1">${vulnerablePct}% of inventory</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="subheader text-muted">Critical / High Risk</div>
+                                    <div class="d-flex align-items-baseline">
+                                        <div class="h1 mb-0 me-2 ${criticalHighApps > 0 ? 'text-warning' : 'text-success'}">${criticalHighApps}</div>
+                                        <div class="text-muted">apps</div>
+                                    </div>
+                                    <div class="text-muted small mt-1">
+                                        ${criticalHighApps > 0 ? html`<span class="badge bg-warning-lt text-warning">Requires attention</span>` : html`<span class="badge bg-success-lt text-success">No critical/high</span>`}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="subheader text-muted">Freeware / Unmanaged</div>
+                                    <div class="d-flex align-items-baseline">
+                                        <div class="h1 mb-0 me-2">${freewareApps}</div>
+                                        <div class="text-muted">apps</div>
+                                    </div>
+                                    <div class="text-muted small mt-1">${freewareApps > 0 ? 'Review for policy compliance' : 'No freeware detected'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            })()}
+
             <div class="card">
                 <div class="table-responsive">
                     <table class="table table-vcenter card-table">

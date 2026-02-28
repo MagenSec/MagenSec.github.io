@@ -90,7 +90,7 @@ export function renderInventoryTab(component) {
                 <div class="card">
                     <div class="card-body text-center">
                         <div class="text-muted small">With CVEs</div>
-                        <div class="h3 text-info">${enrichedApps.filter(a => component.getCvesByApp(a.appRowKey).length > 0).length}</div>
+                        <div class="h3 text-info">${enrichedApps.filter(a => component.getCvesByApp(a.appRowKey, a.appName).length > 0).length}</div>
                     </div>
                 </div>
             </div>

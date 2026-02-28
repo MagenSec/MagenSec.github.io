@@ -35,7 +35,7 @@ export function renderFlatListView(component) {
                 </thead>
                 <tbody>
                     ${filteredApps.map(app => {
-                        const cves = component.getCvesByApp(app.appRowKey);
+                        const cves = component.getCvesByApp(app.appRowKey, app.appName);
                         const worstSeverity = cves.some(c => c.severity === 'CRITICAL' || c.severity === 'Critical') ? 'CRITICAL' : 
                                              cves.some(c => c.severity === 'HIGH' || c.severity === 'High') ? 'HIGH' : 
                                              cves.some(c => c.severity === 'MEDIUM' || c.severity === 'Medium') ? 'MEDIUM' : 

@@ -26,7 +26,7 @@ export function renderVendorGroupedView(component) {
                 const vendorApps = vendorGroups[vendorName];
                 const isExpanded = component.state.expandedVendors.has(vendorName);
                 const appGroups = component.groupAppVersions(vendorApps);
-                const vendorCves = vendorApps.reduce((sum, app) => sum.concat(component.getCvesByApp(app.appRowKey)), []);
+                const vendorCves = vendorApps.reduce((sum, app) => sum.concat(component.getCvesByApp(app.appRowKey, app.appName)), []);
                 const totalCves = vendorCves.length;
                 const vendorDetection = component.getDetectionBuckets(vendorCves);
 
@@ -55,7 +55,7 @@ export function renderVendorGroupedView(component) {
                                     const hasMultipleVersions = appGroup.versions.length > 1;
                                     const appKey = appGroup.appName.toLowerCase();
                                     const isVersionsExpanded = component.state.expandedApps.has(appKey);
-                                    const cves = component.getCvesByApp(latestVersion.appRowKey);
+                                    const cves = component.getCvesByApp(latestVersion.appRowKey, appGroup.appName);
                                     const worstSeverity = cves.some(c => c.severity === 'CRITICAL') ? 'CRITICAL' : 
                                                          cves.some(c => c.severity === 'HIGH') ? 'HIGH' : 
                                                          cves.some(c => c.severity === 'MEDIUM') ? 'MEDIUM' : 
