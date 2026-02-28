@@ -22,12 +22,13 @@ export function renderInventoryTab(component) {
     const { appViewMode } = component.state;
     const detectionBuckets = component.getDetectionBuckets(component.state.cveInventory);
     const goToCves = () => component.setState({ activeTab: 'risks' }, () => component.scrollToCveTable());
-    const appSummary = component.state.appSummary || {
+    const appSummary = {
         total: enrichedApps.length,
         installed: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'installed').length,
         updated: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'updated').length,
         uninstalled: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'uninstalled').length
     };
+    const vulnerableApps = component.getAppVulnerabilityBreakdown().vulnerableApps;
     const statusFilter = component.state.appStatusFilter || 'installed';
     
     return html`
@@ -89,8 +90,8 @@ export function renderInventoryTab(component) {
             <div class="col-md-3">
                 <div class="card">
                     <div class="card-body text-center">
-                        <div class="text-muted small">With CVEs</div>
-                        <div class="h3 text-info">${enrichedApps.filter(a => component.getCvesByApp(a.appRowKey, a.appName).length > 0).length}</div>
+                        <div class="text-muted small">With CVEs (Active)</div>
+                        <div class="h3 text-info">${vulnerableApps}</div>
                     </div>
                 </div>
             </div>

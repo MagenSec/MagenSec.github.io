@@ -224,8 +224,8 @@ export class SoftwareInventoryPage extends Component {
         const total    = apps.length;
         const vuln     = apps.filter(a => (a.cveCount || 0) > 0).length;
         const freeware = apps.filter(a => a.isFreeware).length;
-        const licensed = Object.keys(licenses).length;
-        const unlicensed = apps.filter(a => !licenses[encodeURIComponent(a.name || '')]).length;
+        const licensed = apps.filter(a => !!licenses[this._appKey(a)]).length;
+        const unlicensed = Math.max(0, total - licensed);
         return { total, vuln, freeware, licensed, unlicensed };
     }
 

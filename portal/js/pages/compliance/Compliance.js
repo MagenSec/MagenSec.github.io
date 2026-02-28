@@ -246,14 +246,19 @@ export class CompliancePage extends Component {
   }
 
   renderFrameworkGrid(overallPercent, frameworkScores) {
-    const hasRealScores = frameworkScores && Object.keys(frameworkScores).length > 0;
+    const requiredKeys = ['CIS', 'NIST', 'CERT-In', 'ISO27001'];
+    const availableKeys = frameworkScores ? Object.keys(frameworkScores) : [];
+    const hasAnyRealScores = frameworkScores && availableKeys.length > 0;
+    const hasFullCoverage = hasAnyRealScores && requiredKeys.every(k => frameworkScores[k] != null);
     return html`
       <div class="container-xl mb-4">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h3 class="mb-0">Framework Coverage</h3>
-          ${hasRealScores
+          ${hasFullCoverage
             ? html`<span class="badge bg-success-lt text-success">Live scores from posture engine</span>`
-            : html`<span class="badge bg-secondary-lt text-muted">Based on overall score — run posture engine for per-framework data</span>`
+            : hasAnyRealScores
+              ? html`<span class="badge bg-warning-lt text-warning">Partial live scores — missing frameworks use overall fallback</span>`
+              : html`<span class="badge bg-secondary-lt text-muted">Based on overall score — run posture engine for per-framework data</span>`
           }
         </div>
         <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3">

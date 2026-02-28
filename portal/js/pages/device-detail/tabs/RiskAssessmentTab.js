@@ -20,17 +20,15 @@ export function renderRiskAssessment(component) {
         return Math.max(0, Math.min(100, Math.round(n)));
     })();
     const knownExploitCount = component.state.knownExploits ? activeCves.filter(c => component.state.knownExploits.has(c.cveId)).length : 0;
-    const vulnerableApps = (() => {
-        const set = new Set();
-        activeCves.forEach(c => { if (c.appName) set.add(c.appName); });
-        return set.size;
-    })();
+    const vulnerableApps = component.getAppVulnerabilityBreakdown().vulnerableApps;
     const maxEpss = activeCves.reduce((max, c) => Math.max(max, Number(c.epss || 0)), 0);
     const epssBadge = maxEpss >= 0.5 ? 'bg-danger-lt text-danger' : maxEpss >= 0.3 ? 'bg-warning-lt text-warning' : maxEpss > 0 ? 'bg-info-lt text-info' : 'bg-secondary-lt text-secondary';
 
     const latestFields = component.state.telemetryDetail?.latest?.fields || {};
     const ipRaw = latestFields.IPAddresses || latestFields.ipAddresses;
-    const ipList = Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : [];
+    const ipList = typeof component.parseIpAddresses === 'function'
+        ? component.parseIpAddresses(ipRaw)
+        : (Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : []);
     const networkRisk = component.networkService.analyzeNetworkRisk(ipList, component.state.telemetryDetail?.history);
 
     const progressClass = riskScoreValue >= 80 ? 'bg-danger' : riskScoreValue >= 60 ? 'bg-warning' : riskScoreValue >= 40 ? 'bg-warning' : 'bg-success';
@@ -39,8 +37,11 @@ export function renderRiskAssessment(component) {
     const postureLabel = postureScore >= 80 ? 'Critical' : postureScore >= 60 ? 'Elevated' : postureScore >= 40 ? 'Watch' : postureScore >= 20 ? 'Stable' : 'Secure';
     const riskPercentBase = (() => {
         const enrichedRaw = component.state.enrichedScore?.score;
-        const summaryRaw = component.state.deviceSummary?.score;
-        const raw = enrichedRaw !== undefined ? enrichedRaw : summaryRaw || 0;
+        const canonicalRaw = component.getRiskScoreValue(
+            component.state.deviceSummary,
+            component.calculateRiskScore(component.state.device)
+        );
+        const raw = enrichedRaw !== undefined ? enrichedRaw : canonicalRaw;
         const n = Number(raw);
         return Number.isFinite(n) ? n : 0;
     })();

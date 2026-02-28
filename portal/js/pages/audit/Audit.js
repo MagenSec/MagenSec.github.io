@@ -48,9 +48,9 @@ const getCachedAuditData = (key, ttlMinutes = 30) => {
         const isStale = ageMs >= TTL_MS;
 
         if (isStale) {
-            console.log(`[Audit] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s, ttl: ${ttlMinutes}m)`);
+            logger.debug(`[Audit] Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s, ttl: ${ttlMinutes}m)`);
         } else {
-            console.log(`[Audit] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
+            logger.debug(`[Audit] Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
         }
         return { data, isStale };
     } catch (err) {
@@ -67,7 +67,7 @@ const setCachedAuditData = (key, data) => {
             data,
             timestamp: Date.now()
         }));
-        console.log(`[Audit] 💾 Cache SAVE: ${key}`);
+        logger.debug(`[Audit] Cache SAVE: ${key}`);
     } catch (err) {
         console.warn('[Audit] Cache write error:', err);
     }
@@ -656,7 +656,7 @@ export function AuditPage() {
             if (!forceRefresh) {
                 const cached = getCachedAuditData(cacheKey, 30); // 30 minute TTL
                 if (cached) {
-                    console.log('[Audit] ⚡ Loading from cache immediately (even if stale)...');
+                    logger.debug('[Audit] Loading from cache immediately (even if stale)...');
                     setEvents(cached.data.events || []);
                     setUxSummary(cached.data.uxSummary || null);
                     setHasMore(cached.data.hasMore || false);
@@ -744,7 +744,7 @@ export function AuditPage() {
 
     const loadFreshEvents = async (cacheKey, orgId) => {
         try {
-            console.log('[Audit] 🔄 Background refresh starting...');
+            logger.debug('[Audit] Background refresh starting...');
             
             // Wait for UI to settle
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -801,7 +801,7 @@ export function AuditPage() {
             setAnalytics(analyticsData);
             setIsRefreshingInBackground(false);
 
-            console.log('[Audit] ✅ Background refresh complete');
+            logger.debug('[Audit] Background refresh complete');
         } catch (err) {
             console.warn('[Audit] Background refresh failed:', err);
             setIsRefreshingInBackground(false);

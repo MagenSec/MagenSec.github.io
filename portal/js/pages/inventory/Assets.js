@@ -41,9 +41,9 @@ export class AssetsPage extends Component {
             const isStale = ageMs >= TTL_MS;
             
             if (isStale) {
-                console.log(`[Assets] 📦 Cache HIT (STALE): ${key} (age: ${Math.round(ageMs/1000)}s, TTL: ${ttlMinutes}m)`);
+                console.debug(`[Assets] Cache HIT (STALE): ${key} (age: ${Math.round(ageMs/1000)}s, TTL: ${ttlMinutes}m)`);
             } else {
-                console.log(`[Assets] 📦 Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs/1000)}s)`);
+                console.debug(`[Assets] Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs/1000)}s)`);
             }
             return { data, isStale };
         } catch (err) {
@@ -58,7 +58,7 @@ export class AssetsPage extends Component {
                 data,
                 timestamp: Date.now()
             }));
-            console.log(`[Assets] 💾 Cache SAVED: ${key}`);
+            console.debug(`[Assets] Cache SAVED: ${key}`);
         } catch (err) {
             console.warn('[Assets] Cache write error:', err);
         }
@@ -78,7 +78,7 @@ export class AssetsPage extends Component {
                 const cacheKey = `assets_${orgId}`;
                 const cached = this.getCachedAssets(cacheKey, 30);
                 if (cached) {
-                    console.log('[Assets] ⚡ Loading from cache immediately (will refresh in background)...');
+                    console.debug('[Assets] Loading from cache immediately (will refresh in background)...');
                     this.setState({
                         assets: cached.data,
                         loading: false,
@@ -125,7 +125,7 @@ export class AssetsPage extends Component {
 
     async loadFreshAssets() {
         try {
-            console.log('[Assets] 🔄 Background refresh starting...');
+            console.debug('[Assets] Background refresh starting...');
             
             const currentOrg = orgContext.getCurrentOrg();
             const orgId = currentOrg?.orgId;
@@ -152,7 +152,7 @@ export class AssetsPage extends Component {
                     isRefreshingInBackground: false
                 }));
                 
-                console.log('[Assets] ✅ Background refresh complete');
+                console.debug('[Assets] Background refresh complete');
             }
         } catch (err) {
             console.warn('[Assets] Background refresh failed:', err);
@@ -381,12 +381,12 @@ export class AssetsPage extends Component {
                         <div class="col-sm-6 col-lg-3">
                             <div class="card">
                                 <div class="card-body">
-                                    <div class="subheader text-muted">Freeware / Unmanaged</div>
+                                    <div class="subheader text-muted">Freeware Apps</div>
                                     <div class="d-flex align-items-baseline">
                                         <div class="h1 mb-0 me-2">${freewareApps}</div>
                                         <div class="text-muted">apps</div>
                                     </div>
-                                    <div class="text-muted small mt-1">${freewareApps > 0 ? 'Review for policy compliance' : 'No freeware detected'}</div>
+                                    <div class="text-muted small mt-1">${freewareApps > 0 ? 'Review freeware policy compliance' : 'No freeware detected'}</div>
                                 </div>
                             </div>
                         </div>
@@ -447,11 +447,11 @@ export class AssetsPage extends Component {
                                         ${asset.version}
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge bg-blue-lt">${asset.deviceCount}</span>
+                                        <span class="badge bg-blue-lt text-blue">${asset.deviceCount}</span>
                                     </td>
                                     <td class="text-center">
                                         ${asset.cveCount > 0 ? html`
-                                            <span class="badge bg-red-lt">${asset.cveCount} CVEs</span>
+                                            <span class="badge bg-red-lt text-danger">${asset.cveCount} CVEs</span>
                                         ` : html`
                                             <span class="text-muted">-</span>
                                         `}

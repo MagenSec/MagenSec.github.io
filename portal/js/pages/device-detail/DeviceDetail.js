@@ -40,7 +40,7 @@ export class DeviceDetailPage extends window.Component {
         const rawDeviceId = props.params?.deviceId || (window.location.hash.match(/\/devices\/([^/?]+)/) || [])[1];
         const deviceId = rawDeviceId ? decodeURIComponent(rawDeviceId) : null;
         let initialTab = 'riskAssessment';
-        try { console.log('HASH:', window.location.hash);
+        try {
             const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
             const tabParam = urlParams.get('tab');
             if (tabParam) initialTab = tabParam;
@@ -141,7 +141,7 @@ export class DeviceDetailPage extends window.Component {
 
     // Load known exploits via shared KEV cache (local diag first, then GitHub)
     async loadKnownExploitsAsync() {
-        try { console.log('HASH:', window.location.hash);
+        try {
             const kevSet = await getKevSet();
             this.setState({ knownExploits: kevSet, exploitsLoadingError: null });
         } catch (error) {
@@ -246,7 +246,12 @@ export class DeviceDetailPage extends window.Component {
 
         if (!device || !device.Summary) return fromInventory();
 
-        const summary = typeof device.Summary === 'string' ? JSON.parse(device.Summary) : device.Summary;
+        let summary;
+        try {
+            summary = typeof device.Summary === 'string' ? JSON.parse(device.Summary) : device.Summary;
+        } catch {
+            return fromInventory();
+        }
         const normalized = this.normalizeSummary(summary);
         const score = normalized?.score ?? 0;
 
@@ -332,16 +337,53 @@ export class DeviceDetailPage extends window.Component {
     isVersionOutdated(deviceVersion) {
         if (!deviceVersion) return false;
         const latestVersion = (this.state.installers?.ENGINE?.VERSION) || config.INSTALLERS.ENGINE.VERSION;
-        const parse = (v) => {
-            const parts = String(v).split('.').map(Number);
-            return { major: parts[0]||0, minor: parts[1]||0, build: parts[2]||0 };
-        };
-        const a = parse(deviceVersion);
-        const b = parse(latestVersion);
-        if (a.major < b.major) return true;
-        if (a.major === b.major && a.minor < b.minor) return true;
-        if (a.major === b.major && a.minor === b.minor && a.build < b.build) return true;
-        return false;
+        return this.compareVersions(deviceVersion, latestVersion) < 0;
+    }
+
+    compareVersions(left, right) {
+        const parse = (v) => String(v || '')
+            .split('.')
+            .map(part => Number.parseInt(part, 10))
+            .map(part => Number.isFinite(part) ? part : 0);
+
+        const a = parse(left);
+        const b = parse(right);
+        const len = Math.max(a.length, b.length, 4);
+
+        for (let i = 0; i < len; i++) {
+            const av = a[i] ?? 0;
+            const bv = b[i] ?? 0;
+            if (av > bv) return 1;
+            if (av < bv) return -1;
+        }
+        return 0;
+    }
+
+    parseIpAddresses(ipRaw) {
+        if (Array.isArray(ipRaw)) {
+            return ipRaw.map(ip => String(ip).trim()).filter(Boolean);
+        }
+
+        if (typeof ipRaw === 'string') {
+            const raw = ipRaw.trim();
+            if (!raw) return [];
+
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(ip => String(ip).trim()).filter(Boolean);
+                }
+            } catch {
+            }
+
+            return raw
+                .replace(/[\[\]"]/g, '')
+                .split(/[;\s,]+/)
+                .map(ip => ip.trim())
+                .filter(Boolean);
+        }
+
+        return [];
     }
 
     severityWeight(sev) {
@@ -445,32 +487,6 @@ export class DeviceDetailPage extends window.Component {
         } catch (e) { }
     }
 
-    
-    tryGetCachedDetail(orgId, deviceId) {
-        try {
-            const cached = localStorage.getItem(`ms-device-detail-${orgId}-${deviceId}`);
-            if (cached) {
-                const parsed = JSON.parse(cached);
-                const age = Date.now() - parsed.timestamp;
-                if (age < 15 * 60 * 1000) { // 15 mins cache
-                    return parsed.data;
-                }
-            }
-        } catch (e) {
-            console.warn('Cache error', e);
-        }
-        return null;
-    }
-
-    setCachedDetail(orgId, deviceId, data) {
-        try {
-            localStorage.setItem(`ms-device-detail-${orgId}-${deviceId}`, JSON.stringify({
-                timestamp: Date.now(),
-                data: data
-            }));
-        } catch (e) { }
-    }
-
     async loadDeviceData() {
         try { 
             const currentOrg = orgContext.getCurrentOrg();
@@ -486,10 +502,12 @@ export class DeviceDetailPage extends window.Component {
             if (cached) {
                 this.setState({
                     loading: false,
+                    error: null,
                     device: cached.device,
                     deviceSummary: cached.summary,
                     telemetryDetail: cached.telemetryDetail,
                     appInventory: cached.apps || [],
+                    appSummary: cached.appSummary || null,
                     cveInventory: cached.cves || [],
                     mitigatedCveInventory: cached.mitigatedCves || [],
                     isRefreshingInBackground: true
@@ -512,7 +530,11 @@ export class DeviceDetailPage extends window.Component {
                 throw new Error(detailResp.message || 'Failed to load device detail');
             }
 
-            const { device: deviceData, telemetry: telemetryData, apps: appsData, cves: cvesData, telemetryStatus } = detailResp.data;
+            const payload = detailResp.data || {};
+            const { device: deviceData, telemetry: telemetryData, apps: appsData, cves: cvesData, telemetryStatus } = payload;
+            if (!deviceData) {
+                throw new Error('Device detail payload is incomplete');
+            }
 
             // Decrypt PII fields from device
             const decryptedDevice = {
@@ -607,8 +629,12 @@ export class DeviceDetailPage extends window.Component {
             const summary = decryptedDevice.summary || decryptedDevice.Summary;
             let deviceSummary = null;
             if (summary) {
-                const summaryData = typeof summary === 'string' ? JSON.parse(summary) : summary;
-                deviceSummary = this.normalizeSummary(summaryData);
+                try {
+                    const summaryData = typeof summary === 'string' ? JSON.parse(summary) : summary;
+                    deviceSummary = this.normalizeSummary(summaryData);
+                } catch {
+                    deviceSummary = null;
+                }
             }
 
             // Deduplicate CVEs by cveId + appRowKey (prevent duplicate entries)
@@ -632,9 +658,22 @@ export class DeviceDetailPage extends window.Component {
                 deviceSessions: null,
                 telemetryStatus: telemetryStatus || null,
                 loading: false,
+                isRefreshingInBackground: false,
                 showAllIps: false,
                 appStatusFilter: 'installed'
             });
+
+            // Write SWR cache so next load is instant
+            this.setCachedDetail(currentOrg.orgId, this.state.deviceId, {
+                device: decryptedDevice,
+                summary: deviceSummary,
+                telemetryDetail: telemetryData,
+                apps: appList,
+                appSummary,
+                cves: uniqueCves,
+                mitigatedCves: uniqueMitigatedCves
+            });
+
             this.destroySessionChart();
             
             // Background: Load known exploits and enrich risk score
@@ -666,7 +705,7 @@ export class DeviceDetailPage extends window.Component {
         const startUtc = new Date(endUtc.getTime() - (Number(rangeDays) || 1) * 24 * 60 * 60 * 1000);
 
         this.setState({ perfLoading: true, perfError: null });
-        try { console.log('HASH:', window.location.hash);
+        try {
             const perfResp = await api.get(
                 `/api/v1/orgs/${currentOrg.orgId}/devices/${this.state.deviceId}/perf`,
                 {
@@ -978,9 +1017,20 @@ export class DeviceDetailPage extends window.Component {
     // Filter CVEs based on app installation status for accurate risk scoring
     getActiveApps() {
         return this.state.appInventory.filter(app => {
-            const status = (app.status || '').toLowerCase();
-            // Keep installed and updated apps (updated = upgraded but still has CVE coverage)
-            return status === 'installed' || status === 'updated';
+            const status = (app.status || app.appStatus || app.AppStatus || '').toLowerCase();
+            if (status === 'installed' || status === 'updated') return true;
+            if (status === 'uninstalled') return false;
+
+            // Fallback for incomplete payloads
+            if (app.isInstalled === true || app.IsInstalled === true) return true;
+
+            const lastSeen = app.lastSeen || app.LastSeen;
+            if (lastSeen) {
+                const daysSinceSeen = (Date.now() - new Date(lastSeen).getTime()) / (1000 * 60 * 60 * 24);
+                if (Number.isFinite(daysSinceSeen) && daysSinceSeen <= 30) return true;
+            }
+
+            return false;
         });
     }
 
@@ -1005,6 +1055,29 @@ export class DeviceDetailPage extends window.Component {
             const cveAppName = this.normalizeAppName(cve.appName);
             return activeAppNames.has(cveAppName);
         });
+    }
+
+    getAppVulnerabilityBreakdown() {
+        const activeApps = this.getActiveApps();
+        const activeCves = this.getActiveCves();
+
+        const activeAppNames = new Set(
+            activeApps
+                .map(app => this.normalizeAppName(app.appName))
+                .filter(Boolean)
+        );
+
+        const vulnerableAppNames = new Set(
+            activeCves
+                .map(cve => this.normalizeAppName(cve.appName))
+                .filter(name => name && activeAppNames.has(name))
+        );
+
+        const totalApps = activeAppNames.size;
+        const vulnerableApps = vulnerableAppNames.size;
+        const cleanApps = Math.max(0, totalApps - vulnerableApps);
+
+        return { totalApps, vulnerableApps, cleanApps };
     }
 
     getMitigatedCves() {
@@ -1139,7 +1212,7 @@ export class DeviceDetailPage extends window.Component {
         const ipAddresses = (() => {
             if (Array.isArray(ipRaw)) return ipRaw;
             if (typeof ipRaw === 'string') {
-                try { console.log('HASH:', window.location.hash);
+                try {
                     const parsed = JSON.parse(ipRaw);
                     if (Array.isArray(parsed)) return parsed;
                 } catch (err) { /* fall through */ }
@@ -1684,7 +1757,7 @@ export class DeviceDetailPage extends window.Component {
                         (function () {
                             const modelText = document.getElementById('report-model')?.textContent || '{}';
                             let model = {};
-                            try { console.log('HASH:', window.location.hash); model = JSON.parse(modelText); } catch (e) { model = {}; }
+                            try { model = JSON.parse(modelText); } catch (e) { model = {}; }
 
                             const risk = Number(model?.risk?.riskScore ?? 0);
                             const c = model?.inventory?.cvesBySeverity || {};
@@ -1765,7 +1838,7 @@ export class DeviceDetailPage extends window.Component {
         // Best-effort auto-open print dialog after a short delay.
         // Browser security policies may ignore this; user can still click the button.
         setTimeout(() => {
-            try { console.log('HASH:', window.location.hash); w.focus(); w.print(); } catch (err) { /* ignore */ }
+            try { w.focus(); w.print(); } catch (err) { /* ignore */ }
         }, 900);
     }
 
@@ -1805,7 +1878,7 @@ export class DeviceDetailPage extends window.Component {
 
         console.info('[DeviceDetail] Blocking device:', { deviceId, deviceName, deleteTelemetry, orgId: currentOrg.orgId });
 
-        try { console.log('HASH:', window.location.hash);
+        try {
             const response = await api.updateDeviceState(currentOrg.orgId, deviceId, 'BLOCKED', {
                 deleteTelemetry,
                 reason: deleteTelemetry 
@@ -1872,7 +1945,7 @@ export class DeviceDetailPage extends window.Component {
 
         console.info('[DeviceDetail] Enabling device:', { deviceId, deviceName, orgId: currentOrg.orgId });
 
-        try { console.log('HASH:', window.location.hash);
+        try {
             const response = await api.updateDeviceState(currentOrg.orgId, deviceId, 'ENABLED', {
                 reason: 'Admin enabled via Device Detail page'
             });
@@ -1916,7 +1989,7 @@ export class DeviceDetailPage extends window.Component {
             return;
         }
 
-        try { console.log('HASH:', window.location.hash);
+        try {
             const result = await api.queueCommand(currentOrg.orgId, commandType, [deviceId]);
             if (result?.success) {
                 const msg = `${commandType} queued. Will execute on next device check-in.`;
@@ -2030,6 +2103,7 @@ export class DeviceDetailPage extends window.Component {
         }
 
         const enrichedApps = this.computeAppStatus(this.state.appInventory);
+        const appBreakdown = this.getAppVulnerabilityBreakdown();
         const statusFilter = this.state.appStatusFilter || 'installed';
         const statusFilteredApps = enrichedApps.filter(app => {
             const status = (app.status || '').toLowerCase();
@@ -2075,7 +2149,7 @@ export class DeviceDetailPage extends window.Component {
         const knownExploitCount = this.state.knownExploits ? activeCves.filter(c => this.state.knownExploits.has(c.cveId)).length : 0;
         const latestFields = this.state.telemetryDetail?.latest?.fields || {};
         const ipRaw = latestFields.IPAddresses || latestFields.ipAddresses;
-        const ipList = Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : [];
+        const ipList = this.parseIpAddresses(ipRaw);
         const mobileStatus = this.networkService.detectMobileDevice(this.state.telemetryDetail?.history);
         const networkRisk = this.networkService.analyzeNetworkRisk(ipList, this.state.telemetryDetail?.history);
         const recentChangeCount = this.state.telemetryDetail?.changes?.length || 0;
@@ -2177,9 +2251,9 @@ export class DeviceDetailPage extends window.Component {
                                             </div>
                                             <div class="col-auto">
                                                 ${(() => {
-                                                    const risk = renderRiskIndicator(device);
-                                                    const score = Math.round(Number.isFinite(risk.score) ? risk.score : 0);
-                                                    return html`<span class="badge ${risk.badge || 'bg-secondary'} text-white">${risk.severity || 'LOW'} · ${score}%</span>`;
+                                                    const headerSeverity = worstSeverity || 'LOW';
+                                                    const headerScore = Number.isFinite(riskScore) ? riskScore : 0;
+                                                    return html`<span class="badge ${this.getSeverityColor(headerSeverity)}">${headerSeverity} · ${headerScore}%</span>`;
                                                 })()}
                                             </div>
                                             <div class="col-auto">
@@ -2198,7 +2272,7 @@ export class DeviceDetailPage extends window.Component {
                                             ${(() => {
                                                 const f = this.state.telemetryDetail?.latest?.fields || {};
                                                 const ipRaw = f.IPAddresses || f.ipAddresses;
-                                                const ipList = Array.isArray(ipRaw) ? ipRaw : typeof ipRaw === 'string' ? ipRaw.split(/[;\s,]+/).filter(Boolean) : [];
+                                                const ipList = this.parseIpAddresses(ipRaw);
                                                 const primaryIp = ipList[0];
                                                 return primaryIp ? html`<div class="col-auto">${primaryIp}</div>` : '';
                                             })()}
@@ -2321,14 +2395,18 @@ export class DeviceDetailPage extends window.Component {
                                         <div class="row g-3 align-items-center mt-2">
                                             ${(() => {
                                                 const health = renderHealthStatus(device);
-                                                const risk = renderRiskIndicator(device);
                                                 const patch = renderPatchStatus(device);
                                                 const patchBadgeClass = patch.badge === 'bg-success-lt' ? 'bg-success-lt text-success'
                                                     : patch.badge === 'bg-info-lt' ? 'bg-info-lt text-info'
                                                     : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
                                                     : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
                                                     : patch.badge;
-                                                const riskTrend = Number.isFinite(risk.trend7d) ? risk.trend7d : 0;
+                                                const riskTrendRaw = this.state.deviceSummary?.trend7d
+                                                    ?? this.state.deviceSummary?.scoreDelta7d
+                                                    ?? this.state.deviceSummary?.scoreDelta
+                                                    ?? null;
+                                                const hasRiskTrend = Number.isFinite(Number(riskTrendRaw));
+                                                const riskTrend = hasRiskTrend ? Number(riskTrendRaw) : null;
                                                 return html`
                                                     <div class="col-md-4">
                                                         <div class="text-muted small font-weight-medium">Health</div>
@@ -2343,8 +2421,10 @@ export class DeviceDetailPage extends window.Component {
                                                     <div class="col-md-4">
                                                         <div class="text-muted small font-weight-medium">Risk Trend (7d)</div>
                                                         <div class="d-flex align-items-center gap-2">
-                                                            <span class="badge ${risk.badge || 'bg-secondary'} text-white">${risk.severity || 'LOW'} · ${Math.round(Number.isFinite(risk.score) ? risk.score : 0)}%</span>
-                                                            <span class="${getTrendClass(riskTrend)}">${getTrendIcon(riskTrend)} ${Math.abs(Math.round(riskTrend))}</span>
+                                                            <span class="badge ${this.getSeverityColor(worstSeverity || 'LOW')}">${worstSeverity || 'LOW'} · ${Math.round(Number.isFinite(riskScore) ? riskScore : 0)}%</span>
+                                                            ${hasRiskTrend
+                                                                ? html`<span class="${getTrendClass(riskTrend)}">${getTrendIcon(riskTrend)} ${Math.abs(Math.round(riskTrend))}</span>`
+                                                                : html`<span class="text-muted">N/A</span>`}
                                                         </div>
                                                     </div>
                                                     <div class="col-md-4">
@@ -2371,9 +2451,10 @@ export class DeviceDetailPage extends window.Component {
                                         <div class="row g-3 align-items-center">
                                             <div class="col-md-4">
                                                 ${(() => {
-                                                    const totalApps = enrichedApps.length || 0;
-                                                    const vulnerableApps = this.state.appInventory.filter(app => this.state.cveInventory.some(cve => cve.appName && app.appName && cve.appName.toLowerCase() === app.appName.toLowerCase())).length;
-                                                    const cleanApps = Math.max(0, totalApps - vulnerableApps);
+                                                    const breakdown = this.getAppVulnerabilityBreakdown();
+                                                    const totalApps = breakdown.totalApps;
+                                                    const vulnerableApps = breakdown.vulnerableApps;
+                                                    const cleanApps = breakdown.cleanApps;
                                                     const radius = 34;
                                                     const circumference = 2 * Math.PI * radius;
                                                     const vulnPct = totalApps > 0 ? vulnerableApps / totalApps : 0;
@@ -2429,9 +2510,17 @@ export class DeviceDetailPage extends window.Component {
                                                 ${(() => {
                                                     const dv = device.ClientVersion || device.clientVersion || this.state.deviceSummary?.clientVersion;
                                                     const latest = (this.state.installers?.ENGINE?.VERSION) || config.INSTALLERS.ENGINE.VERSION;
-                                                    const updateAvailable = dv ? this.isVersionOutdated(dv) : false;
-                                                    const postureLabel = dv ? (updateAvailable ? 'Behind latest' : 'Up to date') : 'Unknown';
-                                                    const postureClass = updateAvailable ? 'text-warning' : 'text-success';
+                                                    const versionDelta = dv ? this.compareVersions(dv, latest) : null;
+                                                    const updateAvailable = versionDelta !== null ? versionDelta < 0 : false;
+                                                    const aheadOfBaseline = versionDelta !== null ? versionDelta > 0 : false;
+                                                    const postureLabel = dv
+                                                        ? (updateAvailable ? 'Behind latest' : aheadOfBaseline ? 'Ahead of baseline' : 'Up to date')
+                                                        : 'Unknown';
+                                                    const postureClass = updateAvailable
+                                                        ? 'text-warning'
+                                                        : aheadOfBaseline
+                                                            ? 'text-info'
+                                                            : 'text-success';
                                                     return html`
                                                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                                                             <div>
@@ -2612,7 +2701,7 @@ export class DeviceDetailPage extends window.Component {
                                                     <span class="d-flex align-items-center justify-content-center gap-2">
                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>
                                                         <span>Applications</span>
-                                                        <span class="badge bg-primary-lt text-primary">${enrichedApps.length}</span>
+                                                        <span class="badge bg-primary-lt text-primary">${appBreakdown.totalApps}</span>
                                                     </span>
                                                 </a>
                                             </li>
@@ -2744,9 +2833,10 @@ export class DeviceDetailPage extends window.Component {
             return Number.isFinite(n) ? n : 0;
         };
 
-        const vulnerableApps = this.state.appInventory.filter(app => this.state.cveInventory.some(cve => cve.appName && app.appName && cve.appName.toLowerCase() === app.appName.toLowerCase())).length;
-        const totalApps = this.state.appInventory.length;
-        const healthyApps = Math.max(totalApps - vulnerableApps, 0);
+        const appBreakdown = this.getAppVulnerabilityBreakdown();
+        const vulnerableApps = appBreakdown.vulnerableApps;
+        const totalApps = appBreakdown.totalApps;
+        const healthyApps = appBreakdown.cleanApps;
         const appsSeries = totalApps > 0 ? [safeNum(vulnerableApps), safeNum(healthyApps)] : [1];
         const appsLabels = totalApps > 0 ? ['Vulnerable', 'Healthy'] : ['No data'];
         const appsColors = totalApps > 0 ? ['#d63939', '#2fb344'] : ['#e9ecef'];
@@ -3412,7 +3502,7 @@ export class DeviceDetailPage extends window.Component {
         }
 
         this.setState({ sessionLoading: true, sessionError: null });
-        try { console.log('HASH:', window.location.hash);
+        try {
             const resp = await api.getDeviceSessions(
                 currentOrg.orgId,
                 this.state.deviceId,
@@ -3519,6 +3609,7 @@ export class DeviceDetailPage extends window.Component {
         return html`<span class="badge bg-success mt-1">✓ Telemetry Healthy</span>`;
     }
 }
+
 
 
 

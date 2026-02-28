@@ -193,7 +193,7 @@ export class DashboardPage extends Component {
             if (!forceRefresh) {
                 const cached = this.swr.getCached();
                 if (cached) {
-                    console.log('[UnifiedDashboard] ⚡ Loading from cache immediately (will refresh in background)...');
+                    console.debug('[UnifiedDashboard] Loading from cache immediately (will refresh in background)...');
                     this.setState({
                         ...this.buildDashboardState(cached.data),
                         loading: false,
@@ -236,7 +236,7 @@ export class DashboardPage extends Component {
 
     async loadFreshDashboardData(orgId) {
         try {
-            console.log('[UnifiedDashboard] 🔄 Background refresh starting (with cached-summary)...');
+            console.debug('[UnifiedDashboard] Background refresh starting (with cached-summary)...');
 
             await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -256,7 +256,7 @@ export class DashboardPage extends Component {
                 });
 
                 this.loadPostureSnapshotInBackground();
-                console.log('[UnifiedDashboard] ✅ Background refresh complete');
+                console.debug('[UnifiedDashboard] Background refresh complete');
                 return;
             }
 
@@ -286,7 +286,7 @@ export class DashboardPage extends Component {
 
     getRiskColor(score) {
         if (score === null || score === 0) return 'secondary';
-        // 100=best (green), 0=worst (red)
+        // 0 is treated as "not rated"; otherwise higher score is better.
         if (score >= 80) return 'success';  // A/B grade
         if (score >= 60) return 'info';     // C/D grade
         if (score >= 40) return 'warning';  // F grade
@@ -294,7 +294,7 @@ export class DashboardPage extends Component {
     }
 
     getRiskLabel(score) {
-        // 100=best, 0=worst
+        // 0 is treated as "not rated"; otherwise higher score is better.
         if (score >= 80) return 'Excellent';  // A/B grade
         if (score >= 60) return 'Good';       // C/D grade
         if (score >= 40) return 'Fair';       // F grade
@@ -922,13 +922,13 @@ export class DashboardPage extends Component {
             const org = orgContext.getCurrentOrg();
             if (!org) return;
             
-            console.log('[Dashboard] Loading posture snapshot in background for actions');
+            console.debug('[Dashboard] Loading posture snapshot in background for actions');
             const response = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: false });
             const snapshot = response?.data?.snapshot;
             
             if (snapshot) {
                 this.setState({ postureSnapshot: snapshot });
-                console.log('[Dashboard] Posture snapshot loaded, actions available:', snapshot.actions?.prioritized?.length || 0);
+                console.debug('[Dashboard] Posture snapshot loaded, actions available:', snapshot.actions?.prioritized?.length || 0);
             }
         } catch (err) {
             console.warn('[Dashboard] Failed to load posture snapshot in background:', err.message);
@@ -956,9 +956,9 @@ export class DashboardPage extends Component {
                     return;
                 }
                 
-                console.log('[Dashboard] Loading posture snapshot for org:', org.orgId);
+                console.debug('[Dashboard] Loading posture snapshot for org:', org.orgId);
                 const response = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: false });
-                console.log('[Dashboard] Posture snapshot response:', response);
+                console.debug('[Dashboard] Posture snapshot response:', response);
                 
                 // API returns: {success, data: {snapshot, triggeredGeneration}, message}
                 const snapshot = response?.data?.snapshot;
@@ -966,7 +966,7 @@ export class DashboardPage extends Component {
                 if (!snapshot) {
                     console.warn('[Dashboard] No snapshot in response, trying force generation...');
                     const forceResponse = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: true });
-                    console.log('[Dashboard] Forced snapshot response:', forceResponse);
+                    console.debug('[Dashboard] Forced snapshot response:', forceResponse);
                     
                     this.setState({ 
                         postureSnapshot: forceResponse?.data?.snapshot || null,
@@ -999,9 +999,9 @@ export class DashboardPage extends Component {
                 return;
             }
             
-            console.log('[Dashboard] Forcing posture snapshot generation for org:', org.orgId);
+            console.debug('[Dashboard] Forcing posture snapshot generation for org:', org.orgId);
             const response = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: true });
-            console.log('[Dashboard] Generated snapshot response:', response);
+            console.debug('[Dashboard] Generated snapshot response:', response);
             
             // API returns: {success, data: {snapshot, triggeredGeneration}, message}
             const snapshot = response?.data?.snapshot;
@@ -1036,7 +1036,7 @@ export class DashboardPage extends Component {
             deviceCount = dashboardData.recentDevices.length;
         }
         
-        console.log('[Dashboard] Overview tab - seats:', seats, 'deviceCount:', deviceCount, 'deviceStats:', deviceStats, 'threatSummary:', threatSummary);
+        console.debug('[Dashboard] Overview tab - seats:', seats, 'deviceCount:', deviceCount, 'deviceStats:', deviceStats, 'threatSummary:', threatSummary);
         
         return html`
             ${this.renderSecurityOfficerBanner()}
