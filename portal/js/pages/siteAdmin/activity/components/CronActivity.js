@@ -184,6 +184,9 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         const itemsProcessed = meta.itemsProcessed || 0;
         const successful = meta.successful || 0;
         const failed = meta.failed || 0;
+        const diagnostics = meta.diagnostics || meta.Diagnostics || null;
+        const hasDiagnostics = diagnostics && typeof diagnostics === 'object';
+        const diagnosticsEntries = hasDiagnostics ? Object.entries(diagnostics) : [];
         
         return html`
             <tr class="cursor-pointer" onClick=${() => {
@@ -239,6 +242,28 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                     <div class="col-12">
                                         <div class="alert alert-danger mb-0">
                                             <strong>Error:</strong> ${meta.error}
+                                        </div>
+                                    </div>
+                                `}
+                                ${hasDiagnostics && html`
+                                    <div class="col-12">
+                                        <div class="alert alert-info mb-0">
+                                            <div class="fw-semibold mb-2">Execution Diagnostics</div>
+                                            <div class="row g-2">
+                                                ${diagnosticsEntries.map(([key, value]) => {
+                                                    const formattedValue = Array.isArray(value)
+                                                        ? value.join(', ')
+                                                        : (typeof value === 'object' && value !== null)
+                                                            ? JSON.stringify(value)
+                                                            : String(value);
+                                                    return html`
+                                                        <div class="col-md-6 col-lg-4">
+                                                            <div class="small text-muted">${key}</div>
+                                                            <div class="fw-semibold">${formattedValue}</div>
+                                                        </div>
+                                                    `;
+                                                })}
+                                            </div>
                                         </div>
                                     </div>
                                 `}
