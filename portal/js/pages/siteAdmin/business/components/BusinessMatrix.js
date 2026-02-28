@@ -13,7 +13,9 @@ export function BusinessMatrixPage() {
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [expandedOrgs, setExpandedOrgs] = useState(new Set());
-    const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'USD');
+    const [billingCurrencyCode, setBillingCurrencyCode] = useState('USD');
+    const [displayCurrencyCode, setDisplayCurrencyCode] = useState(localStorage.getItem('businessMatrixCurrency') || 'USD');
+    const [kpiWindowDays, setKpiWindowDays] = useState(7);
     const [serviceCostDays, setServiceCostDays] = useState(30); // 7, 30, or 90 days
     const [costTrendDays, setCostTrendDays] = useState(30);          // 7, 14, 30
     const [costBreakdownPeriod, setCostBreakdownPeriod] = useState('mtd'); // 'latest', '7d', 'mtd'
@@ -37,8 +39,39 @@ export function BusinessMatrixPage() {
     const [costTrendChart, setCostTrendChart] = useState(null);
     const [costBreakdownChart, setCostBreakdownChart] = useState(null);
 
-    // Exchange rate: Hardcoded approximate INR/USD rate (Jan 2026)
-    const EXCHANGE_RATE = 83.5; // ₹83.5 per $1
+    const USD_INR_RATE = 83.5;
+
+    const normalizeCurrency = (code) => (code || 'USD').toUpperCase();
+
+    const getCurrencySymbol = (code) => {
+        const normalized = normalizeCurrency(code);
+        if (normalized === 'INR') return '₹';
+        if (normalized === 'EUR') return '€';
+        if (normalized === 'GBP') return '£';
+        return '$';
+    };
+
+    const getConversionRate = (fromCode, toCode) => {
+        const from = normalizeCurrency(fromCode);
+        const to = normalizeCurrency(toCode);
+        if (from === to) return 1;
+        if (from === 'USD' && to === 'INR') return USD_INR_RATE;
+        if (from === 'INR' && to === 'USD') return 1 / USD_INR_RATE;
+        return 1;
+    };
+
+    const convertFromBilling = (value) => {
+        const rate = getConversionRate(billingCurrencyCode, displayCurrencyCode);
+        return Number(value || 0) * rate;
+    };
+
+    const getCurrencySymbolForDisplay = () => {
+        const code = normalizeCurrency(displayCurrencyCode);
+        if (code === 'INR') return '₹';
+        if (code === 'EUR') return '€';
+        if (code === 'GBP') return '£';
+        return '$';
+    };
 
     useEffect(() => {
         loadBusinessMetrics();
@@ -68,6 +101,12 @@ export function BusinessMatrixPage() {
         }
     }, [costBreakdownPeriod]);
 
+    useEffect(() => {
+        if (metrics) {
+            setTimeout(() => renderCharts(metrics), 50);
+        }
+    }, [displayCurrencyCode, billingCurrencyCode]);
+
     const loadBusinessMetrics = async () => {
         try {
             setLoading(true);
@@ -82,6 +121,7 @@ export function BusinessMatrixPage() {
             
             if (response.success) {
                 setMetrics(response.data);
+                setBillingCurrencyCode((response.data?.platformSummary?.billingCurrencyCode || 'USD').toUpperCase());
                 // Render charts after metrics loaded
                 setTimeout(() => {
                     renderCharts(response.data);
@@ -123,11 +163,10 @@ export function BusinessMatrixPage() {
     const renderRevenueChart = (breakdown) => {
         if (!revenueChartRef.current) return;
 
-        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
-        const currencySymbol = currency === 'INR' ? '₹' : '$';
+        const currencySymbol = getCurrencySymbolForDisplay();
 
         const options = {
-            series: [breakdown.personalRevenue * currencyMultiplier, breakdown.businessRevenue * currencyMultiplier],
+            series: [convertFromBilling(breakdown.personalRevenue), convertFromBilling(breakdown.businessRevenue)],
             chart: {
                 type: 'donut',
                 height: 280
@@ -165,8 +204,7 @@ export function BusinessMatrixPage() {
         if (!mrrTrendChartRef.current || !trends || trends.length === 0) return;
 
         const ctx = mrrTrendChartRef.current.getContext('2d');
-        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
-        const currencySymbol = currency === 'INR' ? '₹' : '$';
+        const currencySymbol = getCurrencySymbolForDisplay();
 
         if (mrrTrendChart) {
             mrrTrendChart.destroy();
@@ -178,7 +216,7 @@ export function BusinessMatrixPage() {
                 labels: trends.map(t => new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
                 datasets: [{
                     label: 'MRR',
-                    data: trends.map(t => t.mrr * currencyMultiplier),
+                    data: trends.map(t => convertFromBilling(t.mrr)),
                     borderColor: '#2fb344',
                     backgroundColor: 'rgba(47, 179, 68, 0.1)',
                     borderWidth: 3,
@@ -223,8 +261,7 @@ export function BusinessMatrixPage() {
         if (!marginBandChartRef.current) return;
 
         const ctx = marginBandChartRef.current.getContext('2d');
-        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
-        const currencySymbol = currency === 'INR' ? '₹' : '$';
+        const currencySymbol = getCurrencySymbolForDisplay();
 
         if (marginBandChart) {
             marginBandChart.destroy();
@@ -256,7 +293,7 @@ export function BusinessMatrixPage() {
                 labels: bandData.map(b => b.band),
                 datasets: [{
                     label: 'Revenue by Margin Band',
-                    data: bandData.map(b => b.value * currencyMultiplier),
+                    data: bandData.map(b => convertFromBilling(b.value)),
                     backgroundColor: bandData.map(b => b.color),
                     borderWidth: 0
                 }]
@@ -311,14 +348,13 @@ export function BusinessMatrixPage() {
             costTrendChart.destroy();
         }
 
-        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
-        const currencySymbol = currency === 'INR' ? '₹' : '$';
+        const currencySymbol = getCurrencySymbolForDisplay();
 
         const sortedSnapshots = [...snapshots]
             .sort((a, b) => new Date(a.date) - new Date(b.date))
             .slice(-days);
         const labels = sortedSnapshots.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-        const dailyCosts = sortedSnapshots.map(s => s.totalCost * currencyMultiplier);
+        const dailyCosts = sortedSnapshots.map(s => convertFromBilling(s.totalCost));
         const runRate7 = dailyCosts.map((_, idx) => {
             const start = Math.max(0, idx - 6);
             const window = dailyCosts.slice(start, idx + 1);
@@ -413,27 +449,31 @@ export function BusinessMatrixPage() {
         relevantSnapshots.forEach(snap => {
             const costsByType = snap.costsByResourceType || {};
             Object.entries(costsByType).forEach(([type, cost]) => {
-                let category = 'Other';
-                if (type.includes('Container') && !type.includes('Registry')) category = 'Container Apps';
-                else if (type.includes('Registry')) category = 'Container Registry';
-                else if (type.includes('Storage')) category = 'Storage';
-                else if (type.includes('KeyVault') || type.includes('Key Vault')) category = 'Key Vault';
-                else if (type.includes('Bandwidth')) category = 'Bandwidth';
+                const normalized = (type || '').toLowerCase();
+                let category = 'Unclassified';
+                if (normalized.includes('containerapp') || normalized.includes('managedenvironments')) category = 'Container Apps';
+                else if (normalized.includes('containerregistry')) category = 'Container Registry';
+                else if (normalized.includes('storage')) category = 'Storage';
+                else if (normalized.includes('keyvault')) category = 'Key Vault';
+                else if (normalized.includes('bandwidth') || normalized.includes('network')) category = 'Networking';
+                else if (normalized.includes('monitor') || normalized.includes('applicationinsights')) category = 'Monitoring';
+                else if (normalized.includes('cognitive') || normalized.includes('openai') || normalized.includes('foundry') || normalized.includes('ai')) category = 'AI Services';
+                else if (normalized.includes('eventhub')) category = 'Event Hubs';
+                else if (normalized.includes('communication')) category = 'Communication';
                 simplified[category] = (simplified[category] || 0) + cost;
             });
         });
 
         const labels = Object.keys(simplified);
-        const data = Object.values(simplified);
-        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
-        const currencySymbol = currency === 'INR' ? '₹' : '$';
+        const data = Object.values(simplified).map(v => convertFromBilling(v));
+        const currencySymbol = getCurrencySymbolForDisplay();
 
         const chart = new Chart(ctx, {
             type: 'doughnut',
             data: {
                 labels: labels,
                 datasets: [{
-                    data: data.map(v => v * currencyMultiplier),
+                    data: data,
                     backgroundColor: [
                         '#0054a6',  // Container Apps
                         '#f76707',  // Container Registry
@@ -526,10 +566,9 @@ export function BusinessMatrixPage() {
     };
 
     const formatCurrency = (value) => {
-        if (currency === 'INR') {
-            return '₹' + (value * EXCHANGE_RATE).toFixed(0);
-        }
-        return '$' + value.toFixed(2);
+        const symbol = getCurrencySymbolForDisplay();
+        const converted = convertFromBilling(value);
+        return symbol + Number(converted || 0).toFixed(2);
     };
 
     const formatCompactNumber = (value) => {
@@ -652,16 +691,17 @@ export function BusinessMatrixPage() {
             </div>
         `;
     };
-    const toggleCurrency = () => {
-        const newCurrency = currency === 'USD' ? 'INR' : 'USD';
-        setCurrency(newCurrency);
-        localStorage.setItem('currency', newCurrency);
-        // Re-render charts with new currency
-        if (metrics) {
-            setTimeout(() => renderCharts(metrics), 50);
-        }
-    };
 
+    const renderInfoTooltip = (text) => html`
+        <span
+            class="badge bg-info-lt text-info ms-1"
+            data-bs-toggle="tooltip"
+            data-bs-placement="top"
+            title=${text}
+        >
+            <i class="ti ti-info-circle"></i>
+        </span>
+    `;
     // Render service cost trend cards
     const renderServiceCostCards = (dailyServiceCosts) => {
         if (!dailyServiceCosts || dailyServiceCosts.length === 0) {
@@ -745,7 +785,7 @@ export function BusinessMatrixPage() {
             .map(([service]) => service);
 
         const newCharts = {};
-        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
+        const currencySymbol = getCurrencySymbolForDisplay();
 
         topServices.forEach(service => {
             const canvasId = `service-chart-${service.replace(/\s+/g, '-').toLowerCase()}`;
@@ -754,7 +794,7 @@ export function BusinessMatrixPage() {
 
             const serviceData = serviceGroups[service].sort((a, b) => new Date(a.date) - new Date(b.date));
             const labels = serviceData.map(e => new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-            const costs = serviceData.map(e => e.cost * currencyMultiplier);
+            const costs = serviceData.map(e => convertFromBilling(e.cost));
 
             const ctx = canvas.getContext('2d');
             newCharts[service] = new Chart(ctx, {
@@ -779,8 +819,7 @@ export function BusinessMatrixPage() {
                         tooltip: {
                             callbacks: {
                                 label: (context) => {
-                                    const symbol = currency === 'INR' ? '₹' : '$';
-                                    return `${symbol}${context.parsed.y.toFixed(2)}`;
+                                    return `${currencySymbol}${context.parsed.y.toFixed(2)}`;
                                 }
                             }
                         }
@@ -896,20 +935,20 @@ export function BusinessMatrixPage() {
         return samples.reduce((sum, value) => sum + value, 0) / samples.length;
     };
 
-    const getFinancialKrMetrics = (currentMetrics) => {
+    const getFinancialKrMetrics = (currentMetrics, windowDays) => {
         const mrr = Number(currentMetrics?.platformSummary?.mrr || 0);
         const mtdCost = Number(currentMetrics?.platformSummary?.actualMonthlyAzureCost || 0);
         const dayOfMonth = Math.max(1, new Date().getUTCDate());
         const avgDailyCost = mtdCost / dayOfMonth;
         const snapshots = currentMetrics?.costAnalytics?.dailySnapshots || [];
         const sortedSnapshots = [...snapshots].sort((a, b) => new Date(a.date) - new Date(b.date));
-        const last7 = sortedSnapshots.slice(-7).map(s => Number(s.totalCost || 0));
-        const runRate7 = last7.length > 0 ? (last7.reduce((sum, value) => sum + value, 0) / last7.length) : avgDailyCost;
+        const trailing = sortedSnapshots.slice(-Math.max(1, windowDays)).map(s => Number(s.totalCost || 0));
+        const runRate = trailing.length > 0 ? (trailing.reduce((sum, value) => sum + value, 0) / trailing.length) : avgDailyCost;
 
         const now = new Date();
         const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
         const remainingDays = Math.max(0, daysInMonth - dayOfMonth);
-        const projectedMonthEndCost = mtdCost + (runRate7 * remainingDays);
+        const projectedMonthEndCost = mtdCost + (runRate * remainingDays);
 
         const runRateProfit = mrr - projectedMonthEndCost;
         const costToRevenue = mrr > 0 ? (projectedMonthEndCost / mrr) * 100 : 0;
@@ -924,7 +963,7 @@ export function BusinessMatrixPage() {
             costToRevenue,
             aiShareOfCost,
             aiShareOfMrr,
-            runRate7
+            runRate
         };
     };
 
@@ -1016,14 +1055,13 @@ export function BusinessMatrixPage() {
 
         if (orgsWithProjections.length === 0) return null;
 
-        const currencySymbol = currency === 'INR' ? '₹' : '$';
-        const currencyMultiplier = currency === 'INR' ? EXCHANGE_RATE : 1;
+        const currencySymbol = getCurrencySymbolForDisplay();
 
         // Calculate platform-wide aggregates
         const totalInactiveSeats = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.inactiveSeats, 0);
-        const totalAdditionalCostAvg = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.additionalCostAvg, 0) * currencyMultiplier;
-        const totalAdditionalCostPeak = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.additionalCostPeak, 0) * currencyMultiplier;
-        const totalCurrentMonthlyCost = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.currentMonthlyCost, 0) * currencyMultiplier;
+        const totalAdditionalCostAvg = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.additionalCostAvg, 0);
+        const totalAdditionalCostPeak = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.additionalCostPeak, 0);
+        const totalCurrentMonthlyCost = orgsWithProjections.reduce((sum, org) => sum + org.projectedCosts.currentMonthlyCost, 0);
         const projectionRangePercent = totalAdditionalCostAvg > 0
             ? ((totalAdditionalCostPeak - totalAdditionalCostAvg) / totalAdditionalCostAvg) * 100
             : 0;
@@ -1043,7 +1081,7 @@ export function BusinessMatrixPage() {
                             <div class="card bg-light">
                                 <div class="card-body text-center">
                                     <div class="text-body-secondary small mb-1">Current Monthly Cost</div>
-                                    <div class="h3 mb-0">${currencySymbol}${totalCurrentMonthlyCost.toFixed(2)}</div>
+                                    <div class="h3 mb-0">${formatCurrency(totalCurrentMonthlyCost)}</div>
                                 </div>
                             </div>
                         </div>
@@ -1051,7 +1089,7 @@ export function BusinessMatrixPage() {
                             <div class="card bg-success-lt">
                                 <div class="card-body text-center">
                                     <div class="text-body-secondary small mb-1">Projected (Avg Scenario)</div>
-                                    <div class="h4 mb-0 text-success">+${currencySymbol}${totalAdditionalCostAvg.toFixed(2)}/mo</div>
+                                    <div class="h4 mb-0 text-success">+${formatCurrency(totalAdditionalCostAvg)}/mo</div>
                                     <div class="text-body-secondary small">If all seats at avg telemetry</div>
                                 </div>
                             </div>
@@ -1060,7 +1098,7 @@ export function BusinessMatrixPage() {
                             <div class="card bg-warning-lt">
                                 <div class="card-body text-center">
                                     <div class="text-body-secondary small mb-1">Projected (Peak Scenario)</div>
-                                    <div class="h4 mb-0 text-warning">+${currencySymbol}${totalAdditionalCostPeak.toFixed(2)}/mo</div>
+                                    <div class="h4 mb-0 text-warning">+${formatCurrency(totalAdditionalCostPeak)}/mo</div>
                                     <div class="text-body-secondary small">If all seats at peak telemetry</div>
                                 </div>
                             </div>
@@ -1094,11 +1132,11 @@ export function BusinessMatrixPage() {
                             </thead>
                             <tbody>
                                 ${orgsWithProjections.map(org => {
-                                    const currentCost = org.projectedCosts.currentMonthlyCost * currencyMultiplier;
-                                    const projectedAvg = org.projectedCosts.projectedAvgMonthlyCost * currencyMultiplier;
-                                    const projectedPeak = org.projectedCosts.projectedPeakMonthlyCost * currencyMultiplier;
-                                    const additionalAvg = org.projectedCosts.additionalCostAvg * currencyMultiplier;
-                                    const additionalPeak = org.projectedCosts.additionalCostPeak * currencyMultiplier;
+                                    const currentCost = org.projectedCosts.currentMonthlyCost;
+                                    const projectedAvg = org.projectedCosts.projectedAvgMonthlyCost;
+                                    const projectedPeak = org.projectedCosts.projectedPeakMonthlyCost;
+                                    const additionalAvg = org.projectedCosts.additionalCostAvg;
+                                    const additionalPeak = org.projectedCosts.additionalCostPeak;
 
                                     return html`
                                         <tr>
@@ -1114,20 +1152,14 @@ export function BusinessMatrixPage() {
                                             <td class="text-end">
                                                 <span class="badge bg-warning-lt text-warning">${org.projectedCosts.inactiveSeats}</span>
                                             </td>
-                                            <td class="text-end text-muted">
-                                                ${currencySymbol}${currentCost.toFixed(2)}
-                                            </td>
-                                            <td class="text-end text-success">
-                                                ${currencySymbol}${projectedAvg.toFixed(2)}
-                                            </td>
-                                            <td class="text-end text-warning">
-                                                ${currencySymbol}${projectedPeak.toFixed(2)}
+                                            <td class="text-end text-muted">${formatCurrency(currentCost)}</td>
+                                            <td class="text-end text-success">${formatCurrency(projectedAvg)}</td>
+                                            <td class="text-end text-warning">${formatCurrency(projectedPeak)}</td>
+                                            <td class="text-end">
+                                                <span class="badge bg-success text-white">+${formatCurrency(additionalAvg)}</span>
                                             </td>
                                             <td class="text-end">
-                                                <span class="badge bg-success text-white">+${currencySymbol}${additionalAvg.toFixed(2)}</span>
-                                            </td>
-                                            <td class="text-end">
-                                                <span class="badge bg-warning text-white">+${currencySymbol}${additionalPeak.toFixed(2)}</span>
+                                                <span class="badge bg-warning text-white">+${formatCurrency(additionalPeak)}</span>
                                             </td>
                                         </tr>
                                     `;
@@ -1184,11 +1216,18 @@ export function BusinessMatrixPage() {
     const costOutliers = metrics.costOutliers || [];
     const serviceCostTrendsSection = buildServiceCostTrendsSection(metrics);
     const dayOfMonth = Math.max(1, new Date().getUTCDate());
-    const avgDailyAzureSpend = (platformSummary.actualMonthlyAzureCost || 0) / dayOfMonth;
+    const nowUtc = new Date();
+    const daysInMonth = new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth() + 1, 0)).getUTCDate();
+    const sortedSnapshots = [...(metrics.costAnalytics?.dailySnapshots || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const trailingSpendSamples = sortedSnapshots.slice(-Math.max(1, kpiWindowDays)).map(s => Number(s.totalCost || 0));
+    const avgDailyAzureSpend = trailingSpendSamples.length > 0
+        ? trailingSpendSamples.reduce((sum, value) => sum + value, 0) / trailingSpendSamples.length
+        : (platformSummary.actualMonthlyAzureCost || 0) / dayOfMonth;
+    const projectedMonthlySpendFromWindow = avgDailyAzureSpend * daysInMonth;
     const aiMtdSpend = getAiMtdSpend(metrics);
-    const aiAvg7dSpend = getAiTrailingAverage(metrics, 7);
+    const aiAvg7dSpend = getAiTrailingAverage(metrics, kpiWindowDays);
     const aiAvg14dSpend = getAiTrailingAverage(metrics, 14);
-    const krMetrics = getFinancialKrMetrics(metrics);
+    const krMetrics = getFinancialKrMetrics(metrics, kpiWindowDays);
     const aiTrend = aiAvg14dSpend > 0
         ? {
             percentage: Math.abs(((aiAvg7dSpend - aiAvg14dSpend) / aiAvg14dSpend) * 100).toFixed(1),
@@ -1219,21 +1258,32 @@ export function BusinessMatrixPage() {
                             <div class="display-4 mb-0">${(platformSummary.profitMargin || 0).toFixed(0)}%</div>
                         </div>
                         <div class="col-md-3 text-end">
-                            <!-- Currency Toggle Slider -->
-                            <div class="btn-group" role="group" style="background: rgba(255,255,255,0.2); border-radius: 20px; padding: 2px;">
-                                <button 
-                                    class="btn btn-sm ${currency === 'INR' ? 'btn-light' : ''}" 
-                                    style="border-radius: 18px; min-width: 50px; ${currency === 'INR' ? '' : 'background: transparent; border: none; color: white;'}"
-                                    onClick=${() => { if (currency !== 'INR') toggleCurrency(); }}
-                                >
-                                    ₹ INR
-                                </button>
-                                <button 
-                                    class="btn btn-sm ${currency === 'USD' ? 'btn-light' : ''}" 
-                                    style="border-radius: 18px; min-width: 50px; ${currency === 'USD' ? '' : 'background: transparent; border: none; color: white;'}"
-                                    onClick=${() => { if (currency !== 'USD') toggleCurrency(); }}
+                            <div
+                                class="btn-group"
+                                role="group"
+                                title=${(() => {
+                                    const rate = getConversionRate('USD', 'INR');
+                                    const source = normalizeCurrency(platformSummary.billingCurrencyCode || billingCurrencyCode || 'USD');
+                                    return `Source (API): ${source} | FX: 1 USD = ${rate.toFixed(2)} INR, 1 INR = ${(1 / rate).toFixed(4)} USD`;
+                                })()}
+                            >
+                                <button
+                                    class="btn btn-sm ${normalizeCurrency(displayCurrencyCode) === 'USD' ? 'btn-light' : 'btn-outline-light'}"
+                                    onClick=${() => {
+                                        setDisplayCurrencyCode('USD');
+                                        localStorage.setItem('businessMatrixCurrency', 'USD');
+                                    }}
                                 >
                                     $ USD
+                                </button>
+                                <button
+                                    class="btn btn-sm ${normalizeCurrency(displayCurrencyCode) === 'INR' ? 'btn-light' : 'btn-outline-light'}"
+                                    onClick=${() => {
+                                        setDisplayCurrencyCode('INR');
+                                        localStorage.setItem('businessMatrixCurrency', 'INR');
+                                    }}
+                                >
+                                    ₹ INR
                                 </button>
                             </div>
                         </div>
@@ -1269,12 +1319,22 @@ export function BusinessMatrixPage() {
                 </div>
             </div>
 
+            <div class="d-flex justify-content-end mb-3">
+                <div class="input-group input-group-sm" style="max-width: 220px;">
+                    <span class="input-group-text">Time Window</span>
+                    <select class="form-select" value=${kpiWindowDays} onChange=${e => setKpiWindowDays(parseInt(e.target.value, 10))}>
+                        <option value="7">7 days</option>
+                        <option value="30">30 days</option>
+                    </select>
+                </div>
+            </div>
+
             <!-- KPI Cards Row -->
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
                     <div class="card h-100">
                         <div class="card-body text-center">
-                            <div class="text-body-secondary small mb-2">Monthly Recurring Revenue</div>
+                            <div class="text-body-secondary small mb-2">Monthly Recurring Revenue ${renderInfoTooltip('MRR is predictable monthly subscription revenue from all active paid organizations.')}</div>
                             <div class="h2 mb-0 text-success">${formatCurrency(platformSummary.mrr || 0)}</div>
                             ${platformSummary.trends && platformSummary.trends.length >= 2 
                                 ? renderTrendIndicator(calculateTrend(platformSummary.mrr || 0, platformSummary.trends, 'mrr'), false)
@@ -1288,26 +1348,26 @@ export function BusinessMatrixPage() {
                 <div class="col-md-4">
                     <div class="card h-100">
                         <div class="card-body text-center">
-                            <div class="text-body-secondary small mb-2">Avg Daily Azure Spend (MTD)</div>
+                            <div class="text-body-secondary small mb-2">Avg Daily Azure Spend (${kpiWindowDays}D) ${renderInfoTooltip('Average daily spend over selected time window using Azure Cost snapshots.')}</div>
                             <div class="h2 mb-0 text-danger">${formatCurrency(avgDailyAzureSpend || 0)}</div>
                             ${platformSummary.trends && platformSummary.trends.length >= 2
                                 ? renderTrendIndicator(calculateTrend(avgDailyAzureSpend || 0, platformSummary.trends, 'cost'), true)
                                 : html`<div class="text-body-secondary small mt-1"><em>Trend data collecting...</em></div>`
                             }
-                            <div class="text-body-secondary small mt-2">MTD total: ${formatCurrency(platformSummary.actualMonthlyAzureCost || 0)}</div>
+                            <div class="text-body-secondary small mt-2">Projected monthly: ${formatCurrency(projectedMonthlySpendFromWindow || 0)}</div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="card h-100">
                         <div class="card-body text-center">
-                            <div class="text-body-secondary small mb-2">AI Models Spend (MTD)</div>
+                            <div class="text-body-secondary small mb-2">AI Models Spend (MTD) ${renderInfoTooltip('MTD AI spend is month-to-date Azure AI model cost from daily service cost entries.')}</div>
                             <div class="h2 mb-0 text-warning">${formatCurrency(aiMtdSpend || 0)}</div>
                             ${aiTrend
                                 ? renderTrendIndicator(aiTrend, true)
                                 : html`<div class="text-body-secondary small mt-1"><em>Trend data collecting...</em></div>`
                             }
-                            <div class="text-body-secondary small mt-2">7-day avg: ${formatCurrency(aiAvg7dSpend || 0)}/day</div>
+                            <div class="text-body-secondary small mt-2">${kpiWindowDays}D avg: ${formatCurrency(aiAvg7dSpend || 0)}/day</div>
                         </div>
                     </div>
                 </div>
@@ -1378,7 +1438,7 @@ export function BusinessMatrixPage() {
                                 ${(() => {
                                     const tv = metrics.telemetryVolumes?.platform;
                                     if (!tv || tv.totalRows === 0) return 'rows / day (no telemetry yet)';
-                                    return `App: ${formatCompactNumber(tv.appTelemetryRows || 0)} · CVE: ${formatCompactNumber(tv.cveTelemetryRows || 0)} · Machine: ${formatCompactNumber(tv.machineTelemetryRows || 0)}`;
+                                    return `Heartbeat: ${formatCompactNumber(tv.heartbeatRows || 0)} · App: ${formatCompactNumber(tv.appTelemetryRows || 0)} · CVE: ${formatCompactNumber(tv.cveTelemetryRows || 0)} · Perf: ${formatCompactNumber(tv.perfTelemetryRows || 0)} · Machine: ${formatCompactNumber(tv.machineTelemetryRows || 0)}`;
                                 })()}
                             </div>
                         </div>
@@ -1417,8 +1477,8 @@ export function BusinessMatrixPage() {
                 <div class="col-md-3">
                     <div class="card h-100">
                         <div class="card-body text-center">
-                            <div class="text-body-secondary small mb-2">KR: 7-day Daily Run-rate</div>
-                            <div class="h3 mb-0 text-primary">${formatCurrency(krMetrics.runRate7 || 0)}</div>
+                            <div class="text-body-secondary small mb-2">KR: ${kpiWindowDays}D Daily Run-rate</div>
+                            <div class="h3 mb-0 text-primary">${formatCurrency(krMetrics.runRate || 0)}</div>
                             <div class="text-body-secondary small mt-2">Projected month-end: ${formatCurrency(krMetrics.projectedMonthEndCost || 0)}</div>
                         </div>
                     </div>
@@ -1693,18 +1753,69 @@ export function BusinessMatrixPage() {
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="card-title mb-0">Cost Breakdown by Resource</h5>
+                            <h5 class="card-title mb-0">Telemetry Distribution (24h)</h5>
                         </div>
                         <div class="card-body">
-                            ${costBreakdown.costByResourceType && costBreakdown.costByResourceType.length > 0 ? html`
-                                ${costBreakdown.costByResourceType.map(item => html`
-                                    <div class="mb-2 d-flex justify-content-between" key=${item.type}>
-                                        <span>${item.type}</span>
-                                        <strong>${formatCurrency(item.cost || 0)} (${(item.percentage || 0).toFixed(1)}%)</strong>
-                                    </div>
-                                `)}
+                            ${metrics?.telemetryVolumes?.platform ? html`
+                                ${(() => {
+                                    const tv = metrics.telemetryVolumes.platform;
+                                    const totalRows = Number(tv.totalRows || 0);
+                                    const parts = [
+                                        { label: 'Heartbeat', value: Number(tv.heartbeatRows || 0) },
+                                        { label: 'AppTelemetry', value: Number(tv.appTelemetryRows || 0) },
+                                        { label: 'CveTelemetry', value: Number(tv.cveTelemetryRows || 0) },
+                                        { label: 'PerfTelemetry', value: Number(tv.perfTelemetryRows || 0) },
+                                        { label: 'MachineTelemetry', value: Number(tv.machineTelemetryRows || 0) }
+                                    ];
+
+                                    return html`
+                                        ${parts.map(item => {
+                                            const pct = totalRows > 0 ? (item.value / totalRows) * 100 : 0;
+                                            return html`
+                                                <div class="mb-2" key=${item.label}>
+                                                    <div class="d-flex justify-content-between small mb-1">
+                                                        <span>${item.label}</span>
+                                                        <strong>${formatCompactNumber(item.value)} (${pct.toFixed(1)}%)</strong>
+                                                    </div>
+                                                    <div class="progress progress-sm">
+                                                        <div class="progress-bar" style=${`width:${pct.toFixed(1)}%`}></div>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        })}
+
+                                        <hr />
+                                        <h6 class="small text-body-secondary mb-2">Top Organizations by Telemetry Volume</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Org</th>
+                                                        <th class="text-end">Rows (24h)</th>
+                                                        <th class="text-end">Share</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${Object.values(metrics.telemetryVolumes.perOrg || {})
+                                                        .sort((a, b) => (b.totalRows || 0) - (a.totalRows || 0))
+                                                        .slice(0, 8)
+                                                        .map(org => {
+                                                            const share = totalRows > 0 ? ((org.totalRows || 0) / totalRows) * 100 : 0;
+                                                            return html`
+                                                                <tr key=${org.orgId}>
+                                                                    <td>${org.orgName || org.orgId}</td>
+                                                                    <td class="text-end">${formatCompactNumber(org.totalRows || 0)}</td>
+                                                                    <td class="text-end">${share.toFixed(1)}%</td>
+                                                                </tr>
+                                                            `;
+                                                        })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    `;
+                                })()}
                             ` : html`
-                                <div class="text-body-secondary">No cost data available</div>
+                                <div class="text-body-secondary">No telemetry distribution data available</div>
                             `}
                         </div>
                     </div>
