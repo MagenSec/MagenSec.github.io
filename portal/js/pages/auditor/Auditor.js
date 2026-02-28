@@ -141,7 +141,7 @@ export class AuditorPage extends Component {
 
     // ── 4. Background refresh — always fetch dashboard + audit events in parallel ────────────
     const [dashboardResult, auditResult] = await Promise.allSettled([
-      api.get(`/api/v1/orgs/${orgId}/dashboard?format=unified&include=cached-summary`),
+      api.getUnifiedDashboard(orgId, { format: 'unified', include: 'cached-summary' }),
       api.get(`/api/v1/orgs/${orgId}/audit?pageSize=10&days=30`)
     ]);
 

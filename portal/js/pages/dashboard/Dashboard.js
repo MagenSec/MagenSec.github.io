@@ -26,11 +26,13 @@ import { getDonutChartConfig, getRadarChartConfig, getScatterChartConfig, render
 import { formatTimestamp, formatRelativeTime, formatNumber, formatPercent, roundPercent, formatDeviceList, groupBy, sortBy, uniqueBy } from '@utils/dataHelpers.js';
 
 const { html, Component } = window;
+const SESSION_DASH_KEY = (orgId) => `dashboard_data_${orgId}`;
 
 export class DashboardPage extends Component {
     constructor(props) {
         super(props);
         this.swr = new SWRHelper('dashboard', 30);  // 30-min cache TTL
+        this.cacheOrgId = null;
         this.state = {
             loading: true,
             error: null,
@@ -72,6 +74,133 @@ export class DashboardPage extends Component {
         this.radarChartEl = null;
         this.savingsChart = null;
         this.savingsChartEl = null;
+    }
+
+    ensureOrgScopedCache(orgId) {
+        if (this.cacheOrgId === orgId) {
+            return;
+        }
+
+        this.cacheOrgId = orgId;
+        this.swr = new SWRHelper(`dashboard_${orgId}`, 30);
+    }
+
+    writeSharedDashboardSessionCache(orgId, dashboard) {
+        try {
+            sessionStorage.setItem(SESSION_DASH_KEY(orgId), JSON.stringify({
+                data: dashboard,
+                ts: Date.now()
+            }));
+        } catch {
+            // Best effort shared cache write
+        }
+    }
+
+    toLegacyDashboardPayload(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return {};
+        }
+
+        const isUnified = !!(payload.businessOwner || payload.quickStats || payload.securityScore);
+        if (!isUnified) {
+            return payload;
+        }
+
+        const quickStats = payload.quickStats || {};
+        const deviceStats = quickStats.devices || {};
+        const appStats = quickStats.apps || {};
+        const cveStats = quickStats.cves || {};
+        const licenseStats = quickStats.license || {};
+        const securityScore = payload.securityScore || {};
+        const businessOwner = payload.businessOwner || {};
+        const complianceCard = businessOwner.complianceCard || {};
+        const topActions = Array.isArray(businessOwner.topActions) ? businessOwner.topActions : [];
+
+        const totalDevices = Number(deviceStats.totalCount || 0);
+        const activeDevices = Number(deviceStats.activeCount || 0);
+        const offlineDevices = Number(deviceStats.offlineCount || 0);
+        const complianceScore = Math.round(Number(complianceCard.percent ?? securityScore.compliancePercent ?? 0));
+        const nonCompliant = Number(complianceCard.gapCount || 0);
+        const compliant = Math.max(0, totalDevices - nonCompliant);
+
+        const severityFromUrgency = (urgency) => {
+            const value = String(urgency || '').toLowerCase();
+            if (value === 'critical' || value === 'urgent') return 'critical';
+            if (value === 'high' || value === 'important') return 'high';
+            if (value === 'low' || value === 'routine') return 'medium';
+            return 'medium';
+        };
+
+        const mappedActions = topActions.map((action) => ({
+            title: action.title || '',
+            description: action.description || '',
+            severity: severityFromUrgency(action.urgency),
+            ctaLabel: 'View details',
+            ctaHref: action.actionUrl || '#!/posture',
+            affectedDevices: Array.isArray(action.affectedDevices) ? action.affectedDevices : [],
+            affectedApps: Array.isArray(action.affectedApps) ? action.affectedApps : []
+        }));
+
+        const totalCves = Number(cveStats.totalCount || 0);
+        const criticalCves = Number(cveStats.criticalCount || 0);
+        const highCves = Number(cveStats.highCount || 0);
+        const mediumCves = Math.max(0, totalCves - criticalCves - highCves);
+
+        return {
+            securityScore: Number(securityScore.score || 0),
+            grade: securityScore.grade || 'N/A',
+            lastScan: payload.generatedAt || 'Never',
+            nextScan: 'Pending',
+            devices: {
+                total: totalDevices,
+                active: activeDevices,
+                disabled: 0,
+                blocked: 0
+            },
+            threats: {
+                critical: criticalCves,
+                high: highCves,
+                medium: mediumCves,
+                low: 0,
+                total: totalCves,
+                mitigatedCritical: 0,
+                mitigatedHigh: 0,
+                mitigatedMedium: 0,
+                mitigatedLow: 0,
+                mitigatedTotal: 0
+            },
+            compliance: {
+                score: complianceScore,
+                compliant,
+                nonCompliant,
+                unknown: Math.max(0, totalDevices - compliant - nonCompliant),
+                total: totalDevices
+            },
+            alerts: [],
+            recentDevices: [],
+            inventory: {
+                totalApps: Number(appStats.trackedCount || 0),
+                vendors: 0
+            },
+            license: {
+                status: businessOwner?.licenseCard?.status || 'Unknown',
+                type: licenseStats.licenseType || 'Unknown',
+                seats: Number(licenseStats.seatsTotal || 0),
+                usedSeats: Number(licenseStats.seatsUsed || 0),
+                seatUtilization: Number(businessOwner?.licenseCard?.utilizationPercent || 0),
+                remainingCredits: 0,
+                creditUtilization: 0,
+                expiryDate: null
+            },
+            coverage: {
+                healthy: activeDevices,
+                stale: 0,
+                offline: offlineDevices,
+                total: totalDevices
+            },
+            actions: mappedActions,
+            generatedAt: payload.generatedAt || new Date().toISOString()
+        };
     }
 
     componentDidMount() {
@@ -147,24 +276,25 @@ export class DashboardPage extends Component {
     }
 
     buildDashboardState(dashboard) {
-        const inventoryStats = dashboard.inventory || { totalApps: 0, vendors: 0 };
-        const licenseInfo = this.normalizeLicenseInfo(dashboard.license);
-        const coverage = dashboard.coverage || { healthy: 0, stale: 0, offline: 0, total: 0 };
-        const actions = dashboard.actions || [];
-        const generatedAt = dashboard.generatedAt || new Date().toISOString();
-        const threatSummary = this.normalizeThreatSummary(dashboard.threats);
+        const normalizedDashboard = this.toLegacyDashboardPayload(dashboard);
+        const inventoryStats = normalizedDashboard.inventory || { totalApps: 0, vendors: 0 };
+        const licenseInfo = this.normalizeLicenseInfo(normalizedDashboard.license);
+        const coverage = normalizedDashboard.coverage || { healthy: 0, stale: 0, offline: 0, total: 0 };
+        const actions = normalizedDashboard.actions || [];
+        const generatedAt = normalizedDashboard.generatedAt || new Date().toISOString();
+        const threatSummary = this.normalizeThreatSummary(normalizedDashboard.threats);
 
         return {
-            dashboardData: dashboard,
-            deviceStats: dashboard.devices || { total: 0, active: 0, disabled: 0, blocked: 0 },
+            dashboardData: normalizedDashboard,
+            deviceStats: normalizedDashboard.devices || { total: 0, active: 0, disabled: 0, blocked: 0 },
             threatSummary,
-            complianceSummary: dashboard.compliance || { score: 0, compliant: 0, nonCompliant: 0, total: 0 },
-            recentAlerts: dashboard.alerts || [],
-            recentDevices: dashboard.recentDevices || [],
-            securityScore: dashboard.securityScore || 0,
-            securityGrade: dashboard.grade || 'N/A',
-            lastScan: dashboard.lastScan || 'Never',
-            nextScan: dashboard.nextScan || 'Pending',
+            complianceSummary: normalizedDashboard.compliance || { score: 0, compliant: 0, nonCompliant: 0, total: 0 },
+            recentAlerts: normalizedDashboard.alerts || [],
+            recentDevices: normalizedDashboard.recentDevices || [],
+            securityScore: normalizedDashboard.securityScore || 0,
+            securityGrade: normalizedDashboard.grade || 'N/A',
+            lastScan: normalizedDashboard.lastScan || 'Never',
+            nextScan: normalizedDashboard.nextScan || 'Pending',
             inventoryStats,
             licenseInfo,
             coverage,
@@ -188,6 +318,7 @@ export class DashboardPage extends Component {
             this.setState({ user, currentOrg });
 
             const orgId = currentOrg?.orgId || user.email;
+            this.ensureOrgScopedCache(orgId);
 
             // Step 1: Try cache first (skip if forcing refresh)
             if (!forceRefresh) {
@@ -209,12 +340,13 @@ export class DashboardPage extends Component {
             this.setState({ loading: true, error: null, isRefreshingInBackground: false });
 
             // Step 4: Fetch fresh data (no include parameter = full fresh data)
-            const dashboardRes = await api.getUnifiedDashboard(orgId);
+            const dashboardRes = await api.getUnifiedDashboard(orgId, { format: 'unified' });
             
             if (dashboardRes.success && dashboardRes.data) {
                 const dashboard = dashboardRes.data;
                 const trendSnapshots = await this.loadTrendSnapshots(orgId);
                 this.swr.setCached(dashboard);
+                this.writeSharedDashboardSessionCache(orgId, dashboard);
 
                 this.setState({
                     ...this.buildDashboardState(dashboard),
@@ -242,12 +374,13 @@ export class DashboardPage extends Component {
 
             // Background fetch with include=cached-summary parameter
             // Server returns fresh data if cache is stale, or cached data if fresh
-            const dashboardRes = await api.getUnifiedDashboard(orgId, { include: 'cached-summary' });
+            const dashboardRes = await api.getUnifiedDashboard(orgId, { format: 'unified', include: 'cached-summary' });
 
             if (dashboardRes.success && dashboardRes.data) {
                 const dashboard = dashboardRes.data;
                 const trendSnapshots = await this.loadTrendSnapshots(orgId);
                 this.swr.setCached(dashboard);
+                this.writeSharedDashboardSessionCache(orgId, dashboard);
 
                 this.setState({
                     ...this.buildDashboardState(dashboard),

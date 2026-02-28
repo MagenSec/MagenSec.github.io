@@ -112,7 +112,7 @@ export class CompliancePage extends Component {
 
     // ── 4. Background refresh — always fetch fresh data ───────────────────────────────────────
     try {
-      const response = await api.get(`/api/v1/orgs/${orgId}/dashboard?format=unified&include=cached-summary`);
+      const response = await api.getUnifiedDashboard(orgId, { format: 'unified', include: 'cached-summary' });
       if (!response.success) {
         if (!cachedData) throw new Error(response.message || 'Failed to load compliance data');
         return; // keep showing cached data on refresh failure
