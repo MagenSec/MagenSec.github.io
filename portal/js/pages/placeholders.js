@@ -425,7 +425,7 @@ export class AlertsPage extends Component {
                       </div>
                       <div class="col-auto">
                         ${alert.acknowledged ? html`
-                          <span class="badge bg-success-lt">Acknowledged</span>
+                          <span class="badge bg-success-lt text-success">Acknowledged</span>
                         ` : html`
                           <button class="btn btn-sm btn-primary">Acknowledge</button>
                         `}

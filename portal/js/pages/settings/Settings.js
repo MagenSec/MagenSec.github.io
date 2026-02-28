@@ -1035,13 +1035,13 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
                                         </td>
                                         <td>
                                             ${license.isDisabled && html`
-                                                <span class="badge bg-orange-lt">Disabled</span>
+                                                <span class="badge bg-orange-lt text-orange">Disabled</span>
                                             `}
                                             ${!license.isActive && !license.isDisabled && html`
-                                                <span class="badge bg-red-lt">Inactive</span>
+                                                <span class="badge bg-red-lt text-red">Inactive</span>
                                             `}
                                             ${license.isActive && !license.isDisabled && html`
-                                                <span class="badge bg-green-lt">Active</span>
+                                                <span class="badge bg-green-lt text-green">Active</span>
                                             `}
                                         </td>
                                         <td class="text-muted">
@@ -1389,7 +1389,7 @@ function EmailNotificationsTab({ orgId, emailPreferences, setEmailPreferences, s
                         <i class="ti ti-check text-success"></i>
                         <span>${title}</span>
                     </div>
-                    ${badge && html`<span class="badge bg-info-lt">${badge}</span>`}
+                    ${badge && html`<span class="badge bg-info-lt text-info">${badge}</span>`}
                 </div>
             `;
         }

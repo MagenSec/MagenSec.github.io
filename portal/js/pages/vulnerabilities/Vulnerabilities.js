@@ -255,13 +255,13 @@ export class VulnerabilitiesPage extends Component {
                                                         <div class="d-flex gap-1 flex-wrap">
                                                             <span class="badge bg-${severityColor} text-white">${vuln.severity}</span>
                                                             ${hasExploit ? html`
-                                                                <span class="badge bg-red-lt" title="Known exploit available">
+                                                                <span class="badge bg-red-lt text-red" title="Known exploit available">
                                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-xs" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>
                                                                     Exploit
                                                                 </span>
                                                             ` : ''}
                                                             ${vuln.epss ? html`
-                                                                <span class="badge bg-${epssColor}-lt">
+                                                                <span class="badge bg-${epssColor}-lt text-${epssColor}">
                                                                     EPSS ${Math.round(vuln.epss * 100)}%
                                                                 </span>
                                                             ` : ''}

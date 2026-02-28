@@ -1600,7 +1600,7 @@ export function AuditPage() {
                             Credit Consumption Job Heartbeat
                         </h3>
                         <div class="card-actions">
-                            <span class="badge bg-info-lt">
+                            <span class="badge bg-info-lt text-info">
                                 ${creditJobEvents.length} job events
                             </span>
                         </div>
@@ -1673,7 +1673,7 @@ export function AuditPage() {
                             Event Frequency Timeline
                         </h3>
                         <div class="card-actions">
-                            <span class="badge bg-secondary-lt">
+                            <span class="badge bg-secondary-lt text-secondary">
                                 ${filteredEvents.length} total events
                             </span>
                         </div>

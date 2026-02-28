@@ -453,7 +453,7 @@ export class AnalystPage extends Component {
                             return html`<div key=${idx} class="list-group-item">
                                 <div class="row align-items-start">
                                     <div class="col-auto">
-                                        <span class="badge bg-primary-lt">${idx + 1}</span>
+                                        <span class="badge bg-primary-lt text-primary">${idx + 1}</span>
                                     </div>
                                     <div class="col">
                                         <div class="d-flex justify-content-between">
@@ -473,7 +473,7 @@ export class AnalystPage extends Component {
                                                 `}
                                             </div>
                                             ${priority && html`
-                                                <span class="badge bg-${priority === 'Critical' || priority === 'High' ? 'danger' : priority === 'Medium' ? 'warning' : 'info'}-lt ms-2">
+                                                <span class="badge bg-${priority === 'Critical' || priority === 'High' ? 'danger' : priority === 'Medium' ? 'warning' : 'info'}-lt text-${priority === 'Critical' || priority === 'High' ? 'danger' : priority === 'Medium' ? 'warning' : 'info'} ms-2">
                                                     ${priority}
                                                 </span>
                                             `}
@@ -503,14 +503,14 @@ export class AnalystPage extends Component {
                                         </td>
                                         <td>
                                             ${!isStringDevice && dev.RiskScore !== undefined ? html`
-                                                <span class="badge ${dev.RiskScore >= 80 ? 'bg-success-lt' : dev.RiskScore >= 50 ? 'bg-info-lt' : 'bg-danger-lt'}">
+                                                <span class="badge ${dev.RiskScore >= 80 ? 'bg-success-lt text-success' : dev.RiskScore >= 50 ? 'bg-info-lt text-info' : 'bg-danger-lt text-danger'}">
                                                     ${dev.RiskScore.toFixed(1)}
                                                 </span>
                                             ` : html`<span class="text-muted">-</span>`}
                                         </td>
-                                        <td>${!isStringDevice && dev.CriticalCount !== undefined ? html`<span class="badge bg-danger-lt">${dev.CriticalCount}</span>` : '-'}</td>
-                                        <td>${!isStringDevice && dev.HighCount !== undefined ? html`<span class="badge bg-warning-lt">${dev.HighCount}</span>` : '-'}</td>
-                                        <td>${!isStringDevice && dev.MediumCount !== undefined ? html`<span class="badge bg-info-lt">${dev.MediumCount}</span>` : '-'}</td>
+                                        <td>${!isStringDevice && dev.CriticalCount !== undefined ? html`<span class="badge bg-danger-lt text-danger">${dev.CriticalCount}</span>` : '-'}</td>
+                                        <td>${!isStringDevice && dev.HighCount !== undefined ? html`<span class="badge bg-warning-lt text-warning">${dev.HighCount}</span>` : '-'}</td>
+                                        <td>${!isStringDevice && dev.MediumCount !== undefined ? html`<span class="badge bg-info-lt text-info">${dev.MediumCount}</span>` : '-'}</td>
                                     </tr>`;
                                 })}
                             </tbody>

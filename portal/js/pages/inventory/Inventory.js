@@ -209,15 +209,15 @@ class InventoryPage extends Component {
                     <td><code class="text-muted">${item.version}</code></td>
                     <td>${item.vendor || 'Unknown'}</td>
                     <td>
-                      <span class="badge bg-blue-lt">${item.deviceCount || 0} devices</span>
+                      <span class="badge bg-blue-lt text-blue">${item.deviceCount || 0} devices</span>
                     </td>
                     <td>${item.cveCount > 0 ? html`<span class="badge bg-danger-lt text-danger">${item.cveCount} CVEs</span>` : html`<span class="text-muted">—</span>`}</td>
                     <td>
                       ${item.riskScore === 'Critical' ? html`<span class="badge bg-danger">Critical</span>` : ''}
                       ${item.riskScore === 'High' ? html`<span class="badge bg-warning">High</span>` : ''}
                       ${item.riskScore === 'Medium' ? html`<span class="badge bg-info">Medium</span>` : ''}
-                      ${item.riskScore === 'Low' ? html`<span class="badge bg-success-lt">Low</span>` : ''}
-                      ${!item.riskScore || item.riskScore === 'None' ? html`<span class="badge bg-secondary-lt">None</span>` : ''}
+                      ${item.riskScore === 'Low' ? html`<span class="badge bg-success-lt text-success">Low</span>` : ''}
+                      ${!item.riskScore || item.riskScore === 'None' ? html`<span class="badge bg-secondary-lt text-secondary">None</span>` : ''}
                     </td>
                   </tr>
                 `)}
