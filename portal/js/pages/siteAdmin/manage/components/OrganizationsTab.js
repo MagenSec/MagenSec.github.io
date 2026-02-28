@@ -32,6 +32,9 @@ export function OrganizationsTab({
     const [showTransferOwner, setShowTransferOwner] = useState(false);
     const [newTransferOwner, setNewTransferOwner] = useState('');
     const [showDangerZone, setShowDangerZone] = useState(false);
+    const [showDisableConfirm, setShowDisableConfirm] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [orgActionInProgress, setOrgActionInProgress] = useState(false);
 
     // Form state for creating new org
     const [newOrgName, setNewOrgName] = useState('');
@@ -232,6 +235,11 @@ export function OrganizationsTab({
         if (!selectedOrgId) return;
         
         const action = selectedOrg.isDisabled ? 'enable' : 'disable';
+        if (action === 'disable') {
+            setShowDisableConfirm(true);
+            return;
+        }
+
         const result = await onToggleOrgStatus?.(selectedOrgId, action);
 
         if (result?.success) {
@@ -241,16 +249,38 @@ export function OrganizationsTab({
 
     const handleDeleteOrg = async () => {
         if (!selectedOrgId) return;
-        
-        if (!confirm('Are you sure you want to DELETE this organization? This action cannot be undone and will delete all associated data.')) {
-            return;
+        setShowDeleteConfirm(true);
+    };
+
+    const confirmDisableOrg = async () => {
+        if (!selectedOrgId) return;
+
+        setOrgActionInProgress(true);
+        try {
+            const result = await onToggleOrgStatus?.(selectedOrgId, 'disable');
+            if (result?.success) {
+                setSelectedOrg({ ...selectedOrg, isDisabled: true });
+                setShowDisableConfirm(false);
+            }
+        } finally {
+            setOrgActionInProgress(false);
         }
+    };
 
-        const result = await onDeleteOrg?.(selectedOrgId);
+    const confirmDeleteOrg = async () => {
+        if (!selectedOrgId) return;
 
-        if (result?.success) {
-            setSelectedOrg(null);
-            setSelectedOrgId('');
+        setOrgActionInProgress(true);
+        try {
+            const result = await onDeleteOrg?.(selectedOrgId);
+            if (result?.success) {
+                setSelectedOrg(null);
+                setSelectedOrgId('');
+                setShowDeleteConfirm(false);
+                setShowDangerZone(false);
+            }
+        } finally {
+            setOrgActionInProgress(false);
         }
     };
 
@@ -928,5 +958,104 @@ export function OrganizationsTab({
                 </div>
             `}
         </div>
+
+        ${showDisableConfirm && selectedOrg && html`
+            <div class="modal modal-blur fade show" style="display: block;" onClick=${() => !orgActionInProgress && setShowDisableConfirm(false)}>
+                <div class="modal-dialog modal-dialog-centered" onClick=${(e) => e.stopPropagation()}>
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title text-warning">Disable Organization</h5>
+                            <button
+                                type="button"
+                                class="btn-close"
+                                onClick=${() => !orgActionInProgress && setShowDisableConfirm(false)}
+                                disabled=${orgActionInProgress}
+                            ></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-2">You are about to disable:</p>
+                            <p class="fw-semibold mb-3">${selectedOrg.orgName || selectedOrg.orgId}</p>
+                            <div class="alert alert-warning mb-0">
+                                <div class="fw-semibold mb-1">This action will:</div>
+                                <ul class="mb-0 ps-3">
+                                    <li>Mark the organization as disabled</li>
+                                    <li>Disable all linked licenses for this organization</li>
+                                    <li>Disable all linked devices (heartbeat interval shifted to 60 minutes)</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button
+                                type="button"
+                                class="btn btn-secondary"
+                                onClick=${() => setShowDisableConfirm(false)}
+                                disabled=${orgActionInProgress}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                class="btn btn-warning"
+                                onClick=${confirmDisableOrg}
+                                disabled=${orgActionInProgress}
+                            >
+                                ${orgActionInProgress ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : ''}
+                                Disable Organization
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `}
+
+        ${showDeleteConfirm && selectedOrg && html`
+            <div class="modal modal-blur fade show" style="display: block;" onClick=${() => !orgActionInProgress && setShowDeleteConfirm(false)}>
+                <div class="modal-dialog modal-dialog-centered" onClick=${(e) => e.stopPropagation()}>
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title text-danger">Delete Organization</h5>
+                            <button
+                                type="button"
+                                class="btn-close"
+                                onClick=${() => !orgActionInProgress && setShowDeleteConfirm(false)}
+                                disabled=${orgActionInProgress}
+                            ></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-2">You are about to permanently delete:</p>
+                            <p class="fw-semibold mb-3">${selectedOrg.orgName || selectedOrg.orgId}</p>
+                            <div class="alert alert-danger mb-0">
+                                <div class="fw-semibold mb-1">This action will permanently remove:</div>
+                                <ul class="mb-0 ps-3">
+                                    <li>The organization record</li>
+                                    <li>All linked licenses</li>
+                                    <li>All linked devices and their telemetry</li>
+                                    <li>All linked memberships</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button
+                                type="button"
+                                class="btn btn-secondary"
+                                onClick=${() => setShowDeleteConfirm(false)}
+                                disabled=${orgActionInProgress}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                class="btn btn-danger"
+                                onClick=${confirmDeleteOrg}
+                                disabled=${orgActionInProgress}
+                            >
+                                ${orgActionInProgress ? html`<span class="spinner-border spinner-border-sm me-2"></span>` : ''}
+                                Delete Organization
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `}
     `;
 }

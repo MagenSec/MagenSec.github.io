@@ -74,6 +74,27 @@ export class ManagePage extends Component {
         }
     }
 
+    deleteAccount = async (userId) => {
+        try {
+            const response = await window.api.request(`/api/v1/admin/accounts/${encodeURIComponent(userId)}`, {
+                method: 'DELETE'
+            });
+
+            if (response?.success === false) {
+                window.toast?.show?.(response?.message || 'Failed to delete account', 'error');
+                return { success: false, message: response?.message };
+            }
+
+            window.toast?.show?.('Account deleted successfully', 'success');
+            await this.loadData();
+            return { success: true, data: response?.data };
+        } catch (err) {
+            console.error('[ManagePage] deleteAccount failed', err);
+            window.toast?.show?.(err?.message || 'Failed to delete account', 'error');
+            return { success: false, message: err?.message };
+        }
+    }
+
     // Organization Management Callbacks
     createOrg = async (data) => {
         try {
@@ -397,6 +418,7 @@ export class ManagePage extends Component {
                         accounts=${accounts} 
                         onRefresh=${() => this.loadData()}
                         onChangeUserType=${this.changeUserType}
+                        onDeleteAccount=${this.deleteAccount}
                     />`}
                     ${activeTab === 'magi-codes' && html`<${MagiCodesTab} />`}
                     ${activeTab === 'admin-actions' && html`<${AdminActionsTab}
