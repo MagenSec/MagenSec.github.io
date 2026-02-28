@@ -113,7 +113,7 @@ export function buildOrgPayload(formData) {
         orgName: formData.orgName,
         ownerEmail: formData.ownerEmail,
         seats: parseInt(formData.seats, 10),
-        days: parseInt(formData.duration, 10),
+        durationDays: parseInt(formData.duration, 10),
         dailyReportEnabled: formData.reportEnabled,
         weeklyEnabled: formData.weeklyEnabled,
         dailySnapshotEnabled: formData.dailySnapshotEnabled,

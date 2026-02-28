@@ -317,7 +317,8 @@ export function OrganizationsTab({
         if (!licenseId) return;
         if (!confirm('Are you sure you want to DELETE this license? This action cannot be undone.')) return;
         try {
-            const res = await window.api.delete(`/api/v1/licenses/${licenseId}`);
+            const orgQuery = selectedOrgId ? `?orgId=${encodeURIComponent(selectedOrgId)}` : '';
+            const res = await window.api.delete(`/api/v1/licenses/${licenseId}${orgQuery}`);
             if (res?.success !== false) {
                 window.toast?.show?.('License deleted successfully', 'success');
                 await handleSelectOrg(selectedOrg);

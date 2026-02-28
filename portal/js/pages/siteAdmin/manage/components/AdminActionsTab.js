@@ -54,6 +54,11 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
 
     const handleTriggerCron = async () => {
         if (!selectedTaskId) return;
+
+        const confirmed = window.confirm(
+            `Trigger cron task "${selectedTaskId}" now?\n\nThis executes immediately and may perform background writes.`
+        );
+        if (!confirmed) return;
         
         setTriggeringCron(true);
         setCronResult(null);
@@ -73,6 +78,11 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
 
     const handleResetRemediation = async () => {
         if (!resetOrgId) return;
+
+        const confirmed = window.confirm(
+            `Reset remediation status for org "${resetOrgId}"?\n\nThis is a privileged write operation intended for diagnostics/testing.`
+        );
+        if (!confirmed) return;
         
         setResettingRemediation(true);
         setResetResult(null);

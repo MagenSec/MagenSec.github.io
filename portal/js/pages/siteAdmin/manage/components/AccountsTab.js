@@ -112,7 +112,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType }) {
                             ${currentAccounts.map(acc => html`
                                 <tr>
                                     <td><span class="fw-semibold">${acc.email}</span></td>
-                                    <td><span class="badge bg-primary-lt text-uppercase">${acc.userType === 'SiteAdmin' ? 'SITEADMIN' : 'ENDUSER'}</span></td>
+                                    <td><span class="badge bg-primary-lt text-primary text-uppercase">${acc.userType === 'SiteAdmin' ? 'SITEADMIN' : 'ENDUSER'}</span></td>
                                     <td>
                                         ${acc.magiCodeUsed || acc.MagiCodeUsed
                                             ? html`<span class="badge bg-success text-white" title=${acc.magiCodeUsed || acc.MagiCodeUsed}>${acc.magiCodeUsed || acc.MagiCodeUsed}</span>`

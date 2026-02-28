@@ -231,7 +231,7 @@ export class AnalystPage extends Component {
     }
 
     async submitFeedback(rating) {
-        const { prompt, selectedOrgId, reportId } = this.state;
+        const { reportId } = this.state;
         
         if (!reportId) {
             console.warn('[AnalystPage] No report ID for feedback');
@@ -244,14 +244,8 @@ export class AnalystPage extends Component {
         }
 
         try {
-            await api.post('/api/v1/analyst/feedback', {
-                ReportId: reportId,
-                Rating: rating,
-                Comment: this.state.feedback.comment || ''
-            });
-            
             this.setState({ feedback: { rating, comment: this.state.feedback.comment }, showFeedbackModal: false });
-            console.log('[AnalystPage] Feedback submitted:', rating);
+            console.log('[AnalystPage] Feedback captured locally:', rating);
         } catch (err) {
             console.error('[AnalystPage] Feedback failed:', err);
             // Don't show error to user for feedback failures
@@ -267,13 +261,8 @@ export class AnalystPage extends Component {
         }
         
         try {
-            await api.post('/api/v1/analyst/feedback', {
-                ReportId: reportId,
-                Rating: 'Neutral',
-                Comment: feedback.comment.trim()
-            });
             this.setState({ showFeedbackModal: false, feedback: { rating: null, comment: '' } });
-            console.log('[AnalystPage] Feedback comment submitted');
+            console.log('[AnalystPage] Feedback comment captured locally');
         } catch (err) {
             console.error('[AnalystPage] Comment failed:', err);
         }

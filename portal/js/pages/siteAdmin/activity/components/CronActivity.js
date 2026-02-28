@@ -137,32 +137,32 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         
         // Determine event type category and badge color
         let eventCategory = 'Cron Run';
-        let badgeClass = 'bg-primary-lt';
+        let badgeClass = 'bg-primary-lt text-primary';
         let icon = 'ti-clock';
         
         if (e.eventType === 'CRONRUN') {
             const isManual = e.subType === 'CronRunManual' || e.subType === 'Manual';
             eventCategory = isManual ? 'Manual Trigger' : 'Scheduled Run';
-            badgeClass = isManual ? 'bg-purple-lt' : 'bg-blue-lt';
+            badgeClass = isManual ? 'bg-purple-lt text-purple' : 'bg-blue-lt text-blue';
             icon = isManual ? 'ti-hand-click' : 'ti-player-play';
         } else if (e.eventType === 'SECURITY_REPORT') {
             const stRaw = e.subType || '';
             const st = stRaw.toLowerCase();
             if (st.includes('failed')) {
                 eventCategory = 'Report Failed';
-                badgeClass = 'bg-red-lt';
+                badgeClass = 'bg-red-lt text-danger';
                 icon = 'ti-mail-x';
             } else if (st.includes('batch')) {
                 eventCategory = 'Report Batch';
-                badgeClass = 'bg-green-lt';
+                badgeClass = 'bg-green-lt text-success';
                 icon = 'ti-mail-check';
             } else if (st.includes('emailsent') || st.includes('dispatchcomplete') || st.endsWith('sent')) {
                 eventCategory = 'Report Sent';
-                badgeClass = 'bg-green-lt';
+                badgeClass = 'bg-green-lt text-success';
                 icon = 'ti-mail-check';
             } else {
                 eventCategory = 'Report Activity';
-                badgeClass = 'bg-green-lt';
+                badgeClass = 'bg-green-lt text-success';
                 icon = 'ti-mail';
             }
         }

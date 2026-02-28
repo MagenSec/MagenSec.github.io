@@ -24,8 +24,9 @@ export async function toggleLicenseStatus(api, licenseId, orgId, isCurrentlyDisa
 /**
  * Delete a license
  */
-export async function deleteLicense(api, licenseId) {
-    return await api.delete(`/api/v1/licenses/${licenseId}`);
+export async function deleteLicense(api, licenseId, orgId) {
+    const query = orgId ? `?orgId=${encodeURIComponent(orgId)}` : '';
+    return await api.delete(`/api/v1/licenses/${licenseId}${query}`);
 }
 
 /**
