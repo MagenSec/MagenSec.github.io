@@ -36,17 +36,39 @@ const safeStorageRemove = (storage, key) => {
 
 const CD_STYLES = `
     .cd-container {
+        --apple-surface: #ffffff;
+        --apple-border: rgba(15, 23, 42, 0.12);
+        --apple-text: #0f172a;
+        --apple-text-secondary: #475569;
         --cd-panel-bg: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
         --cd-panel-border: rgba(15, 23, 42, 0.08);
         --cd-panel-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
         --cd-sidebar-bg: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        --cd-header-bg: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #e2e8f0 100%);
+        --cd-header-border: rgba(37, 99, 235, 0.25);
+        --cd-header-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        --cd-header-text: #0f172a;
+        --cd-header-subtext: #475569;
+        --cd-brand-badge-bg: rgba(15, 23, 42, 0.08);
+        --cd-brand-badge-border: rgba(15, 23, 42, 0.16);
     }
 
     [data-bs-theme="dark"] .cd-container {
+        --apple-surface: #0f172a;
+        --apple-border: rgba(148, 163, 184, 0.25);
+        --apple-text: #e5e7eb;
+        --apple-text-secondary: #94a3b8;
         --cd-panel-bg: linear-gradient(180deg, #111827 0%, #0f172a 100%);
         --cd-panel-border: rgba(148, 163, 184, 0.25);
         --cd-panel-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
         --cd-sidebar-bg: linear-gradient(180deg, #111827 0%, #0b1220 100%);
+        --cd-header-bg: linear-gradient(135deg, rgba(30,58,138,0.92) 0%, rgba(30,64,175,0.88) 45%, rgba(15,23,42,0.95) 100%);
+        --cd-header-border: rgba(59, 130, 246, 0.25);
+        --cd-header-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
+        --cd-header-text: #ffffff;
+        --cd-header-subtext: rgba(226, 232, 240, 0.92);
+        --cd-brand-badge-bg: rgba(255,255,255,0.14);
+        --cd-brand-badge-border: rgba(255,255,255,0.24);
     }
 
     .cd-shell {
@@ -136,9 +158,10 @@ const CD_STYLES = `
         margin-bottom: 10px;
         padding: 16px 18px;
         border-radius: 14px;
-        border: 1px solid rgba(59, 130, 246, 0.25);
-        background: linear-gradient(135deg, rgba(30,58,138,0.92) 0%, rgba(30,64,175,0.88) 45%, rgba(15,23,42,0.95) 100%);
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
+        border: 1px solid var(--cd-header-border);
+        background: var(--cd-header-bg);
+        box-shadow: var(--cd-header-shadow);
+        color: var(--cd-header-text);
     }
     .cd-header > div:first-child {
         min-width: 0;
@@ -153,7 +176,7 @@ const CD_STYLES = `
     }
     .cd-subtitle {
         font-size: 15px;
-        color: rgba(226, 232, 240, 0.92);
+        color: var(--cd-header-subtext);
         margin-top: 8px;
         display: flex;
         align-items: center;
@@ -167,7 +190,7 @@ const CD_STYLES = `
         gap: 10px;
         font-weight: 700;
         letter-spacing: 0.01em;
-        color: #ffffff;
+        color: var(--cd-header-text);
         margin-bottom: 6px;
     }
     .cd-brand-badge {
@@ -177,8 +200,8 @@ const CD_STYLES = `
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: rgba(255,255,255,0.14);
-        border: 1px solid rgba(255,255,255,0.24);
+        background: var(--cd-brand-badge-bg);
+        border: 1px solid var(--cd-brand-badge-border);
     }
     .cd-status-dot {
         width: 8px;
@@ -831,6 +854,7 @@ const CD_STYLES = `
         background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
         box-shadow: 0 8px 18px rgba(15, 23, 42, 0.15);
         padding: 10px 12px;
+        color: #0f172a;
     }
     .cd-toast-warning { border-left-color: #f59f00; }
     .cd-toast-danger { border-left-color: #d63939; }
@@ -839,10 +863,23 @@ const CD_STYLES = `
         font-size: 12px;
         font-weight: 700;
         margin-bottom: 4px;
+        color: #0f172a;
     }
     .cd-toast-body {
         font-size: 12px;
-        color: var(--apple-text-secondary);
+        color: #334155;
+    }
+    [data-bs-theme="dark"] .cd-toast {
+        border-color: rgba(148, 163, 184, 0.28);
+        background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+        color: #e5e7eb;
+    }
+    [data-bs-theme="dark"] .cd-toast-title {
+        color: #f8fafc;
+    }
+    [data-bs-theme="dark"] .cd-toast-body {
+        color: #cbd5e1;
     }
 `;
 
@@ -1933,6 +1970,19 @@ export class ClientDevicePage extends window.Component {
         }
 
         if (msg.type === 'msec-engine-notification') {
+            const command = String(msg.command || '').toLowerCase();
+            const parameter = String(msg.parameter || '').toLowerCase();
+            if (
+                command.includes('shutdown') ||
+                command.includes('disconnect') ||
+                command.includes('terminated') ||
+                command.includes('stopped') ||
+                parameter.includes('ipc is not connected') ||
+                parameter.includes('disconnected') ||
+                parameter.includes('terminated')
+            ) {
+                this.setState({ enginePipeConnected: false, hostBridgeAvailable: false });
+            }
             this.addHostNotification(msg.command || 'Engine', msg.parameter || '', this.getNotificationLevel(msg.command));
             return;
         }
@@ -2019,7 +2069,7 @@ export class ClientDevicePage extends window.Component {
                         <div class="cd-toast-body">${n.message || '-'}</div>
                         ${n.actionUrl ? html`
                             <div style="margin-top:8px;">
-                                <a href=${n.actionUrl} class="btn btn-sm btn-warning" target="_blank" rel="noopener noreferrer">
+                                <a href=${n.actionUrl} class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer">
                                     ${n.actionLabel || 'Open'}
                                 </a>
                             </div>
