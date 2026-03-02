@@ -1,4 +1,4 @@
-// MagenSec Hub - Site Admin Review Dashboard
+// MagenSec Device Hub - Site Admin Review Dashboard
 const { html, Component } = window;
 
 import { config } from '../../config.js';
@@ -964,7 +964,7 @@ export class ClientDevicePage extends window.Component {
         const cachedToken = safeStorageGet(localStorage, 'msec-device-token');
 
         this.setTheme(safeStorageGet(localStorage, 'msec-cd-theme') || 'dark');
-        document.title = 'MagenSec Hub';
+        document.title = 'MagenSec Device Hub';
         this.setState({ debugMode, runtimeInstallUrl: runtimeInstallRequested ? runtimeInstallUrl : '' });
 
         if (runtimeInstallRequested) {
@@ -1052,7 +1052,7 @@ export class ClientDevicePage extends window.Component {
                 this.setState({
                     phase: 'error',
                     error: 'Secure device context was not received from desktop bridge.',
-                    hostLicenseHint: 'Relaunch MagenSec Hub. For manual troubleshooting use ?debug=true.'
+                    hostLicenseHint: 'Relaunch MagenSec Device Hub. For manual troubleshooting use ?debug=true.'
                 });
             }
         }, 10000);
@@ -3099,7 +3099,7 @@ export class ClientDevicePage extends window.Component {
                     <div class="cd-card" style="width:min(520px, 94vw); margin-bottom:0;">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
                             <i class="ti ti-shield-search" style="font-size: 26px; color: #0071e3;"></i>
-                            <h3 style="margin:0;">MagenSec Hub</h3>
+                            <h3 style="margin:0;">MagenSec Device Hub</h3>
                         </div>
                         <p style="color: var(--apple-text-secondary); font-size:13px; margin-bottom:12px;">
                             Debug mode is enabled. Enter organization and device context for Site-Admin review.
@@ -3122,7 +3122,7 @@ export class ClientDevicePage extends window.Component {
                             </div>
                             ${error ? html`<div style="color:#d63939; font-size:12px; margin-bottom:8px;">${error}</div>` : ''}
                             <div style="display:flex; justify-content:flex-end;">
-                                <button type="submit" class="btn btn-primary btn-sm">Open MagenSec Hub</button>
+                                <button type="submit" class="btn btn-primary btn-sm">Open MagenSec Device Hub</button>
                             </div>
                         </form>
                     </div>
@@ -3149,9 +3149,9 @@ export class ClientDevicePage extends window.Component {
         const d = profile.device || {};
         const deviceName = this.firstDefined(d.deviceName, d.machineName, d.DeviceName, d.DeviceId, profile?.deviceId, 'Unknown Device');
 
-        const presence = this.getDevicePresence(profile);
-        const statusClass = presence.statusClass;
-        const statusText = presence.statusText;
+        const isLicensed = !!this.firstDefined(this.state.licenseInfo?.isLicensed, true);
+        const statusClass = isLicensed ? 'cd-status-active' : 'cd-status-offline';
+        const statusText = isLicensed ? 'Licensed' : 'Unlicensed';
         const bridgeStatusClass = this.state.enginePipeConnected ? 'cd-status-active' : 'cd-status-offline';
         const bridgeStatusText = this.state.enginePipeConnected ? 'Engine connected' : 'Engine disconnected';
 
@@ -3173,7 +3173,7 @@ export class ClientDevicePage extends window.Component {
                             <div>
                                 <div class="cd-brand">
                                     <span class="cd-brand-badge"><i class="ti ti-shield-check"></i></span>
-                                    <span>MagenSec Hub</span>
+                                    <span>MagenSec Device Hub</span>
                                 </div>
                                 <div class="cd-subtitle">
                                     <span>${deviceName}</span>
@@ -3220,7 +3220,13 @@ export class ClientDevicePage extends window.Component {
         const fields = telemetryDetail?.latest?.fields || {};
         const ipList = this.asArray(this.firstDefined(fields.IPAddresses, fields.ipAddresses));
         const ipDisplay = this.getIpDisplay(ipList);
-        const latestSeen = this.firstDefined(telemetryDetail?.latest?.timestamp, profile?.telemetryStatus?.lastHeartbeat, device?.lastHeartbeat, device?.LastHeartbeat);
+        const latestSeen = this.firstDefined(
+            profile?.telemetryStatus?.lastHeartbeat,
+            device?.lastHeartbeat,
+            device?.LastHeartbeat,
+            telemetryDetail?.latest?.timestamp,
+            profile?.telemetryStatus?.lastTelemetry
+        );
         const installedApps = this.toNumber(profile?.apps?.summary?.installed, profile?.apps?.items?.length || 0);
         const totalCves = this.toNumber(profile?.cves?.count, profile?.cves?.items?.length || 0);
         const kevCount = this.toNumber(profile?.cves?.summary?.withKnownExploit, 0);
