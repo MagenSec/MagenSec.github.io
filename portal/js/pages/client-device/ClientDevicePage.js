@@ -12,6 +12,28 @@ const getApiUrl = () => {
     return String(base).replace(/\/$/, '');
 };
 
+const safeStorageGet = (storage, key) => {
+    try {
+        return storage?.getItem(key) || '';
+    } catch (_) {
+        return '';
+    }
+};
+
+const safeStorageSet = (storage, key, value) => {
+    try {
+        storage?.setItem(key, value);
+    } catch (_) {
+    }
+};
+
+const safeStorageRemove = (storage, key) => {
+    try {
+        storage?.removeItem(key);
+    } catch (_) {
+    }
+};
+
 const CD_STYLES = `
     .cd-container {
         --cd-panel-bg: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
@@ -902,9 +924,9 @@ export class ClientDevicePage extends window.Component {
         const isUnlicensedRoute =
             hashParams.get('unlicensed') === '1' ||
             searchParams.get('unlicensed') === '1';
-        const cachedToken = localStorage.getItem('msec-device-token');
+        const cachedToken = safeStorageGet(localStorage, 'msec-device-token');
 
-        this.setTheme(localStorage.getItem('msec-cd-theme') || 'dark');
+        this.setTheme(safeStorageGet(localStorage, 'msec-cd-theme') || 'dark');
         document.title = 'MagenSec Hub';
         this.setState({ debugMode, runtimeInstallUrl: runtimeInstallRequested ? runtimeInstallUrl : '' });
 
@@ -930,7 +952,7 @@ export class ClientDevicePage extends window.Component {
 
         if (!debugMode && window.auth?.isAuthenticated?.()) {
             try {
-                const raw = sessionStorage.getItem('msec-siteadmin-review-context');
+                const raw = safeStorageGet(sessionStorage, 'msec-siteadmin-review-context');
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     const orgId = String(parsed?.orgId || '').trim();
@@ -958,7 +980,7 @@ export class ClientDevicePage extends window.Component {
 
             const preferredToken = token || cachedToken;
             if (preferredToken) {
-                localStorage.setItem('msec-device-token', preferredToken);
+                safeStorageSet(localStorage, 'msec-device-token', preferredToken);
                 this.setState({
                     authCtx: { orgId: orgIdFromRoute, deviceId: deviceIdFromRoute, isPortal: false, token: preferredToken }
                 }, () => this.fetchProfile());
@@ -1023,7 +1045,7 @@ export class ClientDevicePage extends window.Component {
     setTheme(theme) {
         const normalized = theme === 'light' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-bs-theme', normalized);
-        localStorage.setItem('msec-cd-theme', normalized);
+        safeStorageSet(localStorage, 'msec-cd-theme', normalized);
         this.setState({ theme: normalized });
     }
 
@@ -2127,14 +2149,14 @@ export class ClientDevicePage extends window.Component {
 
             if (!orgId || !deviceId) throw new Error("Invalid token claims");
 
-            localStorage.setItem('msec-device-token', token);
+            safeStorageSet(localStorage, 'msec-device-token', token);
             this.setState({
                 authCtx: { orgId, deviceId, isPortal: false, token }
             }, () => this.fetchProfile());
 
         } catch (e) {
             if (routeOrgId && routeDeviceId) {
-                localStorage.setItem('msec-device-token', token);
+                safeStorageSet(localStorage, 'msec-device-token', token);
                 this.setState({
                     authCtx: { orgId: routeOrgId, deviceId: routeDeviceId, isPortal: false, token }
                 }, () => this.fetchProfile());
@@ -2164,13 +2186,13 @@ export class ClientDevicePage extends window.Component {
         }
 
         const portalToken = window.auth?.isAuthenticated?.() ? String(window.auth.getToken() || '').trim() : '';
-        const token = portalToken || manualToken || localStorage.getItem('msec-device-token') || '';
+        const token = portalToken || manualToken || safeStorageGet(localStorage, 'msec-device-token') || '';
         if (!token) {
             this.setState({ error: 'Authentication token is required. Sign in as Site Admin or paste a valid token.' });
             return;
         }
 
-        localStorage.setItem('msec-device-token', token);
+        safeStorageSet(localStorage, 'msec-device-token', token);
         const isPortal = !!portalToken;
         this.setState({
             error: null,
@@ -2431,7 +2453,7 @@ export class ClientDevicePage extends window.Component {
 
         if (!force) {
             try {
-                const cached = localStorage.getItem(CD_CACHE_KEY);
+                const cached = safeStorageGet(localStorage, CD_CACHE_KEY);
                 if (cached) {
                     const parsed = JSON.parse(cached);
                     // Match org and device
@@ -2458,7 +2480,7 @@ export class ClientDevicePage extends window.Component {
 
             if (!res.ok) {
                 if (res.status === 401 || res.status === 403) {
-                    localStorage.removeItem('msec-device-token');
+                    safeStorageRemove(localStorage, 'msec-device-token');
                     throw new Error("Authentication expired or access denied.");
                 }
                 throw new Error(`Failed to fetch device context: ${res.status}`);
@@ -2468,7 +2490,7 @@ export class ClientDevicePage extends window.Component {
             if (!json.success) throw new Error(json.message || "API returned error");
             
             const profile = this.normalizeProfile(json.data || {});
-            localStorage.setItem(CD_CACHE_KEY, JSON.stringify({ 
+            safeStorageSet(localStorage, CD_CACHE_KEY, JSON.stringify({ 
                 ts: Date.now(), 
                 orgId: authCtx.orgId,
                 deviceId: authCtx.deviceId,
@@ -2479,7 +2501,8 @@ export class ClientDevicePage extends window.Component {
         } catch (e) {
             console.error("Fetch profile error", e);
             const msg = String(e?.message || '');
-            const networkError = !navigator.onLine || msg.includes('Failed to fetch') || msg.includes('NetworkError');
+            const msgLower = msg.toLowerCase();
+            const networkError = !navigator.onLine || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msgLower.includes('access is denied');
             this.setState({
                 phase: 'error',
                 error: networkError
