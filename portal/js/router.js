@@ -256,6 +256,15 @@ export function initRouter(renderApp) {
         renderApp({ page: 'siteadmin/preview', ctx });
     });
 
+    // Site Admin - MagenSec Hub (protected)
+    page('/siteadmin/review', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'siteadmin/review', ctx });
+    });
+
     // Audit (protected)
     page('/audit', (ctx) => {
         if (!ctx.isAuthenticated) {
@@ -295,6 +304,11 @@ export function initRouter(renderApp) {
     // Documentation Hub (public, no auth required)
     page('/docs', (ctx) => {
         renderApp({ page: 'documentation-hub', ctx });
+    });
+
+    // Legacy direct route (supports token/context links)
+    page('/client-device.html', (ctx) => {
+        renderApp({ page: 'client-device', ctx });
     });
 
     // Account (protected)

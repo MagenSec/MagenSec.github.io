@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>MagenSec · My Device</title>
+  
+  <style>
+    :root {
+      --apple-bg: #fbfbfd;
+      --apple-surface: rgba(255, 255, 255, 0.7);
+      --apple-border: rgba(0, 0, 0, 0.08);
+      --apple-text: #1d1d1f;
+      --apple-text-secondary: #86868b;
+      --apple-accent: #0071e3;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --apple-bg: #000000;
+        --apple-surface: rgba(28, 28, 30, 0.7);
+        --apple-border: rgba(255, 255, 255, 0.15);
+        --apple-text: #f5f5f7;
+        --apple-text-secondary: #86868b;
+        --apple-accent: #2997ff;
+      }
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--apple-bg);
+      color: var(--apple-text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none; /* Desktop app feel */
+      -webkit-app-region: drag; /* Draggable window from empty space */
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    
+    * { box-sizing: border-box; }
+    
+    /* Make interactive elements non-draggable and selectable if needed */
+    a, button, input, .interactive, .tab-pill, .action-btn {
+      -webkit-app-region: no-drag;
+    }
+    .selectable {
+      user-select: text;
+    }
+    
+    /* Smooth Scrollbar for internal overflow */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(134, 134, 139, 0.3);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(134, 134, 139, 0.5);
+    }
+  </style>
+
+  <!-- Preact & HTM -->
+  <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/dist/preact.umd.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/hooks/dist/hooks.umd.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js" crossorigin="anonymous"></script>
+  
+  <!-- Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous">
+</head>
+<body>
+
+<div id="root"></div>
+
+<script>
+    // Initialize Preact/HTM for the module
+    window.html = window.htm.bind(window.preact.h);
+    window.render = window.preact.render;
+    window.Component = window.preact.Component;
+    window.useState = window.preactHooks.useState;
+    window.useEffect = window.preactHooks.useEffect;
+    window.useMemo = window.preactHooks.useMemo;
+
+</script>
+
+<script type="module">
+    import { config } from './portal/js/config.js';
+    import { ClientDevicePage } from './portal/js/pages/client-device/ClientDevicePage.js?v=2.0';
+
+    // Global Config bridge for the external host page
+    window.config = {
+        API_BASE: config.API_BASE || localStorage.getItem('msec-api-url') || 'https://api.magensec.gigabits.co.in'
+    };
+
+    window.auth = {
+        isAuthenticated: () => !!localStorage.getItem('msec-portal-token'),
+        getToken: () => localStorage.getItem('msec-portal-token') || ''
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.render(
+            window.html`<${ClientDevicePage} />`,
+            document.getElementById('root')
+        );
+    });
+</script>
+
+</body>
+</html>

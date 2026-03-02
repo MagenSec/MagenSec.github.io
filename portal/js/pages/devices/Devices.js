@@ -3467,6 +3467,14 @@ class DevicesPage extends window.Component {
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>
                                                                         View Device
                                                                     </button>
+                                                                    <button type="button" class="dropdown-item" onclick=${() => {
+                                                                        const orgId = orgContext.getCurrentOrg()?.orgId || '';
+                                                                        const url = `#!/siteadmin/review?orgId=${encodeURIComponent(orgId)}&deviceId=${encodeURIComponent(device.id)}`;
+                                                                        window.open(window.location.href.split('#')[0] + url, '_blank');
+                                                                    }}>
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /><path d="M9 12l.01 0" /><path d="M13 12l2 0" /><path d="M9 16l.01 0" /><path d="M13 16l2 0" /></svg>
+                                                                        MagenSec Hub
+                                                                    </button>
                                                                     <div class="dropdown-divider"></div>
                                                                     <!-- Response Actions -->
                                                                     <div class="dropdown-header">Response Actions</div>

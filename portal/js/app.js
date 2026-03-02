@@ -41,6 +41,7 @@ import { PreviewPage } from './pages/siteAdmin/preview/PreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 import { DocumentationHub } from './pages/docs/DocumentationHub/index.js';
 import { GettingStartedPage } from './pages/getting-started/GettingStarted.js';
+import { ClientDevicePage } from './pages/client-device/ClientDevicePage.js';
 
 const { html, render } = window;
 
@@ -97,6 +98,8 @@ function App() {
             return html`<${AIPosturePage} />`;
         case 'documentation-hub':
             return html`<${DocumentationHub} />`;
+        case 'client-device':
+            return html`<${ClientDevicePage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
         case 'apps':
@@ -120,7 +123,7 @@ function App() {
         case 'reports':
             return html`<${ReportsPage} />`;
         case 'siteadmin/review':
-            return html`<${ReviewPage} />`;
+            return html`<${ClientDevicePage} />`;
         case 'account':
             return html`<${AccountPage} />`;
         case 'settings':
@@ -218,7 +221,8 @@ function renderApp(state = {}) {
     }
     // Always update authentication UI state
     const isAuthenticated = auth.isAuthenticated();
-    setAuthenticationState(isAuthenticated);
+    // client-device manages its own auth (device JWT) — suppress portal login overlay
+    setAuthenticationState(currentPage === 'client-device' ? true : isAuthenticated);
     
     // Render org switcher in navbar if authenticated
     const orgSwitcherRoot = document.getElementById('org-switcher-root');
