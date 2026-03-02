@@ -306,9 +306,9 @@ export function initRouter(renderApp) {
         renderApp({ page: 'documentation-hub', ctx });
     });
 
-    // Legacy direct route (supports token/context links)
-    page('/client-device.html', (ctx) => {
-        renderApp({ page: 'client-device', ctx });
+    // Device hub direct routes (canonical + legacy alias)
+    page('/device-hub.html', (ctx) => {
+        renderApp({ page: 'device-hub', ctx });
     });
 
     // Account (protected)

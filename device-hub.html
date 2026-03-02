@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>MagenSec Hub</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-GgnF119bh9fxkKuWHRQYSgEe1rSp5jB0EJ2W8eMf8mjowfwhZP2H1u8n8xJUW3FQ">
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link href="./portal/portal.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --apple-bg: #0b1220;
+      --apple-surface: rgba(17, 24, 39, 0.8);
+      --apple-border: rgba(148, 163, 184, 0.28);
+      --apple-text: #f5f5f7;
+      --apple-text-secondary: #9ca3af;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(1200px 800px at 10% -10%, #1e3a8a 0%, #0b1220 55%), #0b1220;
+      color: var(--apple-text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    #boot-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(8, 12, 24, 0.92);
+      transition: opacity .35s ease;
+    }
+    #boot-overlay.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .boot-card {
+      width: min(520px, calc(100vw - 24px));
+      border-radius: 18px;
+      border: 1px solid var(--apple-border);
+      background: var(--apple-surface);
+      backdrop-filter: blur(16px);
+      padding: 22px;
+      box-shadow: 0 24px 48px rgba(0,0,0,.35);
+      text-align: center;
+    }
+    .boot-title {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .boot-body {
+      margin: 0;
+      color: var(--apple-text-secondary);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .boot-spinner {
+      width: 36px;
+      height: 36px;
+      margin: 8px auto 16px;
+      border-radius: 50%;
+      border: 3px solid rgba(148, 163, 184, 0.25);
+      border-top-color: #60a5fa;
+      animation: spin 0.8s linear infinite;
+    }
+    .boot-actions {
+      margin-top: 14px;
+      display: none;
+      gap: 8px;
+      justify-content: center;
+    }
+    .boot-actions.show {
+      display: flex;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/dist/preact.umd.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/hooks/dist/hooks.umd.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0" crossorigin="anonymous" integrity="sha384-AMGf6SjYWuydruLCEKIx7wNrplae/LWMqStBYe5zhISiQeyuogc8OLM2QzJIreuY"></script>
+</head>
+<body>
+
+<div id="boot-overlay">
+  <div class="boot-card">
+    <div class="boot-spinner"></div>
+    <h1 class="boot-title" id="boot-title">Opening MagenSec Hub</h1>
+    <p class="boot-body" id="boot-body">Preparing secure device telemetry view...</p>
+    <div id="boot-actions" class="boot-actions">
+      <button class="btn btn-sm btn-primary" id="boot-retry">Retry</button>
+    </div>
+  </div>
+</div>
+
+<div id="root"></div>
+
+<script>
+    window.html = window.htm.bind(window.preact.h);
+    window.render = window.preact.render;
+    window.Component = window.preact.Component;
+    window.useState = window.preactHooks.useState;
+    window.useEffect = window.preactHooks.useEffect;
+    window.useMemo = window.preactHooks.useMemo;
+
+    const bootOverlay = document.getElementById('boot-overlay');
+    const bootTitle = document.getElementById('boot-title');
+    const bootBody = document.getElementById('boot-body');
+    const bootActions = document.getElementById('boot-actions');
+    const bootRetry = document.getElementById('boot-retry');
+
+    window.hideHubBootOverlay = function () {
+      if (!bootOverlay) return;
+      bootOverlay.classList.add('hide');
+      setTimeout(() => {
+        if (bootOverlay && bootOverlay.parentNode) {
+          bootOverlay.parentNode.removeChild(bootOverlay);
+        }
+      }, 420);
+    };
+
+    window.showHubBootOffline = function () {
+      if (!bootOverlay) return;
+      bootTitle.textContent = 'Connection needed';
+      bootBody.textContent = 'MagenSec Hub requires internet access to load the latest security context. Please check your connection and retry.';
+      bootActions.classList.add('show');
+    };
+
+    bootRetry?.addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    if (!navigator.onLine) {
+      window.showHubBootOffline();
+    }
+
+    window.addEventListener('offline', () => {
+      window.showHubBootOffline();
+    });
+</script>
+
+<script type="module">
+    import { config } from './portal/js/config.js';
+    import { ClientDevicePage } from './portal/js/pages/client-device/ClientDevicePage.js?v=2.1';
+
+    window.config = {
+        API_BASE: config.API_BASE || localStorage.getItem('msec-api-url') || 'https://api.magensec.gigabits.co.in'
+    };
+
+    window.auth = {
+        isAuthenticated: () => !!localStorage.getItem('msec-portal-token'),
+        getToken: () => localStorage.getItem('msec-portal-token') || ''
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.render(
+            window.html`<${ClientDevicePage} />`,
+            document.getElementById('root')
+        );
+    });
+</script>
+
+</body>
+</html>

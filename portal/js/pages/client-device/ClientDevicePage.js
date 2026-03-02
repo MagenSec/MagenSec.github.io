@@ -833,6 +833,8 @@ export class ClientDevicePage extends window.Component {
             manualOrgId: '',
             manualDeviceId: '',
             manualToken: '',
+            debugMode: false,
+            runtimeInstallUrl: '',
             profile: null,
             authCtx: null,
             activeTab: 'landing',
@@ -868,6 +870,7 @@ export class ClientDevicePage extends window.Component {
         this.bridgeWsUrl = '';
         this.bridgeRetryTimer = null;
         this.bridgeRetryDeadline = 0;
+        this.awaitContextTimer = null;
         this.handleMessage = this.handleMessage.bind(this);
         this.handleWebViewMessage = this.handleWebViewMessage.bind(this);
         this.submitManualContext = this.submitManualContext.bind(this);
@@ -880,10 +883,20 @@ export class ClientDevicePage extends window.Component {
 
         const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
         const searchParams = new URLSearchParams(window.location.search || '');
+        const debugMode =
+            hashParams.get('debug') === 'true' ||
+            searchParams.get('debug') === 'true';
+        const runtimeInstallRequested =
+            hashParams.get('runtimeInstall') === '1' ||
+            searchParams.get('runtimeInstall') === '1';
+        const runtimeInstallUrl =
+            hashParams.get('runtimeInstallUrl') ||
+            searchParams.get('runtimeInstallUrl') ||
+            'https://go.microsoft.com/fwlink/p/?LinkId=2124703';
 
-        const orgIdFromRoute = hashParams.get('orgId') || searchParams.get('orgId');
-        const deviceIdFromRoute = hashParams.get('deviceId') || searchParams.get('deviceId');
-        const token = hashParams.get('token') || searchParams.get('token');
+        const orgIdFromRoute = debugMode ? (hashParams.get('orgId') || searchParams.get('orgId') || '') : '';
+        const deviceIdFromRoute = debugMode ? (hashParams.get('deviceId') || searchParams.get('deviceId') || '') : '';
+        const token = debugMode ? (hashParams.get('token') || searchParams.get('token') || '') : '';
         const bridgeWsUrl = hashParams.get('bridgeWs') || searchParams.get('bridgeWs');
         this.bridgeWsUrl = bridgeWsUrl || '';
         const isUnlicensedRoute =
@@ -893,6 +906,15 @@ export class ClientDevicePage extends window.Component {
 
         this.setTheme(localStorage.getItem('msec-cd-theme') || 'dark');
         document.title = 'MagenSec Hub';
+        this.setState({ debugMode, runtimeInstallUrl: runtimeInstallRequested ? runtimeInstallUrl : '' });
+
+        if (runtimeInstallRequested) {
+            this.addHostNotification(
+                'WebView2 Runtime required',
+                'Desktop runtime is missing. Click install to restore embedded experience.',
+                'warning',
+                { actionLabel: 'Install Runtime', actionUrl: runtimeInstallUrl });
+        }
 
         window.msecClient = {
             sendCommand: (command, parameter = '') => this.sendClientCommand(command, parameter)
@@ -906,7 +928,27 @@ export class ClientDevicePage extends window.Component {
             this.connectWebSocketBridge(bridgeWsUrl);
         }
 
-        if (orgIdFromRoute && deviceIdFromRoute) {
+        if (!debugMode && window.auth?.isAuthenticated?.()) {
+            try {
+                const raw = sessionStorage.getItem('msec-siteadmin-review-context');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    const orgId = String(parsed?.orgId || '').trim();
+                    const deviceId = String(parsed?.deviceId || '').trim();
+                    const ts = Number(parsed?.ts || 0);
+                    const freshEnough = Number.isFinite(ts) && (Date.now() - ts) <= 10 * 60 * 1000;
+                    if (orgId && deviceId && freshEnough) {
+                        this.setState({
+                            authCtx: { orgId, deviceId, isPortal: true, token: window.auth.getToken() }
+                        }, () => this.fetchProfile());
+                        return;
+                    }
+                }
+            } catch (_) {
+            }
+        }
+
+        if (debugMode && orgIdFromRoute && deviceIdFromRoute) {
             if (window.auth?.isAuthenticated?.()) {
                 this.setState({
                     authCtx: { orgId: orgIdFromRoute, deviceId: deviceIdFromRoute, isPortal: true, token: window.auth.getToken() }
@@ -924,14 +966,37 @@ export class ClientDevicePage extends window.Component {
             }
         }
 
-        this.setState({
-            phase: 'manual-auth',
-            error: isUnlicensedRoute ? 'Device is not licensed yet.' : null,
-            manualOrgId: orgIdFromRoute || '',
-            manualDeviceId: deviceIdFromRoute || '',
-            manualToken: token || cachedToken || '',
-            hostLicenseHint: isUnlicensedRoute ? 'Complete the licensing flow in MagenSec, then re-open this page.' : ''
-        });
+        if (debugMode) {
+            this.setState({
+                phase: 'manual-auth',
+                error: isUnlicensedRoute ? 'Device is not licensed yet.' : null,
+                manualOrgId: orgIdFromRoute || '',
+                manualDeviceId: deviceIdFromRoute || '',
+                manualToken: token || cachedToken || '',
+                hostLicenseHint: isUnlicensedRoute ? 'Complete the licensing flow in MagenSec, then re-open this page.' : ''
+            });
+            return;
+        }
+
+        if (isUnlicensedRoute) {
+            this.setState({
+                phase: 'error',
+                error: 'This device is not licensed yet. Complete licensing in MagenSec and relaunch the hub.',
+                hostLicenseHint: 'For manual troubleshooting, open with ?debug=true.'
+            });
+            return;
+        }
+
+        this.setState({ phase: 'waiting', error: null, hostLicenseHint: '' });
+        this.awaitContextTimer = setTimeout(() => {
+            if (!this.state.authCtx && !this.state.debugMode) {
+                this.setState({
+                    phase: 'error',
+                    error: 'Secure device context was not received from desktop bridge.',
+                    hostLicenseHint: 'Relaunch MagenSec Hub. For manual troubleshooting use ?debug=true.'
+                });
+            }
+        }, 10000);
     }
 
     componentWillUnmount() {
@@ -946,6 +1011,10 @@ export class ClientDevicePage extends window.Component {
         if (this.bridgeRetryTimer) {
             clearInterval(this.bridgeRetryTimer);
             this.bridgeRetryTimer = null;
+        }
+        if (this.awaitContextTimer) {
+            clearTimeout(this.awaitContextTimer);
+            this.awaitContextTimer = null;
         }
         delete window.msecClient;
         this.destroyCharts();
@@ -1045,6 +1114,10 @@ export class ClientDevicePage extends window.Component {
     }
 
     componentDidUpdate(_prevProps, prevState) {
+        if (typeof window.hideHubBootOverlay === 'function' && prevState.phase !== this.state.phase && this.state.phase !== 'waiting' && this.state.phase !== 'loading') {
+            window.hideHubBootOverlay();
+        }
+
         if (this.state.phase !== 'ready' || !this.state.profile) return;
 
         const chartTabs = ['overview', 'landing'];
@@ -1817,13 +1890,22 @@ export class ClientDevicePage extends window.Component {
                 return;
             }
 
+            if (this.state.debugMode) {
+                this.setState({
+                    phase: 'manual-auth',
+                    error: 'Device is not licensed yet.',
+                    manualOrgId: orgId,
+                    manualDeviceId: deviceId,
+                    manualToken: '',
+                    hostLicenseHint: 'Complete licensing in MagenSec, then launch the app again to open your device page.'
+                });
+                return;
+            }
+
             this.setState({
-                phase: 'manual-auth',
+                phase: 'error',
                 error: 'Device is not licensed yet.',
-                manualOrgId: orgId,
-                manualDeviceId: deviceId,
-                manualToken: '',
-                hostLicenseHint: 'Complete licensing in MagenSec, then launch the app again to open your device page.'
+                hostLicenseHint: 'Complete licensing in MagenSec, then relaunch the hub.'
             });
             return;
         }
@@ -1881,12 +1963,14 @@ export class ClientDevicePage extends window.Component {
         return 'info';
     }
 
-    addHostNotification(title, message, level = 'info') {
+    addHostNotification(title, message, level = 'info', options = null) {
         const toast = {
             id: `${Date.now()}-${Math.random()}`,
             title: String(title || 'Notification'),
             message: String(message || ''),
-            level
+            level,
+            actionLabel: options?.actionLabel || '',
+            actionUrl: options?.actionUrl || ''
         };
 
         this.setState(prev => {
@@ -1911,6 +1995,13 @@ export class ClientDevicePage extends window.Component {
                     <div class=${`cd-toast ${n.level === 'danger' ? 'cd-toast-danger' : n.level === 'warning' ? 'cd-toast-warning' : n.level === 'success' ? 'cd-toast-success' : ''}`}>
                         <div class="cd-toast-title">${n.title}</div>
                         <div class="cd-toast-body">${n.message || '-'}</div>
+                        ${n.actionUrl ? html`
+                            <div style="margin-top:8px;">
+                                <a href=${n.actionUrl} class="btn btn-sm btn-warning" target="_blank" rel="noopener noreferrer">
+                                    ${n.actionLabel || 'Open'}
+                                </a>
+                            </div>
+                        ` : ''}
                     </div>
                 `)}
             </div>
@@ -2057,6 +2148,11 @@ export class ClientDevicePage extends window.Component {
 
     submitManualContext(e) {
         if (e?.preventDefault) e.preventDefault();
+
+        if (!this.state.debugMode) {
+            this.setState({ error: 'Manual context is allowed only in debug mode (?debug=true).' });
+            return;
+        }
 
         const orgId = String(this.state.manualOrgId || '').trim();
         const deviceId = String(this.state.manualDeviceId || '').trim();
@@ -2356,6 +2452,8 @@ export class ClientDevicePage extends window.Component {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authCtx.token}`,
+                    'X-MagenSec-OrgId': authCtx.orgId,
+                    'X-MagenSec-DeviceId': authCtx.deviceId,
                     'Accept': 'application/json'
                 }
             });
@@ -2382,7 +2480,17 @@ export class ClientDevicePage extends window.Component {
 
         } catch (e) {
             console.error("Fetch profile error", e);
-            this.setState({ phase: 'error', error: e.message });
+            const msg = String(e?.message || '');
+            const networkError = !navigator.onLine || msg.includes('Failed to fetch') || msg.includes('NetworkError');
+            this.setState({
+                phase: 'error',
+                error: networkError
+                    ? 'Unable to reach MagenSec service. Please check internet and retry.'
+                    : msg
+            });
+            if (networkError && typeof window.showHubBootOffline === 'function') {
+                window.showHubBootOffline();
+            }
         }
     }
 
@@ -2891,8 +2999,12 @@ export class ClientDevicePage extends window.Component {
         if (phase === 'waiting') {
             return html`
                 <div>
-                    <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--apple-text-secondary);">
-                        <i class="ti ti-loader ti-spin" style="font-size: 32px;"></i>
+                    <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--apple-text-secondary); text-align:center; padding:16px;">
+                        <div>
+                            <i class="ti ti-loader ti-spin" style="font-size: 34px; display:block; margin-bottom:10px;"></i>
+                            <div style="font-size:15px; color: var(--apple-text);">Connecting secure desktop bridge...</div>
+                            <div style="font-size:13px; margin-top:6px;">Please wait while MagenSec prepares device context.</div>
+                        </div>
                     </div>
                     ${this.renderHostToasts()}
                 </div>
@@ -2919,7 +3031,7 @@ export class ClientDevicePage extends window.Component {
                             <h3 style="margin:0;">MagenSec Hub</h3>
                         </div>
                         <p style="color: var(--apple-text-secondary); font-size:13px; margin-bottom:12px;">
-                            Enter organization and device context for Site-Admin review.
+                            Debug mode is enabled. Enter organization and device context for Site-Admin review.
                         </p>
                         ${hostLicenseHint ? html`<div style="margin-bottom:10px; padding:10px 12px; border-radius:10px; border:1px solid rgba(214,57,57,0.25); background: rgba(214,57,57,0.08); color:#d63939; font-size:12px;">${hostLicenseHint}</div>` : ''}
                         <form onSubmit=${this.submitManualContext}>
@@ -2950,10 +3062,11 @@ export class ClientDevicePage extends window.Component {
 
         if (phase === 'loading') {
             return html`
-                <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--apple-text-secondary);">
+                <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--apple-text-secondary); text-align:center; padding:16px;">
                     <div>
                         <i class="ti ti-loader ti-spin" style="font-size: 32px; display: block; margin: 0 auto 16px auto; text-align: center;"></i>
-                        <p>Analyzing Telemetry...</p>
+                        <p style="margin:0; font-size:15px; color:var(--apple-text);">Analyzing telemetry securely...</p>
+                        <p style="margin:8px 0 0 0; font-size:13px;">Loading your device hub experience.</p>
                     </div>
                 </div>
                 ${this.renderHostToasts()}

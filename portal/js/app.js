@@ -98,7 +98,7 @@ function App() {
             return html`<${AIPosturePage} />`;
         case 'documentation-hub':
             return html`<${DocumentationHub} />`;
-        case 'client-device':
+        case 'device-hub':
             return html`<${ClientDevicePage} />`;
         case 'inventory':
             return html`<${AssetsPage} />`;
@@ -221,8 +221,8 @@ function renderApp(state = {}) {
     }
     // Always update authentication UI state
     const isAuthenticated = auth.isAuthenticated();
-    // client-device manages its own auth (device JWT) — suppress portal login overlay
-    setAuthenticationState(currentPage === 'client-device' ? true : isAuthenticated);
+    // device-hub manages its own auth (device JWT) — suppress portal login overlay
+    setAuthenticationState(currentPage === 'device-hub' ? true : isAuthenticated);
     
     // Render org switcher in navbar if authenticated
     const orgSwitcherRoot = document.getElementById('org-switcher-root');
