@@ -2452,8 +2452,6 @@ export class ClientDevicePage extends window.Component {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authCtx.token}`,
-                    'X-MagenSec-OrgId': authCtx.orgId,
-                    'X-MagenSec-DeviceId': authCtx.deviceId,
                     'Accept': 'application/json'
                 }
             });
