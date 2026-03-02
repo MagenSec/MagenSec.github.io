@@ -48,6 +48,15 @@ const CD_STYLES = `
         gap: 10px;
         background: var(--cd-sidebar-bg);
     }
+    .cd-sidebar-spacer {
+        flex: 1 1 auto;
+    }
+    .cd-nav-btn.cd-nav-settings {
+        margin-top: auto;
+        border-top: 1px solid var(--apple-border);
+        padding-top: 12px;
+        border-radius: 0;
+    }
     .cd-nav-btn {
         width: 100%;
         text-align: left;
@@ -103,6 +112,11 @@ const CD_STYLES = `
         flex-wrap: wrap;
         gap: 12px;
         margin-bottom: 10px;
+        padding: 16px 18px;
+        border-radius: 14px;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        background: linear-gradient(135deg, rgba(30,58,138,0.92) 0%, rgba(30,64,175,0.88) 45%, rgba(15,23,42,0.95) 100%);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
     }
     .cd-header > div:first-child {
         min-width: 0;
@@ -117,12 +131,32 @@ const CD_STYLES = `
     }
     .cd-subtitle {
         font-size: 15px;
-        color: var(--apple-text-secondary);
+        color: rgba(226, 232, 240, 0.92);
         margin-top: 8px;
         display: flex;
         align-items: center;
         gap: 6px;
         flex-wrap: wrap;
+        padding-left: 10px;
+    }
+    .cd-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        color: #ffffff;
+        margin-bottom: 6px;
+    }
+    .cd-brand-badge {
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255,255,255,0.14);
+        border: 1px solid rgba(255,255,255,0.24);
     }
     .cd-status-dot {
         width: 8px;
@@ -201,6 +235,10 @@ const CD_STYLES = `
         padding: 10px 12px;
         box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
         min-width: 0;
+    }
+    .cd-kpi-card-compact {
+        padding: 8px 10px;
+        min-height: 84px;
     }
     .cd-kpi-card.cd-kpi-danger { border-left-color: #d63939; }
     .cd-kpi-card.cd-kpi-warning { border-left-color: #f76707; }
@@ -817,10 +855,19 @@ export class ClientDevicePage extends window.Component {
             showIpModal: false,
             hostLicenseHint: '',
             hostBridgeAvailable: false,
+            bridgeSocketConnected: false,
+            enginePipeConnected: false,
+            bridgeRetryActive: false,
+            bridgeRetrySecondsLeft: 0,
+            theme: 'dark',
+            licenseInfo: null,
             notifications: []
         };
         this.charts = {};
         this.bridgeSocket = null;
+        this.bridgeWsUrl = '';
+        this.bridgeRetryTimer = null;
+        this.bridgeRetryDeadline = 0;
         this.handleMessage = this.handleMessage.bind(this);
         this.handleWebViewMessage = this.handleWebViewMessage.bind(this);
         this.submitManualContext = this.submitManualContext.bind(this);
@@ -838,10 +885,14 @@ export class ClientDevicePage extends window.Component {
         const deviceIdFromRoute = hashParams.get('deviceId') || searchParams.get('deviceId');
         const token = hashParams.get('token') || searchParams.get('token');
         const bridgeWsUrl = hashParams.get('bridgeWs') || searchParams.get('bridgeWs');
+        this.bridgeWsUrl = bridgeWsUrl || '';
         const isUnlicensedRoute =
             hashParams.get('unlicensed') === '1' ||
             searchParams.get('unlicensed') === '1';
         const cachedToken = localStorage.getItem('msec-device-token');
+
+        this.setTheme(localStorage.getItem('msec-cd-theme') || 'dark');
+        document.title = 'MagenSec Hub';
 
         window.msecClient = {
             sendCommand: (command, parameter = '') => this.sendClientCommand(command, parameter)
@@ -849,7 +900,7 @@ export class ClientDevicePage extends window.Component {
 
         if (window.chrome?.webview) {
             window.chrome.webview.addEventListener('message', this.handleWebViewMessage);
-            this.setState({ hostBridgeAvailable: true });
+            this.setState({ hostBridgeAvailable: true, bridgeSocketConnected: true });
             window.chrome.webview.postMessage({ type: 'msec-client-ready' });
         } else if (bridgeWsUrl) {
             this.connectWebSocketBridge(bridgeWsUrl);
@@ -892,17 +943,32 @@ export class ClientDevicePage extends window.Component {
             try { this.bridgeSocket.close(); } catch (_) { }
             this.bridgeSocket = null;
         }
+        if (this.bridgeRetryTimer) {
+            clearInterval(this.bridgeRetryTimer);
+            this.bridgeRetryTimer = null;
+        }
         delete window.msecClient;
         this.destroyCharts();
     }
 
+    setTheme(theme) {
+        const normalized = theme === 'light' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-bs-theme', normalized);
+        localStorage.setItem('msec-cd-theme', normalized);
+        this.setState({ theme: normalized });
+    }
+
     connectWebSocketBridge(url) {
         try {
+            if (this.bridgeSocket && (this.bridgeSocket.readyState === WebSocket.OPEN || this.bridgeSocket.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
             const socket = new WebSocket(url);
             this.bridgeSocket = socket;
 
             socket.addEventListener('open', () => {
-                this.setState({ hostBridgeAvailable: true });
+                this.setState({ hostBridgeAvailable: true, bridgeSocketConnected: true, bridgeRetryActive: false, bridgeRetrySecondsLeft: 0 });
                 this.addHostNotification('Bridge connected', 'Engine UI bridge connected.', 'success');
             });
 
@@ -916,15 +982,66 @@ export class ClientDevicePage extends window.Component {
             });
 
             socket.addEventListener('close', () => {
-                this.setState({ hostBridgeAvailable: false });
+                this.setState({ hostBridgeAvailable: false, bridgeSocketConnected: false, enginePipeConnected: false });
+                this.startBridgeReconnectWindow();
             });
 
             socket.addEventListener('error', () => {
-                this.setState({ hostBridgeAvailable: false });
+                this.setState({ hostBridgeAvailable: false, bridgeSocketConnected: false, enginePipeConnected: false });
+                this.startBridgeReconnectWindow();
             });
         } catch (err) {
             console.error('Failed to connect bridge websocket', err);
         }
+    }
+
+    startBridgeReconnectWindow() {
+        if (!this.bridgeWsUrl || this.bridgeRetryTimer || window.chrome?.webview) return;
+
+        this.bridgeRetryDeadline = Date.now() + 30000;
+        this.setState({ bridgeRetryActive: true, bridgeRetrySecondsLeft: 30 });
+        this.addHostNotification('Bridge disconnected', 'Retrying connection every 3s for 30s.', 'warning');
+
+        this.bridgeRetryTimer = setInterval(() => {
+            const remaining = Math.max(0, Math.ceil((this.bridgeRetryDeadline - Date.now()) / 1000));
+            this.setState({ bridgeRetrySecondsLeft: remaining });
+
+            if (this.state.bridgeSocketConnected || this.state.hostBridgeAvailable) {
+                clearInterval(this.bridgeRetryTimer);
+                this.bridgeRetryTimer = null;
+                this.setState({ bridgeRetryActive: false, bridgeRetrySecondsLeft: 0 });
+                return;
+            }
+
+            if (remaining <= 0) {
+                clearInterval(this.bridgeRetryTimer);
+                this.bridgeRetryTimer = null;
+                this.setState({ bridgeRetryActive: false, bridgeRetrySecondsLeft: 0 });
+                return;
+            }
+
+            if (remaining % 3 === 0) {
+                this.connectWebSocketBridge(this.bridgeWsUrl);
+            }
+        }, 1000);
+    }
+
+    requestStartServer() {
+        const payload = { type: 'msec-start-server' };
+
+        if (window.chrome?.webview) {
+            window.chrome.webview.postMessage(payload);
+            this.addHostNotification('Start server', 'Requested engine start with retries (3 attempts, 10s interval).', 'info');
+            return;
+        }
+
+        if (this.bridgeSocket && this.bridgeSocket.readyState === WebSocket.OPEN) {
+            this.bridgeSocket.send(JSON.stringify(payload));
+            this.addHostNotification('Start server', 'Requested engine start with retries (3 attempts, 10s interval).', 'info');
+            return;
+        }
+
+        this.addHostNotification('Bridge unavailable', 'Cannot request start server while bridge is disconnected.', 'warning');
     }
 
     componentDidUpdate(_prevProps, prevState) {
@@ -1692,8 +1809,10 @@ export class ClientDevicePage extends window.Component {
             const deviceId = msg.deviceId || '';
             const token = msg.token || '';
             const isLicensed = !!msg.isLicensed;
+            const licenseInfo = msg.licenseInfo || null;
 
             if (isLicensed && orgId && deviceId && token) {
+                this.setState({ licenseInfo });
                 this.handleDirectToken(token, orgId, deviceId);
                 return;
             }
@@ -1715,22 +1834,35 @@ export class ClientDevicePage extends window.Component {
         }
 
         if (msg.type === 'msec-bridge-ready') {
-            this.setState({ hostBridgeAvailable: true });
+            this.setState({ hostBridgeAvailable: true, bridgeSocketConnected: true });
             return;
         }
 
         if (msg.type === 'msec-bridge-status') {
             const connected = !!msg.connected;
-            const wasConnected = !!this.state.hostBridgeAvailable;
-            this.setState({ hostBridgeAvailable: connected });
+            const wasConnected = !!this.state.enginePipeConnected;
+            const hostAvailable = !!this.state.bridgeSocketConnected && connected;
+            this.setState({ enginePipeConnected: connected, hostBridgeAvailable: hostAvailable });
+
+            if (!connected) {
+                this.startBridgeReconnectWindow();
+            }
 
             if (wasConnected !== connected) {
                 this.addHostNotification(
                     connected ? 'Bridge connected' : 'Bridge disconnected',
-                    msg.message || (connected ? 'Desktop bridge is connected.' : 'Desktop bridge lost connection to Engine.'),
+                    msg.message || (connected ? 'Engine pipe connected.' : 'Engine pipe disconnected.'),
                     connected ? 'success' : 'warning');
             }
 
+            return;
+        }
+
+        if (msg.type === 'msec-start-server-ack') {
+            this.addHostNotification(
+                msg.success ? 'Server started' : 'Start server failed',
+                msg.message || (msg.success ? 'Engine server is running.' : 'Unable to start engine server.'),
+                msg.success ? 'success' : 'danger');
             return;
         }
 
@@ -1811,13 +1943,14 @@ export class ClientDevicePage extends window.Component {
 
     renderClientCommandToolbar() {
         const canSend = this.state.hostBridgeAvailable && typeof window.msecClient?.sendCommand === 'function';
+        const canStart = this.state.bridgeSocketConnected || !!window.chrome?.webview;
 
         return html`
             <div class="cd-card" style="padding:10px 12px; margin-bottom:10px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
                     <div class="cd-chart-title" style="margin:0;">Client Actions</div>
                     <span class=${`badge ${canSend ? 'bg-success text-white' : 'bg-warning text-white'}`}>
-                        ${canSend ? 'Bridge connected' : 'Bridge unavailable'}
+                        ${canSend ? 'Engine connected' : 'Engine disconnected'}
                     </span>
                 </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -1836,7 +1969,11 @@ export class ClientDevicePage extends window.Component {
                     <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('SystemComponentsScanStart')}>
                         <i class="ti ti-cpu"></i> System Components
                     </button>
+                    <button class="btn btn-sm btn-outline-warning" disabled=${!canStart} onClick=${() => this.requestStartServer()}>
+                        <i class="ti ti-player-play"></i> Start Server
+                    </button>
                 </div>
+                ${this.state.bridgeRetryActive ? html`<div class="cd-kpi-meta" style="margin-top:8px;">Auto reconnect running (${this.state.bridgeRetrySecondsLeft}s left).</div>` : ''}
             </div>
         `;
     }
@@ -1845,6 +1982,39 @@ export class ClientDevicePage extends window.Component {
         return html`
             <div style="animation: cd-fade-in 0.25s ease-out;">
                 ${this.renderClientCommandToolbar()}
+            </div>
+        `;
+    }
+
+    renderSettingsTab() {
+        const info = this.state.licenseInfo || {};
+        const effectiveTheme = this.state.theme || document.documentElement.getAttribute('data-bs-theme') || 'dark';
+
+        return html`
+            <div style="animation: cd-fade-in 0.25s ease-out;">
+                <div class="cd-card" style="padding:12px 14px;">
+                    <h4 style="margin:0 0 10px 0;">Appearance</h4>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                        <div class="cd-kpi-meta">Theme controls the dashboard look and chart tooltip mode.</div>
+                        <div style="display:flex; gap:6px;">
+                            <button class=${`cd-chip ${effectiveTheme === 'dark' ? 'active' : ''}`} onClick=${() => this.setTheme('dark')}>Dark</button>
+                            <button class=${`cd-chip ${effectiveTheme === 'light' ? 'active' : ''}`} onClick=${() => this.setTheme('light')}>Light</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cd-card" style="padding:12px 14px;">
+                    <h4 style="margin:0 0 10px 0;">License & Device Info</h4>
+                    <ul class="cd-list">
+                        <li class="cd-list-item"><span class="cd-list-label">Org ID</span><span class="cd-list-value">${info.orgId || this.state.authCtx?.orgId || '-'}</span></li>
+                        <li class="cd-list-item"><span class="cd-list-label">License Org</span><span class="cd-list-value">${info.licenseOrgId || '-'}</span></li>
+                        <li class="cd-list-item"><span class="cd-list-label">License Type</span><span class="cd-list-value">${info.licenseType || '-'}</span></li>
+                        <li class="cd-list-item"><span class="cd-list-label">License Email</span><span class="cd-list-value">${info.licenseEmail || '-'}</span></li>
+                        <li class="cd-list-item"><span class="cd-list-label">License Key</span><span class="cd-list-value">${info.licenseKeyMasked || '-'}</span></li>
+                        <li class="cd-list-item"><span class="cd-list-label">Bridge Socket</span><span class="cd-list-value">${this.state.bridgeSocketConnected ? 'Connected' : 'Disconnected'}</span></li>
+                        <li class="cd-list-item"><span class="cd-list-label">Engine Pipe</span><span class="cd-list-value">${this.state.enginePipeConnected ? 'Connected' : 'Disconnected'}</span></li>
+                    </ul>
+                </div>
             </div>
         `;
     }
@@ -2334,21 +2504,59 @@ export class ClientDevicePage extends window.Component {
         const cves = profile?.cves?.items || [];
         const apps = profile?.apps?.items || [];
 
-        const timestamps = cves
-            .flatMap((cve) => [cve.firstDetected, cve.lastDetected])
-            .map((ts) => new Date(ts).getTime())
-            .filter((ts) => Number.isFinite(ts));
+        const vulnerableAppKeys = new Set(
+            cves
+                .map((cve) => `${String(cve?.appName || '').trim().toLowerCase()}|${String(cve?.appVersion || '').trim().toLowerCase()}`)
+                .filter((key) => key !== '|' && key !== '|')
+        );
 
-        const firstDetectedAt = timestamps.length ? new Date(Math.min(...timestamps)).toISOString() : null;
-        const lastDetectedAt = timestamps.length ? new Date(Math.max(...timestamps)).toISOString() : null;
+        const vulnerableApps = apps.filter((app) => {
+            const appKey = `${String(app?.name || '').trim().toLowerCase()}|${String(app?.version || '').trim().toLowerCase()}`;
+            return vulnerableAppKeys.has(appKey);
+        });
+
+        const appDetectionMap = new Map();
+        for (const cve of cves) {
+            const appKey = `${String(cve?.appName || '').trim().toLowerCase()}|${String(cve?.appVersion || '').trim().toLowerCase()}`;
+            if (!appKey || appKey === '|') continue;
+
+            const firstDetected = new Date(cve?.firstDetected || cve?.lastDetected || 0).getTime();
+            const lastDetected = new Date(cve?.lastDetected || cve?.firstDetected || 0).getTime();
+            const current = appDetectionMap.get(appKey) || { first: Number.POSITIVE_INFINITY, last: 0 };
+
+            if (Number.isFinite(firstDetected) && firstDetected > 0) {
+                current.first = Math.min(current.first, firstDetected);
+            }
+            if (Number.isFinite(lastDetected) && lastDetected > 0) {
+                current.last = Math.max(current.last, lastDetected);
+            }
+
+            appDetectionMap.set(appKey, current);
+        }
+
+        const appFirstValues = [];
+        const appLastValues = [];
+        for (const value of appDetectionMap.values()) {
+            if (Number.isFinite(value.first) && value.first > 0) appFirstValues.push(value.first);
+            if (Number.isFinite(value.last) && value.last > 0) appLastValues.push(value.last);
+        }
+
+        const firstDetectedAt = appFirstValues.length ? new Date(Math.min(...appFirstValues)).toISOString() : null;
+        const lastDetectedAt = appLastValues.length ? new Date(Math.max(...appLastValues)).toISOString() : null;
 
         const match = { absolute: 0, heuristic: 0, unknown: 0 };
         const remediation = { patch: 0, config: 0, mitigate: 0, nofix: 0, unknown: 0 };
         const epssValues = [];
+        const appMatchMap = new Map();
 
         for (const cve of cves) {
             const matchType = this.getCveMatchType(cve);
-            match[matchType] = (match[matchType] || 0) + 1;
+            const appKey = `${String(cve?.appName || '').trim().toLowerCase()}|${String(cve?.appVersion || '').trim().toLowerCase()}`;
+            const prev = appMatchMap.get(appKey) || 'unknown';
+            const score = (t) => t === 'absolute' ? 3 : t === 'heuristic' ? 2 : 1;
+            if (score(matchType) > score(prev)) {
+                appMatchMap.set(appKey, matchType);
+            }
 
             const remediationType = this.getCveRemediationBucket(cve);
             remediation[remediationType] = (remediation[remediationType] || 0) + 1;
@@ -2357,13 +2565,17 @@ export class ClientDevicePage extends window.Component {
             if (epss > 0) epssValues.push(epss);
         }
 
+        for (const matchType of appMatchMap.values()) {
+            match[matchType] = (match[matchType] || 0) + 1;
+        }
+
         const epssHigh = epssValues.filter((v) => v >= 0.7).length;
         const epssAvg = epssValues.length
             ? Number(((epssValues.reduce((a, b) => a + b, 0) / epssValues.length) * 100).toFixed(1))
             : 0;
 
-        const withInstallPath = apps.filter((app) => !!app.installPath).length;
-        const runningWithPath = apps.filter((app) => app.isRunning && !!app.runningPath).length;
+        const withInstallPath = vulnerableApps.filter((app) => !!app.installPath).length;
+        const runningWithPath = vulnerableApps.filter((app) => app.isRunning && !!app.runningPath).length;
 
         return {
             firstDetectedAt,
@@ -2372,6 +2584,7 @@ export class ClientDevicePage extends window.Component {
             remediation,
             epssHigh,
             epssAvg,
+            vulnerableAppsCount: vulnerableApps.length,
             apps: {
                 withInstallPath,
                 runningWithPath
@@ -2413,12 +2626,13 @@ export class ClientDevicePage extends window.Component {
             { key: 'specs', label: 'Specifications' },
             { key: 'software', label: 'Software', count: profile?.apps?.summary?.installed || 0 },
             { key: 'cves', label: 'Vulnerabilities', count: profile?.cves?.summary?.critical || 0 },
-            { key: 'actions', label: 'Client Actions' }
+            { key: 'actions', label: 'Client Actions' },
+            { key: 'settings', label: 'Settings' }
         ];
 
         return html`
             <aside class="cd-sidebar">
-                ${nav.map((item) => html`
+                ${nav.filter(n => n.key !== 'settings').map((item) => html`
                     <button
                         class=${`cd-nav-btn ${activeTab === item.key ? 'active' : ''}`}
                         onClick=${() => this.setState({ activeTab: item.key })}
@@ -2427,6 +2641,13 @@ export class ClientDevicePage extends window.Component {
                         ${item.count ? html`<span>${item.count}</span>` : ''}
                     </button>
                 `)}
+                <div class="cd-sidebar-spacer"></div>
+                <button
+                    class=${`cd-nav-btn cd-nav-settings ${activeTab === 'settings' ? 'active' : ''}`}
+                    onClick=${() => this.setState({ activeTab: 'settings' })}
+                >
+                    <span><i class="ti ti-settings" style="margin-right:6px;"></i>Settings</span>
+                </button>
             </aside>
         `;
     }
@@ -2513,59 +2734,59 @@ export class ClientDevicePage extends window.Component {
                         <div class="cd-kpi-value">${this.formatCountValue(this.toNumber(severity.withKnownExploit, 0), 'None')}</div>
                     </div>
                     <div
-                        class="cd-kpi-card cd-clickable-card"
-                        title="Earliest observed CVE detection timestamp from telemetry."
+                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
+                        title="Earliest vulnerable-application detection timestamp derived from per-app CVE telemetry."
                         onClick=${() => this.setState({ activeTab: 'cves', cveSort: 'recent', selectedAppFilter: '', cveKnownExploitOnly: false, cveMatchFilter: 'all', cveRemediationFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">CVE First Detected</div>
+                        <div class="cd-kpi-label">Vuln App First Detected</div>
                         <div class="cd-kpi-value" style="font-size:13px;">${this.formatWhen(insights.firstDetectedAt)}</div>
                     </div>
                     <div
-                        class="cd-kpi-card cd-clickable-card"
-                        title="Latest observed CVE detection timestamp from telemetry."
+                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
+                        title="Latest vulnerable-application detection timestamp derived from per-app CVE telemetry."
                         onClick=${() => this.setState({ activeTab: 'cves', cveSort: 'recent', selectedAppFilter: '', cveKnownExploitOnly: false, cveMatchFilter: 'all', cveRemediationFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">CVE Last Detected</div>
+                        <div class="cd-kpi-label">Vuln App Last Detected</div>
                         <div class="cd-kpi-value" style="font-size:13px;">${this.formatWhen(insights.lastDetectedAt)}</div>
                     </div>
 
                     <div
-                        class="cd-kpi-card cd-clickable-card"
-                        title="Applications currently running with resolved executable paths."
+                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
+                        title="Vulnerable applications currently running with resolved executable paths."
                         onClick=${() => this.setState({ activeTab: 'software', softwareRuntimeFilter: 'running', softwareRiskFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">Running from Path</div>
+                        <div class="cd-kpi-label">Vuln Apps Running Path</div>
                         <div class="cd-kpi-value">${insights.apps.runningWithPath}</div>
-                        <div class="cd-kpi-meta">Running executable path available</div>
+                        <div class="cd-kpi-meta">Within ${insights.vulnerableAppsCount} vulnerable apps</div>
                     </div>
                     <div
-                        class="cd-kpi-card cd-clickable-card"
-                        title="Installed applications with install path telemetry."
+                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
+                        title="Vulnerable applications that expose install path telemetry."
                         onClick=${() => this.setState({ activeTab: 'software', softwareRuntimeFilter: 'installPath', softwareRiskFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">Installed from Path</div>
+                        <div class="cd-kpi-label">Vuln Apps Install Path</div>
                         <div class="cd-kpi-value">${insights.apps.withInstallPath}</div>
-                        <div class="cd-kpi-meta">Install path confidence</div>
+                        <div class="cd-kpi-meta">Within ${insights.vulnerableAppsCount} vulnerable apps</div>
                     </div>
 
                     <div
-                        class="cd-kpi-card cd-clickable-card"
-                        title="Exact/absolute software match confidence for vulnerability mapping (score 2)."
+                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
+                        title="Vulnerable applications mapped with exact/absolute confidence."
                         onClick=${() => this.setState({ activeTab: 'cves', cveMatchFilter: 'absolute', cveKnownExploitOnly: false, cveRemediationFilter: 'all', selectedAppFilter: '' })}
                     >
-                        <div class="cd-kpi-label">Absolute Matches (2)</div>
+                        <div class="cd-kpi-label">Vuln Apps Absolute Match</div>
                         <div class="cd-kpi-value">${insights.match.absolute}</div>
-                        <div class="cd-kpi-meta">High confidence mapping</div>
+                        <div class="cd-kpi-meta">Per vulnerable app confidence</div>
                     </div>
 
                     <div
-                        class="cd-kpi-card cd-clickable-card"
-                        title="Heuristic/fuzzy software match confidence (score 1)."
+                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
+                        title="Vulnerable applications mapped with heuristic confidence."
                         onClick=${() => this.setState({ activeTab: 'cves', cveMatchFilter: 'heuristic', cveKnownExploitOnly: false, cveRemediationFilter: 'all', selectedAppFilter: '' })}
                     >
-                        <div class="cd-kpi-label">Heuristic Matches (1)</div>
+                        <div class="cd-kpi-label">Vuln Apps Heuristic Match</div>
                         <div class="cd-kpi-value">${insights.match.heuristic}</div>
-                        <div class="cd-kpi-meta">Low confidence mapping</div>
+                        <div class="cd-kpi-meta">Per vulnerable app confidence</div>
                     </div>
 
                     </div>
@@ -2747,6 +2968,8 @@ export class ClientDevicePage extends window.Component {
         const presence = this.getDevicePresence(profile);
         const statusClass = presence.statusClass;
         const statusText = presence.statusText;
+        const bridgeStatusClass = this.state.enginePipeConnected ? 'cd-status-active' : 'cd-status-offline';
+        const bridgeStatusText = this.state.enginePipeConnected ? 'Engine connected' : 'Engine disconnected';
 
         const scoreModel = this.buildScoreModel(profile);
         const riskScoreRaw = scoreModel.riskScore;
@@ -2764,19 +2987,25 @@ export class ClientDevicePage extends window.Component {
                     <div class="cd-main">
                         <header class="cd-header" style="margin-bottom:8px;">
                             <div>
-                                <h1 class="cd-title">MagenSec Hub</h1>
+                                <div class="cd-brand">
+                                    <span class="cd-brand-badge"><i class="ti ti-shield-check"></i></span>
+                                    <span>MagenSec Hub</span>
+                                </div>
                                 <div class="cd-subtitle">
                                     <span>${deviceName}</span>
                                     <span style="opacity: 0.5; margin: 0 6px;">|</span>
                                     <span class="cd-status-dot ${statusClass}"></span>
                                     ${statusText}
                                     <span style="opacity: 0.5; margin: 0 6px;">|</span>
+                                    <span class="cd-status-dot ${bridgeStatusClass}"></span>
+                                    ${bridgeStatusText}
+                                    <span style="opacity: 0.5; margin: 0 6px;">|</span>
                                     My Risk Score: ${Math.round(riskScoreRaw)}%
                                     <span style="opacity: 0.5; margin: 0 6px;">|</span>
                                     Security Score: ${healthScore}
                                 </div>
                             </div>
-                            <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap; padding-right:10px;">
                                 <button class="btn btn-sm btn-outline-secondary" onClick=${() => this.fetchProfile(true)}>
                                     <i class="ti ti-refresh"></i> Refresh
                                 </button>
@@ -2790,6 +3019,7 @@ export class ClientDevicePage extends window.Component {
                             ${activeTab === 'software' ? this.renderSoftwareTab(profile) : ''}
                             ${activeTab === 'cves' ? this.renderCveTab(profile) : ''}
                             ${activeTab === 'actions' ? this.renderActionsTab() : ''}
+                            ${activeTab === 'settings' ? this.renderSettingsTab() : ''}
                         </div>
                     </div>
                 </div>
@@ -2817,6 +3047,7 @@ export class ClientDevicePage extends window.Component {
                     <div class="cd-kpi-card" title=${latestSeen ? `Current time minus last seen: ${this.getElapsedSince(latestSeen)}` : 'No heartbeat observed yet'}>
                         <div class="cd-kpi-label">Last Successful Heartbeat</div>
                         <div class="cd-kpi-value" style="font-size:16px;">${this.formatWhen(latestSeen)}</div>
+
                         <div class="cd-kpi-meta">${latestSeen ? this.getElapsedSince(latestSeen) : 'No heartbeat telemetry yet'}</div>
                     </div>
                     <div class="cd-kpi-card">
