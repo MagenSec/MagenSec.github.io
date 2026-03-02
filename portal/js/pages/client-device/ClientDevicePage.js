@@ -820,6 +820,7 @@ export class ClientDevicePage extends window.Component {
             notifications: []
         };
         this.charts = {};
+        this.bridgeSocket = null;
         this.handleMessage = this.handleMessage.bind(this);
         this.handleWebViewMessage = this.handleWebViewMessage.bind(this);
         this.submitManualContext = this.submitManualContext.bind(this);
@@ -836,20 +837,22 @@ export class ClientDevicePage extends window.Component {
         const orgIdFromRoute = hashParams.get('orgId') || searchParams.get('orgId');
         const deviceIdFromRoute = hashParams.get('deviceId') || searchParams.get('deviceId');
         const token = hashParams.get('token') || searchParams.get('token');
+        const bridgeWsUrl = hashParams.get('bridgeWs') || searchParams.get('bridgeWs');
         const isUnlicensedRoute =
             hashParams.get('unlicensed') === '1' ||
             searchParams.get('unlicensed') === '1';
         const cachedToken = localStorage.getItem('msec-device-token');
 
+        window.msecClient = {
+            sendCommand: (command, parameter = '') => this.sendClientCommand(command, parameter)
+        };
+
         if (window.chrome?.webview) {
             window.chrome.webview.addEventListener('message', this.handleWebViewMessage);
-            window.msecClient = {
-                sendCommand: (command, parameter = '') => {
-                    window.chrome.webview.postMessage({ type: 'msec-client-command', command, parameter });
-                }
-            };
             this.setState({ hostBridgeAvailable: true });
             window.chrome.webview.postMessage({ type: 'msec-client-ready' });
+        } else if (bridgeWsUrl) {
+            this.connectWebSocketBridge(bridgeWsUrl);
         }
 
         if (orgIdFromRoute && deviceIdFromRoute) {
@@ -885,8 +888,43 @@ export class ClientDevicePage extends window.Component {
         if (window.chrome?.webview) {
             window.chrome.webview.removeEventListener('message', this.handleWebViewMessage);
         }
+        if (this.bridgeSocket) {
+            try { this.bridgeSocket.close(); } catch (_) { }
+            this.bridgeSocket = null;
+        }
         delete window.msecClient;
         this.destroyCharts();
+    }
+
+    connectWebSocketBridge(url) {
+        try {
+            const socket = new WebSocket(url);
+            this.bridgeSocket = socket;
+
+            socket.addEventListener('open', () => {
+                this.setState({ hostBridgeAvailable: true });
+                this.addHostNotification('Bridge connected', 'Engine UI bridge connected.', 'success');
+            });
+
+            socket.addEventListener('message', (event) => {
+                try {
+                    const msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                    this.processHostMessage(msg);
+                } catch (err) {
+                    console.error('Failed to parse bridge message', err);
+                }
+            });
+
+            socket.addEventListener('close', () => {
+                this.setState({ hostBridgeAvailable: false });
+            });
+
+            socket.addEventListener('error', () => {
+                this.setState({ hostBridgeAvailable: false });
+            });
+        } catch (err) {
+            console.error('Failed to connect bridge websocket', err);
+        }
     }
 
     componentDidUpdate(_prevProps, prevState) {
@@ -1676,6 +1714,11 @@ export class ClientDevicePage extends window.Component {
             return;
         }
 
+        if (msg.type === 'msec-bridge-ready') {
+            this.setState({ hostBridgeAvailable: true });
+            return;
+        }
+
         if (msg.type === 'msec-client-command-ack') {
             const title = msg.success ? 'Command sent' : 'Command failed';
             const body = msg.message || (msg.success ? 'Request forwarded.' : 'Request could not be forwarded.');
@@ -1728,18 +1771,27 @@ export class ClientDevicePage extends window.Component {
     }
 
     sendClientCommand(command, parameter = '') {
-        const sendFn = window.msecClient?.sendCommand;
-        if (typeof sendFn !== 'function') {
-            this.addHostNotification('Bridge unavailable', 'Desktop bridge is not connected for command forwarding.', 'warning');
+        if (window.chrome?.webview) {
+            try {
+                window.chrome.webview.postMessage({ type: 'msec-client-command', command, parameter });
+                this.addHostNotification('Command requested', `${command} was sent to MagenSec Client.`, 'info');
+            } catch (err) {
+                this.addHostNotification('Command failed', err?.message || 'Unable to send command to MagenSec Client.', 'danger');
+            }
             return;
         }
 
-        try {
-            sendFn(command, parameter);
-            this.addHostNotification('Command requested', `${command} was sent to MagenSec Client.`, 'info');
-        } catch (err) {
-            this.addHostNotification('Command failed', err?.message || 'Unable to send command to MagenSec Client.', 'danger');
+        if (this.bridgeSocket && this.bridgeSocket.readyState === WebSocket.OPEN) {
+            try {
+                this.bridgeSocket.send(JSON.stringify({ type: 'msec-client-command', command, parameter }));
+                this.addHostNotification('Command requested', `${command} was sent to MagenSec Client.`, 'info');
+            } catch (err) {
+                this.addHostNotification('Command failed', err?.message || 'Unable to send command to MagenSec Client.', 'danger');
+            }
+            return;
         }
+
+        this.addHostNotification('Bridge unavailable', 'Desktop bridge is not connected for command forwarding.', 'warning');
     }
 
     renderClientCommandToolbar() {
@@ -1776,7 +1828,16 @@ export class ClientDevicePage extends window.Component {
 
     handleDirectToken(token, routeOrgId = null, routeDeviceId = null) {
         try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
+            const tokenParts = String(token || '').split('.');
+            if (tokenParts.length < 2) {
+                throw new Error('Invalid JWT format');
+            }
+
+            const normalizedPayload = tokenParts[1]
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+            const paddedPayload = normalizedPayload + '='.repeat((4 - (normalizedPayload.length % 4)) % 4);
+            const payload = JSON.parse(atob(paddedPayload));
             const orgId = payload.orgId;
             const deviceId = payload.deviceId;
 
