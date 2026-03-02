@@ -203,6 +203,44 @@ const CD_STYLES = `
         background: var(--cd-brand-badge-bg);
         border: 1px solid var(--cd-brand-badge-border);
     }
+    .cd-header-metrics {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .cd-metric-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        border: 1px solid var(--apple-border);
+        background: rgba(255, 255, 255, 0.65);
+        color: #0f172a;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1;
+    }
+    .cd-metric-chip strong {
+        font-size: 13px;
+        letter-spacing: -0.01em;
+    }
+    .cd-metric-chip-danger {
+        border-color: rgba(214, 57, 57, 0.35);
+        background: rgba(214, 57, 57, 0.12);
+        color: #7f1d1d;
+    }
+    .cd-metric-chip-warning {
+        border-color: rgba(247, 103, 7, 0.35);
+        background: rgba(247, 103, 7, 0.12);
+        color: #7c2d12;
+    }
+    .cd-metric-chip-success {
+        border-color: rgba(47, 179, 68, 0.35);
+        background: rgba(47, 179, 68, 0.14);
+        color: #14532d;
+    }
     .cd-status-dot {
         width: 8px;
         height: 8px;
@@ -283,7 +321,10 @@ const CD_STYLES = `
     }
     .cd-kpi-card-compact {
         padding: 8px 10px;
-        min-height: 84px;
+        min-height: 68px;
+    }
+    .cd-kpi-card-compact .cd-kpi-value {
+        font-size: 16px;
     }
     .cd-kpi-card.cd-kpi-danger { border-left-color: #d63939; }
     .cd-kpi-card.cd-kpi-warning { border-left-color: #f76707; }
@@ -638,6 +679,34 @@ const CD_STYLES = `
     }
     .cd-chart-host-sm { min-height: 150px; }
 
+    .cd-action-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+    }
+    .cd-action-card {
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 12px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .cd-action-card-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        color: var(--apple-text);
+    }
+    .cd-action-card-desc {
+        font-size: 12px;
+        color: var(--apple-text-secondary);
+        min-height: 34px;
+    }
+
     .cd-ribbon {
         position: absolute;
         top: 8px;
@@ -832,6 +901,23 @@ const CD_STYLES = `
     }
     [data-bs-theme="dark"] .cd-action-item {
         background: rgba(148, 163, 184, 0.12);
+    }
+    [data-bs-theme="dark"] .cd-metric-chip {
+        background: rgba(15, 23, 42, 0.68);
+        color: #e5e7eb;
+        border-color: rgba(148, 163, 184, 0.28);
+    }
+    [data-bs-theme="dark"] .cd-metric-chip-danger {
+        background: rgba(214, 57, 57, 0.18);
+        color: #fecaca;
+    }
+    [data-bs-theme="dark"] .cd-metric-chip-warning {
+        background: rgba(247, 103, 7, 0.18);
+        color: #fed7aa;
+    }
+    [data-bs-theme="dark"] .cd-metric-chip-success {
+        background: rgba(47, 179, 68, 0.2);
+        color: #bbf7d0;
     }
 
     /* Utils */
@@ -2107,6 +2193,8 @@ export class ClientDevicePage extends window.Component {
     renderClientCommandToolbar() {
         const canSend = this.state.hostBridgeAvailable && typeof window.msecClient?.sendCommand === 'function';
         const canStart = this.state.bridgeSocketConnected || !!window.chrome?.webview;
+        const engineConnected = !!this.state.enginePipeConnected;
+        const startDisabled = !canStart || engineConnected;
 
         return html`
             <div class="cd-card" style="padding:10px 12px; margin-bottom:10px;">
@@ -2116,25 +2204,39 @@ export class ClientDevicePage extends window.Component {
                         ${canSend ? 'Engine connected' : 'Engine disconnected'}
                     </span>
                 </div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('CheckForUpdates')}>
-                        <i class="ti ti-refresh"></i> Check Updates
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('SignatureUpdate')}>
-                        <i class="ti ti-shield-check"></i> Update Signatures
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('InstalledAppsScanStart')}>
-                        <i class="ti ti-apps"></i> Scan Apps
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('ProtectionScanStart')}>
-                        <i class="ti ti-shield-search"></i> Protection Scan
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('SystemComponentsScanStart')}>
-                        <i class="ti ti-cpu"></i> System Components
-                    </button>
-                    <button class="btn btn-sm btn-outline-warning" disabled=${!canStart} onClick=${() => this.requestStartServer()}>
-                        <i class="ti ti-player-play"></i> Start Server
-                    </button>
+                <div class="cd-action-card-grid">
+                    <div class="cd-action-card">
+                        <div class="cd-action-card-head"><i class="ti ti-refresh"></i> Check Updates</div>
+                        <div class="cd-action-card-desc">Query update channels and refresh client update availability.</div>
+                        <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('CheckForUpdates')}>Run</button>
+                    </div>
+                    <div class="cd-action-card">
+                        <div class="cd-action-card-head"><i class="ti ti-shield-check"></i> Update Signatures</div>
+                        <div class="cd-action-card-desc">Pull latest signatures used by vulnerability and protection scans.</div>
+                        <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('SignatureUpdate')}>Run</button>
+                    </div>
+                    <div class="cd-action-card">
+                        <div class="cd-action-card-head"><i class="ti ti-apps"></i> Scan Apps</div>
+                        <div class="cd-action-card-desc">Start installed application inventory and vulnerability correlation scan.</div>
+                        <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('InstalledAppsScanStart')}>Run</button>
+                    </div>
+                    <div class="cd-action-card">
+                        <div class="cd-action-card-head"><i class="ti ti-shield-search"></i> Protection Scan</div>
+                        <div class="cd-action-card-desc">Evaluate endpoint protection posture and active hardening controls.</div>
+                        <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('ProtectionScanStart')}>Run</button>
+                    </div>
+                    <div class="cd-action-card">
+                        <div class="cd-action-card-head"><i class="ti ti-cpu"></i> System Components</div>
+                        <div class="cd-action-card-desc">Collect system component inventory for deeper platform risk analysis.</div>
+                        <button class="btn btn-sm btn-outline-secondary" disabled=${!canSend} onClick=${() => this.sendClientCommand('SystemComponentsScanStart')}>Run</button>
+                    </div>
+                    <div class="cd-action-card">
+                        <div class="cd-action-card-head"><i class="ti ti-player-play"></i> Start Server</div>
+                        <div class="cd-action-card-desc">Start local engine bridge when desktop engine pipe is disconnected.</div>
+                        <button class="btn btn-sm btn-outline-warning" disabled=${startDisabled} onClick=${() => this.requestStartServer()}>
+                            ${engineConnected ? 'Already Connected' : 'Start'}
+                        </button>
+                    </div>
                 </div>
                 ${this.state.bridgeRetryActive ? html`<div class="cd-kpi-meta" style="margin-top:8px;">Auto reconnect running (${this.state.bridgeRetrySecondsLeft}s left).</div>` : ''}
             </div>
@@ -2173,7 +2275,6 @@ export class ClientDevicePage extends window.Component {
                         <li class="cd-list-item"><span class="cd-list-label">License Org</span><span class="cd-list-value">${info.licenseOrgId || '-'}</span></li>
                         <li class="cd-list-item"><span class="cd-list-label">License Type</span><span class="cd-list-value">${info.licenseType || '-'}</span></li>
                         <li class="cd-list-item"><span class="cd-list-label">License Email</span><span class="cd-list-value">${info.licenseEmail || '-'}</span></li>
-                        <li class="cd-list-item"><span class="cd-list-label">License Key</span><span class="cd-list-value">${info.licenseKeyMasked || '-'}</span></li>
                         <li class="cd-list-item"><span class="cd-list-label">Bridge Socket</span><span class="cd-list-value">${this.state.bridgeSocketConnected ? 'Connected' : 'Disconnected'}</span></li>
                         <li class="cd-list-item"><span class="cd-list-label">Engine Pipe</span><span class="cd-list-value">${this.state.enginePipeConnected ? 'Connected' : 'Disconnected'}</span></li>
                     </ul>
@@ -2669,6 +2770,27 @@ export class ClientDevicePage extends window.Component {
         return 'unknown';
     }
 
+    getCveMatchLabel(cve) {
+        const matchType = this.getCveMatchType(cve);
+        if (matchType === 'absolute') return 'Database Match';
+        if (matchType === 'heuristic') return 'AI Find';
+        return 'Unverified';
+    }
+
+    getCveMatchIcon(cve) {
+        const matchType = this.getCveMatchType(cve);
+        if (matchType === 'absolute') return 'ti ti-database';
+        if (matchType === 'heuristic') return 'ti ti-robot';
+        return 'ti ti-help-circle';
+    }
+
+    getCveMatchTooltip(cve) {
+        const matchType = this.getCveMatchType(cve);
+        if (matchType === 'absolute') return 'Database match from known vulnerability mapping.';
+        if (matchType === 'heuristic') return 'AI find based on heuristic matching. This result should be reviewed.';
+        return 'No confidence signal available yet for this mapping.';
+    }
+
     getCveRemediationBucket(cve) {
         const text = String(cve?.remediationType || '').toLowerCase();
         if (!text) return 'unknown';
@@ -2683,21 +2805,38 @@ export class ClientDevicePage extends window.Component {
         const cves = profile?.cves?.items || [];
         const apps = profile?.apps?.items || [];
 
-        const vulnerableAppKeys = new Set(
-            cves
-                .map((cve) => `${String(cve?.appName || '').trim().toLowerCase()}|${String(cve?.appVersion || '').trim().toLowerCase()}`)
-                .filter((key) => key !== '|' && key !== '|')
-        );
+        const vulnerableAppKeys = new Set();
+        const vulnerableAppNames = new Set();
+        const cveFirstValues = [];
+        const cveLastValues = [];
+
+        for (const cve of cves) {
+            const appName = String(cve?.appName || '').trim().toLowerCase();
+            const appVersion = String(cve?.applicationVersion || cve?.appVersion || '').trim().toLowerCase();
+
+            if (appName) {
+                vulnerableAppNames.add(appName);
+                if (appVersion) vulnerableAppKeys.add(`${appName}|${appVersion}`);
+            }
+
+            const cveFirstDetected = new Date(cve?.firstDetected || cve?.lastDetected || 0).getTime();
+            const cveLastDetected = new Date(cve?.lastDetected || cve?.firstDetected || 0).getTime();
+            if (Number.isFinite(cveFirstDetected) && cveFirstDetected > 0) cveFirstValues.push(cveFirstDetected);
+            if (Number.isFinite(cveLastDetected) && cveLastDetected > 0) cveLastValues.push(cveLastDetected);
+        }
 
         const vulnerableApps = apps.filter((app) => {
             const appKey = `${String(app?.name || '').trim().toLowerCase()}|${String(app?.version || '').trim().toLowerCase()}`;
-            return vulnerableAppKeys.has(appKey);
+            const appName = String(app?.name || '').trim().toLowerCase();
+            return vulnerableAppKeys.has(appKey) || vulnerableAppNames.has(appName);
         });
 
         const appDetectionMap = new Map();
         for (const cve of cves) {
-            const appKey = `${String(cve?.appName || '').trim().toLowerCase()}|${String(cve?.appVersion || '').trim().toLowerCase()}`;
-            if (!appKey || appKey === '|') continue;
+            const appName = String(cve?.appName || '').trim().toLowerCase();
+            const appVersion = String(cve?.applicationVersion || cve?.appVersion || '').trim().toLowerCase();
+            const appKey = appVersion ? `${appName}|${appVersion}` : appName;
+            if (!appKey) continue;
 
             const firstDetected = new Date(cve?.firstDetected || cve?.lastDetected || 0).getTime();
             const lastDetected = new Date(cve?.lastDetected || cve?.firstDetected || 0).getTime();
@@ -2730,7 +2869,10 @@ export class ClientDevicePage extends window.Component {
 
         for (const cve of cves) {
             const matchType = this.getCveMatchType(cve);
-            const appKey = `${String(cve?.appName || '').trim().toLowerCase()}|${String(cve?.appVersion || '').trim().toLowerCase()}`;
+            const appName = String(cve?.appName || '').trim().toLowerCase();
+            const appVersion = String(cve?.applicationVersion || cve?.appVersion || '').trim().toLowerCase();
+            const appKey = appVersion ? `${appName}|${appVersion}` : appName;
+            if (!appKey) continue;
             const prev = appMatchMap.get(appKey) || 'unknown';
             const score = (t) => t === 'absolute' ? 3 : t === 'heuristic' ? 2 : 1;
             if (score(matchType) > score(prev)) {
@@ -2755,10 +2897,14 @@ export class ClientDevicePage extends window.Component {
 
         const withInstallPath = vulnerableApps.filter((app) => !!app.installPath).length;
         const runningWithPath = vulnerableApps.filter((app) => app.isRunning && !!app.runningPath).length;
+        const cveFirstDetectedAt = cveFirstValues.length ? new Date(Math.min(...cveFirstValues)).toISOString() : null;
+        const cveLastDetectedAt = cveLastValues.length ? new Date(Math.max(...cveLastValues)).toISOString() : null;
 
         return {
             firstDetectedAt,
             lastDetectedAt,
+            cveFirstDetectedAt,
+            cveLastDetectedAt,
             match,
             remediation,
             epssHigh,
@@ -2914,19 +3060,19 @@ export class ClientDevicePage extends window.Component {
                     </div>
                     <div
                         class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
-                        title="Earliest vulnerable-application detection timestamp derived from per-app CVE telemetry."
+                        title="Earliest CVE detection timestamp across CVE telemetry records."
                         onClick=${() => this.setState({ activeTab: 'cves', cveSort: 'recent', selectedAppFilter: '', cveKnownExploitOnly: false, cveMatchFilter: 'all', cveRemediationFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">Vuln App First Detected</div>
-                        <div class="cd-kpi-value" style="font-size:13px;">${this.formatWhen(insights.firstDetectedAt)}</div>
+                        <div class="cd-kpi-label">CVE First Detected</div>
+                        <div class="cd-kpi-value" style="font-size:13px;">${this.formatWhen(insights.cveFirstDetectedAt)}</div>
                     </div>
                     <div
                         class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
-                        title="Latest vulnerable-application detection timestamp derived from per-app CVE telemetry."
+                        title="Latest CVE detection timestamp across CVE telemetry records."
                         onClick=${() => this.setState({ activeTab: 'cves', cveSort: 'recent', selectedAppFilter: '', cveKnownExploitOnly: false, cveMatchFilter: 'all', cveRemediationFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">Vuln App Last Detected</div>
-                        <div class="cd-kpi-value" style="font-size:13px;">${this.formatWhen(insights.lastDetectedAt)}</div>
+                        <div class="cd-kpi-label">CVE Last Detected</div>
+                        <div class="cd-kpi-value" style="font-size:13px;">${this.formatWhen(insights.cveLastDetectedAt)}</div>
                     </div>
 
                     <div
@@ -2934,7 +3080,7 @@ export class ClientDevicePage extends window.Component {
                         title="Vulnerable applications currently running with resolved executable paths."
                         onClick=${() => this.setState({ activeTab: 'software', softwareRuntimeFilter: 'running', softwareRiskFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">Vuln Apps Running Path</div>
+                        <div class="cd-kpi-label">Apps Running from Path</div>
                         <div class="cd-kpi-value">${insights.apps.runningWithPath}</div>
                         <div class="cd-kpi-meta">Within ${insights.vulnerableAppsCount} vulnerable apps</div>
                     </div>
@@ -2943,7 +3089,7 @@ export class ClientDevicePage extends window.Component {
                         title="Vulnerable applications that expose install path telemetry."
                         onClick=${() => this.setState({ activeTab: 'software', softwareRuntimeFilter: 'installPath', softwareRiskFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">Vuln Apps Install Path</div>
+                        <div class="cd-kpi-label">Apps Installed from Path</div>
                         <div class="cd-kpi-value">${insights.apps.withInstallPath}</div>
                         <div class="cd-kpi-meta">Within ${insights.vulnerableAppsCount} vulnerable apps</div>
                     </div>
@@ -2953,7 +3099,7 @@ export class ClientDevicePage extends window.Component {
                         title="Vulnerable applications mapped with exact/absolute confidence."
                         onClick=${() => this.setState({ activeTab: 'cves', cveMatchFilter: 'absolute', cveKnownExploitOnly: false, cveRemediationFilter: 'all', selectedAppFilter: '' })}
                     >
-                        <div class="cd-kpi-label">Vuln Apps Absolute Match</div>
+                        <div class="cd-kpi-label">Vuln Apps Confidence: Database</div>
                         <div class="cd-kpi-value">${insights.match.absolute}</div>
                         <div class="cd-kpi-meta">Per vulnerable app confidence</div>
                     </div>
@@ -2963,7 +3109,7 @@ export class ClientDevicePage extends window.Component {
                         title="Vulnerable applications mapped with heuristic confidence."
                         onClick=${() => this.setState({ activeTab: 'cves', cveMatchFilter: 'heuristic', cveKnownExploitOnly: false, cveRemediationFilter: 'all', selectedAppFilter: '' })}
                     >
-                        <div class="cd-kpi-label">Vuln Apps Heuristic Match</div>
+                        <div class="cd-kpi-label">Vuln Apps Confidence: Heuristic</div>
                         <div class="cd-kpi-value">${insights.match.heuristic}</div>
                         <div class="cd-kpi-meta">Per vulnerable app confidence</div>
                     </div>
@@ -3158,6 +3304,8 @@ export class ClientDevicePage extends window.Component {
         const scoreModel = this.buildScoreModel(profile);
         const riskScoreRaw = scoreModel.riskScore;
         const healthScore = scoreModel.securityScore;
+        const riskTone = riskScoreRaw >= 70 ? 'danger' : riskScoreRaw >= 40 ? 'warning' : 'success';
+        const securityTone = healthScore >= 85 ? 'success' : healthScore >= 60 ? 'warning' : 'danger';
 
         const radius = 60;
         const circumference = 2 * Math.PI * radius;
@@ -3183,13 +3331,21 @@ export class ClientDevicePage extends window.Component {
                                     <span style="opacity: 0.5; margin: 0 6px;">|</span>
                                     <span class="cd-status-dot ${bridgeStatusClass}"></span>
                                     ${bridgeStatusText}
-                                    <span style="opacity: 0.5; margin: 0 6px;">|</span>
-                                    My Risk Score: ${Math.round(riskScoreRaw)}%
-                                    <span style="opacity: 0.5; margin: 0 6px;">|</span>
-                                    Security Score: ${healthScore}
                                 </div>
                             </div>
                             <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap; padding-right:10px;">
+                                <div class="cd-header-metrics">
+                                    <span class=${`cd-metric-chip cd-metric-chip-${riskTone}`} title="Unified risk posture score">
+                                        <i class="ti ti-alert-triangle"></i>
+                                        Risk
+                                        <strong>${Math.round(riskScoreRaw)}%</strong>
+                                    </span>
+                                    <span class=${`cd-metric-chip cd-metric-chip-${securityTone}`} title="Overall security health score">
+                                        <i class="ti ti-shield-check"></i>
+                                        Security
+                                        <strong>${healthScore}</strong>
+                                    </span>
+                                </div>
                                 <button class="btn btn-sm btn-outline-secondary" onClick=${() => this.fetchProfile(true)}>
                                     <i class="ti ti-refresh"></i> Refresh
                                 </button>
@@ -3522,10 +3678,12 @@ export class ClientDevicePage extends window.Component {
                                 ${app.status === 'updated' ? html`<span class="cd-tag cd-tag-medium" style="margin-left: 8px;">Updated</span>` : ''}
                                 ${app.isRunning ? html`<span class="cd-tag cd-tag-low" style="margin-left: 8px;">Running</span>` : ''}
                             </div>
-                            <div class="cd-row-subtitle">
-                                ${app.description || ''}
-                                ${app.installPath ? ` · Install: ${app.installPath}` : ''}
-                                ${app.runningPath ? ` · Running: ${app.runningPath}` : ''}
+                            <div class="cd-row-subtitle">${app.description || ''}</div>
+                            <div class="cd-row-subtitle" style="margin-top:4px;">
+                                ${app.installPath ? `Installed from path: ${app.installPath}` : 'Installed from path: N/A'}
+                                ${app.runningPath ? ` · Running from path: ${app.runningPath}` : ''}
+                                ${app.firstSeen ? ` · App first seen: ${this.formatWhen(app.firstSeen)}` : ''}
+                                ${app.lastSeen ? ` · App last seen: ${this.formatWhen(app.lastSeen)}` : ''}
                             </div>
                         </div>
                         <div style="font-size: 13px; color: var(--apple-text-secondary);">${app.vendor || 'Unknown Publisher'}</div>
@@ -3576,10 +3734,10 @@ export class ClientDevicePage extends window.Component {
                         <option value="recent">Sort: Recently Seen</option>
                     </select>
                     <select class="cd-select" value=${this.state.cveMatchFilter} onChange=${(e) => this.setState({ cveMatchFilter: e.target.value })}>
-                        <option value="all">Match: All</option>
-                        <option value="absolute">Match: Absolute (2)</option>
-                        <option value="heuristic">Match: Heuristic (1)</option>
-                        <option value="unknown">Match: Unknown</option>
+                        <option value="all">Confidence: All</option>
+                        <option value="absolute">Confidence: Database Match</option>
+                        <option value="heuristic">Confidence: AI Find</option>
+                        <option value="unknown">Confidence: Unverified</option>
                     </select>
                     <select class="cd-select" value=${this.state.cveRemediationFilter} onChange=${(e) => this.setState({ cveRemediationFilter: e.target.value })}>
                         <option value="all">Remediation: All</option>
@@ -3614,15 +3772,21 @@ export class ClientDevicePage extends window.Component {
                             <div style="margin-top:4px;">
                                 <span class="cd-tag ${this.getSeverityBadgeClass(cve.severity)}">${cve.severity}</span>
                                 ${cve.hasKnownExploit ? html`<span class="cd-tag cd-tag-kev" style="margin-left:4px;">KEV</span>` : ''}
-                                <span class="cd-tag cd-tag-medium" style="margin-left:4px;">${this.getCveMatchType(cve) === 'absolute' ? 'Match 2' : this.getCveMatchType(cve) === 'heuristic' ? 'Match 1' : 'Match ?'}</span>
+                                <span class="cd-tag cd-tag-medium" style="margin-left:4px;" title=${this.getCveMatchTooltip(cve)}>
+                                    <i class=${this.getCveMatchIcon(cve)} style="margin-right:4px;"></i>
+                                    ${this.getCveMatchLabel(cve)}
+                                </span>
                             </div>
                         </div>
                         <div>
-                            <div style="font-size: 13px; font-weight: 500; color: var(--apple-text);">${cve.appName || cve.productName || 'Unknown Product'}</div>
+                            <div style="font-size: 13px; font-weight: 500; color: var(--apple-text);">
+                                ${cve.appName || cve.productName || 'Unknown Product'}
+                                ${cve.applicationVersion ? ` ${cve.applicationVersion}` : ''}
+                            </div>
                             <div class="cd-row-subtitle" style="font-size: 12px; margin-top:4px; max-width: 90%; text-overflow: ellipsis; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
                                 ${cve.description || 'No description available.'}
-                                ${cve.firstDetected ? ` · First: ${this.formatWhen(cve.firstDetected)}` : ''}
-                                ${cve.lastDetected ? ` · Last: ${this.formatWhen(cve.lastDetected)}` : ''}
+                                ${cve.firstDetected ? ` · CVE first detected: ${this.formatWhen(cve.firstDetected)}` : ''}
+                                ${cve.lastDetected ? ` · CVE last detected: ${this.formatWhen(cve.lastDetected)}` : ''}
                                 ${cve.epssProbability ? ` · EPSS: ${(this.toNumber(cve.epssProbability, 0) * 100).toFixed(1)}%` : ''}
                                 ${cve.remediationType ? ` · Remediation: ${cve.remediationType}` : ''}
                             </div>
