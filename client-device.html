@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>MagenSec · My Device</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-GgnF119bh9fxkKuWHRQYSgEe1rSp5jB0EJ2W8eMf8mjowfwhZP2H1u8n8xJUW3FQ">
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link href="./portal/portal.css" rel="stylesheet">
   
   <style>
     :root {
@@ -33,6 +37,7 @@
       background: var(--apple-bg);
       color: var(--apple-text);
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-user-select: none;
       user-select: none; /* Desktop app feel */
       -webkit-app-region: drag; /* Draggable window from empty space */
       -webkit-font-smoothing: antialiased;
@@ -46,6 +51,7 @@
       -webkit-app-region: no-drag;
     }
     .selectable {
+      -webkit-user-select: text;
       user-select: text;
     }
     
@@ -70,8 +76,7 @@
   <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/hooks/dist/hooks.umd.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js" crossorigin="anonymous"></script>
   
-  <!-- Icons -->
-  <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0" crossorigin="anonymous" integrity="sha384-AMGf6SjYWuydruLCEKIx7wNrplae/LWMqStBYe5zhISiQeyuogc8OLM2QzJIreuY"></script>
 </head>
 <body>
 

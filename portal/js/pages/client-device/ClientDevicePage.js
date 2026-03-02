@@ -1719,6 +1719,21 @@ export class ClientDevicePage extends window.Component {
             return;
         }
 
+        if (msg.type === 'msec-bridge-status') {
+            const connected = !!msg.connected;
+            const wasConnected = !!this.state.hostBridgeAvailable;
+            this.setState({ hostBridgeAvailable: connected });
+
+            if (wasConnected !== connected) {
+                this.addHostNotification(
+                    connected ? 'Bridge connected' : 'Bridge disconnected',
+                    msg.message || (connected ? 'Desktop bridge is connected.' : 'Desktop bridge lost connection to Engine.'),
+                    connected ? 'success' : 'warning');
+            }
+
+            return;
+        }
+
         if (msg.type === 'msec-client-command-ack') {
             const title = msg.success ? 'Command sent' : 'Command failed';
             const body = msg.message || (msg.success ? 'Request forwarded.' : 'Request could not be forwarded.');
@@ -1822,6 +1837,14 @@ export class ClientDevicePage extends window.Component {
                         <i class="ti ti-cpu"></i> System Components
                     </button>
                 </div>
+            </div>
+        `;
+    }
+
+    renderActionsTab() {
+        return html`
+            <div style="animation: cd-fade-in 0.25s ease-out;">
+                ${this.renderClientCommandToolbar()}
             </div>
         `;
     }
@@ -2389,7 +2412,8 @@ export class ClientDevicePage extends window.Component {
             { key: 'overview', label: 'Overview' },
             { key: 'specs', label: 'Specifications' },
             { key: 'software', label: 'Software', count: profile?.apps?.summary?.installed || 0 },
-            { key: 'cves', label: 'Vulnerabilities', count: profile?.cves?.summary?.critical || 0 }
+            { key: 'cves', label: 'Vulnerabilities', count: profile?.cves?.summary?.critical || 0 },
+            { key: 'actions', label: 'Client Actions' }
         ];
 
         return html`
@@ -2759,14 +2783,13 @@ export class ClientDevicePage extends window.Component {
                             </div>
                         </header>
 
-                        ${this.renderClientCommandToolbar()}
-
                         <div class="cd-body cd-compact-scroll">
                             ${activeTab === 'landing' ? this.renderLandingTab(profile, scoreModel) : ''}
                             ${activeTab === 'overview' ? this.renderOverviewTab(profile, healthScore, ringColor, circumference, strokeDashoffset) : ''}
                             ${activeTab === 'specs' ? this.renderSpecsTab(profile) : ''}
                             ${activeTab === 'software' ? this.renderSoftwareTab(profile) : ''}
                             ${activeTab === 'cves' ? this.renderCveTab(profile) : ''}
+                            ${activeTab === 'actions' ? this.renderActionsTab() : ''}
                         </div>
                     </div>
                 </div>
