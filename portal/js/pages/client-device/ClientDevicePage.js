@@ -677,6 +677,12 @@ const CD_STYLES = `
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
     }
+    .cd-highlights-focus-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 10px;
+    }
     .cd-clickable-card {
         cursor: pointer;
     }
@@ -759,6 +765,9 @@ const CD_STYLES = `
         .cd-highlights-chart-grid {
             grid-template-columns: 1fr;
         }
+        .cd-highlights-focus-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
     @media (max-width: 992px) {
@@ -797,6 +806,7 @@ const CD_STYLES = `
         .cd-highlights-grid,
         .cd-highlights-kpi-grid,
         .cd-highlights-chart-grid,
+        .cd-highlights-focus-grid,
         .cd-chart-grid,
         .cd-spec-grid {
             grid-template-columns: 1fr;
@@ -1908,21 +1918,28 @@ export class ClientDevicePage extends window.Component {
             return;
         }
 
+        const authCtx = this.state.authCtx;
+        if (!authCtx?.orgId || !authCtx?.token) {
+            this.setState({ cveIntelLoading: false, cveIntelError: 'Authentication context is missing for threat intelligence lookup.' });
+            return;
+        }
+
         try {
-            const [circlResult, kevResult] = await Promise.allSettled([
-                this.fetchJsonWithTimeout(`https://cve.circl.lu/api/cve/${encodeURIComponent(cveId)}`, 8000),
-                this.fetchJsonWithTimeout('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json', 8000)
-            ]);
+            const intelUrl = `${getApiUrl()}/api/v1/orgs/${encodeURIComponent(authCtx.orgId)}/insights/cve-intel?cveId=${encodeURIComponent(cveId)}`;
+            const proxyPayload = await this.fetchJsonWithTimeout(intelUrl, 10000, {
+                headers: {
+                    'Authorization': `Bearer ${authCtx.token}`,
+                    'Accept': 'application/json'
+                }
+            });
 
-            const circl = circlResult.status === 'fulfilled' ? circlResult.value : null;
-
-            let kev = null;
-            if (kevResult.status === 'fulfilled') {
-                const kevPayload = kevResult.value;
-                kev = (kevPayload?.vulnerabilities || []).find(v => String(v.cveID || '').toUpperCase() === String(cveId).toUpperCase()) || null;
+            if (!proxyPayload?.success) {
+                throw new Error(proxyPayload?.message || proxyPayload?.error || 'Threat intel proxy request failed.');
             }
 
-            const nothingFound = !circl && !kev;
+            const circl = proxyPayload?.data?.circl || null;
+            const kev = proxyPayload?.data?.kev || null;
+            const nothingFound = !!proxyPayload?.data?.nothingFound;
             this.setState({
                 cveIntelLoading: false,
                 cveIntel: { circl, kev, nothingFound },
@@ -1954,11 +1971,14 @@ export class ClientDevicePage extends window.Component {
         return 'No description available from current telemetry or public intelligence sources.';
     }
 
-    async fetchJsonWithTimeout(url, timeoutMs = 8000) {
+    async fetchJsonWithTimeout(url, timeoutMs = 8000, options = {}) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         try {
-            const res = await fetch(url, { signal: controller.signal });
+            const res = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
             if (!res.ok) throw new Error(`Request failed: ${res.status}`);
             return await res.json();
         } finally {
@@ -2234,7 +2254,7 @@ export class ClientDevicePage extends window.Component {
 
     renderClientCommandToolbar() {
         const canSend = this.state.hostBridgeAvailable && typeof window.msecClient?.sendCommand === 'function';
-        const canStart = this.state.bridgeSocketConnected || !!window.chrome?.webview;
+        const canStart = true;
         const engineConnected = !!this.state.enginePipeConnected;
         const startDisabled = !canStart || engineConnected;
 
@@ -3082,43 +3102,43 @@ export class ClientDevicePage extends window.Component {
                     </div>
                 </div>
 
-                <div class="cd-highlight-layout">
-                    <div class="cd-highlights-kpi-grid">
+                <div class="cd-highlights-focus-grid">
                     <div
-                        class="cd-kpi-card cd-clickable-card"
+                        class="cd-chart-card cd-clickable-card"
                         title="Apps with active risk indicators including CVEs or outdated versions."
                         onClick=${() => this.setState({ activeTab: 'software', softwareRiskFilter: 'high', softwareRuntimeFilter: 'all' })}
                     >
-                        <div class="cd-kpi-label">Risky Applications</div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
+                            <div class="cd-chart-title" style="margin:0;">Risky Application</div>
+                            <span class="badge bg-warning text-white">Apps at risk</span>
+                        </div>
                         <div class="cd-kpi-value">${riskyApps}</div>
                     </div>
                     <div
-                        class="cd-kpi-card cd-clickable-card"
+                        class="cd-chart-card cd-clickable-card"
                         title="Known exploited vulnerabilities currently matched on this endpoint."
                         onClick=${() => this.setState({ activeTab: 'cves', cveKnownExploitOnly: true, cveSeverityFilter: 'ALL', cveMatchFilter: 'all', cveRemediationFilter: 'all', selectedAppFilter: '' })}
                     >
-                        <div class="cd-kpi-label">Known Exploits</div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
+                            <div class="cd-chart-title" style="margin:0;">Known Exploits</div>
+                            <span class="badge bg-danger text-white">KEV</span>
+                        </div>
                         <div class="cd-kpi-value">${this.formatCountValue(this.toNumber(severity.withKnownExploit, 0), 'None')}</div>
                     </div>
-
+                    <div class="cd-chart-card">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
+                            <div class="cd-chart-title" style="margin:0;">14-Day Detection Cadence</div>
+                            <span class="badge bg-primary text-white">first/last telemetry</span>
+                        </div>
+                        <div class="cd-chart-host-sm" ref=${(el) => { this.chartHighlightsDetectionEl = el; }}></div>
                     </div>
-
-                    <div class="cd-highlights-chart-grid">
-                        <div class="cd-chart-card">
-                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
-                                <div class="cd-chart-title" style="margin:0;">14-Day Detection Cadence</div>
-                                <span class="badge bg-primary text-white">first/last telemetry</span>
-                            </div>
-                            <div class="cd-chart-host-sm" ref=${(el) => { this.chartHighlightsDetectionEl = el; }}></div>
+                    <div class="cd-chart-card">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
+                            <div class="cd-chart-title" style="margin:0;">Remediation Type Mix</div>
+                            <span class="badge bg-success text-white">EPSS avg ${insights.epssAvg}%</span>
                         </div>
-                        <div class="cd-chart-card">
-                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
-                                <div class="cd-chart-title" style="margin:0;">Remediation Type Mix</div>
-                                <span class="badge bg-success text-white">EPSS avg ${insights.epssAvg}%</span>
-                            </div>
-                            <div class="cd-kpi-meta" style="margin-bottom:6px;">EPSS high risk (≥0.70): ${insights.epssHigh}</div>
-                            <div class="cd-chart-host-sm" ref=${(el) => { this.chartHighlightsRemediationEl = el; }}></div>
-                        </div>
+                        <div class="cd-kpi-meta" style="margin-bottom:6px;">EPSS high risk (≥0.70): ${insights.epssHigh}</div>
+                        <div class="cd-chart-host-sm" ref=${(el) => { this.chartHighlightsRemediationEl = el; }}></div>
                     </div>
                 </div>
 
@@ -3242,16 +3262,16 @@ export class ClientDevicePage extends window.Component {
                             <div class="cd-kpi-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:10px;">
                                 <div>
                                     <label class="cd-kpi-label" style="display:block; margin-bottom:4px;">Organization ID</label>
-                                    <input class="cd-input" style="width:100%; min-width:0;" value=${this.state.manualOrgId || ''} onInput=${(ev) => this.setState({ manualOrgId: ev.target.value })} placeholder="ORGB-..." />
+                                    <input id="manual-org-id" name="manualOrgId" class="cd-input" style="width:100%; min-width:0;" value=${this.state.manualOrgId || ''} onInput=${(ev) => this.setState({ manualOrgId: ev.target.value })} placeholder="ORGB-..." />
                                 </div>
                                 <div>
                                     <label class="cd-kpi-label" style="display:block; margin-bottom:4px;">Device ID</label>
-                                    <input class="cd-input" style="width:100%; min-width:0;" value=${this.state.manualDeviceId || ''} onInput=${(ev) => this.setState({ manualDeviceId: ev.target.value })} placeholder="device-guid" />
+                                    <input id="manual-device-id" name="manualDeviceId" class="cd-input" style="width:100%; min-width:0;" value=${this.state.manualDeviceId || ''} onInput=${(ev) => this.setState({ manualDeviceId: ev.target.value })} placeholder="device-guid" />
                                 </div>
                             </div>
                             <div style="margin-bottom:10px;">
                                 <label class="cd-kpi-label" style="display:block; margin-bottom:4px;">Token (optional if signed in)</label>
-                                <input class="cd-input" style="width:100%; min-width:0;" value=${this.state.manualToken || ''} onInput=${(ev) => this.setState({ manualToken: ev.target.value })} placeholder="Bearer token" />
+                                <input id="manual-token" name="manualToken" class="cd-input" style="width:100%; min-width:0;" value=${this.state.manualToken || ''} onInput=${(ev) => this.setState({ manualToken: ev.target.value })} placeholder="Bearer token" />
                             </div>
                             ${error ? html`<div style="color:#d63939; font-size:12px; margin-bottom:8px;">${error}</div>` : ''}
                             <div style="display:flex; justify-content:flex-end;">
@@ -3618,12 +3638,14 @@ export class ClientDevicePage extends window.Component {
             <div style="animation: cd-fade-in 0.3s ease-out;">
                 <div class="cd-toolbar">
                     <input
+                        id="software-search"
+                        name="softwareSearch"
                         class="cd-input"
                         placeholder="Search software, vendor, version"
                         value=${this.state.softwareSearch}
                         onInput=${(e) => this.setState({ softwareSearch: e.target.value })}
                     />
-                    <select class="cd-select" value=${this.state.softwareSort} onChange=${(e) => this.setState({ softwareSort: e.target.value })}>
+                    <select id="software-sort" name="softwareSort" class="cd-select" value=${this.state.softwareSort} onChange=${(e) => this.setState({ softwareSort: e.target.value })}>
                         <option value="risk">Sort: Risk</option>
                         <option value="name">Sort: Name</option>
                         <option value="vendor">Sort: Vendor</option>
@@ -3635,7 +3657,7 @@ export class ClientDevicePage extends window.Component {
                         <button class=${`cd-chip ${this.state.softwareRiskFilter === 'medium' ? 'active' : ''}`} onClick=${() => this.setState({ softwareRiskFilter: 'medium' })}>Medium</button>
                         <button class=${`cd-chip ${this.state.softwareRiskFilter === 'low' ? 'active' : ''}`} onClick=${() => this.setState({ softwareRiskFilter: 'low' })}>Clean</button>
                     </div>
-                    <select class="cd-select" value=${this.state.softwareRuntimeFilter} onChange=${(e) => this.setState({ softwareRuntimeFilter: e.target.value })}>
+                    <select id="software-runtime-filter" name="softwareRuntimeFilter" class="cd-select" value=${this.state.softwareRuntimeFilter} onChange=${(e) => this.setState({ softwareRuntimeFilter: e.target.value })}>
                         <option value="all">Runtime: All</option>
                         <option value="running">Runtime: Running with path</option>
                         <option value="installPath">Runtime: Installed with path</option>
@@ -3702,31 +3724,33 @@ export class ClientDevicePage extends window.Component {
             <div style="animation: cd-fade-in 0.3s ease-out;">
                 <div class="cd-toolbar">
                     <input
+                        id="cve-search"
+                        name="cveSearch"
                         class="cd-input"
                         placeholder="Search CVE, app, description"
                         value=${this.state.cveSearch}
                         onInput=${(e) => this.setState({ cveSearch: e.target.value })}
                     />
-                    <select class="cd-select" value=${this.state.cveSeverityFilter} onChange=${(e) => this.setState({ cveSeverityFilter: e.target.value })}>
+                    <select id="cve-severity-filter" name="cveSeverityFilter" class="cd-select" value=${this.state.cveSeverityFilter} onChange=${(e) => this.setState({ cveSeverityFilter: e.target.value })}>
                         <option value="ALL">Severity: All</option>
                         <option value="CRITICAL">Critical</option>
                         <option value="HIGH">High</option>
                         <option value="MEDIUM">Medium</option>
                         <option value="LOW">Low</option>
                     </select>
-                    <select class="cd-select" value=${this.state.cveSort} onChange=${(e) => this.setState({ cveSort: e.target.value })}>
+                    <select id="cve-sort" name="cveSort" class="cd-select" value=${this.state.cveSort} onChange=${(e) => this.setState({ cveSort: e.target.value })}>
                         <option value="risk">Sort: CVSS Risk</option>
                         <option value="exploitability">Sort: Exploitability</option>
                         <option value="severity">Sort: Severity</option>
                         <option value="recent">Sort: Recently Seen</option>
                     </select>
-                    <select class="cd-select" value=${this.state.cveMatchFilter} onChange=${(e) => this.setState({ cveMatchFilter: e.target.value })}>
+                    <select id="cve-confidence-filter" name="cveMatchFilter" class="cd-select" value=${this.state.cveMatchFilter} onChange=${(e) => this.setState({ cveMatchFilter: e.target.value })}>
                         <option value="all">Confidence: All</option>
                         <option value="absolute">Confidence: Database Match</option>
                         <option value="heuristic">Confidence: AI Find</option>
                         <option value="unknown">Confidence: Unverified</option>
                     </select>
-                    <select class="cd-select" value=${this.state.cveRemediationFilter} onChange=${(e) => this.setState({ cveRemediationFilter: e.target.value })}>
+                    <select id="cve-remediation-filter" name="cveRemediationFilter" class="cd-select" value=${this.state.cveRemediationFilter} onChange=${(e) => this.setState({ cveRemediationFilter: e.target.value })}>
                         <option value="all">Remediation: All</option>
                         <option value="patch">Remediation: Patch</option>
                         <option value="config">Remediation: Config</option>
