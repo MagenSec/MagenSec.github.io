@@ -662,14 +662,20 @@ const CD_STYLES = `
 
     .cd-highlight-layout {
         display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr);
+        grid-template-columns: 1fr;
         gap: 10px;
         margin-bottom: 10px;
     }
     .cd-highlights-kpi-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
+        align-items: start;
+    }
+    .cd-highlights-chart-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
     }
     .cd-clickable-card {
         cursor: pointer;
@@ -750,6 +756,9 @@ const CD_STYLES = `
         .cd-highlights-kpi-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+        .cd-highlights-chart-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
     @media (max-width: 992px) {
@@ -787,6 +796,7 @@ const CD_STYLES = `
         .cd-kpi-grid,
         .cd-highlights-grid,
         .cd-highlights-kpi-grid,
+        .cd-highlights-chart-grid,
         .cd-chart-grid,
         .cd-spec-grid {
             grid-template-columns: 1fr;
@@ -3093,7 +3103,7 @@ export class ClientDevicePage extends window.Component {
 
                     </div>
 
-                    <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div class="cd-highlights-chart-grid">
                         <div class="cd-chart-card">
                             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
                                 <div class="cd-chart-title" style="margin:0;">14-Day Detection Cadence</div>
