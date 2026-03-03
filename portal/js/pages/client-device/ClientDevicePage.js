@@ -1993,6 +1993,22 @@ export class ClientDevicePage extends window.Component {
         const circl = cveIntel?.circl;
         const intelNoData = cveIntel?.nothingFound === true;
         const description = this.resolveCveDescription(selectedCve, cveIntel);
+        const circlPublished = circl?.Published
+            || circl?.published
+            || circl?.cveMetadata?.datePublished
+            || circl?.containers?.cna?.datePublic
+            || 'N/A';
+        const circlModified = circl?.Modified
+            || circl?.modified
+            || circl?.cveMetadata?.dateUpdated
+            || circl?.containers?.cna?.providerMetadata?.dateUpdated
+            || 'N/A';
+        const circlSummary = circl?.summary
+            || circl?.description
+            || circl?.containers?.cna?.descriptions?.[0]?.value
+            || circl?.containers?.cna?.descriptions?.[0]?.description
+            || circl?.x_legacyV4Record?.description?.description_data?.[0]?.value
+            || 'No additional OSINT summary available.';
 
         return html`
             <div>
@@ -2037,9 +2053,9 @@ export class ClientDevicePage extends window.Component {
                         ${circl ? html`
                             <div class="cd-card">
                                 <h4 style="margin:0 0 8px 0;">OSINT Context</h4>
-                                <div style="font-size:13px; color:var(--apple-text-secondary);">Published: ${circl.Published || circl.published || 'N/A'}</div>
-                                <div style="font-size:13px; color:var(--apple-text-secondary);">Modified: ${circl.Modified || circl.modified || 'N/A'}</div>
-                                <div style="margin-top:8px; font-size:13px; line-height:1.5;">${circl.summary || circl.description || 'No additional OSINT summary available.'}</div>
+                                <div style="font-size:13px; color:var(--apple-text-secondary);">Published: ${circlPublished}</div>
+                                <div style="font-size:13px; color:var(--apple-text-secondary);">Modified: ${circlModified}</div>
+                                <div style="margin-top:8px; font-size:13px; line-height:1.5;">${circlSummary}</div>
                             </div>
                         ` : ''}
 
