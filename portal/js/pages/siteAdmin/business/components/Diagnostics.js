@@ -131,6 +131,9 @@ export class DiagnosticsPage extends Component {
         const telemetryBadgeClass = telemetryRate >= 95 ? 'bg-success text-white' : telemetryRate >= 85 ? 'bg-warning text-white' : 'bg-danger text-white';
         const healthScore = Number(overview.systemHealthScore || 0);
         const healthBadgeClass = healthScore >= 90 ? 'bg-success text-white' : healthScore >= 75 ? 'bg-warning text-white' : 'bg-danger text-white';
+        const publicIntel = overview.publicCveIntelSecurity || {};
+        const abuseEvents = Number(publicIntel.events24h || 0);
+        const abuseBadgeClass = abuseEvents === 0 ? 'bg-success text-white' : abuseEvents < 20 ? 'bg-warning text-white' : 'bg-danger text-white';
 
         return html`
             <div class="row row-cards mb-3">
@@ -212,6 +215,27 @@ export class DiagnosticsPage extends Component {
                                     </div>
                                     <div class="text-muted">
                                         Telemetry: <span class="badge ${telemetryBadgeClass}">${telemetryRate.toFixed(1)}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card card-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <span class="bg-blue text-white avatar">
+                                        <i class="ti ti-shield-lock"></i>
+                                    </span>
+                                </div>
+                                <div class="col">
+                                    <div class="font-weight-medium">
+                                        <span class="badge ${abuseBadgeClass}">${abuseEvents} Public Intel Alerts (24h)</span>
+                                    </div>
+                                    <div class="text-muted">
+                                        ${publicIntel.uniqueIps24h || 0} IPs · Top ${publicIntel.topIp24h || 'N/A'} (${publicIntel.topIpHits24h || 0})
                                     </div>
                                 </div>
                             </div>

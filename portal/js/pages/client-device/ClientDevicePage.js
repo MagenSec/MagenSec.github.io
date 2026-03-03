@@ -1919,19 +1919,14 @@ export class ClientDevicePage extends window.Component {
         }
 
         const authCtx = this.state.authCtx;
-        if (!authCtx?.orgId || !authCtx?.token) {
+        if (!authCtx?.orgId || !authCtx?.deviceId) {
             this.setState({ cveIntelLoading: false, cveIntelError: 'Authentication context is missing for threat intelligence lookup.' });
             return;
         }
 
         try {
-            const intelUrl = `${getApiUrl()}/api/v1/orgs/${encodeURIComponent(authCtx.orgId)}/insights/cve-intel?cveId=${encodeURIComponent(cveId)}`;
-            const proxyPayload = await this.fetchJsonWithTimeout(intelUrl, 10000, {
-                headers: {
-                    'Authorization': `Bearer ${authCtx.token}`,
-                    'Accept': 'application/json'
-                }
-            });
+            const intelUrl = `${getApiUrl()}/api/v1/cves-intel?cveId=${encodeURIComponent(cveId)}&orgId=${encodeURIComponent(authCtx.orgId)}&deviceId=${encodeURIComponent(authCtx.deviceId)}`;
+            const proxyPayload = await this.fetchJsonWithTimeout(intelUrl, 10000);
 
             if (!proxyPayload?.success) {
                 throw new Error(proxyPayload?.message || proxyPayload?.error || 'Threat intel proxy request failed.');
