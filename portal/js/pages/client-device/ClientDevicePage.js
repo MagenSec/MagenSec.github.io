@@ -39,7 +39,7 @@ const CD_STYLES = `
         --apple-surface: #ffffff;
         --apple-border: rgba(15, 23, 42, 0.12);
         --apple-text: #0f172a;
-        --apple-text-secondary: #475569;
+        --apple-text-secondary: #334155;
         --cd-panel-bg: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
         --cd-panel-border: rgba(15, 23, 42, 0.08);
         --cd-panel-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
@@ -333,6 +333,7 @@ const CD_STYLES = `
     .cd-kpi-label {
         font-size: 12px;
         color: var(--apple-text-secondary);
+        font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.04em;
         margin-bottom: 4px;
@@ -887,11 +888,18 @@ const CD_STYLES = `
     [data-bs-theme="dark"] .cd-card,
     [data-bs-theme="dark"] .cd-kpi-card,
     [data-bs-theme="dark"] .cd-chart-card,
+    [data-bs-theme="dark"] .cd-action-card,
     [data-bs-theme="dark"] .cd-high-card,
     [data-bs-theme="dark"] .cd-step {
         background: var(--cd-panel-bg);
         border-color: var(--cd-panel-border);
         box-shadow: var(--cd-panel-shadow);
+    }
+    [data-bs-theme="dark"] .cd-action-card-head {
+        color: var(--apple-text);
+    }
+    [data-bs-theme="dark"] .cd-action-card-desc {
+        color: var(--apple-text-secondary);
     }
     [data-bs-theme="dark"] .cd-nav-btn:hover {
         background: rgba(148, 163, 184, 0.18);
@@ -1907,12 +1915,33 @@ export class ClientDevicePage extends window.Component {
             const nothingFound = !circl && !kev;
             this.setState({
                 cveIntelLoading: false,
-                cveIntel: { circl, kev },
-                cveIntelError: nothingFound ? 'Public intelligence sources did not return additional data for this CVE right now.' : ''
+                cveIntel: { circl, kev, nothingFound },
+                cveIntelError: ''
             });
         } catch (err) {
             this.setState({ cveIntelLoading: false, cveIntelError: err?.message || 'Threat intel fetch failed.' });
         }
+    }
+
+    resolveCveDescription(selectedCve, cveIntel) {
+        const primary = String(selectedCve?.description || '').trim();
+        if (primary && primary.toLowerCase() !== 'no description available.') return primary;
+
+        const circl = cveIntel?.circl;
+        const kev = cveIntel?.kev;
+        const circlSummary = String(circl?.summary || circl?.description || '').trim();
+        if (circlSummary) return circlSummary;
+
+        const cnaDesc = circl?.containers?.cna?.descriptions;
+        if (Array.isArray(cnaDesc) && cnaDesc.length > 0) {
+            const text = String(cnaDesc[0]?.value || '').trim();
+            if (text) return text;
+        }
+
+        const kevDesc = String(kev?.shortDescription || '').trim();
+        if (kevDesc) return kevDesc;
+
+        return 'No description available from current telemetry or public intelligence sources.';
     }
 
     async fetchJsonWithTimeout(url, timeoutMs = 8000) {
@@ -1937,6 +1966,8 @@ export class ClientDevicePage extends window.Component {
 
         const kev = cveIntel?.kev;
         const circl = cveIntel?.circl;
+        const intelNoData = cveIntel?.nothingFound === true;
+        const description = this.resolveCveDescription(selectedCve, cveIntel);
 
         return html`
             <div>
@@ -1962,10 +1993,11 @@ export class ClientDevicePage extends window.Component {
 
                         <div class="cd-card" style="margin-bottom:12px;">
                             <h4 style="margin:0 0 8px 0;">Description</h4>
-                            <div style="font-size:13px; line-height:1.5; color:var(--apple-text-secondary);">${selectedCve.description || 'No description available.'}</div>
+                            <div style="font-size:13px; line-height:1.5; color:var(--apple-text-secondary);">${description}</div>
                         </div>
 
                         ${cveIntelLoading ? html`<div class="cd-card"><i class="ti ti-loader ti-spin"></i> Loading threat intelligence...</div>` : ''}
+                        ${intelNoData ? html`<div class="cd-card" style="border-color: rgba(0,84,166,0.25); color: var(--apple-text-secondary);"><i class="ti ti-info-circle" style="margin-right:6px; color:#0054a6;"></i>Public intelligence sources did not return additional context for this CVE right now. Base CVE telemetry is still shown.</div>` : ''}
                         ${cveIntelError ? html`<div class="cd-card" style="color:#d63939;">${cveIntelError}</div>` : ''}
 
                         ${kev ? html`
@@ -3057,61 +3089,6 @@ export class ClientDevicePage extends window.Component {
                     >
                         <div class="cd-kpi-label">Known Exploits</div>
                         <div class="cd-kpi-value">${this.formatCountValue(this.toNumber(severity.withKnownExploit, 0), 'None')}</div>
-                    </div>
-                    <div
-                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
-                        title="Earliest CVE detection timestamp across CVE telemetry records."
-                        onClick=${() => this.setState({ activeTab: 'cves', cveSort: 'recent', selectedAppFilter: '', cveKnownExploitOnly: false, cveMatchFilter: 'all', cveRemediationFilter: 'all' })}
-                    >
-                        <div class="cd-kpi-label">CVE First Detected</div>
-                        <div class="cd-kpi-value" style="font-size:13px;">${this.formatWhen(insights.cveFirstDetectedAt)}</div>
-                    </div>
-                    <div
-                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
-                        title="Latest CVE detection timestamp across CVE telemetry records."
-                        onClick=${() => this.setState({ activeTab: 'cves', cveSort: 'recent', selectedAppFilter: '', cveKnownExploitOnly: false, cveMatchFilter: 'all', cveRemediationFilter: 'all' })}
-                    >
-                        <div class="cd-kpi-label">CVE Last Detected</div>
-                        <div class="cd-kpi-value" style="font-size:13px;">${this.formatWhen(insights.cveLastDetectedAt)}</div>
-                    </div>
-
-                    <div
-                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
-                        title="Vulnerable applications currently running with resolved executable paths."
-                        onClick=${() => this.setState({ activeTab: 'software', softwareRuntimeFilter: 'running', softwareRiskFilter: 'all' })}
-                    >
-                        <div class="cd-kpi-label">Apps Running from Path</div>
-                        <div class="cd-kpi-value">${insights.apps.runningWithPath}</div>
-                        <div class="cd-kpi-meta">Within ${insights.vulnerableAppsCount} vulnerable apps</div>
-                    </div>
-                    <div
-                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
-                        title="Vulnerable applications that expose install path telemetry."
-                        onClick=${() => this.setState({ activeTab: 'software', softwareRuntimeFilter: 'installPath', softwareRiskFilter: 'all' })}
-                    >
-                        <div class="cd-kpi-label">Apps Installed from Path</div>
-                        <div class="cd-kpi-value">${insights.apps.withInstallPath}</div>
-                        <div class="cd-kpi-meta">Within ${insights.vulnerableAppsCount} vulnerable apps</div>
-                    </div>
-
-                    <div
-                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
-                        title="Vulnerable applications mapped with exact/absolute confidence."
-                        onClick=${() => this.setState({ activeTab: 'cves', cveMatchFilter: 'absolute', cveKnownExploitOnly: false, cveRemediationFilter: 'all', selectedAppFilter: '' })}
-                    >
-                        <div class="cd-kpi-label">Vuln Apps Confidence: Database</div>
-                        <div class="cd-kpi-value">${insights.match.absolute}</div>
-                        <div class="cd-kpi-meta">Per vulnerable app confidence</div>
-                    </div>
-
-                    <div
-                        class="cd-kpi-card cd-kpi-card-compact cd-clickable-card"
-                        title="Vulnerable applications mapped with heuristic confidence."
-                        onClick=${() => this.setState({ activeTab: 'cves', cveMatchFilter: 'heuristic', cveKnownExploitOnly: false, cveRemediationFilter: 'all', selectedAppFilter: '' })}
-                    >
-                        <div class="cd-kpi-label">Vuln Apps Confidence: Heuristic</div>
-                        <div class="cd-kpi-value">${insights.match.heuristic}</div>
-                        <div class="cd-kpi-meta">Per vulnerable app confidence</div>
                     </div>
 
                     </div>
