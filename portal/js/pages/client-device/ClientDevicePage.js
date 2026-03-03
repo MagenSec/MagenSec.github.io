@@ -1468,6 +1468,37 @@ export class ClientDevicePage extends window.Component {
         return buckets;
     }
 
+    getDetectionCadence(profile, days = 14) {
+        const today = new Date();
+        const buckets = [];
+        const safeDays = Math.max(1, Math.min(30, this.toNumber(days, 14)));
+        for (let i = safeDays - 1; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            buckets.push({ key: d.toISOString().slice(0, 10), label: `${d.getMonth() + 1}/${d.getDate()}`, count: 0 });
+        }
+
+        const map = new Map(buckets.map(b => [b.key, b]));
+        const history = this.asArray(profile?.telemetryDetail?.history);
+
+        for (const sample of history) {
+            const ts = this.firstDefined(sample?.timestamp, sample?.Timestamp, sample?.at, sample?.At);
+            if (!ts) continue;
+            const date = new Date(ts);
+            if (Number.isNaN(date.getTime())) continue;
+            const key = date.toISOString().slice(0, 10);
+            if (map.has(key)) map.get(key).count += 1;
+        }
+
+        const telemetryCount = buckets.reduce((sum, b) => sum + b.count, 0);
+        if (telemetryCount > 0) {
+            return { buckets, source: 'telemetry' };
+        }
+
+        const fallback = this.getTrend(profile, safeDays);
+        return { buckets: fallback, source: 'cve' };
+    }
+
     getTrendMetrics(profile, days = 30) {
         const buckets = this.getTrend(profile, days).map(b => ({ ...b, pressure: 0, exploited: 0 }));
         const map = new Map(buckets.map(b => [b.key, b]));
@@ -1704,12 +1735,15 @@ export class ClientDevicePage extends window.Component {
         }
 
         if (this.chartHighlightsDetectionEl) {
-            const quickTrend = this.getTrend(profile, 14);
+            const cadence = this.getDetectionCadence(profile, 14);
+            const quickTrend = cadence.buckets;
             const quickTrendData = quickTrend.map(t => finite(t.count));
             const peak = quickTrendData.reduce((mx, val, idx, arr) => val > (arr[mx] ?? -1) ? idx : mx, 0);
+            const pointLabel = cadence.source === 'telemetry' ? 'Signals' : 'Detected CVEs';
+            const tooltipLabel = cadence.source === 'telemetry' ? 'telemetry samples' : 'CVEs';
             const detectionOptions = {
                 chart: { type: 'bar', height: 170, toolbar: { show: false }, animations: baseAnimation },
-                series: [{ name: 'Detected', data: quickTrendData }],
+                series: [{ name: pointLabel, data: quickTrendData }],
                 xaxis: {
                     categories: quickTrend.map(t => t.label),
                     labels: { style: { colors: textSecondary, fontSize: '10px' } }
@@ -1733,7 +1767,7 @@ export class ClientDevicePage extends window.Component {
                 },
                 tooltip: {
                     ...tooltipTheme,
-                    y: { formatter: (v) => `${finite(v)} CVEs` }
+                    y: { formatter: (v) => `${finite(v)} ${tooltipLabel}` }
                 }
             };
 
@@ -1742,7 +1776,7 @@ export class ClientDevicePage extends window.Component {
                 this.charts.highlightsDetection.render();
             } else {
                 this.charts.highlightsDetection.updateOptions(detectionOptions, true, true);
-                this.charts.highlightsDetection.updateSeries([{ name: 'Detected', data: quickTrendData }], true);
+                this.charts.highlightsDetection.updateSeries([{ name: pointLabel, data: quickTrendData }], true);
             }
         }
 
@@ -3574,15 +3608,19 @@ export class ClientDevicePage extends window.Component {
         const fields = telemetryDetail?.latest?.fields || {};
         
         const cpuName = this.firstDefined(device?.cpu, fields.CPUName, fields.ProcessorName, 'N/A');
-        const cpuCores = this.firstDefined(device?.cpuCores, fields.CPUCores, fields.Cores, 'N/A');
+        const cpuCores = this.toNumber(this.firstDefined(device?.cpuCores, fields.CPUCores, fields.Cores), 0);
         const ramMb = this.toNumber(this.firstDefined(device?.ram, fields.TotalRAMMB, fields.TotalRamMb, fields.RAMMB), 0);
         const diskGb = this.toNumber(this.firstDefined(device?.disk, fields.SystemDriveSizeGB, fields.TotalDiskGb, fields.DiskGB), 0);
         const ramGB = ramMb > 0 ? Math.round(ramMb / 1024) : 'N/A';
         const diskGB = diskGb > 0 ? Math.round(diskGb) : 'N/A';
-        const gpuName = this.firstDefined(fields.GPUName, fields.GraphicsName, 'N/A');
+        const gpuName = this.firstDefined(fields.GPUName, fields.GraphicsName, fields.GpuName, 'N/A');
         const osEdition = this.firstDefined(device?.os, fields.OSEdition, fields.OSVersion, fields.OS, 'N/A');
-        const osBuild = this.firstDefined(device?.build, fields.FeaturePackVersion, fields.OSBuild, 'N/A');
+        const osBuild = this.firstDefined(device?.build, fields.FeaturePackVersion, fields.OSBuild, fields.OSBuildNumber, 'N/A');
         const ipAddresses = this.asArray(this.firstDefined(fields.IPAddresses, fields.ipAddresses));
+        const macAddresses = this.asArray(this.firstDefined(fields.MACAddresses, fields.MacAddresses, fields.MacAddress));
+        const firewallState = this.toBoolean(this.firstDefined(fields.FirewallEnabled, fields.WindowsFirewallEnabled), null);
+        const uacState = this.toBoolean(fields.UACEnabled, null);
+        const cpuDisplay = cpuCores > 0 ? `${cpuName} (${cpuCores} Cores)` : cpuName;
         
         return html`
             <div style="animation: cd-fade-in 0.3s ease-out;">
@@ -3590,11 +3628,11 @@ export class ClientDevicePage extends window.Component {
                     <div class="cd-card">
                         <h4 style="margin:0 0 16px 0; font-size: 16px; font-weight: 600;"><i class="ti ti-cpu me-2"></i> Hardware</h4>
                         <ul class="cd-list selectable">
-                            <li class="cd-list-item"><span class="cd-list-label">CPU</span><span class="cd-list-value">${cpuName} (${cpuCores} Cores)</span></li>
+                            <li class="cd-list-item"><span class="cd-list-label">CPU</span><span class="cd-list-value">${cpuDisplay}</span></li>
                             <li class="cd-list-item"><span class="cd-list-label">Memory (RAM)</span><span class="cd-list-value">${ramGB} GB</span></li>
                             <li class="cd-list-item"><span class="cd-list-label">System Disk</span><span class="cd-list-value">${diskGB} GB</span></li>
                             <li class="cd-list-item"><span class="cd-list-label">Graphics (GPU)</span><span class="cd-list-value">${gpuName}</span></li>
-                            <li class="cd-list-item"><span class="cd-list-label">Architecture</span><span class="cd-list-value">${fields.CPUArch || 'N/A'}</span></li>
+                            <li class="cd-list-item"><span class="cd-list-label">Architecture</span><span class="cd-list-value">${this.firstDefined(fields.CPUArch, fields.Architecture, 'N/A')}</span></li>
                         </ul>
                     </div>
                     
@@ -3604,16 +3642,16 @@ export class ClientDevicePage extends window.Component {
                             <li class="cd-list-item"><span class="cd-list-label">Edition</span><span class="cd-list-value">${osEdition}</span></li>
                             <li class="cd-list-item"><span class="cd-list-label">Build Number</span><span class="cd-list-value">${osBuild}</span></li>
                             <li class="cd-list-item"><span class="cd-list-label">MagenSec Client</span><span class="cd-list-value">${this.firstDefined(device?.clientVersion, device?.ClientVersion, fields.ClientVersion, 'N/A')}</span></li>
-                            <li class="cd-list-item"><span class="cd-list-label">Last Boot</span><span class="cd-list-value">${fields.LastBootTime || 'N/A'}</span></li>
+                            <li class="cd-list-item"><span class="cd-list-label">Last Boot</span><span class="cd-list-value">${this.firstDefined(fields.LastBootTime, fields.LastBootUtc, fields.BootTime, 'N/A')}</span></li>
                         </ul>
                     </div>
 
                     <div class="cd-card">
                         <h4 style="margin:0 0 16px 0; font-size: 16px; font-weight: 600;"><i class="ti ti-shield-lock me-2"></i> Platform Security</h4>
                         <ul class="cd-list selectable">
-                            <li class="cd-list-item"><span class="cd-list-label">Endpoint Protection</span><span class="cd-list-value">${this.firstDefined(fields.AVProduct, fields.DefenderStatus, fields.DefenderEnabled, 'Unknown')}</span></li>
-                            <li class="cd-list-item"><span class="cd-list-label">Windows Firewall</span><span class="cd-list-value">${this.firstDefined(fields.FirewallEnabled, fields.WindowsFirewallEnabled) ? 'Enabled' : 'Unknown'}</span></li>
-                            <li class="cd-list-item"><span class="cd-list-label">UAC Status</span><span class="cd-list-value">${fields.UACEnabled !== undefined ? (String(fields.UACEnabled).toLowerCase() === 'true' ? 'Enabled' : 'Disabled') : 'Unknown'}</span></li>
+                            <li class="cd-list-item"><span class="cd-list-label">Endpoint Protection</span><span class="cd-list-value">${this.firstDefined(fields.AVProduct, fields.DefenderStatus, fields.SecurityProducts, fields.DefenderEnabled, 'Unknown')}</span></li>
+                            <li class="cd-list-item"><span class="cd-list-label">Windows Firewall</span><span class="cd-list-value">${firewallState === null ? 'Unknown' : firewallState ? 'Enabled' : 'Disabled'}</span></li>
+                            <li class="cd-list-item"><span class="cd-list-label">UAC Status</span><span class="cd-list-value">${uacState === null ? 'Unknown' : uacState ? 'Enabled' : 'Disabled'}</span></li>
                             <li class="cd-list-item"><span class="cd-list-label">BitLocker Encryption</span><span class="cd-list-value">${fields.BitLockerStatus || 'Unknown'}</span></li>
                         </ul>
                     </div>
@@ -3623,8 +3661,8 @@ export class ClientDevicePage extends window.Component {
                         <ul class="cd-list selectable">
                             <li class="cd-list-item"><span class="cd-list-label">Connection</span><span class="cd-list-value">${fields.ConnectionType || 'N/A'}</span></li>
                             <li class="cd-list-item"><span class="cd-list-label">IPv4 Addresses</span><span class="cd-list-value" style="max-width:70%;">${ipAddresses.length > 0 ? ipAddresses.join(', ') : 'N/A'}</span></li>
-                            <li class="cd-list-item"><span class="cd-list-label">MAC Address</span><span class="cd-list-value">${this.firstDefined(fields.MACAddresses, fields.MacAddresses, 'N/A')}</span></li>
-                            <li class="cd-list-item"><span class="cd-list-label">Network Speed</span><span class="cd-list-value">${fields.NetworkSpeedMbps ? (fields.NetworkSpeedMbps + ' Mbps') : 'N/A'}</span></li>
+                            <li class="cd-list-item"><span class="cd-list-label">MAC Address</span><span class="cd-list-value">${macAddresses.length > 0 ? macAddresses.join(', ') : this.firstDefined(fields.MACAddresses, fields.MacAddresses, fields.MacAddress, 'N/A')}</span></li>
+                            <li class="cd-list-item"><span class="cd-list-label">Network Speed</span><span class="cd-list-value">${this.firstDefined(fields.NetworkSpeedMbps, fields.LinkSpeedMbps) ? (this.firstDefined(fields.NetworkSpeedMbps, fields.LinkSpeedMbps) + ' Mbps') : 'N/A'}</span></li>
                         </ul>
                     </div>
                 </div>
