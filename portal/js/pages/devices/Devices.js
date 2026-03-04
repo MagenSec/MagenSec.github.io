@@ -1228,7 +1228,7 @@ class DevicesPage extends window.Component {
             }
 
             // Step 1: Fast load with cached-summary (< 12s instead of 35s)
-            const response = await api.getDevices(currentOrg.orgId, { include: 'cached-summary,session' }, { skipCache: forceRefresh });
+            const response = await api.getDevices(currentOrg.orgId, { include: 'cached-summary' }, { skipCache: forceRefresh });
             if (!response.success) {
                 throw new Error(response.message || response.error || 'Failed to load devices');
             }
@@ -1346,7 +1346,7 @@ class DevicesPage extends window.Component {
             await new Promise(resolve => setTimeout(resolve, 500));
             
             // Fetch fresh summaries (skip cached, get real-time data)
-            const response = await api.getDevices(orgId, { include: 'summary,session' }, { skipCache: true });
+            const response = await api.getDevices(orgId, { include: 'summary' }, { skipCache: true });
             
             if (!response.success || !response.data?.devices) {
                 console.warn('[DevicesPage] Background summary fetch failed');
