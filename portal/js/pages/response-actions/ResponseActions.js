@@ -232,6 +232,9 @@ export class ResponseActionsPage extends Component {
             isSiteAdmin: false,
             showAdvancedModal: false,
             showCommandDetailModal: false,
+            showProbeDataModal: false,
+            selectedProbeDeviceName: null,
+            selectedProbePayload: null,
             showControlPanel: true,
             deviceCacheFromSWR: false
         };
@@ -617,6 +620,8 @@ export class ResponseActionsPage extends Component {
         const result = renderCommandResult(deviceStatus?.result, deviceStatus?.resultCode);
         const artifactUrl = deviceStatus?.artifactDownloadUrl;
         const retentionDays = deviceStatus?.artifactRetentionDays || 14;
+        const isProbe = (this.state.selectedCommandDetail?.commandType || '').toLowerCase() === 'probe';
+        const hasProbePayload = isProbe && !!deviceStatus?.resultDataJson;
         
         // Try to find device name from loaded devices
         const device = this.state.devices.find(d => d.id === deviceStatus.deviceId);
@@ -640,10 +645,51 @@ export class ResponseActionsPage extends Component {
                 <td>
                     ${artifactUrl
                         ? html`<a class="btn btn-sm btn-outline-primary" href=${artifactUrl} target="_blank" rel="noopener noreferrer">Download</a><div class="text-muted small">${retentionDays}d retention</div>`
-                        : '—'}
+                        : hasProbePayload
+                            ? html`<button class="btn btn-sm btn-outline-primary" onClick=${() => this.openProbeDataModal(deviceName, deviceStatus?.resultDataJson)}>View Probe</button>`
+                            : '—'}
                 </td>
                 <td class="text-muted">${diagnostic}</td>
             </tr>
+        `;
+    }
+
+    openProbeDataModal(deviceName, payloadText) {
+        let formatted = payloadText;
+        try {
+            formatted = JSON.stringify(JSON.parse(payloadText), null, 2);
+        } catch {
+            formatted = String(payloadText || '');
+        }
+
+        this.setState({
+            showProbeDataModal: true,
+            selectedProbeDeviceName: deviceName,
+            selectedProbePayload: formatted
+        });
+    }
+
+    renderProbeDataModal() {
+        if (!this.state.showProbeDataModal) return null;
+
+        return html`
+            <div class="modal modal-blur fade show" style="display: block; background: rgba(0,0,0,0.5);" tabindex="-1">
+                <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Probe Snapshot · ${this.state.selectedProbeDeviceName || 'Device'}</h5>
+                            <button
+                                type="button"
+                                class="btn-close"
+                                onClick=${() => this.setState({ showProbeDataModal: false, selectedProbeDeviceName: null, selectedProbePayload: null })}>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <pre class="bg-dark text-light p-3 rounded small" style="white-space: pre-wrap; word-break: break-word;">${this.state.selectedProbePayload || 'No probe payload available.'}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
         `;
     }
 
@@ -775,6 +821,7 @@ export class ResponseActionsPage extends Component {
         return html`
             ${this.renderAdvancedModal()}
             ${this.renderCommandDetailModal()}
+            ${this.renderProbeDataModal()}
             <div class="page-header d-print-none mb-3">
                 <div class="container-xl">
                     <div class="row g-2 align-items-center">
