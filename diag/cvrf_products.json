@@ -1,5 +1,20 @@
 [
   {
+    "ProductId": "19880-17084",
+    "Name": "azl3 kernel 6.6.92.2-2 on Azure Linux 3.0",
+    "UpdateId": "2025-Jul",
+    "UpdateTitle": "July 2025 Security Updates",
+    "UpdateReleaseDate": "2025-08-22T07:00:00Z",
+    "Cpe": "cpe:2.3:a:microsoft:azl3_kernel_6.6.92.2-2:*:*:*:*:*:*:*:*",
+    "CvssBaseScore": null,
+    "CvssTemporalScore": null,
+    "CvssVector": null,
+    "ThreatSeverity": null,
+    "ThreatImpact": null,
+    "Url": "https://learn.microsoft.com/en-us/azure/azure-linux/tutorial-azure-linux-upgrade",
+    "FixedBuild": "6.6.92.2-2"
+  },
+  {
     "ProductId": "9312",
     "Name": "Windows Server 2008 for 32-bit Systems Service Pack 2",
     "UpdateId": "2025-Jul",
@@ -1408,20 +1423,5 @@
     "ThreatImpact": "Remote Code Execution",
     "Url": "https://learn.microsoft.com/en-us/mem/configmgr/core/servers/manage/install-in-console-updates",
     "FixedBuild": "5.00.9135.1003"
-  },
-  {
-    "ProductId": "19880-17084",
-    "Name": "azl3 kernel 6.6.92.2-2 on Azure Linux 3.0",
-    "UpdateId": "2025-Jul",
-    "UpdateTitle": "July 2025 Security Updates",
-    "UpdateReleaseDate": "2025-08-22T07:00:00Z",
-    "Cpe": "cpe:2.3:a:microsoft:azl3_kernel_6.6.92.2-2:*:*:*:*:*:*:*:*",
-    "CvssBaseScore": null,
-    "CvssTemporalScore": null,
-    "CvssVector": null,
-    "ThreatSeverity": null,
-    "ThreatImpact": null,
-    "Url": "https://learn.microsoft.com/en-us/azure/azure-linux/tutorial-azure-linux-upgrade",
-    "FixedBuild": "6.6.92.2-2"
   }
 ]
