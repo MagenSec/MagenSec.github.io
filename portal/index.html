@@ -190,6 +190,15 @@
         .cursor-pointer:hover {
             background-color: rgba(0, 0, 0, 0.02);
         }
+
+        body.org-personal .business-license-only {
+            opacity: 0.55;
+        }
+
+        body.org-personal .business-license-only,
+        body.org-personal .business-license-only * {
+            cursor: not-allowed !important;
+        }
     </style>
 </head>
 <body class="unauthenticated">
@@ -269,8 +278,8 @@
                                 </a>
                                 <div class="dropdown-menu">
                                     <a class="dropdown-item" href="#!/security"><i class="ti ti-shield-check me-2"></i>Security</a>
-                                    <a class="dropdown-item" href="#!/compliance"><i class="ti ti-certificate me-2"></i>Compliance</a>
-                                    <a class="dropdown-item" href="#!/auditor"><i class="ti ti-file-search me-2"></i>Audit</a>
+                                    <a class="dropdown-item business-license-only" href="#!/compliance" data-business-tooltip="Feature available in Business License only"><i class="ti ti-certificate me-2"></i>Compliance</a>
+                                    <a class="dropdown-item business-license-only" href="#!/auditor" data-business-tooltip="Feature available in Business License only"><i class="ti ti-file-search me-2"></i>Audit</a>
                                 </div>
                             </li>
 
@@ -284,12 +293,12 @@
                                 </a>
                                 <div class="dropdown-menu">
                                     <a class="dropdown-item" href="#!/devices"><i class="ti ti-devices me-2"></i>Devices</a>
-                                    <a class="dropdown-item" href="#!/security/response"><i class="ti ti-shield-half me-2"></i>Response</a>
+                                    <a class="dropdown-item business-license-only" href="#!/security/response" data-business-tooltip="Feature available in Business License only"><i class="ti ti-shield-half me-2"></i>Response</a>
                                 </div>
                             </li>
 
                             <!-- Reports -->
-                            <li class="nav-item">
+                            <li class="nav-item business-license-only" data-business-tooltip="Feature available in Business License only">
                                 <a class="nav-link" href="#!/reports">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>

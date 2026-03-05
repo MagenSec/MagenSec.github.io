@@ -18,6 +18,7 @@ import { DeviceQuickViewModal } from '@components/DeviceQuickViewModal.js';
 import { AppDevicesModal } from '@components/AppDevicesModal.js';
 
 const { html, Component } = window;
+const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
 
 function renderMarkdown(text) {
     if (!text) return '';
@@ -179,6 +180,7 @@ export class ChatDrawer extends Component {
   renderPanel() {
     const { open, prompt, loading, messages } = this.state;
     const { contextHint } = this.props;
+    const isPersonalOrg = orgContext.getCurrentOrg()?.type === 'Personal';
 
     return html`
       <div
@@ -221,7 +223,13 @@ export class ChatDrawer extends Component {
                 Clear
               </button>
             ` : ''}
-            <a href="#!/analyst" style="background: none; border: none; cursor: pointer; color: var(--tblr-secondary, #888); padding: 4px 6px; border-radius: 4px; font-size: 0.75rem; text-decoration: none;" title="Open full analyst chat">
+            <a
+              href="#!/analyst"
+              class=${isPersonalOrg ? 'business-license-only' : ''}
+              data-business-tooltip=${isPersonalOrg ? BUSINESS_ONLY_TOOLTIP : ''}
+              style="background: none; border: none; cursor: pointer; color: var(--tblr-secondary, #888); padding: 4px 6px; border-radius: 4px; font-size: 0.75rem; text-decoration: none;"
+              title=${isPersonalOrg ? BUSINESS_ONLY_TOOLTIP : 'Open full analyst chat'}
+            >
               Full chat →
             </a>
           </div>

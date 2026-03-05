@@ -10,6 +10,11 @@
  */
 export default class AiAnalystCard extends Component {
   handleQueryClick = (query) => {
+    const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
+    if (isPersonalOrg) {
+      window.toast?.show('Feature available in Business License only', 'warning', 3000);
+      return;
+    }
     const trimmed = (query || '').trim();
     if (!trimmed) return;
     // Navigate to AI Analyst workspace with query
@@ -19,6 +24,8 @@ export default class AiAnalystCard extends Component {
   render() {
     const { html } = window;
     const { data, expanded, onToggle } = this.props;
+    const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
+    const businessTooltip = 'Feature available in Business License only';
     
     if (!data) {
       return null;
@@ -93,7 +100,12 @@ export default class AiAnalystCard extends Component {
                 <div class="subheader mb-2">Ask 🛡️MAGI</div>
                 <div class="d-flex flex-wrap gap-2">
                   ${data.suggestedQueries.map((query) => html`
-                    <button class="btn btn-outline-primary btn-sm" onClick=${() => this.handleQueryClick(query)}>
+                    <button
+                      class=${`btn btn-outline-primary btn-sm ${isPersonalOrg ? 'business-license-only' : ''}`}
+                      title=${isPersonalOrg ? businessTooltip : ''}
+                      data-business-tooltip=${isPersonalOrg ? businessTooltip : ''}
+                      onClick=${() => this.handleQueryClick(query)}
+                    >
                       <svg class="icon icon-inline me-1" width="16" height="16" viewBox="0 0 24 24">
                         <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                         <circle cx="10" cy="10" r="7" />
@@ -130,7 +142,12 @@ export default class AiAnalystCard extends Component {
             ` : ''}
 
             <div class="text-center mt-3">
-              <a href="#!/analyst" class="btn btn-primary">
+              <a
+                href="#!/analyst"
+                class=${`btn btn-primary ${isPersonalOrg ? 'business-license-only' : ''}`}
+                title=${isPersonalOrg ? businessTooltip : ''}
+                data-business-tooltip=${isPersonalOrg ? businessTooltip : ''}
+              >
                 <svg class="icon icon-inline me-2" width="20" height="20" viewBox="0 0 24 24">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                   <path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" />

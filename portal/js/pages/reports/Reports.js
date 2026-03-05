@@ -5,6 +5,7 @@
  */
 
 const { html, Component } = window;
+const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
 
 const REPORTS = [
   {
@@ -27,6 +28,7 @@ const REPORTS = [
     description: 'Framework scores across CIS, NIST, CERT-In, and ISO 27001 with gap analysis and controls coverage.',
     href: '#!/posture-ai',
     viewHref: '#!/compliance',
+    businessOnly: true,
     icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5 2 1.5v-4.5" /><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v3.5" /></svg>`
   },
   {
@@ -35,6 +37,7 @@ const REPORTS = [
     description: 'Activity timeline, member actions, device lifecycle events, and system audit log.',
     href: '#!/audit',
     viewHref: '#!/auditor',
+    businessOnly: true,
     icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 12l2 2l4 -4" /></svg>`
   },
   {
@@ -80,6 +83,7 @@ const DownloadIcon = () => html`
 
 export class ReportsPage extends Component {
   render() {
+    const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
     const liveCount = REPORTS.filter(r => r.href).length;
 
     return html`
@@ -121,7 +125,12 @@ export class ReportsPage extends Component {
 
                     ${r.href ? html`
                       <div class="d-flex gap-2 flex-wrap">
-                        <a href="${r.viewHref || r.href}" class="btn btn-sm btn-primary">
+                        <a
+                          href="${r.viewHref || r.href}"
+                          class=${`btn btn-sm btn-primary ${(isPersonalOrg && r.businessOnly) ? 'business-license-only' : ''}`}
+                          title=${(isPersonalOrg && r.businessOnly) ? BUSINESS_ONLY_TOOLTIP : ''}
+                          data-business-tooltip=${(isPersonalOrg && r.businessOnly) ? BUSINESS_ONLY_TOOLTIP : ''}
+                        >
                           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7" /></svg>
                           View ${r.title}
                         </a>

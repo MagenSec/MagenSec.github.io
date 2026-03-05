@@ -55,6 +55,26 @@ let currentPage = 'login';
 let currentCtx = null;
 let currentParams = null;
 
+function applyOrgUiRestrictions() {
+    const body = document.body;
+    if (!body) return;
+    const isPersonal = orgContext.getCurrentOrg()?.type === 'Personal';
+    body.classList.toggle('org-personal', isPersonal);
+    body.classList.toggle('org-business', !isPersonal);
+
+    const businessOnlyItems = document.querySelectorAll('.business-license-only');
+    businessOnlyItems.forEach((item) => {
+        const tooltip = item.getAttribute('data-business-tooltip') || 'Feature available in Business License only';
+        if (isPersonal) {
+            item.setAttribute('aria-disabled', 'true');
+            item.setAttribute('title', tooltip);
+        } else {
+            item.removeAttribute('aria-disabled');
+            item.removeAttribute('title');
+        }
+    });
+}
+
 // Main app component
 function App() {
     // Check for OAuth callback
@@ -78,7 +98,14 @@ function App() {
         case 'getting-started':
             return html`<${GettingStartedPage} />`;
         case 'security':
-            return html`<div><${DashboardPage} /><${ChatDrawer} contextHint="security threats and vulnerabilities" /></div>`;
+            return html`
+                <div>
+                    <${DashboardPage} />
+                    ${orgContext.getCurrentOrg()?.type === 'Personal'
+                        ? null
+                        : html`<${ChatDrawer} contextHint="security threats and vulnerabilities" />`}
+                </div>
+            `;
         case 'devices':
             return html`<${DevicesPage} />`;
         case 'response-actions':
@@ -184,6 +211,8 @@ function setAuthenticationState(isAuthenticated) {
                 siteAdminElements.forEach(el => el.style.display = 'none');
             }
         } catch {}
+
+        applyOrgUiRestrictions();
         
         // Initialize Bootstrap dropdowns (needed for dynamic content)
         setTimeout(() => {
@@ -204,6 +233,7 @@ function setAuthenticationState(isAuthenticated) {
         // Show overlay, hide main page
         if (overlay) overlay.classList.add('active');
         body.classList.add('unauthenticated');
+        body.classList.remove('org-personal', 'org-business');
         renderLoginOverlay();
     }
 }
@@ -269,6 +299,7 @@ async function init() {
             setAuthenticationState(true);
 
             const hasOrgsAfterOAuth = orgContext.getAvailableOrgs().length > 0;
+            const isPersonalOrg = orgContext.getCurrentOrg()?.type === 'Personal';
 
             // Toast if phone number not yet set
             setTimeout(() => {
@@ -289,7 +320,9 @@ async function init() {
             }, 1200);
 
             // Use hash navigation instead of full page redirect
-            window.location.hash = hasOrgsAfterOAuth ? '#!/dashboard' : '#!/getting-started';
+            window.location.hash = hasOrgsAfterOAuth
+                ? (isPersonalOrg ? '#!/security' : '#!/dashboard')
+                : '#!/getting-started';
             // Clear query params
             window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             // Initialize router after callback
@@ -381,6 +414,10 @@ async function init() {
         renderApp();
     });
 
+    orgContext.onChange(() => {
+        applyOrgUiRestrictions();
+    });
+
     // Wire logout link
     const logoutLink = document.getElementById('logout-link');
     if (logoutLink) {
@@ -389,6 +426,20 @@ async function init() {
             auth.logout();
         });
     }
+
+    document.addEventListener('click', (e) => {
+        const blocked = e.target.closest('.business-license-only');
+        if (!blocked) {
+            return;
+        }
+        if (!document.body.classList.contains('org-personal')) {
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        window.toast?.show('Feature available in Business License only', 'warning', 3000);
+    }, true);
     
     logger.info('[App] Ready');
 }

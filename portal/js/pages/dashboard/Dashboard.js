@@ -401,6 +401,11 @@ export class DashboardPage extends Component {
     }
 
     handleAnalystSearch(query) {
+        const isPersonalOrg = orgContext.getCurrentOrg()?.type === 'Personal';
+        if (isPersonalOrg) {
+            window.toast?.show('Feature available in Business License only', 'warning', 3000);
+            return;
+        }
         if (query && query.trim()) {
             window.location.hash = `#!/analyst?q=${encodeURIComponent(query.trim())}`;
         }

@@ -5,6 +5,26 @@
 
 import { auth } from './auth.js';
 
+function isPersonalOrg() {
+    return window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
+}
+
+function getHomeRoute() {
+    return isPersonalOrg() ? '/security' : '/dashboard';
+}
+
+function redirectToHome(page) {
+    page.redirect(getHomeRoute());
+}
+
+function guardPersonalRestrictedRoute(ctx, page) {
+    if (isPersonalOrg()) {
+        redirectToHome(page);
+        return true;
+    }
+    return false;
+}
+
 export function initRouter(renderApp) {
     const page = window.page || window.Page;
     
@@ -24,7 +44,11 @@ export function initRouter(renderApp) {
     page('/', (ctx) => {
         if (ctx.isAuthenticated) {
             const noOrg = window.orgContext?.getAvailableOrgs?.().length === 0;
-            page.redirect(noOrg ? '/getting-started' : '/dashboard');
+            if (noOrg) {
+                page.redirect('/getting-started');
+                return;
+            }
+            redirectToHome(page);
             return;
         }
         renderApp({ page: 'login', ctx });
@@ -34,7 +58,11 @@ export function initRouter(renderApp) {
     page('/login', (ctx) => {
         if (ctx.isAuthenticated) {
             const noOrg = window.orgContext?.getAvailableOrgs?.().length === 0;
-            page.redirect(noOrg ? '/getting-started' : '/dashboard');
+            if (noOrg) {
+                page.redirect('/getting-started');
+                return;
+            }
+            redirectToHome(page);
             return;
         }
         page.redirect('/');
@@ -44,6 +72,10 @@ export function initRouter(renderApp) {
     page('/dashboard', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
+            return;
+        }
+        if (isPersonalOrg()) {
+            page.redirect('/security');
             return;
         }
         renderApp({ page: 'dashboard', ctx });
@@ -91,6 +123,9 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
+            return;
+        }
         page.redirect('/security/response');
     });
 
@@ -98,6 +133,9 @@ export function initRouter(renderApp) {
     page('/security/response', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
+            return;
+        }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
             return;
         }
         renderApp({ page: 'response-actions', ctx });
@@ -127,6 +165,9 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
+            return;
+        }
         renderApp({ page: 'analyst', ctx });
     });
 
@@ -135,6 +176,9 @@ export function initRouter(renderApp) {
     page('/ai-reports', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
+            return;
+        }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
             return;
         }
         renderApp({ page: 'ai-reports', ctx });
@@ -155,6 +199,9 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
+            return;
+        }
         renderApp({ page: 'posture-ai', ctx });
     });
 
@@ -162,6 +209,9 @@ export function initRouter(renderApp) {
     page('/compliance', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
+            return;
+        }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
             return;
         }
         renderApp({ page: 'compliance', ctx });
@@ -173,6 +223,9 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
+            return;
+        }
         renderApp({ page: 'auditor', ctx });
     });
 
@@ -180,6 +233,9 @@ export function initRouter(renderApp) {
     page('/reports', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
+            return;
+        }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
             return;
         }
         renderApp({ page: 'reports', ctx });
@@ -335,7 +391,11 @@ export function initRouter(renderApp) {
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#!/') {
         if (auth.isAuthenticated()) {
             const noOrg = window.orgContext?.getAvailableOrgs?.().length === 0;
-            page.redirect(noOrg ? '/getting-started' : '/dashboard');
+            if (noOrg) {
+                page.redirect('/getting-started');
+            } else {
+                redirectToHome(page);
+            }
         } else {
             page.redirect('/');
         }

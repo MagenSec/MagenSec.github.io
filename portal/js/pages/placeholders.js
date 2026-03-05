@@ -602,6 +602,9 @@ export class PlatformInsightsPage extends Component {
 
 export class ReviewPage extends Component {
   render() {
+    const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
+    const businessTooltip = 'Feature available in Business License only';
+    const isBusinessOnlyRoute = (route) => route === '#!/analyst' || route === '#!/posture-ai';
     const parkedPages = [
       { name: 'AI Analyst', route: '#!/analyst', description: 'Interactive AI security chat' },
       { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine snapshot view' },
@@ -648,7 +651,12 @@ export class ReviewPage extends Component {
                       <td class="text-muted">${p.description}</td>
                       <td><span class="badge bg-warning text-white">Parked</span></td>
                       <td>
-                        <a href="${p.route}" class="btn btn-sm btn-outline-secondary">Open</a>
+                        <a
+                          href="${p.route}"
+                          class=${`btn btn-sm btn-outline-secondary ${(isPersonalOrg && isBusinessOnlyRoute(p.route)) ? 'business-license-only' : ''}`}
+                          title=${(isPersonalOrg && isBusinessOnlyRoute(p.route)) ? businessTooltip : ''}
+                          data-business-tooltip=${(isPersonalOrg && isBusinessOnlyRoute(p.route)) ? businessTooltip : ''}
+                        >Open</a>
                       </td>
                     </tr>
                   `)}

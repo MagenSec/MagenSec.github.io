@@ -152,6 +152,8 @@ export default class AIReportDetailPage extends Component {
 
     render() {
         const { loading, error, report } = this.state;
+        const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
+        const businessTooltip = 'Feature available in Business License only';
 
         if (loading) {
             return html`
@@ -202,7 +204,12 @@ export default class AIReportDetailPage extends Component {
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb mb-2">
                                 <li class="breadcrumb-item">
-                                    <a href="#!/ai-reports" class="text-decoration-none">AI Reports</a>
+                                    <a
+                                        href="#!/ai-reports"
+                                        class=${`text-decoration-none ${isPersonalOrg ? 'business-license-only' : ''}`}
+                                        title=${isPersonalOrg ? businessTooltip : ''}
+                                        data-business-tooltip=${isPersonalOrg ? businessTooltip : ''}
+                                    >AI Reports</a>
                                 </li>
                                 <li class="breadcrumb-item active" aria-current="page">
                                     ${report.reportId?.substring(0, 8)}...

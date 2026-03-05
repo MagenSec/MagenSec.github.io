@@ -9,6 +9,8 @@ import { orgContext } from '@orgContext';
 import PersonaNav from './PersonaNav.js';
 
 const { html, Component } = window;
+const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
+const BUSINESS_ONLY_ROUTES = new Set(['#!/compliance', '#!/reports', '#!/auditor', '#!/analyst']);
 
 function renderMarkdown(text) {
   if (!text) return '';
@@ -37,6 +39,26 @@ export default class UnifiedDashboard extends Component {
     };
     this._sheetDismissHandler = null;
     this._orgChangeUnsub = null;
+  }
+
+  isPersonalOrg() {
+    return orgContext.getCurrentOrg()?.type === 'Personal';
+  }
+
+  isBusinessOnlyHref(href) {
+    return BUSINESS_ONLY_ROUTES.has(href);
+  }
+
+  getBusinessOnlyMeta(href) {
+    const isBusinessOnly = this.isBusinessOnlyHref(href);
+    const isPersonal = this.isPersonalOrg();
+    const shouldDisable = isBusinessOnly && isPersonal;
+
+    return {
+      className: shouldDisable ? 'business-license-only' : '',
+      title: shouldDisable ? BUSINESS_ONLY_TOOLTIP : '',
+      dataTooltip: shouldDisable ? BUSINESS_ONLY_TOOLTIP : ''
+    };
   }
 
   componentDidMount() {
@@ -459,9 +481,16 @@ export default class UnifiedDashboard extends Component {
                   <div style="display: flex; gap: 6px; align-items: center;">
                     <button
                       onClick=${() => {
+                        if (this.isPersonalOrg()) {
+                          window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                          return;
+                        }
                         try { sessionStorage.setItem('ai_analyst_prefill', JSON.stringify({ question: aiAnswer.question, answer: aiAnswer.answer })); } catch (_) {}
                         window.location.hash = '#!/analyst';
                       }}
+                      class=${this.isPersonalOrg() ? 'business-license-only' : ''}
+                      title=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''}
+                      data-business-tooltip=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''}
                       style="background: var(--db-subtle-bg); border: 1px solid var(--db-subtle-border); color: var(--db-subtle-text); font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; cursor: pointer;"
                     >Continue →</button>
                     <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: var(--db-faintest-text); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">✕</button>
@@ -484,8 +513,20 @@ export default class UnifiedDashboard extends Component {
           <div style="text-align: center;">
             <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;">
               <a href="#!/security" style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);">Security</a>
-              <a href="#!/compliance" style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);">Compliance</a>
-              <a href="#!/reports" style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);">Reports</a>
+              <a
+                href="#!/compliance"
+                class=${this.getBusinessOnlyMeta('#!/compliance').className}
+                title=${this.getBusinessOnlyMeta('#!/compliance').title}
+                data-business-tooltip=${this.getBusinessOnlyMeta('#!/compliance').dataTooltip}
+                style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);"
+              >Compliance</a>
+              <a
+                href="#!/reports"
+                class=${this.getBusinessOnlyMeta('#!/reports').className}
+                title=${this.getBusinessOnlyMeta('#!/reports').title}
+                data-business-tooltip=${this.getBusinessOnlyMeta('#!/reports').dataTooltip}
+                style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);"
+              >Reports</a>
               <button onClick=${() => this.refreshDashboard()} style="font-size: 0.72rem; color: var(--db-muted-text); background: var(--db-pill-bg); border: 1px solid var(--db-pill-border); border-radius: 20px; padding: 3px 10px; cursor: pointer;">
                 ${refreshing ? 'Refreshing…' : '↻ Refresh'}
               </button>
@@ -545,7 +586,19 @@ export default class UnifiedDashboard extends Component {
         </div>
 
         <div class="col-6 col-md-3">
-          <div style="${glass}" onClick=${() => window.location.hash = '#!/compliance'}>
+          <div
+            style="${glass}"
+            class=${this.isPersonalOrg() ? 'business-license-only' : ''}
+            title=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''}
+            data-business-tooltip=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''}
+            onClick=${() => {
+              if (this.isPersonalOrg()) {
+                window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                return;
+              }
+              window.location.hash = '#!/compliance';
+            }}
+          >
             <div style="${label}">Compliance</div>
             <div style="${bigNum(compHex)}">${compliancePercent}%</div>
             <div style="background:var(--db-bar-track);border-radius:3px;height:3px;overflow:hidden;margin-bottom:5px;">
@@ -609,9 +662,9 @@ export default class UnifiedDashboard extends Component {
 
     const PERSONA_CTAs = {
       business: [
-        { href: '#!/compliance', label: 'Compliance' },
+        { href: '#!/compliance', label: 'Compliance', businessOnly: true },
         { href: '#!/security',   label: 'Security' },
-        { href: '#!/reports',    label: 'Reports' }
+        { href: '#!/reports',    label: 'Reports', businessOnly: true }
       ],
       it: [
         { href: '#!/devices',   label: 'Devices' },
@@ -620,13 +673,13 @@ export default class UnifiedDashboard extends Component {
       ],
       security: [
         { href: '#!/security',    label: 'Full Analysis' },
-        { href: '#!/reports',     label: 'Reports' },
-        { href: '#!/analyst',     label: 'Ask 🛡️MAGI' }
+        { href: '#!/reports',     label: 'Reports', businessOnly: true },
+        { href: '#!/analyst',     label: 'Ask 🛡️MAGI', businessOnly: true }
       ],
       auditor: [
-        { href: '#!/auditor',     label: 'Auditor Dashboard' },
+        { href: '#!/auditor',     label: 'Auditor Dashboard', businessOnly: true },
         { href: '#!/audit',       label: 'Audit Log' },
-        { href: '#!/compliance',  label: 'Compliance' }
+        { href: '#!/compliance',  label: 'Compliance', businessOnly: true }
       ]
     };
 
@@ -1012,9 +1065,22 @@ export default class UnifiedDashboard extends Component {
               <!-- Row 3: CTA buttons -->
               <div style="padding: 12px 16px 4px; display: flex; gap: 8px; flex-wrap: wrap;">
                 ${ctaList.map((cta, i) => html`
+                  ${(() => {
+                    const personalBlocked = this.isPersonalOrg() && cta.businessOnly;
+                    return html`
                   <a
                     href="${cta.href}"
-                    onClick=${() => { this.closePersonaSheet(); window.location.hash = cta.href.slice(1); }}
+                    class=${personalBlocked ? 'business-license-only' : ''}
+                    title=${personalBlocked ? BUSINESS_ONLY_TOOLTIP : ''}
+                    data-business-tooltip=${personalBlocked ? BUSINESS_ONLY_TOOLTIP : ''}
+                    onClick=${() => {
+                      if (personalBlocked) {
+                        window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                        return;
+                      }
+                      this.closePersonaSheet();
+                      window.location.hash = cta.href.slice(1);
+                    }}
                     style="
                       font-size: 0.78rem;
                       font-weight: 600;
@@ -1027,6 +1093,8 @@ export default class UnifiedDashboard extends Component {
                       transition: opacity 0.15s;
                     "
                   >${cta.label} →</a>
+                    `;
+                  })()}
                 `)}
               </div>
 
@@ -1257,11 +1325,18 @@ export default class UnifiedDashboard extends Component {
                 <a href="#!/security" style="font-size: 0.76rem; font-weight: 600; color: ${gradeColor}; text-decoration: none;">Full Security Report →</a>
                 <button
                   onClick=${() => {
+                    if (this.isPersonalOrg()) {
+                      window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                      return;
+                    }
                     const postureSummary = 'Security grade: ' + grade + ' (score ' + secScore + '/100). ' + situationText + ' Please explain our current security posture in brief and provide up to 5 prioritized action items to improve it.';
                     try { sessionStorage.setItem('ai_analyst_prefill_prompt', postureSummary); } catch (_) {}
                     this.setState({ officerNoteOpen: false });
                     window.location.hash = '#!/analyst';
                   }}
+                  class=${this.isPersonalOrg() ? 'business-license-only' : ''}
+                  title=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''}
+                  data-business-tooltip=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''}
                   style="
                     font-size: 0.76rem; font-weight: 700; color: #fff;
                     background: linear-gradient(135deg, #6366f1, #8b5cf6);
