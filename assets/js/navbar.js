@@ -1,7 +1,7 @@
 ﻿/**
  * MagenSec  Navbar component
  * Injects shared navigation HTML into every page.
- * Call loadNavbar({ active: "home|magi|pricing|about|fixit", relativePath: "" }) 
+ * Call loadNavbar({ active: "home|magi|pricing|about|install", relativePath: "" }) 
  * from each page, or set <body data-nav-active="..."> and omit params.
  */
 (function () {
@@ -10,8 +10,8 @@
   var NAV_LINKS = [
     { key: 'home',    label: 'Home',       href: 'index.html' },
     { key: 'magi',    label: 'MAGI AI',    href: 'magi.html',    accent: true },
-    { key: 'pricing', label: 'Pricing',    href: 'pricing.html' },
-    { key: 'fixit',   label: 'Install',    href: 'FixIt.html' },
+    { key: 'pricing', label: 'Pricing',    href: 'editions.html' },
+    { key: 'install', label: 'Install',    href: 'install.html' },
     { key: 'about',   label: 'About',      href: 'about.html' },
   ];
 
@@ -21,7 +21,7 @@
 
     var logoHref    = base + 'index.html';
     var portalHref  = base + 'portal/';
-    var downloadHref = base + 'FixIt.html';
+    var downloadHref = base + 'install.html';
     var storeHref   = 'https://apps.microsoft.com/detail/xpfmw6btjzf89s';
 
     var linksHTML = NAV_LINKS.map(function (link) {

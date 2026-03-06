@@ -9,6 +9,7 @@
   <link rel="icon" type="image/x-icon" href="../assets/black_shield_64.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="../assets/css/magensec.css">
 </head>
 <body data-nav-active="none">
@@ -22,10 +23,21 @@
       <a href="../index.html" class="nav__link">Home</a>
       <a href="../magi.html" class="nav__link nav__link--magi">MAGI AI</a>
       <a href="../editions.html" class="nav__link">Pricing</a>
-      <a href="../FixIt.html" class="nav__link">Install</a>
+      <a href="../install.html" class="nav__link">Install</a>
       <a href="../about.html" class="nav__link">About</a>
     </nav>
     <div class="nav__actions">
+      <div class="nav__dropdown" role="group">
+        <button class="btn-ghost btn--sm nav__dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </button>
+        <div class="nav__dropdown-menu" role="menu">
+          <div class="nav__dropdown-header">MagenSec for Windows</div>
+          <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="nav__dropdown-item" role="menuitem" target="_blank" rel="nofollow noopener"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>Download on Microsoft Store</a>
+          <a href="../install.html#enterprise-deploy" class="nav__dropdown-item" role="menuitem"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Manual &amp; CLI install</a>
+        </div>
+      </div>
       <a href="../portal/" class="btn-primary btn--sm">Sign In <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
     </div>
     <button class="nav__hamburger" id="nav-burger" aria-controls="mobile-nav" aria-expanded="false" aria-label="Open menu"><span></span><span></span><span></span></button>
@@ -35,11 +47,13 @@
       <a href="../index.html" class="nav__mobile-link">Home</a>
       <a href="../magi.html" class="nav__mobile-link nav__mobile-link--accent">MAGI AI</a>
       <a href="../editions.html" class="nav__mobile-link">Pricing</a>
-      <a href="../FixIt.html" class="nav__mobile-link">Install</a>
+      <a href="../install.html" class="nav__mobile-link">Install</a>
       <a href="../about.html" class="nav__mobile-link">About</a>
     </nav>
     <div class="nav__mobile-divider"></div>
-    <div style="padding:1rem 1.5rem">
+    <div style="padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem">
+      <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-ghost btn--full" target="_blank" rel="nofollow noopener">Get it on Microsoft Store</a>
+      <a href="../install.html#enterprise-deploy" class="btn-ghost btn--full">Manual &amp; CLI Install</a>
       <a href="../portal/" class="btn-primary btn--full">Sign In to Portal</a>
     </div>
   </div>
@@ -53,7 +67,7 @@
     <h1 class="feature-hero__title">Manage Windows Defender with confidence.<br><span class="text-gradient">No extra AV agent required.</span></h1>
     <p class="feature-hero__desc">MagenSec does not replace your antivirus. It helps you operate Windows Defender properly across your fleet by monitoring health state, signature freshness, scan cadence, exclusions, and policy configuration from one place.</p>
     <div class="hero__cta-group">
-      <a href="../FixIt.html" class="btn-primary">Download FixIt</a>
+      <a href="../install.html" class="btn-primary">Install MagenSec</a>
       <a href="../editions.html" class="btn-secondary">Compare Plans</a>
     </div>
     <div class="feature-hero__stats">
@@ -129,7 +143,7 @@
     <h2>Better antivirus operations, stronger security baseline</h2>
     <p class="section__sub">MagenSec keeps your antivirus layer healthy while vulnerability assessment, compliance monitoring, audit readiness, and MAGI provide the rest of the posture story.</p>
     <div class="hero__cta-group">
-      <a href="../FixIt.html" class="btn-primary">Get Started</a>
+      <a href="../install.html" class="btn-primary">Get Started</a>
       <a href="../editions.html" class="btn-secondary">See Business Bundles</a>
     </div>
   </div>
@@ -156,7 +170,7 @@
         <h4 class="footer__col-title">Plans</h4>
         <ul>
           <li><a href="../editions.html" class="footer__link">Pricing</a></li>
-          <li><a href="../FixIt.html" class="footer__link">Download</a></li>
+          <li><a href="../install.html" class="footer__link">Download</a></li>
           <li><a href="../portal/" class="footer__link">Sign In</a></li>
         </ul>
       </div>

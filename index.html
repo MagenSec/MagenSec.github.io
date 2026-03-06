@@ -9,6 +9,9 @@
   <link rel="icon" type="image/x-icon" href="assets/black_shield_64.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="preload" href="assets/css/magensec.css" as="style">
+  <link rel="preload" href="assets/MagiBanner.jpeg" as="image" type="image/jpeg" fetchpriority="high">
   <link rel="stylesheet" href="assets/css/magensec.css">
   <style>
     .home-hero-proof-list {
@@ -230,7 +233,7 @@
       <a href="index.html" class="nav__link nav__link--active">Home</a>
       <a href="magi.html" class="nav__link nav__link--magi">MAGI AI</a>
       <a href="editions.html" class="nav__link">Pricing</a>
-      <a href="FixIt.html" class="nav__link">Install</a>
+      <a href="install.html" class="nav__link">Install</a>
       <a href="about.html" class="nav__link">About</a>
     </nav>
     <div class="nav__actions">
@@ -244,7 +247,7 @@
           <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="nav__dropdown-item" role="menuitem" target="_blank" rel="nofollow noopener">
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>Download on Microsoft Store
           </a>
-          <a href="FixIt.html#enterprise-deploy" class="nav__dropdown-item" role="menuitem">
+          <a href="install.html#enterprise-deploy" class="nav__dropdown-item" role="menuitem">
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Manual &amp; CLI install
           </a>
         </div>
@@ -260,13 +263,13 @@
       <a href="index.html" class="nav__mobile-link nav__mobile-link--active">Home</a>
       <a href="magi.html" class="nav__mobile-link nav__mobile-link--accent">MAGI AI</a>
       <a href="editions.html" class="nav__mobile-link">Pricing</a>
-      <a href="FixIt.html" class="nav__mobile-link">Install</a>
+      <a href="install.html" class="nav__mobile-link">Install</a>
       <a href="about.html" class="nav__mobile-link">About</a>
     </nav>
     <div class="nav__mobile-divider"></div>
     <div style="padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem">
       <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-ghost btn--full" target="_blank" rel="nofollow noopener">Get it on Microsoft Store</a>
-      <a href="FixIt.html#enterprise-deploy" class="btn-ghost btn--full">Manual &amp; CLI Install</a>
+      <a href="install.html#enterprise-deploy" class="btn-ghost btn--full">Manual &amp; CLI Install</a>
       <a href="portal/" class="btn-primary btn--full">Sign In to Portal</a>
     </div>
   </div>
@@ -289,7 +292,7 @@
       <p class="hero__description">MagenSec brings antivirus management, vulnerability assessment, software inventory, compliance monitoring, and MAGI AI guidance into one lightweight platform built for real-world teams.</p>
       <div class="hero__cta-group">
         <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-primary btn-lg btn-pulse" target="_blank" rel="nofollow noopener">Download on Microsoft Store <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg></a>
-        <a href="FixIt.html#enterprise-deploy" class="btn-ghost btn-lg">Manual &amp; CLI Install <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+        <a href="install.html#enterprise-deploy" class="btn-ghost btn-lg">Manual &amp; CLI Install <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
       </div>
       <ul class="home-hero-proof-list">
         <li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Uses built-in Windows Defender intelligently instead of piling on another heavy AV stack.</span></li>
@@ -303,7 +306,7 @@
     </div>
     <div class="hero__visual" data-reveal="right">
       <div class="hero__magi-wrap">
-        <img src="assets/MagiBanner.jpeg" alt="MAGI AI Security Guardian" class="hero__magi-img" style="width:100%;max-width:540px;border-radius:2rem;box-shadow:0 24px 60px rgba(0,0,0,0.28);object-fit:cover;">
+        <img src="assets/MagiBanner.jpeg" alt="MAGI AI Security Guardian" class="hero__magi-img" width="1080" height="1080" fetchpriority="high" decoding="async" style="width:100%;max-width:540px;border-radius:2rem;box-shadow:0 24px 60px rgba(0,0,0,0.28);object-fit:cover;">
       </div>
     </div>
   </div>
@@ -379,7 +382,7 @@
     </div>
     <div class="home-attack-layout">
       <div class="home-attack-diagram" data-reveal="left">
-        <img src="images/attack-chain.svg" alt="Attack chain diagram showing where MagenSec blocks threats">
+        <img src="images/attack-chain.svg" alt="Attack chain diagram showing where MagenSec blocks threats" width="960" height="720" loading="lazy" decoding="async">
       </div>
       <div class="home-side-panel" data-reveal="right">
         <div class="home-side-panel__title">What MagenSec blocks first</div>
@@ -661,7 +664,7 @@
     <p class="cta-section__desc">Download the agent, see what needs attention, and move from vague confidence to evidence-backed security posture.</p>
     <div class="btn-group" style="justify-content:center">
       <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-primary btn-xl" target="_blank" rel="nofollow noopener">Download on Microsoft Store <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg></a>
-      <a href="FixIt.html#enterprise-deploy" class="btn-ghost btn-xl">Manual &amp; CLI Install <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+      <a href="install.html#enterprise-deploy" class="btn-ghost btn-xl">Manual &amp; CLI Install <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
     </div>
     <div class="cta-section__urgency">Install directly from Microsoft Store for the smoothest setup. Need scripted rollout? The <span>Install</span> page includes the manual and CLI deployment path.</div>
   </div>
@@ -672,7 +675,7 @@
     <div class="footer__grid">
       <div class="footer__brand">
         <a href="index.html" class="footer__brand-logo">
-          <img src="assets/black_shield_256x256.png" alt="" width="32" height="32">
+          <img src="assets/black_shield_256x256.png" alt="" width="32" height="32" loading="lazy" decoding="async">
           <span class="footer__brand-name">MagenSec</span>
         </a>
         <p class="footer__brand-tagline">Continuous security auditing powered by autonomous AI. Know exactly where you stand — always.</p>
@@ -700,7 +703,7 @@
       <div>
         <h3 class="footer__col-title">Company</h3>
         <div class="footer__links">
-          <a href="FixIt.html" class="footer__link">Download & Install</a>
+          <a href="install.html" class="footer__link">Download & Install</a>
           <a href="about.html" class="footer__link">About</a>
           <a href="terms.html" class="footer__link">Terms & Privacy</a>
           <a href="portal/" class="footer__link">Customer Portal</a>
