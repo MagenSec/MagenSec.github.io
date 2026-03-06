@@ -1,123 +1,123 @@
-/**
- * MagenSec Shared Navbar Loader
- * Solves the "multi-page static site" menu synchronization problem.
- * 
- * Usage:
- * <div id="navbar-placeholder"></div>
- * <script src="assets/js/navbar.js"></script>
- * <script>
- *   loadNavbar({
- *     active: 'personal', // 'personal' | 'business' | 'features'
- *     mode: 'personal',   // 'personal' (Download CTA) | 'enterprise' (Contact Sales CTA) 
- *     relativePath: ''    // '' for root pages, '../' for subfolders
- *   });
- * </script>
+﻿/**
+ * MagenSec  Navbar component
+ * Injects shared navigation HTML into every page.
+ * Call loadNavbar({ active: "home|magi|pricing|about|fixit", relativePath: "" }) 
+ * from each page, or set <body data-nav-active="..."> and omit params.
  */
+(function () {
+  'use strict';
 
-function loadNavbar(options = {}) {
-    const defaults = {
-        active: 'personal',
-        mode: 'personal',
-        relativePath: ''
-    };
-    
-    const config = { ...defaults, ...options };
-    const p = config.relativePath; // Short alias for path prefix
+  var NAV_LINKS = [
+    { key: 'home',    label: 'Home',       href: 'index.html' },
+    { key: 'magi',    label: 'MAGI AI',    href: 'magi.html',    accent: true },
+    { key: 'pricing', label: 'Pricing',    href: 'pricing.html' },
+    { key: 'fixit',   label: 'Install',    href: 'FixIt.html' },
+    { key: 'about',   label: 'About',      href: 'about.html' },
+  ];
 
-    // Configurable content based on mode
-    const isEnterprise = config.mode === 'enterprise';
-    const brandSubtitle = isEnterprise ? 'Enterprise' : 'by Gigabits';
-    const ctaLink = isEnterprise ? '#contact-sales' : '#download';
-    const ctaText = isEnterprise ? 'Contact Sales' : '📥 Download Free Trial';
-    const ctaClass = 'btn btn-primary';
+  function buildNavHTML(opts) {
+    var base   = opts.relativePath || '';
+    var active = opts.active || document.body.dataset.navActive || '';
 
-    // Active state classes
-    const activeClass = 'active fw-bold';
-    
-    const html = `
-    <header class="navbar navbar-expand-md navbar-light d-print-none sticky-top">
-        <div class="container-xl">
-            <!-- Brand -->
-            <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-                <a href="${p}index.html" class="text-decoration-none d-flex align-items-center">
-                    <picture class="me-2">
-                        <source srcset="${p}assets/logo.webp" type="image/webp">
-                        <img src="${p}assets/logo.png" alt="MagenSec" width="32" height="32" style="height: 32px; width: 32px;">
-                    </picture>
-                    <div>
-                        <strong>MagenSec</strong>
-                        <span class="text-muted small d-block" style="font-size: 0.7rem; line-height: 1;">${brandSubtitle}</span>
-                    </div>
-                </a>
-            </h1>
+    var logoHref    = base + 'index.html';
+    var portalHref  = base + 'portal/';
+    var downloadHref = base + 'FixIt.html';
+    var storeHref   = 'https://apps.microsoft.com/detail/xpfmw6btjzf89s';
 
-            <!-- Right Side CTA (Desktop) -->
-            <div class="navbar-nav flex-row order-md-last">
-                <div class="nav-item d-none d-md-flex me-3">
-                    <div class="btn-list">
-                        <a href="${isEnterprise ? '' : p + 'index.html'}${ctaLink}" class="${ctaClass}">
-                            ${ctaText}
-                        </a>
-                    </div>
-                </div>
-                <!-- Mobile Menu Toggler -->
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-            </div>
+    var linksHTML = NAV_LINKS.map(function (link) {
+      var href    = base + link.href;
+      var cls     = 'nav__link' + (link.key === active ? ' nav__link--active' : '') + (link.accent ? ' nav__link--accent' : '');
+      return '<a href="' + href + '" class="' + cls + '">' + link.label + '</a>';
+    }).join('\n        ');
 
-            <!-- Navigation Links -->
-            <div class="collapse navbar-collapse" id="navbar-menu">
-                <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
-                    <ul class="navbar-nav">
-                        <li class="nav-item ${config.active === 'personal' ? activeClass : ''}">
-                            <a class="nav-link" href="${p}index.html">Personal</a>
-                        </li>
-                        <li class="nav-item ${config.active === 'business' ? activeClass : ''}">
-                            <a class="nav-link" href="${p}enterprise.html">Business & Managed</a>
-                        </li>
-                        <li class="nav-item dropdown ${config.active === 'features' ? 'active' : ''}">
-                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">Features</a>
-                            <div class="dropdown-menu">
-                                <a href="${p}features/vulnerability.html" class="dropdown-item">AI Vulnerability Analyst</a>
-                                <a href="${p}features/software-inventory.html" class="dropdown-item">Software Inventory</a>
-                                <a href="${p}features/compliance.html" class="dropdown-item">Compliance Reports</a>
-                            </div>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="${p}index.html#pricing">Pricing</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="${p}index.html#faq">FAQ</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="${p}index.html#about">About</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="${p}FixIt.html">Security Guide</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="${p}index.html#contact">Contact</a>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
-                                <span class="d-md-none d-lg-inline-block">Admin Tools</span>
-                            </a>
-                            <div class="dropdown-menu">
-                                <a class="dropdown-item" href="${p}portal/" target="_blank">Security Portal</a>
-                                <div class="dropdown-divider"></div>
-                                <h6 class="dropdown-header">For Organizations</h6>
-                                <p class="dropdown-item text-muted small mb-0">
-                                    Multi-device security management and reports for IT administrators.
-                                </p>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </header>
-    `;
+    var mobileLinksHTML = NAV_LINKS.map(function (link) {
+      var href = base + link.href;
+      var cls  = 'nav__mobile-link' + (link.key === active ? ' nav__mobile-link--active' : '') + (link.accent ? ' nav__mobile-link--accent' : '');
+      return '<a href="' + href + '" class="' + cls + '">' + link.label + '</a>';
+    }).join('\n        ');
 
-    document.getElementById('navbar-placeholder').innerHTML = html;
-}
+    return [
+      '<header class="nav" id="nav" role="banner">',
+      '  <div class="nav__inner container">',
+      '',
+      '    <!-- Logo -->',
+      '    <a href="' + logoHref + '" class="nav__logo" aria-label="MagenSec  Home">',
+      '      <img src="' + base + 'assets/black_shield_256x256.png" alt="" width="32" height="32" aria-hidden="true">',
+      '      <span class="nav__brand">Magen<span class="nav__brand-sec">Sec</span></span>',
+      '    </a>',
+      '',
+      '    <!-- Desktop nav links -->',
+      '    <nav class="nav__links" aria-label="Main navigation">',
+      '      ' + linksHTML,
+      '    </nav>',
+      '',
+      '    <!-- Desktop actions -->',
+      '    <div class="nav__actions">',
+      '      <div class="download-dropdown" role="group" aria-label="Download options">',
+      '        <button class="btn-ghost btn--sm download-dropdown__trigger" aria-haspopup="true" aria-expanded="false">',
+      '          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+      '          Download',
+      '          <svg class="chevron" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>',
+      '        </button>',
+      '        <div class="download-dropdown__panel" role="menu">',
+      '          <div class="download-dropdown__header">MagenSec for Windows</div>',
+      '          <a id="dl-store"  href="' + storeHref + '" class="download-dropdown__item" role="menuitem" target="_blank" rel="nofollow noopener">',
+      '            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>',
+      '            Download on Microsoft Store',
+      '          </a>',
+      '          <a id="dl-manual" href="' + downloadHref + '#enterprise-deploy" class="download-dropdown__item" role="menuitem">',
+      '            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+      '            Manual & CLI install',
+      '          </a>',
+      '        </div>',
+      '      </div>',
+      '',
+      '      <a href="' + portalHref + '" class="btn-primary btn--sm">',
+      '        Sign In',
+      '        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
+      '      </a>',
+      '    </div>',
+      '',
+      '    <!-- Burger (mobile) -->',
+      '    <button class="nav__burger" aria-controls="mobile-menu" aria-expanded="false" aria-label="Open navigation menu">',
+      '      <span class="nav__burger-bar"></span>',
+      '      <span class="nav__burger-bar"></span>',
+      '      <span class="nav__burger-bar"></span>',
+      '    </button>',
+      '  </div>',
+      '',
+      '  <!-- Mobile menu overlay -->',
+      '  <div class="nav__mobile-menu" id="mobile-menu" role="dialog" aria-modal="true" aria-label="Navigation menu">',
+      '    <nav aria-label="Mobile navigation">',
+      '      ' + mobileLinksHTML,
+      '    </nav>',
+      '    <div class="nav__mobile-actions">',
+      '      <a href="' + storeHref + '" class="btn-ghost btn--full" target="_blank" rel="nofollow noopener">Get it on Microsoft Store</a>',
+      '      <a href="' + downloadHref + '#enterprise-deploy" class="btn-ghost btn--full">Manual & CLI Install</a>',
+      '      <a href="' + portalHref + '" class="btn-primary btn--full">Sign In to Portal</a>',
+      '    </div>',
+      '    <div class="nav__mobile-contact">',
+      '      <a href="mailto:MagenSec@Gigabits.co.in">MagenSec@Gigabits.co.in</a>',
+      '    </div>',
+      '  </div>',
+      '</header>',
+    ].join('\n');
+  }
+
+  window.loadNavbar = function (opts) {
+    opts = opts || {};
+    var placeholder = document.getElementById('navbar-placeholder');
+    if (!placeholder) {
+      placeholder = document.createElement('div');
+      placeholder.id = 'navbar-placeholder';
+      document.body.insertBefore(placeholder, document.body.firstChild);
+    }
+    placeholder.outerHTML = buildNavHTML(opts);
+
+    // Hydrate download links after insertion
+    if (typeof window.initDownloadLinks === 'function') {
+      window.initDownloadLinks();
+    }
+  };
+
+})();

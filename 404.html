@@ -1,65 +1,121 @@
-<!doctype html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
-    <title>Page Not Found | MagenSec</title>
-    <meta name="description" content="The page you're looking for could not be found. Return to MagenSec's homepage or contact our support team."/>
-    
-    <!-- Tabler CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
-    
-    <!-- MagenSec Custom Styles -->
-    <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
-    
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 — Page Not Found | MagenSec</title>
+  <meta name="description" content="The page you were looking for doesn't exist. Head back to MagenSec to explore endpoint security, MAGI AI, and more.">
+  <meta name="robots" content="noindex, follow">
+  <link rel="icon" type="image/x-icon" href="assets/black_shield_64.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="assets/css/magensec.css">
+  <style>
+    .pg-404 {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+    .pg-404__inner {
+      max-width: 560px;
+    }
+    .pg-404__shield {
+      display: inline-block;
+      margin-bottom: 2rem;
+      opacity: 0.6;
+      filter: drop-shadow(0 0 24px rgba(59,130,246,0.4));
+      animation: floatShield 4s ease-in-out infinite;
+    }
+    @keyframes floatShield {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+    .pg-404__code {
+      font-size: clamp(5rem, 15vw, 8rem);
+      font-weight: 800;
+      line-height: 1;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+    .pg-404__title {
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      font-weight: 700;
+      color: var(--color-text);
+      margin-bottom: 1rem;
+    }
+    .pg-404__desc {
+      color: var(--color-text-muted);
+      font-size: 1.05rem;
+      line-height: 1.7;
+      margin-bottom: 2.5rem;
+    }
+    .pg-404__links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+    }
+    .pg-404__hint {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      color: var(--color-text-muted);
+      font-size: 0.875rem;
+    }
+    .pg-404__hint a {
+      color: var(--color-blue);
+      text-decoration: none;
+    }
+    .pg-404__hint a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
-    <div class="page">
-        <!-- Navbar -->
-        <header class="navbar navbar-expand-md navbar-dark d-print-none" style="background: rgba(0,0,0,0.1);">
-            <div class="container-xl">
-                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-                    <a href="index.html">
-                        <picture>
-                            <source srcset="assets/logo.webp" type="image/webp">
-                            <img src="assets/logo.png" alt="MagenSec" class="navbar-brand-image">
-                        </picture>
-                        MagenSec
-                    </a>
-                </h1>
-            </div>
-        </header>
 
-        <!-- Error Page -->
-        <div class="error-page">
-            <div class="container-xl">
-                <div class="row justify-content-center text-center">
-                    <div class="col-12 col-lg-6">
-                        <div class="error-number">404</div>
-                        <h1 class="display-4 fw-bold mb-4">Page Not Found</h1>
-                        <p class="lead mb-4">
-                            The page you're looking for doesn't exist or has been moved. <br/>
-                            Don't worry, our security is still protecting you!
-                        </p>
-                        <div class="d-flex flex-wrap gap-3 justify-content-center">
-                            <a href="index.html" class="btn btn-light btn-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l14 0"/><path d="m5 12l6 6"/><path d="m5 12l6 -6"/></svg>
-                                Go Home
-                            </a>
-                            <a href="mailto:magensec@gigabits.co.in" class="btn btn-outline-light btn-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="m3 7l9 6l9 -6"/></svg>
-                                Contact Support
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<main class="pg-404" role="main">
+  <div class="pg-404__inner">
+
+    <div class="pg-404__shield">
+      <img src="assets/black_shield_256x256.png" alt="MagenSec shield" width="80" height="90">
     </div>
 
-    <!-- Tabler Core -->
-    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
+    <div class="pg-404__code" aria-label="Error code 404">404</div>
+
+    <h1 class="pg-404__title">This page wandered off</h1>
+
+    <p class="pg-404__desc">
+      The page you were looking for doesn't exist or may have moved.<br>
+      Let's get you back somewhere useful.
+    </p>
+
+    <div class="pg-404__links">
+      <a href="index.html" class="btn-primary">Return home</a>
+      <a href="FixIt.html" class="btn-secondary">Download FixIt</a>
+      <a href="portal/" class="btn-secondary">Go to portal</a>
+    </div>
+
+    <div class="pg-404__hint">
+      Looking for something specific? Try
+      <a href="features/vulnerability.html">Vulnerability Detection</a>,
+      <a href="features/compliance.html">Compliance Monitoring</a>,
+      <a href="magi.html">MAGI AI</a>, or
+      <a href="editions.html">Pricing</a>.
+      <br><br>
+      If you followed a link that should work,
+      <a href="mailto:MagenSec@Gigabits.co.in?subject=Broken%20link%20report">let us know</a>.
+    </div>
+
+  </div>
+</main>
+
+<script src="assets/js/core.js" defer></script>
 </body>
 </html>
+

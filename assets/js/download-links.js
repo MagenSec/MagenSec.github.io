@@ -1,43 +1,76 @@
-function displayDownloadLinks() {
-    const userAgent = navigator.userAgent;
-    const isWindows = userAgent.includes("Windows");
-    const isIntelAMD64 = userAgent.includes("x64") || userAgent.includes("amd64");
-    const isARM64 = userAgent.includes("arm64") || userAgent.includes("aarch64");
-  
-    const intelAMD64Div = document.getElementById("intelAMD64");
-    const arm64Div = document.getElementById("arm64");
-  
-    if (isWindows) {
-      if (isIntelAMD64) {
-        // Show Intel/AMD64 button, ARM64 link
-        if (intelAMD64Div) {
-          intelAMD64Div.innerHTML = '<button class="download-button" onclick="window.location.href=\'' + intelAMD64Div.querySelector('a').href + '\'">Download Windows x64</button>';
-          arm64Div.style.display = "block";
-        }
-      } else if (isARM64) {
-        // Show ARM64 button, Intel/AMD64 link
-        if (arm64Div) {
-          arm64Div.innerHTML = '<button class="download-button" onclick="window.location.href=\'' + arm64Div.querySelector('a').href + '\'">Download Windows ARM64</button>';
-          intelAMD64Div.style.display = "block";
-        }
-      } else {
-        // Show both as links
-        if (intelAMD64Div) {
-          intelAMD64Div.style.display = "block";
-        }
-        if (arm64Div) {
-          arm64Div.style.display = "block";
-        }
-      }
-    } else {
-      // Show all links if not Windows
-      if (intelAMD64Div) {
-        intelAMD64Div.style.display = "block";
-      }
-      if (arm64Div) {
-        arm64Div.style.display = "block";
-      }
-    }
+﻿/**
+ * MagenSec  Download Links
+ * Detects OS & architecture, highlights the best download and warns mobile users.
+ * Exposes window.initDownloadLinks() so navbar.js can retrigger after injection.
+ */
+(function () {
+  'use strict';
+
+  var UA = navigator.userAgent;
+
+  function isMobile() {
+    return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(UA);
   }
-  
-  window.onload = displayDownloadLinks;
+
+  function isWindows() {
+    return UA.includes('Windows') || navigator.platform === 'Win32';
+  }
+
+  function isArm64() {
+    return /arm64|aarch64/i.test(UA);
+  }
+
+  function isX64() {
+    return /Win64|x64|amd64/i.test(UA);
+  }
+
+  function showMobileWarning() {
+    var items = document.querySelectorAll('.download-dropdown__item');
+    items.forEach(function (el) {
+      el.insertAdjacentHTML('beforebegin',
+        '<p class="download-mobile-msg">MagenSec installs on Windows.<br>' +
+        'Open this page on a Windows PC for Store or manual installation.</p>'
+      );
+    });
+  }
+
+  function highlightPrimary(id, label) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add('download-dropdown__item--primary');
+    el.setAttribute('data-recommended', 'true');
+    el.setAttribute('aria-label', label + ' recommended for your PC');
+
+    var svg = el.querySelector('svg');
+    var iconMarkup = svg ? svg.outerHTML : '';
+    el.innerHTML = iconMarkup + label + ' <span class="download-dropdown__hint">Recommended for your PC</span>';
+  }
+
+  window.initDownloadLinks = function () {
+    if (isMobile()) {
+      showMobileWarning();
+      return;
+    }
+
+    if (!isWindows()) {
+      // Not Windows — keep store/manual visible without platform-specific highlights
+      ['dl-store', 'dl-manual'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = '';
+      });
+      return;
+    }
+
+    if (isArm64() || isX64()) {
+      highlightPrimary('dl-store', 'Download on Microsoft Store');
+    }
+  };
+
+  // Run on load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', window.initDownloadLinks);
+  } else {
+    window.initDownloadLinks();
+  }
+
+})();

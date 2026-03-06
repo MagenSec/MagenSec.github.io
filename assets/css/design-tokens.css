@@ -1,0 +1,174 @@
+/**
+ * MagenSec Design Tokens
+ * Central source of truth for all design decisions.
+ * Do NOT use raw values in component CSS — always reference these tokens.
+ */
+
+:root {
+  /* ─── Color Palette ─────────────────────────────────────────────── */
+
+  /* Backgrounds */
+  --color-bg:           #050b18;
+  --color-surface:      #0a1628;
+  --color-surface-2:    #0f1f3d;
+  --color-surface-3:    #152b50;
+  --color-surface-card: rgba(15, 31, 61, 0.7);
+
+  /* Borders */
+  --color-border:       rgba(59, 130, 246, 0.12);
+  --color-border-hover: rgba(59, 130, 246, 0.30);
+  --color-border-focus: rgba(59, 130, 246, 0.60);
+
+  /* Brand — Primary (Electric Blue) */
+  --color-primary:        #3b82f6;
+  --color-primary-hover:  #2563eb;
+  --color-primary-active: #1d4ed8;
+  --color-primary-subtle: rgba(59, 130, 246, 0.08);
+  --color-primary-glow:   rgba(59, 130, 246, 0.25);
+  --color-primary-glow-lg:rgba(59, 130, 246, 0.12);
+
+  /* Brand — Accent (Cyber Cyan) */
+  --color-accent:         #06b6d4;
+  --color-accent-hover:   #0891b2;
+  --color-accent-subtle:  rgba(6, 182, 212, 0.08);
+  --color-accent-glow:    rgba(6, 182, 212, 0.25);
+
+  /* Status */
+  --color-success:        #10b981;
+  --color-success-subtle: rgba(16, 185, 129, 0.10);
+  --color-warning:        #f59e0b;
+  --color-warning-subtle: rgba(245, 158, 11, 0.10);
+  --color-danger:         #ef4444;
+  --color-danger-subtle:  rgba(239, 68, 68, 0.10);
+  --color-info:           #06b6d4;
+
+  /* Text */
+  --color-text-primary:   #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted:     #64748b;
+  --color-text-inverse:   #0a1628;
+  --color-text-link:      #60a5fa;
+  --color-text-link-hover:#93c5fd;
+
+  /* ─── Typography ────────────────────────────────────────────────── */
+
+  --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono:  'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+
+  /* Fluid type scale — clamp(min, preferred, max) */
+  --text-xs:   0.75rem;       /* 12px */
+  --text-sm:   0.875rem;      /* 14px */
+  --text-base: 1rem;          /* 16px */
+  --text-lg:   1.125rem;      /* 18px */
+  --text-xl:   1.25rem;       /* 20px */
+  --text-2xl:  1.5rem;        /* 24px */
+  --text-3xl:  clamp(1.5rem, 3vw, 1.875rem);
+  --text-4xl:  clamp(1.875rem, 4vw, 2.25rem);
+  --text-5xl:  clamp(2.25rem, 5vw, 3rem);
+  --text-6xl:  clamp(2.75rem, 6vw, 3.75rem);
+  --text-hero: clamp(2.5rem, 7vw, 4.5rem);
+
+  /* Font Weights */
+  --weight-normal:    400;
+  --weight-medium:    500;
+  --weight-semibold:  600;
+  --weight-bold:      700;
+  --weight-extrabold: 800;
+  --weight-black:     900;
+
+  /* Line Heights */
+  --leading-none:   1;
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.6;
+  --leading-relaxed:1.75;
+
+  /* ─── Spacing Scale (4px base) ──────────────────────────────────── */
+  --space-1:  0.25rem;   /* 4px  */
+  --space-2:  0.5rem;    /* 8px  */
+  --space-3:  0.75rem;   /* 12px */
+  --space-4:  1rem;      /* 16px */
+  --space-5:  1.25rem;   /* 20px */
+  --space-6:  1.5rem;    /* 24px */
+  --space-8:  2rem;      /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-14: 3.5rem;    /* 56px */
+  --space-16: 4rem;      /* 64px */
+  --space-20: 5rem;      /* 80px */
+  --space-24: 6rem;      /* 96px */
+  --space-28: 7rem;      /* 112px */
+  --space-32: 8rem;      /* 128px */
+
+  /* ─── Border Radius ─────────────────────────────────────────────── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  24px;
+  --radius-3xl:  32px;
+  --radius-full: 9999px;
+
+  /* ─── Shadows ────────────────────────────────────────────────────── */
+  --shadow-sm:       0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:       0 4px 16px rgba(0,0,0,0.5);
+  --shadow-lg:       0 8px 32px rgba(0,0,0,0.6);
+  --shadow-xl:       0 16px 48px rgba(0,0,0,0.7);
+  --shadow-glow-sm:  0 0 12px var(--color-primary-glow);
+  --shadow-glow-md:  0 0 24px var(--color-primary-glow);
+  --shadow-glow-lg:  0 4px 40px var(--color-primary-glow), 0 0 80px var(--color-primary-glow-lg);
+  --shadow-glow-cyan:0 0 24px var(--color-accent-glow);
+  --shadow-card:     0 4px 24px rgba(0,0,0,0.5), 0 0 0 1px var(--color-border);
+
+  /* ─── Transitions ────────────────────────────────────────────────── */
+  --duration-fast:   150ms;
+  --duration-normal: 300ms;
+  --duration-slow:   600ms;
+  --duration-slower: 1000ms;
+  --ease-out:        cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out:     cubic-bezier(0.45, 0, 0.55, 1);
+  --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ─── Layout ─────────────────────────────────────────────────────── */
+  --container-max:    1280px;
+  --container-narrow: 800px;
+  --container-tight:  640px;
+  --section-y:        6rem;
+  --section-x:        1.5rem;
+  --nav-height:       72px;
+  --promo-banner-height: 0px;
+
+  /* ─── Z-Index ────────────────────────────────────────────────────── */
+  --z-base:    1;
+  --z-raised:  10;
+  --z-overlay: 100;
+  --z-nav:     1000;
+  --z-modal:   2000;
+  --z-toast:   3000;
+}
+
+/* Light theme overrides */
+:root[data-theme="light"] {
+  --color-bg:           #f8fafc;
+  --color-surface:      #ffffff;
+  --color-surface-2:    #f1f5f9;
+  --color-surface-3:    #e2e8f0;
+  --color-surface-card: rgba(255, 255, 255, 0.9);
+
+  --color-border:       rgba(15, 23, 42, 0.08);
+  --color-border-hover: rgba(15, 23, 42, 0.20);
+  --color-border-focus: rgba(59, 130, 246, 0.50);
+
+  --color-text-primary:   #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted:     #64748b;
+  --color-text-inverse:   #f8fafc;
+  --color-text-link:      #2563eb;
+  --color-text-link-hover:#1d4ed8;
+
+  --shadow-sm:       0 1px 3px rgba(15,23,42,0.1);
+  --shadow-md:       0 6px 16px rgba(15,23,42,0.12);
+  --shadow-lg:       0 10px 28px rgba(15,23,42,0.12);
+  --shadow-xl:       0 16px 36px rgba(15,23,42,0.15);
+  --shadow-card:     0 6px 24px rgba(15,23,42,0.12), 0 0 0 1px var(--color-border);
+}
