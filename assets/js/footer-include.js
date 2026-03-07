@@ -1,0 +1,131 @@
+(function () {
+  var mount = document.getElementById('site-footer');
+  if (!mount) return;
+
+  function getBasePath() {
+    var scripts = document.getElementsByTagName('script');
+    for (var i = scripts.length - 1; i >= 0; i--) {
+      var src = scripts[i].getAttribute('src') || '';
+      if (src.indexOf('assets/js/footer-include.js') === -1) continue;
+      try {
+        var url = new URL(src, window.location.href);
+        var path = url.pathname.replace(/\/assets\/js\/footer-include\.js.*$/, '');
+        return path && path !== '/' ? path : '';
+      } catch (e) {
+        continue;
+      }
+    }
+    return '';
+  }
+
+  var basePath = getBasePath();
+
+  function toBasePath(path) {
+    if (!path) return path;
+    if (/^(https?:)?\/\//i.test(path) || path.indexOf('mailto:') === 0 || path.indexOf('#') === 0 || path.indexOf('javascript:') === 0 || path.indexOf('data:') === 0) {
+      return path;
+    }
+    var cleaned = path.replace(/^\.?\//, '').replace(/^\//, '');
+    if (!basePath) return '/' + cleaned;
+    return basePath + '/' + cleaned;
+  }
+
+  function normalizeLinks(scope) {
+    var anchors = scope.querySelectorAll('a[href]');
+    for (var i = 0; i < anchors.length; i++) {
+      var href = anchors[i].getAttribute('href');
+      anchors[i].setAttribute('href', toBasePath(href));
+    }
+
+    var images = scope.querySelectorAll('img[src]');
+    for (var j = 0; j < images.length; j++) {
+      var src = images[j].getAttribute('src');
+      images[j].setAttribute('src', toBasePath(src));
+    }
+  }
+
+  var src = mount.getAttribute('data-footer-src') || 'footer.html';
+  var attempts = [src, 'footer.html', '../footer.html', '../../footer.html'];
+  if (basePath) attempts.push(basePath + '/footer.html');
+  attempts.push('/footer.html');
+
+  var fallbackHtml = `
+<footer class="footer" role="contentinfo">
+  <div class="container">
+    <div class="footer__grid">
+      <div class="footer__brand">
+        <a href="index.html" class="footer__brand-logo">
+          <img src="assets/black_shield_256x256.png" alt="MagenSec Shield" width="32" height="32" loading="lazy" decoding="async">
+          <span class="footer__brand-name">MagenSec</span>
+        </a>
+        <p class="footer__brand-tagline">Continuous security auditing for SMB environments. Protect, Prove, and act with MAGI AI.</p>
+        <a href="mailto:MagenSec@Gigabits.co.in" class="footer__contact-link">MagenSec@Gigabits.co.in</a>
+      </div>
+      <div>
+        <h3 class="footer__col-title">Product</h3>
+        <div class="footer__product-grid">
+          <div class="footer__stack">
+            <a href="features/antivirus-management.html" class="footer__link">Security Coverage</a>
+            <a href="features/vulnerability.html" class="footer__link">Vulnerability Detection</a>
+            <a href="features/software-inventory.html" class="footer__link">Software Inventory</a>
+            <a href="features/license-management.html" class="footer__link">License Management</a>
+          </div>
+          <div class="footer__stack">
+            <a href="features/compliance.html" class="footer__link">Compliance Monitoring</a>
+            <a href="features/audit.html" class="footer__link">Audit + Time-Travel</a>
+            <a href="magi.html" class="footer__link">MAGI AI</a>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 class="footer__col-title">Plans</h3>
+        <div class="footer__stack">
+          <a href="editions/personal.html" class="footer__link">Personal</a>
+          <a href="editions/education.html" class="footer__link">Education</a>
+          <a href="editions/business.html" class="footer__link">Business</a>
+          <a href="mailto:MagenSec@Gigabits.co.in" class="footer__link">Managed Services</a>
+        </div>
+      </div>
+      <div>
+        <h3 class="footer__col-title">Company</h3>
+        <div class="footer__stack">
+          <a href="about.html" class="footer__link">About</a>
+          <a href="terms.html" class="footer__link">Legal</a>
+          <a href="portal/" class="footer__link">Customer Portal</a>
+          <a href="mailto:MagenSec@Gigabits.co.in" class="footer__link">Contact</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <div class="footer__copyright">&copy; 2024-2026 MagenSec by Gigabits. All rights reserved.</div>
+      <div class="footer__bottom-links">
+        <a href="terms.html#privacy" class="footer__bottom-link">Privacy Policy</a>
+        <a href="terms.html#terms" class="footer__bottom-link">Terms of Service</a>
+      </div>
+    </div>
+  </div>
+</footer>`;
+
+  function tryLoad(index) {
+    if (index >= attempts.length) {
+      mount.innerHTML = fallbackHtml;
+      normalizeLinks(mount);
+      return;
+    }
+
+    fetch(attempts[index], { cache: 'no-store' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('Footer load failed: ' + response.status);
+        return response.text();
+      })
+      .then(function (html) {
+        mount.innerHTML = html;
+        normalizeLinks(mount);
+      })
+      .catch(function () {
+        tryLoad(index + 1);
+      });
+  }
+
+  tryLoad(0);
+})();

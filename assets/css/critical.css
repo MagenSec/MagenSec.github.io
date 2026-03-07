@@ -1,147 +1,142 @@
-/* Critical CSS for MagenSec - Above the fold content only */
-/* Load this inline in <head> for better performance */
+/**
+ * MagenSec - Critical CSS
+ * Inlined in <head> to deliver above-the-fold styles without render-blocking.
+ * Keep this file small - only include what is needed for the visible viewport.
+ */
 
+/* Minimal custom properties needed before full stylesheet loads */
 :root {
-    --tblr-primary: #0066cc;
-    --tblr-primary-rgb: 0, 102, 204;
-    --gradient-primary: linear-gradient(135deg, #0066cc 0%, #004499 100%);
-    --gradient-secondary: linear-gradient(135deg, #00cc66 0%, #009944 100%);
+  --color-bg:      #050b18;
+  --color-surface: #0a1628;
+  --color-primary: #3b82f6;
+  --color-accent:  #06b6d4;
+  --color-text-primary:   #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-border:  rgba(59,130,246,0.12);
+  --nav-height:    72px;
+  --font-sans:     "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
-* {
-    box-sizing: border-box;
-}
+html { background: #050b18; }
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-    margin: 0;
-    font-family: Inter, -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif;
-    font-size: 0.875rem;
-    line-height: 1.4285714286;
-    color: #182433;
-    background: #f8fafc;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-/* Navbar Critical Styles */
-.navbar {
-    position: relative;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-    background: var(--gradient-primary);
+.nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  height: var(--nav-height);
+  display: flex;
+  align-items: center;
+  background: transparent;
+  transition: background .3s, box-shadow .3s;
 }
 
-.navbar-brand {
-    padding-top: 0.3125rem;
-    padding-bottom: 0.3125rem;
-    margin-right: 1rem;
-    font-size: 1.25rem;
-    text-decoration: none;
-    white-space: nowrap;
-    color: white;
+.nav--scrolled {
+  background: rgba(5,11,24,.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 1px 0 var(--color-border);
 }
 
-.navbar-brand img {
-    height: 32px;
-    width: auto;
+.nav__inner {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
 }
 
-.container-xl {
-    width: 100%;
-    padding-right: 0.75rem;
-    padding-left: 0.75rem;
-    margin-right: auto;
-    margin-left: auto;
-    max-width: 1320px;
+.nav__brand { display: flex; align-items: center; gap: .75rem; text-decoration: none; flex-shrink: 0; }
+
+.nav__name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -.02em;
 }
 
-/* Hero Section Critical Styles */
-.hero-section {
-    background: var(--gradient-primary);
-    color: white;
-    padding: 4rem 0;
-    position: relative;
-    overflow: hidden;
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding-top: var(--nav-height);
+  overflow: hidden;
+  background: var(--color-bg);
 }
 
-.hero-content {
-    text-align: center;
-    position: relative;
-    z-index: 2;
+.hero__bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 40%, rgba(59,130,246,.12) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 20%, rgba(6,182,212,.08) 0%, transparent 50%),
+    var(--color-bg);
 }
 
-.hero-title {
-    font-size: 3.5rem;
-    font-weight: 700;
-    margin-bottom: 1.5rem;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+.hero__inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 6rem 1.5rem 5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
 }
 
-.hero-subtitle {
-    font-size: 1.5rem;
-    margin-bottom: 2rem;
-    opacity: 0.95;
-    font-weight: 300;
-}
-
-/* Button Critical Styles */
-.btn {
-    display: inline-block;
-    font-weight: 600;
-    color: #182433;
-    text-align: center;
-    vertical-align: middle;
-    cursor: pointer;
-    user-select: none;
-    background-color: transparent;
-    border: 1px solid transparent;
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-    line-height: 1.4285714286;
-    border-radius: 4px;
-    text-decoration: none;
-    transition: all 0.15s ease-in-out;
+.hero__title {
+  font-size: clamp(2.5rem,7vw,4.5rem);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  letter-spacing: -.03em;
+  margin-bottom: .5rem;
 }
 
 .btn-primary {
-    color: #fff;
-    background-color: #0066cc;
-    border-color: #0066cc;
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .875rem 1.75rem;
+  background: var(--color-primary);
+  color: #fff; font-weight: 600; border-radius: 12px; border: none; cursor: pointer;
+  font-family: inherit; font-size: 1rem; text-decoration: none;
+  transition: background .2s, transform .2s, box-shadow .2s;
 }
 
-.btn-outline-light {
-    color: #f8f9fa;
-    border-color: #f8f9fa;
+.btn-primary:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 0 24px rgba(59,130,246,.35);
 }
 
-.btn-lg {
-    padding: 0.75rem 1.5rem;
-    font-size: 1.125rem;
-    border-radius: 6px;
+.promo-banner {
+  background: linear-gradient(90deg, rgba(59,130,246,.15), rgba(6,182,212,.15));
+  border-bottom: 1px solid rgba(59,130,246,.2);
+  padding: .75rem 1.5rem;
+  text-align: center;
+  font-size: .875rem;
+  color: var(--color-text-secondary);
+  position: relative;
 }
 
-/* Hide non-critical content initially */
-.stats-section,
-.features-section,
-.pricing-section,
-.footer {
-    display: none;
+@media (max-width: 1024px) {
+  .hero__inner { grid-template-columns: 1fr; text-align: center; padding-block: 5rem 4rem; }
 }
 
-/* Mobile responsiveness for critical content */
 @media (max-width: 768px) {
-    .hero-title {
-        font-size: 2.5rem;
-    }
-    
-    .hero-subtitle {
-        font-size: 1.25rem;
-    }
-    
-    .container-xl {
-        padding-right: 1rem;
-        padding-left: 1rem;
-    }
+  :root { --nav-height: 64px; }
+  .hero__title { font-size: clamp(2rem,8vw,2.75rem); }
 }

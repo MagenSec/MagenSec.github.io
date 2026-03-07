@@ -19,17 +19,59 @@
     </url>
     
     <url>
-        <loc>https://magensec.gigabits.co.in/FixIt.html</loc>
-        <lastmod>2025-07-01</lastmod>
+        <loc>https://magensec.gigabits.co.in/install.html</loc>
+        <lastmod>2026-03-06</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>
     </url>
     
+    <url>
+        <loc>https://magensec.gigabits.co.in/magi.html</loc>
+        <lastmod>2025-07-01</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.9</priority>
+    </url>
+
+    <url>
+        <loc>https://magensec.gigabits.co.in/pricing.html</loc>
+        <lastmod>2025-07-01</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.9</priority>
+    </url>
+
+    <url>
+        <loc>https://magensec.gigabits.co.in/features/vulnerability.html</loc>
+        <lastmod>2025-07-01</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+
+    <url>
+        <loc>https://magensec.gigabits.co.in/features/compliance.html</loc>
+        <lastmod>2025-07-01</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+
+    <url>
+        <loc>https://magensec.gigabits.co.in/features/software-inventory.html</loc>
+        <lastmod>2025-07-01</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+
     <url>
         <loc>https://magensec.gigabits.co.in/terms.html</loc>
         <lastmod>2025-07-01</lastmod>
         <changefreq>yearly</changefreq>
         <priority>0.5</priority>
     </url>
-    
+
+    <url>
+        <loc>https://magensec.gigabits.co.in/features/audit.html</loc>
+        <lastmod>2026-03-07</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
 </urlset>
+

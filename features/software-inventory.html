@@ -1,103 +1,255 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>Real-time Software Inventory | MagenSec</title>
-    <meta name="description" content="Instant visibility into installed software, versions, and shadow IT across your organization."/>
-    
-    <!-- Tabler CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet"/>
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet"/>
-    
-    <style>
-        .hero-inventory {
-            background: linear-gradient(135deg, #206bc4 0%, #154a8a 100%);
-            color: white;
-            padding: 4rem 0;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Software Inventory Management | MagenSec Features</title>
+<meta name="description" content="MagenSec maintains a live, complete software inventory across all your endpoints - automatically. Detect unauthorized apps, track versions, and manage your software estate.">
+<link rel="canonical" href="https://magensec.gigabits.co.in/features/software-inventory.html">
+<link rel="icon" type="image/x-icon" href="../assets/black_shield_64.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/css/magensec.css">
 </head>
-<body>
-    <div class="page">
-        <!-- Shared Navbar -->
-        <div id="navbar-placeholder"></div>
-        <script src="../assets/js/navbar.js"></script>
-        <script>
-            loadNavbar({
-                active: 'features',
-                mode: 'personal',
-                relativePath: '../'
-            });
-        </script>
-
-        <div class="hero-inventory">
-            <div class="container-xl text-center">
-                <h1 class="display-4 fw-bold mb-3">Live Software Inventory</h1>
-                <p class="lead">Eliminate Shadow IT. Know exactly what is running on every endpoint.</p>
-            </div>
-        </div>
-
-        <div class="section-padding py-5">
-            <div class="container-xl">
-                <div class="row g-4 align-items-center">
-                    <div class="col-md-6 order-md-2">
-                        <h2>More Than Just a List</h2>
-                        <p class="text-muted">Standard inventory tools perform scans once a week. MagenSec keeps a live ledger of every application change, uninstallation, and update.</p>
-                        <ul class="list-unstyled">
-                            <li class="mb-3">✅ <strong>Detect Unwanted Apps:</strong> Instantly spot Torrent clients, games, or unauthorized remote access tools.</li>
-                            <li class="mb-3">✅ <strong>License Tracking:</strong> Identify unused expensive software licenses.</li>
-                            <li class="mb-3">✅ <strong>Version Drift:</strong> See how many different versions of Zoom are running in your org.</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6 order-md-1">
-                        <div class="card">
-                            <div class="table-responsive">
-                                <table class="table table-vcenter card-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Software</th>
-                                            <th>Version</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>Zoom Meetings</td>
-                                            <td>5.13.0</td>
-                                            <td><span class="badge bg-success">Current</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Adobe Reader</td>
-                                            <td>21.001</td>
-                                            <td><span class="badge bg-warning">Update Avail</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>uTorrent</td>
-                                            <td>3.5.5</td>
-                                            <td><span class="badge bg-danger">Blacklisted</span></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="section-padding py-5 bg-light">
-            <div class="container-xl text-center">
-                <h2>Gain visibility today</h2>
-                <a href="../index.html#download" class="btn btn-primary btn-lg mt-3">Start Free Discovery</a>
-            </div>
-        </div>
-        
-        <footer class="footer footer-transparent d-print-none py-4 text-center">
-            <div class="container-xl">
-               <a href="../index.html">← Back to Home</a>
-            </div>
-        </footer>
-    </div>
+<body data-nav-active="none">
+<!-- NAVIGATION -->
+<header class="nav" id="nav">
+<div class="nav__inner container">
+<a href="../index.html" class="nav__logo" aria-label="MagenSec Home">
+<img src="../assets/black_shield_256x256.png" alt="" width="32" height="32" loading="eager">
+<span class="nav__brand">Magen<span class="nav__brand-sec">Sec</span></span>
+</a>
+<nav class="nav__links" aria-label="Main navigation">
+<a href="../index.html" class="nav__link">Home</a>
+<a href="../what-we-cover.html" class="nav__link">Platform</a>
+<a href="../magi.html" class="nav__link nav__link--magi">MAGI AI</a>
+<a href="../editions.html" class="nav__link">Pricing</a>
+<a href="../install.html" class="nav__link">Install</a>
+<a href="../about.html" class="nav__link">About</a>
+</nav>
+<div class="nav__actions">
+<div class="nav__dropdown" role="group">
+<button class="btn-ghost btn--sm nav__dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download </button>
+<div class="nav__dropdown-menu" role="menu">
+<div class="nav__dropdown-header">MagenSec for Windows</div>
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="nav__dropdown-item" role="menuitem" target="_blank" rel="nofollow noopener"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>Download on Microsoft Store</a>
+<a href="../install.html#enterprise-deploy" class="nav__dropdown-item" role="menuitem"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Manual &amp; CLI install</a>
+</div>
+</div>
+<a href="../portal/" class="btn-primary btn--sm">Sign In <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+<button class="nav__hamburger" id="nav-burger" aria-controls="mobile-nav" aria-expanded="false" aria-label="Open menu"><span></span><span></span><span></span></button>
+</div>
+<div class="nav__mobile-menu" id="mobile-nav" role="dialog" aria-modal="true">
+<nav>
+<a href="../index.html" class="nav__mobile-link">Home</a>
+<a href="../magi.html" class="nav__mobile-link nav__mobile-link--accent">MAGI AI</a>
+<a href="../editions.html" class="nav__mobile-link">Pricing</a>
+<a href="../install.html" class="nav__mobile-link">Install</a>
+<a href="../about.html" class="nav__mobile-link">About</a>
+</nav>
+<div class="nav__mobile-divider"></div>
+<div style="padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem">
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-ghost btn--full" target="_blank" rel="nofollow noopener">Get it on Microsoft Store</a>
+<a href="../install.html#enterprise-deploy" class="btn-ghost btn--full">Manual &amp; CLI Install</a>
+<a href="../portal/" class="btn-primary btn--full">Sign In to Portal</a>
+</div>
+</div>
+</header>
+<!-- HERO -->
+<section class="feature-hero">
+<div class="container">
+<p class="breadcrumb"><a href="../what-we-cover.html">&larr; Back to Platform</a></p>
+<div class="feature-hero__eyebrow">
+<span class="badge-feature">Software Inventory</span>
+</div>
+<h1 class="feature-hero__title">Always know exactly<br><span class="text-gradient">what's running on your machines.</span></h1>
+<p class="feature-hero__desc">MagenSec maintains a continuously updated, complete software inventory across every managed device - so you can detect shadow IT, track version drift, license exposure, and ensure no unauthorized application ever runs unnoticed.</p>
+<div class="hero__cta-group">
+<a href="../install.html" class="btn-primary">Start Free Trial</a>
+<a href="../editions.html" class="btn-secondary">View Plans</a>
+</div>
+</div>
+</section>
+<!-- PROBLEM -->
+<section class="section">
+<div class="container">
+<div class="section__header text-center">
+<h2>You can't secure what you can't see</h2>
+<p class="section__sub">Shadow IT, forgotten installations, and version drift are invisible attack surfaces - until something goes wrong.</p>
+</div>
+<div class="problem-grid">
+<div class="problem-card" data-reveal>
+<svg class="problem-card__icon" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+<h3>Shadow IT everywhere</h3>
+<p>Employees install tools outside IT approval. These unknown applications are unpatched, unlicensed, and outside your security perimeter.</p>
+</div>
+<div class="problem-card" data-reveal>
+<svg class="problem-card__icon" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+<h3>Version drift is a security gap</h3>
+<p>One device running an older version of Chrome or OpenSSL is all it takes. Without inventory visibility, these gaps remain open indefinitely.</p>
+</div>
+<div class="problem-card" data-reveal>
+<svg class="problem-card__icon" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/><path d="M14 2v6h6"/></svg>
+<h3>License audits are a surprise</h3>
+<p>Discovering you've been running unlicensed software during a vendor audit is expensive. Inventory visibility prevents this entirely.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- FEATURES -->
+<section class="section section--alt">
+<div class="container">
+<div class="section__header text-center">
+<h2>Complete inventory visibility</h2>
+</div>
+<div class="inventory-features">
+<div class="inv-feature" data-reveal>
+<div class="inv-feature__visual">
+<svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+</div>
+<div class="inv-feature__content">
+<h3>Cross-platform inventory</h3>
+<p>Enumerate every installed application, browser extension, service, and driver across Windows, macOS, and Linux devices. Every device. Every application. Always current.</p>
+</div>
+</div>
+<div class="inv-feature" data-reveal>
+<div class="inv-feature__visual">
+<svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+</div>
+<div class="inv-feature__content">
+<h3>Unauthorized application detection</h3>
+<p>Define an allowed-application policy in the portal. MagenSec immediately alerts when a device installs software outside your approved list - even if it's installed by the device owner.</p>
+</div>
+</div>
+<div class="inv-feature" data-reveal>
+<div class="inv-feature__visual">
+<svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+</div>
+<div class="inv-feature__content">
+<h3>Version tracking and drift alerts</h3>
+<p>Set minimum acceptable versions for critical applications (browsers, PDF readers, runtime environments). MagenSec flags any device that falls out of compliance with the version policy.</p>
+</div>
+</div>
+<div class="inv-feature" data-reveal>
+<div class="inv-feature__visual">
+<svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+</div>
+<div class="inv-feature__content">
+<h3>Per-device and org-wide views</h3>
+<p>Drill down into a single device's complete software catalog, or get an org-wide view of what software is installed across your entire fleet - searchable, filterable, and exportable.</p>
+</div>
+</div>
+<div class="inv-feature" data-reveal>
+<div class="inv-feature__visual">
+<svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+</div>
+<div class="inv-feature__content">
+<h3>Export for audits and CMDB sync</h3>
+<p>Download inventory snapshots in CSV or JSON format for integration with your CMDB, ITSM, or compliance reports. Scheduled exports available on Business plans.</p>
+</div>
+</div>
+<div class="inv-feature" data-reveal>
+<div class="inv-feature__visual">
+<svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+</div>
+<div class="inv-feature__content">
+<h3>Linked to vulnerability scanning</h3>
+<p>Inventory data feeds directly into vulnerability detection. When a new CVE is published for an application you have installed, MagenSec alerts you within minutes - not days.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="section">
+<div class="container">
+<div class="section__header text-center">
+<h2>Coming soon</h2>
+<p class="section__sub">The inventory foundation is expanding into licensing evidence and historical posture replay.</p>
+</div>
+<div class="use-case-grid">
+<div class="use-case-card" data-reveal>
+<h4>License Management <span class="badge badge-danger" style="margin-left:.5rem">Coming-Soon</span></h4>
+<p>Reconcile deployed software against entitlements, spot overuse, and prepare for vendor audits before they become legal or commercial issues.</p>
+</div>
+<div class="use-case-card" data-reveal>
+<h4>Time-Travel <span class="badge-neutral" style="margin-left:.5rem">Coming-Soon</span></h4>
+<p>Replay what software, security posture, and compliance state looked like on a specific date for audits, investigations, and management reviews.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- MAGI INTEGRATION -->
+<section class="section">
+<div class="container">
+<div class="magi-feature-block" data-reveal>
+<div class="magi-feature-block__content">
+<span class="badge-magi">MAGI AI Integration</span>
+<h2>Ask MAGI anything about your software estate</h2>
+<p>Instead of filtering through tables, ask MAGI natural language questions about your software inventory. It understands your organization's context and delivers precise answers backed by real inventory data.</p>
+<ul class="magi-feature-list">
+<li>Which devices are running Python 3.9 or older?</li>
+<li>Do we have any torrent or P2P applications on the fleet?</li>
+<li>How many valid Microsoft 365 installs do we have?</li>
+<li>Which machines have outdated browsers that could be exploited?</li>
+</ul>
+<a href="../magi.html" class="btn-primary" style="margin-top:1.5rem">Explore MAGI AI</a>
+</div>
+<div class="magi-feature-block__visual">
+<div class="chat-bubble chat-bubble--user">Do any of our devices have software that shouldn't be there?</div>
+<div class="chat-bubble chat-bubble--magi">I found <strong>3 potential policy violations</strong> across your fleet. Device LAPTOP-04 has a BitTorrent client installed. Devices WORKSTATION-11 and WORKSTATION-22 have remote access tools (AnyDesk) that aren't on your approved list. Do you want me to generate a report and alert the device owners?</div>
+<div class="chat-bubble chat-bubble--user">Yes, report all three. Also check for any crypto mining software</div>
+<div class="chat-bubble chat-bubble--magi">Report generated for 3 policy violations. Scanning for crypto mining indicators... No mining software found. I'll set a continuous alert rule so future installations are flagged within minutes.</div>
+</div>
+</div>
+</div>
+</section>
+<!-- USE CASES -->
+<section class="section section--alt">
+<div class="container">
+<div class="section__header text-center">
+<h2>Who benefits most</h2>
+</div>
+<div class="use-case-grid">
+<div class="use-case-card" data-reveal>
+<h4>IT Managers</h4>
+<p>Know in under 30 seconds what's installed across your entire fleet. Detect shadow IT, enforce software policies, and prepare for license audits without a single spreadsheet.</p>
+</div>
+<div class="use-case-card" data-reveal>
+<h4>Security Teams</h4>
+<p>Feed real software inventory into your threat model. Know immediately when a newly disclosed CVE affects your environment. Avoid chasing down whether affected software is installed anywhere.</p>
+</div>
+<div class="use-case-card" data-reveal>
+<h4>MSPs &amp; IT Service Providers</h4>
+<p>Maintain live software inventories for all your clients from a single portal. Spot unauthorized applications, simplify client reporting, and prove your security value with continuous monitoring data.</p>
+</div>
+<div class="use-case-card" data-reveal>
+<h4>Compliance &amp; Audit Teams</h4>
+<p>Export point-in-time inventory snapshots as evidence. Track changes over time with historical data. Meet asset management requirements for NIST CSF, ISO 27001, and CIS Benchmarks.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA -->
+<section class="section cta-section">
+<div class="container text-center">
+<h2>Get complete visibility in under 5 minutes</h2>
+<p class="section__sub">Install MagenSec on any device and your software inventory is populated immediately. No configuration. No scheduled scans. Just always-on visibility.</p>
+<div class="hero__cta-group">
+<a href="../install.html" class="btn-primary">Install MagenSec Free</a>
+<a href="../editions.html" class="btn-secondary">Compare Plans</a>
+</div>
+</div>
+</section>
+<!-- FOOTER -->
+<div id="site-footer" data-footer-src="../footer.html"></div>
+<script src="../assets/js/core.js" defer></script>
+<script src="../assets/js/animations.js" defer></script>
+<script src="../assets/js/footer-include.js" defer></script>
 </body>
-</html>
+</html> 
+
+
+

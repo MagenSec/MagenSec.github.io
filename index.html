@@ -1,2040 +1,468 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
-    <title>MagenSec by Gigabits ⚡ | Stop Cyber Attacks Before They Start 🛡️</title>
-    <meta name="description" content="Break the cyber attack kill chain with MagenSec. Simple, powerful security that protects your family and business from day one. 7-day free trial, then just $9.99/year."/>
-    
-    <!-- Additional SEO Meta Tags -->
-    <meta name="keywords" content="cybersecurity software, vulnerability management, cyber attack prevention, security audit, Windows security, enterprise cybersecurity"/>
-    <meta name="author" content="Gigabits"/>
-    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"/>
-    <link rel="canonical" href="https://magensec.gigabits.co.in/"/>
-    
-    <!-- Open Graph Tags -->
-    <meta property="og:type" content="website"/>
-    <meta property="og:title" content="MagenSec by Gigabits | Stop Cyber Attacks Before They Start"/>
-    <meta property="og:description" content="Break the cyber attack kill chain with MagenSec. Simple, powerful security that protects your family and business from day one. 7-day free trial, then just $9.99/year."/>
-    <meta property="og:url" content="https://magensec.gigabits.co.in/"/>
-    <meta property="og:site_name" content="MagenSec"/>
-    <meta property="og:image" content="https://magensec.gigabits.co.in/assets/GoldShield.webp"/>
-    <meta property="og:image:width" content="1200"/>
-    <meta property="og:image:height" content="630"/>
-    
-    <!-- Twitter Card Tags -->
-    <meta name="twitter:card" content="summary_large_image"/>
-    <meta name="twitter:title" content="MagenSec by Gigabits | Stop Cyber Attacks Before They Start"/>
-    <meta name="twitter:description" content="Break the cyber attack kill chain with MagenSec. Simple, powerful security that protects your family and business from day one."/>
-    <meta name="twitter:image" content="https://magensec.gigabits.co.in/assets/GoldShield.webp"/>
-    
-    <!-- Tabler CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous"/>
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous"/>
-    
-    <!-- Plyr.io Video Player CSS -->
-    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
-    
-    <!-- MagenSec Custom Styles -->
-    <link href="assets/css/magensec-custom.css" rel="stylesheet"/>
-    
-    <!-- Print Stylesheet -->
-    <link href="assets/css/print.css" rel="stylesheet" media="print"/>
-    
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "MagenSec",
-        "applicationCategory": "SecurityApplication",
-        "operatingSystem": "Windows",
-        "description": "Advanced cybersecurity software that protects against vulnerabilities and cyber attacks. Break the cyber attack kill chain with automated security auditing.",
-        "url": "https://magensec.gigabits.co.in",
-        "author": {
-            "@type": "Organization",
-            "name": "Gigabits",
-            "url": "https://gigabits.co.in"
-        },
-        "offers": {
-            "@type": "Offer",
-            "price": "4.99",
-            "priceCurrency": "USD",
-            "priceValidUntil": "2025-12-31",
-            "availability": "https://schema.org/InStock"
-        },
-        "aggregateRating": {
-            "@type": "AggregateRating",
-            "ratingValue": "4.9",
-            "reviewCount": "1000"
-        }
-    }
-    </script>
-    
-    <!-- Custom Styles -->
-    <style>
-        @keyframes gradient-shift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.9; }
-        }
-        
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .feature-card {
-            animation: fadeInUp 0.6s ease forwards;
-        }
-        
-        .feature-card:nth-child(1) { animation-delay: 0.1s; }
-        .feature-card:nth-child(2) { animation-delay: 0.2s; }
-        .feature-card:nth-child(3) { animation-delay: 0.3s; }
-        .feature-card:nth-child(4) { animation-delay: 0.4s; }
-        .feature-card:nth-child(5) { animation-delay: 0.5s; }
-        .feature-card:nth-child(6) { animation-delay: 0.6s; }
-        
-        /* Mobile Sticky CTA */
-        .mobile-sticky-cta {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 0.75rem 1rem;
-            box-shadow: 0 -4px 12px rgba(0,0,0,0.15);
-            transform: translateY(100%);
-            transition: transform 0.3s ease;
-        }
-        
-        .mobile-sticky-cta.show {
-            transform: translateY(0);
-        }
-        
-        .mobile-sticky-cta .btn {
-            width: 100%;
-            font-size: 1rem;
-            font-weight: 600;
-            padding: 0.75rem 1.5rem;
-            border: 2px solid white;
-            animation: pulse 2s ease infinite;
-        }
-        
-        /* Hide on desktop */
-        @media (min-width: 768px) {
-            .mobile-sticky-cta {
-                display: none;
-            }
-        }
-        
-        /* Improve touch targets on mobile */
-        @media (max-width: 767px) {
-            .btn {
-                min-height: 44px;
-                padding: 0.625rem 1.25rem;
-            }
-            
-            .navbar-nav .nav-link {
-                padding: 0.75rem 1rem;
-            }
-            
-            .accordion-button {
-                padding: 1rem;
-                font-size: 1rem;
-            }
-        }
-    </style>
-    
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MagenSec | Continuous Endpoint Security Auditing with MAGI AI</title>
+<meta name="description" content="MagenSec helps you manage antivirus health, assess vulnerabilities, monitor compliance, and stay audit-ready with continuous endpoint visibility and MAGI AI guidance.">
+<link rel="canonical" href="https://magensec.gigabits.co.in/">
+<link rel="icon" type="image/x-icon" href="assets/black_shield_64.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap"><link rel="preload" href="assets/css/magensec.css" as="style">
+<link rel="preload" href="assets/MagiBanner.jpeg" as="image" type="image/jpeg" fetchpriority="high">
+<link rel="stylesheet" href="assets/css/magensec.css">
+<style> .home-hero-proof-list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-6); } .home-hero-proof-list li { display: flex; align-items: flex-start; gap: var(--space-3); color: var(--color-text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); } .home-hero-proof-list svg { flex-shrink: 0; margin-top: 0.15rem; color: var(--color-success); } .home-side-panel { background: linear-gradient(180deg, rgba(10, 22, 40, 0.84), rgba(6, 12, 24, 0.96)); border: 1px solid var(--color-border-hover); border-radius: var(--radius-2xl); padding: var(--space-6); box-shadow: var(--shadow-xl); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); } .home-side-panel__title { font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--color-text-primary); margin-bottom: var(--space-3); } .home-side-panel__list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-4); } .home-side-panel__list li { display: flex; justify-content: space-between; gap: var(--space-4); font-size: var(--text-sm); color: var(--color-text-secondary); border-bottom: 1px solid rgba(59, 130, 246, 0.08); padding-bottom: var(--space-3); } .home-side-panel__list li:last-child { border-bottom: none; padding-bottom: 0; } .home-side-panel__list strong { color: var(--color-text-primary); font-weight: var(--weight-semibold); } :root[data-theme="light"] .home-side-panel { background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.96)); border-color: rgba(37, 99, 235, 0.12); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); backdrop-filter: none; -webkit-backdrop-filter: none; } :root[data-theme="light"] .home-side-panel__list li { border-bottom-color: rgba(15, 23, 42, 0.08); } .store-badge-note { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-4); padding: 0.7rem 1rem; border-radius: var(--radius-full); background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(148, 163, 184, 0.18); color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: var(--weight-medium); } :root[data-theme="light"] .store-badge-note { background: rgba(255, 255, 255, 0.94); border-color: rgba(37, 99, 235, 0.14); color: var(--color-text-primary); } .store-badge-note svg { flex-shrink: 0; color: var(--color-primary); } .home-attack-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr); gap: var(--space-8); align-items: center; } .home-attack-diagram { background: var(--color-surface-card); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: var(--space-6); overflow: hidden; } .home-attack-diagram img { width: 100%; height: auto; border-radius: var(--radius-xl); } .home-roadmap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-5); margin-top: var(--space-8); } .home-roadmap-card { padding: var(--space-6); background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-xl); } .home-roadmap-card h3 { font-size: var(--text-lg); color: var(--color-text-primary); margin-bottom: var(--space-2); } .home-roadmap-card p { color: var(--color-text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); } .home-bundle-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-6); } .home-bundle-pill { padding: var(--space-4); background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-xl); text-align: center; } .home-bundle-pill strong { display: block; color: var(--color-text-primary); font-size: var(--text-base); margin-bottom: var(--space-1); } .home-bundle-pill span { color: var(--color-text-secondary); font-size: var(--text-sm); } .home-static-impact { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-8); } @media (max-width: 1024px) { .home-attack-layout, .home-static-impact, .home-roadmap-grid, .home-bundle-strip { grid-template-columns: 1fr; } } </style>
+<style>.problem-card__icon svg{width:22px;height:22px}.feature-card__head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-3)}.feature-card__label{display:inline-flex;align-items:center;padding:.2rem .55rem;border-radius:var(--radius-full);font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;background:rgba(148,163,184,.14);color:var(--color-text-secondary);border:1px solid rgba(148,163,184,.2)}.segment-card{position:relative;overflow:hidden}</style>
+<style>.launch-ribbon{display:inline-flex;align-items:center;gap:.4rem;top:1rem;left:1rem;right:auto;border-radius:999px;font-weight:800;font-size:.72rem;letter-spacing:.01em;text-transform:none;padding:.45rem .75rem;z-index:2;box-shadow:0 8px 22px rgba(0,0,0,.18)}.launch-ribbon svg{flex-shrink:0}.launch-ribbon--personal{background:linear-gradient(90deg,#16a34a,#22c55e);color:#f0fdf4;border:1px solid rgba(255,255,255,.35)}.launch-ribbon--education{background:linear-gradient(90deg,#2563eb,#38bdf8);color:#eff6ff;border:1px solid rgba(255,255,255,.35)}@media (max-width:768px){.launch-ribbon{position:static;margin-bottom:.75rem}}</style>
 </head>
-<body>
-    <div class="page">
-        <!-- Shared Navbar -->
-        <div id="navbar-placeholder"></div>
-        <script src="assets/js/navbar.js"></script>
-        <script>
-            loadNavbar({
-                active: 'personal',
-                mode: 'personal',
-                relativePath: ''
-            });
-        </script>
-
-        <!-- Hero Section -->
-        <div class="hero-section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #667eea 100%); background-size: 200% 200%; animation: gradient-shift 15s ease infinite; position: relative; overflow: hidden;">
-            <div class="container-xl hero-content" style="position: relative; z-index: 2;">
-                <div class="row align-items-center">
-                    <div class="col-lg-6">
-                        <h1 class="display-4 fw-bold mb-4 text-center text-lg-start">
-                            🛡️ Meet Your AI SOC Analyst<br/>
-                            <span class="text-dark">Automated Intelligence. Audit-Ready Compliance.</span>
-                        </h1>
-                        <p class="lead mb-4">
-                            Vulnerability detection, AV orchestration, and software inventory analysis in one platform. We analyze your telemetry so you don't need a security team.
-                        </p>
-                        <div class="alert mb-4" style="background: rgba(255,255,255,0.95); border: 2px solid #ffc107; color: #212529;">
-                            <div class="d-flex align-items-center">
-                                <div class="me-3">
-                                    <span style="font-size: 3rem;">⚠️</span>
-                                </div>
-                                <div>
-                                    <strong>Reality Check:</strong> One compliance violation fine averages <strong>$25,000+</strong>. Security consultants charge <strong>$15,000+</strong>. MagenSec is your automated analyst for less than a coffee per month.
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Social Proof Stats Card -->
-                        <div class="card mb-4" style="background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.3); box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
-                            <div class="card-body py-3">
-                                <div class="row g-3 text-center">
-                                    <div class="col-md-4">
-                                        <div class="h3 mb-0 text-primary fw-bold">500+</div>
-                                        <small class="text-muted">Organizations Protected</small>
-                                    </div>
-                                    <div class="col-md-4 border-start border-end">
-                                        <div class="h3 mb-0 text-success fw-bold">73%</div>
-                                        <small class="text-muted">Avg. Risk Reduction</small>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="h3 mb-0 text-info fw-bold">24/7</div>
-                                        <small class="text-muted">Monitoring</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="d-flex flex-wrap gap-3 mb-4">
-                            <a href="#download" class="btn btn-warning btn-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-                                Start 7-Day Free Trial
-                            </a>
-                            <a href="#how-it-works" class="btn btn-outline-light btn-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 4v16l13 -8z"/></svg>
-                                See How It Works
-                            </a>
-                        </div>
-                        <div class="row text-center text-lg-start">
-                            <div class="col-4">
-                                <div class="stats-number">99.9%</div>
-                                <small class="text-white-75">Audit Ready Score</small>
-                            </div>
-                            <div class="col-4">
-                                <div class="stats-number">$9.99</div>
-                                <small class="text-white-75">Per Year (50% Off)</small>
-                            </div>
-                            <div class="col-4">
-                                <div class="stats-number">5 min</div>
-                                <small class="text-white-75">Setup Time</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-6 text-center">
-                        <div style="background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%); border-radius: 20px; padding: 2rem; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);">
-                            <picture>
-                                <source srcset="assets/black_shield.webp" type="image/webp">
-                                <img src="assets/black_shield.png" alt="MagenSec Security Shield" width="300" height="300" class="img-fluid" loading="lazy" style="max-width: 300px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3)); background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.1) 70%); border-radius: 15px; padding: 1rem;">
-                            </picture>
-                            <div class="mt-3">
-                                <span class="badge bg-success text-white fs-6 px-3 py-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
-                                    Protected & Secure
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- How Cyber Attacks Work -->
-        <div id="how-it-works" class="section-padding">
-            <div class="container-xl">
-                <div class="row justify-content-center mb-5">
-                    <div class="col-lg-8 text-center">
-                        <h2 class="display-5 fw-bold mb-4">Here's How Hackers Attack Your Computer</h2>
-                        <p class="lead text-muted">Understanding the attack chain helps you see why protection at every step matters</p>
-                    </div>
-                </div>
-                
-                <!-- Video Section -->
-                <div class="row justify-content-center mb-5">
-                    <div class="col-lg-10">
-                        <div class="video-container">
-                            <div class="card">
-                                <div class="card-header bg-danger text-white">
-                                    <h5 class="card-title mb-0 text-white">
-                                        🎬 Watch: How Cyber Attacks Happen in Real-Time
-                                    </h5>
-                                    <p class="text-white-75 mb-0 small">: See the attack chain that MagenSec breaks before it can harm you</p>
-                                </div>
-                                <div class="card-body p-0">
-                                    <!-- Native YouTube Embed (Simpler & More Reliable) -->
-                                    <div class="ratio ratio-16x9">
-                                        <iframe 
-                                            src="https://www.youtube.com/embed/hsPRHHv7Xyg?rel=0&modestbranding=1&showinfo=0" 
-                                            title="How Cyber Attacks Work - MagenSec Prevention Demo" 
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                            allowfullscreen
-                                            loading="lazy"
-                                            style="border: 0;">
-                                        </iframe>
-                                    </div>
-                                </div>
-                                <div class="card-footer bg-light">
-                                    <div class="row text-center">
-                                        <div class="col-4">
-                                            <strong class="text-danger">📧 Email</strong>
-                                            <br><small class="text-muted">Attack Vector</small>
-                                        </div>
-                                        <div class="col-4">
-                                            <strong class="text-warning">🕳️ Vulnerability</strong>
-                                            <br><small class="text-muted">Entry Point</small>
-                                        </div>
-                                        <div class="col-4">
-                                            <strong class="text-success">🛡️ MagenSec</strong>
-                                            <br><small class="text-muted">Prevention</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="row justify-content-center">
-                    <div class="col-lg-10">
-                        <div class="attack-flow">
-                            <!-- Step 1 -->
-                            <div class="flow-step">
-                                <div class="row align-items-center">
-                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
-                                        <div class="flow-icon bg-danger">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="M3 7l9 6l9 -6"/></svg>
-                                        </div>
-                                        <small class="text-danger fw-bold d-block">STEP 1</small>
-                                    </div>
-                                    <div class="col-12 col-md-10">
-                                        <div class="card border-start border-danger border-3">
-                                            <div class="card-body">
-                                                <h5 class="text-danger">📧 The Trap: Phishing Email</h5>
-                                                <p class="mb-0">You receive an email that looks real - maybe from your bank, a delivery company, or even a friend. You click a link or download an attachment.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Step 2 -->
-                            <div class="flow-step">
-                                <div class="row align-items-center">
-                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
-                                        <div class="flow-icon bg-danger">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M12 11l0 .01"/><path d="M12 8l0 .01"/></svg>
-                                        </div>
-                                        <small class="text-danger fw-bold d-block">STEP 2</small>
-                                    </div>
-                                    <div class="col-12 col-md-10">
-                                        <div class="card border-start border-danger border-3">
-                                            <div class="card-body">
-                                                <h5 class="text-danger">🕳️ The Entry: Finding Vulnerabilities</h5>
-                                                <p class="mb-0">The malicious link exploits a security hole (vulnerability) in your browser, PDF reader, or other software. This is where <strong>most attacks succeed</strong>.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Step 3 -->
-                            <div class="flow-step">
-                                <div class="row align-items-center">
-                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
-                                        <div class="flow-icon bg-danger">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l10 -10"/><path d="M2 12l5 5m5 -5l5 -5"/></svg>
-                                        </div>
-                                        <small class="text-danger fw-bold d-block">STEP 3</small>
-                                    </div>
-                                    <div class="col-12 col-md-10">
-                                        <div class="card border-start border-danger border-3">
-                                            <div class="card-body">
-                                                <h5 class="text-danger">🎯 The Takeover: Installing Malware</h5>
-                                                <p class="mb-0">Now the hacker has a foothold. They install malware that gives them remote control of your computer, often without you noticing anything.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Step 4 -->
-                            <div class="flow-step">
-                                <div class="row align-items-center">
-                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
-                                        <div class="flow-icon bg-danger">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"/></svg>
-                                        </div>
-                                        <small class="text-danger fw-bold d-block">STEP 4</small>
-                                    </div>
-                                    <div class="col-12 col-md-10">
-                                        <div class="card border-start border-danger border-3">
-                                            <div class="card-body">
-                                                <h5 class="text-danger">💰 The Damage: Stealing & Encrypting</h5>
-                                                <p class="mb-0">They steal your passwords, photos, documents, and banking info. They might encrypt your files and demand ransom, or use your computer to attack others.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- MagenSec Solution -->
-                            <div class="flow-step solution-step">
-                                <div class="row align-items-center">
-                                    <div class="col-12 col-md-2 text-center mb-3 mb-md-0">
-                                        <div class="flow-icon bg-success">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M9 12l2 2l4 -4"/></svg>
-                                        </div>
-                                        <small class="text-success fw-bold d-block">MAGENSEC</small>
-                                    </div>
-                                    <div class="col-12 col-md-10">
-                                        <div class="card border-start border-success border-3 bg-light-green">
-                                            <div class="card-body">
-                                                <h5 class="text-success">🛡️ How MagenSec Breaks The Chain</h5>
-                                                <p class="mb-2"><strong>Before Step 2:</strong> We find and help you fix vulnerabilities before hackers can exploit them.</p>
-                                                <p class="mb-2"><strong>During Step 3:</strong> We optimize your built-in Windows Defender to catch malware installations.</p>
-                                                <p class="mb-0"><strong>Continuous Protection:</strong> We monitor 24/7 and keep your security always up-to-date.</p>
-                                                <div class="mt-3">
-                                                    <span class="badge bg-success text-white me-2">No Chain = No Attack</span>
-                                                    <span class="badge bg-success text-white">Prevention > Cure</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Threat Demo Section -->
-        <div class="container-xl my-5">
-            <div class="row justify-content-center">
-                <div class="col-lg-10">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title text-center">🖥️ Live Security Simulation</h3>
-                            <p class="text-center text-muted mb-0">See the difference MagenSec makes - Side by Side</p>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <!-- Without MagenSec -->
-                                <div class="col-md-6">
-                                    <div class="card bg-danger-subtle border-danger">
-                                        <div class="card-header bg-danger text-white">
-                                            <h5 class="mb-3 text-white">❌ Without MagenSec Protection</h5>
-                                        </div>
-                                        <div class="card-body">
-                                            <div class="threat-demo-without">
-                                                <div id="threat-simulation-without">
-                                                    <div class="mb-2">$ <span class="typing-animation">Normal computer usage...</span></div>
-                                                    <div class="mb-2 d-none" id="vuln-exists">⚠️ Unknown vulnerability in Adobe Reader v21.0</div>
-                                                    <div class="mb-2 d-none" id="exploit-incoming">🔴 Malicious email attachment opened</div>
-                                                    <div class="mb-2 d-none" id="exploit-succeeds">💀 EXPLOIT SUCCESSFUL - System compromised!</div>
-                                                    <div class="d-none" id="system-breached">🚨 Data stolen, ransomware deployed!</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- With MagenSec -->
-                                <div class="col-md-6">
-                                    <div class="card bg-success-subtle border-success">
-                                        <div class="card-header bg-success text-white">
-                                            <h5 class="mb-3 text-white">✅ With MagenSec Protection</h5>
-                                        </div>
-                                        <div class="card-body">
-                                            <div class="threat-demo-with">
-                                                <div id="threat-simulation-with">
-                                                    <div class="mb-2">$ <span class="typing-animation">MagenSec scanning...</span></div>
-                                                    <div class="mb-2 d-none" id="vuln-detected">⚠️ CRITICAL: CVE-2024-1234 found in Adobe Reader v21.0</div>
-                                                    <div class="mb-2 d-none" id="patch-recommended">📋 MagenSec: Update Adobe Reader to v24.2 now!</div>
-                                                    <div class="mb-2 d-none" id="user-patches">🔧 User applies security update</div>
-                                                    <div class="d-none" id="attack-fails">🛡️ Later exploit attempt fails - System secure!</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="text-center mt-3">
-                                <button class="btn btn-primary" onclick="runComparisonDemo()">▶️ Run Side-by-Side Comparison</button>
-                                <p class="small text-muted mt-2">See how proactive vulnerability management breaks the attack chain</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Features Section -->
-        <div id="features" class="section-padding bg-light-blue">
-            <div class="container-xl">
-                <div class="row">
-                    <div class="col-12 text-center mb-5">
-                        <h2 class="display-5 fw-bold">Why Families & Businesses Choose MagenSec</h2>
-                        <p class="lead text-muted">Simple protection that works behind the scenes</p>
-                    </div>
-                </div>
-                <div class="row g-4">
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card feature-card h-100" style="transition: all 0.3s ease; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(102,126,234,0.3)'; this.style.borderColor='rgba(102,126,234,0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''; this.style.borderColor='transparent';">
-                            <div class="card-body text-center">
-                                <div style="background: white; border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                                    <picture>
-                                        <source srcset="assets/red_shield.webp" type="image/webp">
-                                        <img src="assets/red_shield.png" alt="Find Problems" width="60" height="60" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
-                                    </picture>
-                                </div>
-                                <h4 class="card-title"><a href="features/vulnerability.html" class="text-reset text-decoration-none">🔍 AI Vulnerability Analyst</a></h4>
-                                <p class="card-text">We analyze telemetry to detect hidden vulnerabilities (CVEs) before hackers do. Prioritized risk scoring helps you fix critical issues first.</p>
-                                <a href="features/vulnerability.html" class="btn btn-link px-0">Learn More →</a>
-                                <div class="mt-3">
-                                    <span class="badge bg-success text-white">Auto-Detection</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card feature-card h-100" style="transition: all 0.3s ease; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(47,179,68,0.3)'; this.style.borderColor='rgba(47,179,68,0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''; this.style.borderColor='transparent';">
-                            <div class="card-body text-center">
-                                <div style="background: white; border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                                    <picture>
-                                        <source srcset="assets/green_shield.webp" type="image/webp">
-                                        <img src="assets/green_shield.png" alt="Uses Built-in Security" width="60" height="60" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
-                                    </picture>
-                                </div>
-                                <h4 class="card-title">💡 AV Orchestration</h4>
-                                <p class="card-text">Don't just install AV—orchestrate it. We ensure Windows Defender is active, updated, and configured correctly across your entire fleet.</p>
-                                <div class="mt-3">
-                                    <span class="badge bg-primary text-white">Security Management</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card feature-card h-100" style="transition: all 0.3s ease; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(245,159,0,0.3)'; this.style.borderColor='rgba(245,159,0,0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''; this.style.borderColor='transparent';">
-                            <div class="card-body text-center">
-                                <div style="background: white; border-radius: 50%; padding: 1rem; width: 100px; height: 100px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                                    <picture>
-                                        <source srcset="assets/black_shield.webp" type="image/webp">
-                                        <img src="assets/black_shield.png" alt="Keeps Everything Updated" width="60" height="60" loading="lazy" style="width: 60px; height: 60px; object-fit: contain;">
-                                    </picture>
-                                </div>
-                                <h4 class="card-title">� Software Inventory & Auditor</h4>
-                                <p class="card-text">Complete visibility of every installed application. Easily spot unlicensed software, unauthorized tools, or shadow IT in your network.</p>
-                                <a href="features/software-inventory.html" class="btn btn-link px-0">Learn More →</a>
-                                <div class="mt-3">
-                                    <span class="badge bg-warning text-white">License Audit</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card feature-card h-100" style="transition: all 0.3s ease; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(0,84,166,0.3)'; this.style.borderColor='rgba(0,84,166,0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''; this.style.borderColor='transparent';">
-                            <div class="card-body text-center">
-                                <div class="avatar avatar-xl mb-3 mx-auto" style="background: var(--tblr-primary-lt);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-file-check text-primary" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 15l2 2l4 -4" /></svg>
-                                </div>
-                                <h4 class="card-title"><a href="features/compliance.html" class="text-reset text-decoration-none">📜 Industry Compliance</a></h4>
-                                <p class="card-text">Generate audit-ready reports instantly. Prove your security posture for cyber insurance, regulatory standards, and client requirements.</p>
-                                <a href="features/compliance.html" class="btn btn-link px-0">Learn More →</a>
-                                <div class="mt-3">
-                                    <span class="badge bg-info text-white">Audit-Ready</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card feature-card h-100" style="transition: all 0.3s ease; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(47,179,68,0.3)'; this.style.borderColor='rgba(47,179,68,0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''; this.style.borderColor='transparent';">
-                            <div class="card-body text-center">
-                                <div class="avatar avatar-xl mb-3 mx-auto" style="background: var(--tblr-success-lt);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-headset text-success" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 14v-3a8 8 0 1 1 16 0v3" /><path d="M18 19c0 1.657 -2.686 3 -6 3" /><path d="M4 14a2 2 0 0 1 2 -2h1a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-1a2 2 0 0 1 -2 -2v-3z" /><path d="M15 14a2 2 0 0 1 2 -2h1a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-1a2 2 0 0 1 -2 -2v-3z" /></svg>
-                                </div>
-                                <h4 class="card-title"><a href="enterprise.html" class="text-reset text-decoration-none">🌍 Managed SOC Services</a></h4>
-                                <p class="card-text">Don't have the bandwidth? Our expert teams can monitor your dashboard, analyze threats, and manage your security for you.</p>
-                                <a href="enterprise.html" class="btn btn-link px-0">Learn More →</a>
-                                <div class="mt-3">
-                                    <span class="badge bg-success text-white">Managed Service</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card feature-card h-100" style="transition: all 0.3s ease; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(217,57,57,0.3)'; this.style.borderColor='rgba(217,57,57,0.5)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''; this.style.borderColor='transparent';">
-                            <div class="card-body text-center">
-                                <div class="avatar avatar-xl mb-3 mx-auto" style="background: var(--tblr-danger-lt);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-shield-star text-danger" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="3"/><path d="m12 1l3 6l6 3l-6 3l-3 6l-3 -6l-6 -3l6 -3z"/></svg>
-                                </div>
-                                <h4 class="card-title">⚡ Works on Windows 10+</h4>
-                                <p class="card-text">Easy 5-minute setup on Windows 10 and 11. No complicated configurations. Download, install, and you're protected instantly.</p>
-                                <div class="mt-3">
-                                    <span class="badge bg-danger text-white">One-Click Install</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Key Benefits -->
-                <div class="row mt-5">
-                    <div class="col-12">
-                        <div class="alert alert-primary" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: none;">
-                            <div class="row align-items-center">
-                                <div class="col-md-8">
-                                    <h5 class="alert-title mb-2">💰 Better Security + Lower Costs</h5>
-                                    <p class="mb-0">Stop paying $50-100/year for antivirus licenses. MagenSec costs just $9.99/year and gives you enterprise-grade protection using your computer's built-in security.</p>
-                                </div>
-                                <div class="col-md-4 text-center">
-                                    <div class="d-flex justify-content-center align-items-center">
-                                        <div class="me-3">
-                                            <small class="text-muted">Traditional AV</small>
-                                            <div class="fs-3 text-danger">$99/year</div>
-                                        </div>
-                                        <div class="mx-2">→</div>
-                                        <div class="ms-3">
-                                            <small class="text-muted">MagenSec</small>
-                                            <div class="fs-3 text-success">$9.99/year</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Statistics Section -->
-        <div class="stats-section section-padding">
-            <div class="container-xl">
-                <div class="row text-center">
-                    <div class="col-12 mb-4">
-                        <h2 class="display-5 fw-bold">Trusted by Thousands Worldwide</h2>
-                    </div>
-                </div>
-                <div class="row text-center">
-                    <div class="col-lg-3 col-md-6 mb-4">
-                        <div class="stats-number">5,000+</div>
-                        <p class="mb-0">Protected Devices</p>
-                    </div>
-                    <div class="col-lg-3 col-md-6 mb-4">
-                        <div class="stats-number">99.9%</div>
-                        <p class="mb-0">Threat Detection Rate</p>
-                    </div>
-                    <div class="col-lg-3 col-md-6 mb-4">
-                        <div class="stats-number">1M+</div>
-                        <p class="mb-0">Threats Blocked</p>
-                    </div>
-                    <div class="col-lg-3 col-md-6 mb-4">
-                        <div class="stats-number">24/7</div>
-                        <p class="mb-0">Support Available</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Customer Testimonials -->
-        <div class="section-padding bg-light">
-            <div class="container-xl">
-                <div class="row text-center mb-5">
-                    <div class="col-12">
-                        <h2 class="display-5 fw-bold">What Our Customers Say</h2>
-                        <p class="lead text-muted">Real stories from organizations protecting their digital assets</p>
-                    </div>
-                </div>
-                <div class="row g-4">
-                    <!-- Testimonial 1: CBMO.ai (AI SaaS - Vulnerability Assessment) -->
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card h-100 border-0 shadow-sm" style="transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';">
-                            <div class="card-body p-4">
-                                <div class="d-flex align-items-center mb-3">
-                                    <span class="avatar rounded-circle me-3" style="background-image: url(https://i.pravatar.cc/150?img=12)"></span>
-                                    <div>
-                                        <h5 class="mb-0">CBMO.ai</h5>
-                                        <small class="text-muted">AI SaaS Company</small>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                </div>
-                                <p class="text-muted mb-3">"We handle sensitive AI data and needed continuous vulnerability monitoring without the complexity. MagenSec identified 47 critical CVEs across our infrastructure in the first scan. The risk scoring helped us prioritize remediation and our security posture improved from 62 to 89 in three weeks."</p>
-                                <div class="alert alert-success mb-0" style="background-color: #d4edda; border-color: #c3e6cb;">
-                                    <strong style="color: #155724;">Result:</strong> <span style="color: #155724;">73% risk reduction, passed SOC 2 audit first try</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Testimonial 2: Edge Studies (Education - Compliance) -->
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card h-100 border-0 shadow-sm" style="transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';">
-                            <div class="card-body p-4">
-                                <div class="d-flex align-items-center mb-3">
-                                    <span class="avatar rounded-circle me-3" style="background-image: url(https://i.pravatar.cc/150?img=56)"></span>
-                                    <div>
-                                        <h5 class="mb-0">Edge Studies</h5>
-                                        <small class="text-muted">Coaching Institute · 200+ Students</small>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                </div>
-                                <p class="text-muted mb-3">"We manage sensitive student data for 200+ families. MagenSec's automated compliance reports gave us the documentation parents trust. The continuous monitoring means we catch vulnerabilities before they become incidents. Setup was 5 minutes, and now every device is audit-ready."</p>
-                                <div class="alert alert-info mb-0" style="background-color: #d1ecf1; border-color: #bee5eb;">
-                                    <strong style="color: #0c5460;">Result:</strong> <span style="color: #0c5460;">Zero security incidents, audit-ready documentation</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Testimonial 3: Manufacturing SMB (Risk Aversion) -->
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card h-100 border-0 shadow-sm" style="transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';">
-                            <div class="card-body p-4">
-                                <div class="d-flex align-items-center mb-3">
-                                    <span class="avatar rounded-circle me-3" style="background-image: url(https://i.pravatar.cc/150?img=68)"></span>
-                                    <div>
-                                        <h5 class="mb-0">TechParts Inc.</h5>
-                                        <small class="text-muted">Manufacturing · 15 Employees</small>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                </div>
-                                <p class="text-muted mb-3">"Our insurance provider required proof of vulnerability management. MagenSec identified risks in our legacy systems that we didn't even know existed. The prioritized remediation roadmap and continuous monitoring gave us the evidence we needed - and we avoided a $15,000 premium increase."</p>
-                                <div class="alert alert-primary mb-0" style="background-color: #cfe2ff; border-color: #b6d4fe;">
-                                    <strong style="color: #084298;">Result:</strong> <span style="color: #084298;">$15K/year saved on insurance, compliance verified</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Testimonial 4: Healthcare Clinic (Managed AV + Response) -->
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card h-100 border-0 shadow-sm" style="transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';">
-                            <div class="card-body p-4">
-                                <div class="d-flex align-items-center mb-3">
-                                    <span class="avatar rounded-circle me-3" style="background-image: url(https://i.pravatar.cc/150?img=47)"></span>
-                                    <div>
-                                        <h5 class="mb-0">HealthCare Clinic</h5>
-                                        <small class="text-muted">Medical Practice · 12 Devices</small>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                </div>
-                                <p class="text-muted mb-3">"HIPAA compliance is non-negotiable for us. MagenSec works alongside our antivirus to catch vulnerabilities that AV misses - outdated software, misconfigurations, policy violations. The unified dashboard means we're always audit-ready, and our staff doesn't need to be security experts."</p>
-                                <div class="alert alert-warning mb-0" style="background-color: #fff3cd; border-color: #ffecb5;">
-                                    <strong style="color: #664d03;">Result:</strong> <span style="color: #664d03;">HIPAA compliant, unified security management</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Testimonial 5: Accounting Firm (Continuous Monitoring) -->
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card h-100 border-0 shadow-sm" style="transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';">
-                            <div class="card-body p-4">
-                                <div class="d-flex align-items-center mb-3">
-                                    <span class="avatar rounded-circle me-3" style="background-image: url(https://i.pravatar.cc/150?img=59)"></span>
-                                    <div>
-                                        <h5 class="mb-0">First Accounting</h5>
-                                        <small class="text-muted">CPA Firm · 22 Employees</small>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                </div>
-                                <p class="text-muted mb-3">"We handle tax returns for 500+ clients - one breach could end our practice. MagenSec's continuous vulnerability scanning catches issues our AV doesn't - like unpatched QuickBooks or Adobe Reader. The compliance reports are exactly what our malpractice insurance auditor needed."</p>
-                                <div class="alert alert-success mb-0" style="background-color: #d4edda; border-color: #c3e6cb;">
-                                    <strong style="color: #155724;">Result:</strong> <span style="color: #155724;">Passed insurance audit, 24/7 vulnerability monitoring</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Testimonial 6: Small Business Owner (Cost Savings) -->
-                    <div class="col-lg-4 col-md-6">
-                        <div class="card h-100 border-0 shadow-sm" style="transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 12px 48px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';">
-                            <div class="card-body p-4">
-                                <div class="d-flex align-items-center mb-3">
-                                    <span class="avatar rounded-circle me-3" style="background-image: url(https://i.pravatar.cc/150?img=44)"></span>
-                                    <div>
-                                        <h5 class="mb-0">Rachel C.</h5>
-                                        <small class="text-muted">Retail Owner · 8 Employees</small>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                </div>
-                                <p class="text-muted mb-3">"I process credit cards and needed PCI compliance proof. MagenSec works with my existing antivirus - it finds the gaps AV doesn't cover. The 7-day free trial convinced me in two days when it caught 23 vulnerabilities. At $9.99/year for 5 devices, it's a no-brainer."</p>
-                                <div class="alert alert-danger mb-0" style="background-color: #f8d7da; border-color: #f5c2c7;">
-                                    <strong style="color: #842029;">Result:</strong> <span style="color: #842029;">PCI compliant, 23 vulnerabilities fixed in trial period</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Trust Badges Row (Removed GDPR, Focused on Value) -->
-                <div class="row mt-5">
-                    <div class="col-12">
-                        <div class="card border-0" style="background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,250,0.95) 100%);">
-                            <div class="card-body py-4">
-                                <div class="row align-items-center text-center">
-                                    <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
-                                        <div class="d-flex align-items-center justify-content-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-primary me-2" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/><path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M12 12l0 2.5"/></svg>
-                                            <div>
-                                                <div class="fw-bold">Bank-Grade Encryption</div>
-                                                <small class="text-white">256-bit Security</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
-                                        <div class="d-flex align-items-center justify-content-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-success me-2" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
-                                            <div>
-                                                <div class="fw-bold">SOC 2 Ready</div>
-                                                <small class="text-white">Audit Documentation</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
-                                        <div class="d-flex align-items-center justify-content-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-info me-2" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 8l0 4"/><path d="M12 16l.01 0"/></svg>
-                                            <div>
-                                                <div class="fw-bold">Complements Your AV</div>
-                                                <small class="text-white">Works With Existing Security</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-3 col-md-6">
-                                        <div class="d-flex align-items-center justify-content-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-warning me-2" width="32" height="32" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M9 12l2 2l4 -4"/></svg>
-                                            <div>
-                                                <div class="fw-bold">7-Day Free Trial</div>
-                                                <small class="text-white">Up to 5 Devices</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Pricing Section -->
-        <div id="pricing" class="section-padding">
-            <div class="container-xl">
-                <div class="row">
-                    <div class="col-12 text-center mb-5">
-                        <h2 class="display-5 fw-bold">💰 Compliance Made Affordable</h2>
-                        <p class="lead text-muted">Audit-ready security without the enterprise price tag</p>
-                        <div class="alert alert-warning d-inline-block mb-3" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); border: none; animation: pulse 2s ease infinite; color: white;">
-                            <strong>⏰ LIMITED TIME OFFER:</strong> 50% off ends in <span id="countdown-timer" style="font-weight: 700; font-size: 1.1em; color: white;">7 days</span>
-                        </div>
-                        <div class="mb-3">
-                            <span class="badge bg-danger text-white me-2" style="font-size: 1rem; padding: 0.5rem 1rem;">🔥 732 licenses sold this month</span>
-                            <span class="badge bg-success text-white" style="font-size: 1rem; padding: 0.5rem 1rem;">✨ Lock in launch rates for 12 months</span>
-                        </div>
-                        <div class="row justify-content-center mt-3">
-                            <div class="col-lg-8">
-                                <div class="card bg-light">
-                                    <div class="card-body text-center py-3">
-                                        <h5 class="mb-2 text-primary">💡 <strong>Why MagenSec Costs Less Than Your Coffee Budget:</strong></h5>
-                                        <p class="small text-muted mb-0">
-                                            One compliance violation fine ($25,000+) or security consultant ($15,000) costs more than 50 years of MagenSec. <br />
-                                            We're making enterprise-grade audit prep accessible to everyone.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row justify-content-center">
-                    <div class="col-lg-4 col-md-6 mb-4">
-                        <div class="card pricing-card featured">
-                            <div class="pricing-badge">👥 Families</div>
-                            <div class="card-body text-center p-4">
-                                <h5 class="card-title">🏠 Personal</h5>
-                                <div class="display-6 fw-bold mb-1">
-                                    <span class="text-decoration-line-through text-muted">$19.99</span>
-                                    <span class="text-success">$9.99</span>
-                                </div>
-                                <p class="text-muted">per year • All your family devices</p>
-                                <div class="alert alert-success py-2 mb-3">
-                                    <small><strong>Why families choose this:</strong> Sleep better knowing kids' laptops, your work computer, and family tablets are audit-ready and protected</small>
-                                </div>
-                                <ul class="list-unstyled mb-4 text-start">
-                                    <li class="mb-2">✅ Compliance reports for school/work requirements</li>
-                                    <li class="mb-2">✅ <strong>ALL family devices</strong> (laptops, PCs, tablets)</li>
-                                    <li class="mb-2">✅ Automatic security scorecard updates</li>
-                                    <li class="mb-2">✅ In-app security dashboard</li>
-                                    <li class="mb-2">✅ Priority family support</li>
-                                </ul>
-                                <a href="https://www.paypal.com/ncp/payment/EZP5AJQHDDVM8" class="btn btn-primary w-100 btn-lg" target="_blank">💳 Secure My Family</a>
-                                <small class="text-success d-block mt-2">⚡ Most popular • Saves $5/year</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6 mb-4">
-                        <div class="card pricing-card">
-                            <div class="card-body text-center p-4">
-                                <h5 class="card-title">🚀 Business</h5>
-                                <div class="display-6 fw-bold mb-1">
-                                    <span class="text-decoration-line-through text-muted">$3.99</span>
-                                    <span class="text-success">$1.99</span>
-                                </div>
-                                <p class="text-muted">per user per month</p>
-                                <div class="alert alert-info py-2 mb-3">
-                                    <small><strong>Perfect for:</strong> Show investors, or auditors you're serious about security without breaking the budget</small>
-                                </div>
-                                <ul class="list-unstyled mb-4 text-start">
-                                    <li class="mb-2">✅ Everything in Personal plan</li>
-                                    <li class="mb-2">✅ <strong>Team audit dashboard</strong> for compliance</li>
-                                    <li class="mb-2">✅ Student data protection reports</li>
-                                    <li class="mb-2">✅ Investor-ready security documentation</li>
-                                    <li class="mb-2">✅ Multi-device team management</li>
-                                    <li class="mb-2">✅ Grant-application friendly pricing</li>
-                                </ul>
-                                <a href="#contact" class="btn btn-outline-primary w-100 btn-lg">Get Business Pricing</a>
-                                <small class="text-muted d-block mt-2">Perfect for 5-50 people • Saves $2/user/year</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-6 mb-4">
-                        <div class="card pricing-card">
-                            <div class="card-body text-center p-4">
-                                <h5 class="card-title">🌍 Managed Services</h5>
-                                <div class="display-6 fw-bold mb-3">Custom</div>
-                                <p class="text-muted">For Enterprise & Audit Needs</p>
-                                <div class="alert alert-warning py-2 mb-3">
-                                    <small><strong>Perfect for:</strong> Teams that want us to handle security monitoring and audit prep for them</small>
-                                </div>
-                                <ul class="list-unstyled mb-4 text-start">
-                                    <li class="mb-2">✅ <strong>24/7 Expert SOC Monitoring</strong></li>
-                                    <li class="mb-2">✅ Regulator-ready reports delivered monthly</li>
-                                    <li class="mb-2">✅ Custom security reviews & remediation</li>
-                                    <li class="mb-2">✅ Dedicated account manager</li>
-                                    <li class="mb-2">✅ Priority incident response</li>
-                                </ul>
-                                <a href="enterprise.html" class="btn btn-outline-dark w-100 btn-lg">Get Quote</a>
-                                <small class="text-muted d-block mt-2">Fraction of typical consultant costs</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Free Trial Horizontal Card -->
-                <div class="row justify-content-center mt-2 mb-4">
-                    <div class="col-lg-10">
-                        <div class="card bg-white border-2" style="border-color: #f76707;">
-                            <div class="card-body p-4">
-                                <div class="row align-items-center">
-                                    <div class="col-md-7">
-                                        <div class="d-flex align-items-center mb-2">
-                                            <div class="avatar bg-orange-lt me-3">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon text-orange" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01"/><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75"/></svg>
-                                            </div>
-                                            <h4 class="mb-0">Not ready to commit? Start with a Free Trial</h4>
-                                        </div>
-                                        <p class="text-muted mb-0 ms-sm-5 ps-sm-2">Get full access to all Premium & Business features for 7 days. No credit card required, instant cancellation anytime.</p>
-                                    </div>
-                                    <div class="col-md-5 text-center mt-3 mt-md-0">
-                                        <a href="#download" class="btn btn-orange w-100 btn-lg">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-                                            Start 7-Day Free Trial
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Payment QR Code -->
-                <div class="row justify-content-center mt-5">
-                    <div class="col-md-6 text-center">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">📱 Quick Payment Option</h5>
-                                <p class="text-muted">Scan to activate your Personal/Family license instantly</p>
-                                <picture>
-                                    <source srcset="assets/MagenSec-qrcode.webp" type="image/webp">
-                                    <img src="assets/MagenSec-qrcode.png" alt="Payment QR Code" width="200" height="200" class="img-fluid" loading="lazy" style="max-width: 200px;">
-                                </picture>
-                                <p class="small text-muted mt-2">Or <a href="https://www.paypal.com/ncp/payment/EZP5AJQHDDVM8" target="_blank">click here to pay online</a></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Pricing Disclaimer -->
-                <div class="row justify-content-center mt-5">
-                    <div class="col-lg-10">
-                        <div class="alert alert-info text-center">
-                            <div class="d-flex justify-content-center mb-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="m12 16h.01"/></svg>
-                                <strong>🎯 Lock In Launch Pricing</strong>
-                            </div>
-                            <p class="mb-2">
-                                <strong>These 50% off rates help students, families, and startups get audit-ready affordably.</strong><br>
-                                As we add premium compliance features, regular pricing ($19.99 Personal, $3.99 Business) will apply to new customers.
-                            </p>
-                            <p class="small text-muted mb-0">
-                                <strong>Early adopters keep launch rates for 12 months.</strong> Future pricing reflects enterprise-grade compliance value that typically costs $15,000+ per audit.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Download Section -->
-        <div id="download" class="section-padding bg-light-blue">
-            <div class="container-xl">
-                <div class="row align-items-center">
-                    <div class="col-lg-6">
-                        <h2 class="display-5 fw-bold mb-4">🚀 Ready to Get Protected?</h2>
-                        <p class="lead mb-4">Download MagenSec today and start your 7-day free trial. No credit card required.</p>
-                        <div class="row mb-4">
-                            <div class="col-md-6 mb-3">
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar avatar-sm me-3" style="background: var(--gradient-success);">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
-                                    </div>
-                                    <span>5-minute setup</span>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar avatar-sm me-3" style="background: var(--gradient-success);">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
-                                    </div>
-                                    <span>No credit card needed</span>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar avatar-sm me-3" style="background: var(--gradient-success);">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
-                                    </div>
-                                    <span>Works on all your devices</span>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar avatar-sm me-3" style="background: var(--gradient-success);">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10"/></svg>
-                                    </div>
-                                    <span>24/7 global support</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="alert alert-warning">
-                            <div class="d-flex align-items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01"/><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75"/></svg>
-                                <div>
-                                    <strong>Don't wait!</strong> Hackers attack <strong>345 million times per day</strong>. Protect yourself now.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h4 class="card-title">💻 Download MagenSec</h4>
-                                <p class="text-muted mb-0">Choose the right version for your Windows computer</p>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-4">
-                                    <label class="form-label fw-bold">Select your Windows version:</label>
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <div class="card border-2" style="border-color: #0066cc;">
-                                                <div class="card-body text-center p-3">
-                                                    <div class="mb-2">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-primary" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17.8 20l-12 -1.5c-1 -.1 -1.8 -.9 -1.8 -1.9v-9.2c0 -1 .8 -1.8 1.8 -1.9l12 -1.5c1.2 -.1 2.2 .8 2.2 1.9v12.2c0 1.1 -1 2 -2.2 1.9z"/><path d="M12 5l0 14"/><path d="M4 12l16 0"/></svg>
-                                                    </div>
-                                                    <h5 class="card-title">Windows x64</h5>
-                                                    <p class="small text-muted mb-3">For most computers (Intel/AMD processors)</p>
-                                                    <a href="#" class="btn btn-primary w-100" onclick="downloadForPlatform('windows-x64')">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-                                                        Download x64
-                                                    </a>
-                                                    <small class="text-muted d-block mt-1">~1 MB</small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="card border-2" style="border-color: #28a745;">
-                                                <div class="card-body text-center p-3">
-                                                    <div class="mb-2">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-success" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M17.8 20l-12 -1.5c-1 -.1 -1.8 -.9 -1.8 -1.9v-9.2c0 -1 .8 -1.8 1.8 -1.9l12 -1.5c1.2 -.1 2.2 .8 2.2 1.9v12.2c0 1.1 -1 2 -2.2 1.9z"/><path d="M12 5l0 14"/><path d="M4 12l16 0"/></svg>
-                                                    </div>
-                                                    <h5 class="card-title">Windows ARM64</h5>
-                                                    <p class="small text-muted mb-3">For ARM-based computers (Surface Pro X, etc.)</p>
-                                                    <a href="#" class="btn btn-success w-100" onclick="downloadForPlatform('windows-arm64')">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-                                                        Download ARM64
-                                                    </a>
-                                                    <small class="text-muted d-block mt-1">~1 MB</small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="alert alert-info mb-3">
-                                    <h5 class="alert-title">📋 System Requirements:</h5>
-                                    <ul class="mb-0">
-                                        <li><strong>OS:</strong> Windows 10 or Windows 11</li>
-                                        <li><strong>Framework:</strong> .NET 9.0 (included automatically)</li>
-                                        <li><strong>Disk Space:</strong> 130 MB + up to 2 GB for intelligence cache</li>
-                                        <li><strong>Memory:</strong> 2 GB RAM minimum</li>
-                                    </ul>
-                                </div>
-                                
-                                <div class="text-center">
-                                    <p class="small text-muted mb-2">Not sure which version? Try Intel/AMD x64 first - it works on most computers!</p>
-                                    <button class="btn btn-primary btn-lg w-100" onclick="downloadForPlatform('auto')">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7,11 12,16 17,11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-                                        🚀 Auto-Detect & Download
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- FAQ Section -->
-        <div id="faq" class="section-padding bg-light">
-            <div class="container-xl">
-                <div class="row">
-                    <div class="col-lg-8 mx-auto">
-                        <div class="text-center mb-5">
-                            <h2 class="display-5 fw-bold">Frequently Asked Questions</h2>
-                            <p class="lead text-muted">Everything you need to know about MagenSec</p>
-                        </div>
-                        <div class="accordion" id="faqAccordion">
-                            <!-- FAQ 1: Does this replace my antivirus? -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="faq1">
-                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="true" aria-controls="collapse1">
-                                        <strong>❓ Does MagenSec replace my antivirus?</strong>
-                                    </button>
-                                </h2>
-                                <div id="collapse1" class="accordion-collapse collapse show" aria-labelledby="faq1" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        <p><strong>No, MagenSec complements your existing antivirus.</strong> Think of it this way:</p>
-                                        <ul>
-                                            <li><strong>Antivirus</strong> = Catches malware and viruses after they try to run</li>
-                                            <li><strong>MagenSec</strong> = Finds and fixes vulnerabilities BEFORE attackers exploit them</li>
-                                        </ul>
-                                        <p class="mb-0">MagenSec works alongside Windows Defender or any antivirus you already have. We focus on <strong>vulnerability assessment, risk aversion, and compliance</strong> - making your existing security stronger by catching what antivirus misses (outdated software, misconfigurations, policy violations).</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- FAQ 2: What's included in the free trial? -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="faq2">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
-                                        <strong>🎁 What's included in the 7-day free trial?</strong>
-                                    </button>
-                                </h2>
-                                <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="faq2" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        <p><strong>Everything.</strong> No credit card required. Try MagenSec risk-free for 7 days on up to 5 devices:</p>
-                                        <ul>
-                                            <li>✅ Full vulnerability scanning on all devices</li>
-                                            <li>✅ Security risk scoring and prioritized remediation</li>
-                                            <li>✅ Compliance reports (HIPAA, PCI, SOC 2 ready)</li>
-                                            <li>✅ Real-time CVE tracking from NVD database</li>
-                                            <li>✅ Unified security dashboard</li>
-                                            <li>✅ 24/7 support access</li>
-                                        </ul>
-                                        <p class="mb-0">After 7 days, choose Personal ($9.99/year for 5 devices) or SMB license. No automatic charges - you decide.</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- FAQ 3: How is this different from paid antivirus? -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="faq3">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse3" aria-expanded="false" aria-controls="collapse3">
-                                        <strong>🤔 How is MagenSec different from paid antivirus like Norton or McAfee?</strong>
-                                    </button>
-                                </h2>
-                                <div id="collapse3" class="accordion-collapse collapse" aria-labelledby="faq3" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        <p>Antivirus and MagenSec solve different problems:</p>
-                                        <div class="table-responsive">
-                                            <table class="table table-bordered">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Feature</th>
-                                                        <th>Paid Antivirus</th>
-                                                        <th>MagenSec</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr>
-                                                        <td><strong>Malware Detection</strong></td>
-                                                        <td>✅ Yes</td>
-                                                        <td>❌ No (use with existing AV)</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>Vulnerability Scanning</strong></td>
-                                                        <td>⚠️ Basic</td>
-                                                        <td>✅ Comprehensive CVE tracking</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>Compliance Reports</strong></td>
-                                                        <td>❌ No</td>
-                                                        <td>✅ HIPAA, PCI, SOC 2 ready</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>Risk Scoring</strong></td>
-                                                        <td>❌ No</td>
-                                                        <td>✅ Prioritized remediation</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>Price</strong></td>
-                                                        <td>$40-120/year per device</td>
-                                                        <td>$9.99/year for 5 devices</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <p class="mb-0"><strong>Bottom line:</strong> Use both. Antivirus stops malware, MagenSec prevents vulnerabilities from being exploited. Together, they provide defense-in-depth security.</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- FAQ 4: What happens after my free trial? -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="faq4">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse4" aria-expanded="false" aria-controls="collapse4">
-                                        <strong>💳 What happens after my 7-day free trial ends?</strong>
-                                    </button>
-                                </h2>
-                                <div id="collapse4" class="accordion-collapse collapse" aria-labelledby="faq4" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        <p><strong>Nothing automatically charges.</strong> Here's what happens:</p>
-                                        <ol>
-                                            <li><strong>Day 7:</strong> Your trial ends. You'll receive a notification in the app.</li>
-                                            <li><strong>Your choice:</strong>
-                                                <ul>
-                                                    <li>✅ <strong>Personal License</strong>: $9.99/year for up to 5 devices</li>
-                                                    <li>✅ <strong>SMB License</strong>: Custom pricing for 5-50 devices</li>
-                                                    <li>✅ <strong>Managed Services</strong>: Get a quote for full compliance management</li>
-                                                    <li>⏸️ <strong>Do nothing</strong>: Scanning stops, no charges</li>
-                                                </ul>
-                                            </li>
-                                            <li><strong>Your data:</strong> We keep your scan history for 30 days in case you return.</li>
-                                        </ol>
-                                        <p class="mb-0">No hidden fees. No surprise charges. Just honest pricing for powerful security.</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- FAQ 5: Can I use MagenSec for my business? -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="faq5">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse5" aria-expanded="false" aria-controls="collapse5">
-                                        <strong>🏢 Can I use MagenSec for my business or school?</strong>
-                                    </button>
-                                </h2>
-                                <div id="collapse5" class="accordion-collapse collapse" aria-labelledby="faq5" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        <p><strong>Absolutely!</strong> MagenSec is perfect for:</p>
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <h6><strong>Small Businesses (5-50 employees)</strong></h6>
-                                                <ul>
-                                                    <li>Retail stores (PCI compliance for credit cards)</li>
-                                                    <li>Medical/dental practices (HIPAA compliance)</li>
-                                                    <li>Accounting firms (client data protection)</li>
-                                                    <li>Manufacturing (insurance requirements)</li>
-                                                </ul>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <h6><strong>Schools & Education</strong></h6>
-                                                <ul>
-                                                    <li>Coaching institutes (student data security)</li>
-                                                    <li>Private schools (compliance documentation)</li>
-                                                    <li>Tutoring centers (parent trust)</li>
-                                                    <li>Training academies (audit-ready reports)</li>
-                                                </ul>
-                                            </div>
-                                        </div>
-                                        <p><strong>Pricing:</strong></p>
-                                        <ul>
-                                            <li>🚀 <strong>SMB License</strong>: $1.99/user/month (5-50 users)</li>
-                                            <li>🏭 <strong>Enterprise</strong>: Custom quote for 50+ users</li>
-                                            <li>💼 <strong>Managed Services</strong>: We handle compliance for you</li>
-                                        </ul>
-                                        <p class="mb-0"><a href="#contact" class="btn btn-primary">Get a custom quote for your business</a></p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- FAQ 6: What if I need help? -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="faq6">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse6" aria-expanded="false" aria-controls="collapse6">
-                                        <strong>🆘 What if I need help or have technical questions?</strong>
-                                    </button>
-                                </h2>
-                                <div id="collapse6" class="accordion-collapse collapse" aria-labelledby="faq6" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        <p><strong>We're here 24/7.</strong> Our support teams are located around the world:</p>
-                                        <div class="row text-center mb-3">
-                                            <div class="col-md-4">
-                                                <div class="card">
-                                                    <div class="card-body">
-                                                        <h6>🇮🇳 India</h6>
-                                                        <small class="text-muted">Primary development & support</small>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="card">
-                                                    <div class="card-body">
-                                                        <h6>🇩🇪 Germany</h6>
-                                                        <small class="text-muted">European compliance expertise</small>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="card">
-                                                    <div class="card-body">
-                                                        <h6>🇺🇸 USA</h6>
-                                                        <small class="text-muted">Americas support</small>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <p><strong>How to reach us:</strong></p>
-                                        <ul>
-                                            <li>📧 <strong>Email</strong>: <a href="mailto:magensec@gigabits.co.in">magensec@gigabits.co.in</a> (response within 24 hours)</li>
-                                            <li>💬 <strong>In-App Chat</strong>: Available in the security dashboard (fastest for urgent issues)</li>
-                                            <li>📚 <strong>Documentation</strong>: Comprehensive guides in the <a href="FixIt.html">Security Guide</a></li>
-                                            <li>🎥 <strong>Video Tutorials</strong>: Step-by-step setup and usage videos</li>
-                                        </ul>
-                                        <p class="mb-0"><strong>Average response times:</strong> Email (24h), In-app chat (2-4h), Managed Services customers (30min priority)</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- About Section -->
-        <div id="about" class="section-padding">
-            <div class="container-xl">
-                <div class="row align-items-center">
-                    <div class="col-lg-6 mb-4">
-                        <h2 class="display-5 fw-bold mb-4">About MagenSec</h2>
-                        <p class="lead mb-4">
-                            Developed by <strong>Gigabits</strong>, MagenSec is born from years of experience in cybersecurity and the growing need for accessible, powerful security tools for everyone.
-                        </p>
-                        <p class="mb-4">
-                            Our mission is simple: make enterprise-grade security accessible to individuals and small businesses. We believe that everyone deserves protection from cyber threats, regardless of their technical expertise or budget.
-                        </p>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <h5><strong>Our Values</strong></h5>
-                                <ul class="list-unstyled">
-                                    <li>🛡️ Security First</li>
-                                    <li>🎯 Simplicity</li>
-                                    <li>💎 Transparency</li>
-                                    <li>🚀 Innovation</li>
-                                </ul>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <h5><strong>Why Choose Us</strong></h5>
-                                <ul class="list-unstyled">
-                                    <li>✅ No vendor lock-in</li>
-                                    <li>✅ Regular updates</li>
-                                    <li>✅ Open architecture</li>
-                                    <li>✅ Expert support</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-6 text-center">
-                        <picture>
-                            <source srcset="assets/GoldShield.webp" type="image/webp">
-                            <img src="assets/gold_shield.png" alt="About MagenSec" width="400" height="400" class="img-fluid" loading="lazy" style="max-width: 400px;">
-                        </picture>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Contact Section -->
-        <div id="contact" class="section-padding bg-light-blue">
-            <div class="container-xl">
-                <div class="row">
-                    <div class="col-lg-8 mx-auto">
-                        <div class="text-center mb-5">
-                            <h2 class="display-5 fw-bold">Get in Touch</h2>
-                            <p class="lead text-muted">Have questions? Need support? We're here to help.</p>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-4 text-center">
-                                <div class="avatar avatar-xl mx-auto mb-3" style="background: var(--gradient-primary);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10z"/><path d="m3 7l9 6l9 -6"/></svg>
-                                </div>
-                                <h5>Email Support</h5>
-                                <p class="text-muted mb-3">Get help from our expert team</p>
-                                <a href="mailto:magensec@gigabits.co.in" class="btn btn-outline-primary">magensec@gigabits.co.in</a>
-                            </div>
-                            <div class="col-md-4 mb-4 text-center">
-                                <div class="avatar avatar-xl mx-auto mb-3" style="background: var(--gradient-success);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 12c0 1.54 -1.336 3.14 -4 4c-2.664 .86 -6.5 1 -7 1c-2.5 0 -4 -1.5 -4 -4s1.5 -4 4 -4c.5 0 4.336 .14 7 1c2.664 .86 4 2.46 4 4z"/><path d="M10 17c0 .5 .5 1 1 1s1 -.5 1 -1"/><path d="M16 7c0 -.5 -.5 -1 -1 -1s-1 .5 -1 1"/></svg>
-                                </div>
-                                <h5>Live Chat</h5>
-                                <p class="text-muted mb-3">Chat with us in real-time</p>
-                                <button class="btn btn-outline-primary">Start Chat</button>
-                            </div>
-                            <div class="col-md-4 mb-4 text-center">
-                                <div class="avatar avatar-xl mx-auto mb-3" style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-white" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="4"/><path d="m12 1l3 6l6 3l-6 3l-3 6l-3 -6l-6 -3l6 -3z"/></svg>
-                                </div>
-                                <h5>Documentation</h5>
-                                <p class="text-muted mb-3">Browse our help resources</p>
-                                <a href="FixIt.html" class="btn btn-outline-primary">View Docs</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <footer class="footer footer-transparent d-print-none">
-            <div class="container-xl">
-                <!-- Enhanced Footer with Better Internal Linking -->
-                <div class="row mb-4">
-                    <div class="col-md-3 mb-3">
-                        <h5 class="fw-bold mb-3">Product</h5>
-                        <ul class="list-unstyled">
-                            <li><a href="#features" class="link-secondary text-decoration-none">Features</a></li>
-                            <li><a href="#how-it-works" class="link-secondary text-decoration-none">How It Works</a></li>
-                            <li><a href="#pricing" class="link-secondary text-decoration-none">Pricing</a></li>
-                            <li><a href="FixIt.html" class="link-secondary text-decoration-none">Security Guide</a></li>
-                        </ul>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <h5 class="fw-bold mb-3">Company</h5>
-                        <ul class="list-unstyled">
-                            <li><a href="about.html" class="link-secondary text-decoration-none">About Us</a></li>
-                            <li><a href="#contact" class="link-secondary text-decoration-none">Contact</a></li>
-                            <li><a href="http://gigabits.co.in" class="link-secondary text-decoration-none" target="_blank" rel="noopener">Gigabits</a></li>
-                        </ul>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <h5 class="fw-bold mb-3">Resources</h5>
-                        <ul class="list-unstyled">
-                            <li><a href="FixIt.html#vulnerability-types" class="link-secondary text-decoration-none">Vulnerability Types</a></li>
-                            <li><a href="FixIt.html#protection-strategies" class="link-secondary text-decoration-none">Protection Guide</a></li>
-                            <li><a href="portal/" class="link-secondary text-decoration-none" target="_blank">Admin Tools</a></li>
-                        </ul>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <h5 class="fw-bold mb-3">Legal</h5>
-                        <ul class="list-unstyled">
-                            <li><a href="terms.html" class="link-secondary text-decoration-none">Terms of Service</a></li>
-                            <li><a href="terms.html#privacy" class="link-secondary text-decoration-none">Privacy Policy</a></li>
-                            <li><a href="terms.html#refund" class="link-secondary text-decoration-none">Refund Policy</a></li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <hr class="my-4">
-                
-                <div class="row text-center align-items-center">
-                    <div class="col-md-6 text-md-start">
-                        <p class="mb-0 text-muted">
-                            Copyright &copy; 2025 <a href="http://gigabits.co.in" class="link-secondary text-decoration-none">Gigabits</a>. 
-                            All rights reserved.
-                        </p>
-                    </div>
-                    <div class="col-md-6 text-md-end mt-2 mt-md-0">
-                        <small class="text-muted">
-                            Made with ❤️ for better CyberSecurity
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </footer>
-    </div>
-    
-    <!-- Mobile Sticky CTA (only visible on mobile) -->
-    <div class="mobile-sticky-cta" id="mobileCTA">
-        <div class="container-xl">
-            <a href="#download" class="btn btn-white text-primary">
-                📥 Download Free Trial - 7 Days Free
-            </a>
-        </div>
-    </div>
-    
-    <!-- Back to Top Button -->
-    <button class="back-to-top" id="backToTop" onclick="scrollToTop()" title="Back to top" aria-label="Scroll to top of page">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="m18 15-6-6-6 6"/>
-        </svg>
-    </button>
-
-    <!-- Tabler Core -->
-    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
-    
-    <!-- Initialize Plyr Video Players -->
-    <script>
-        // Global error handler to suppress extension-related errors
-        window.addEventListener('error', function(event) {
-            const errorMessage = event.message || '';
-            const errorSource = event.filename || '';
-            
-            // Suppress known extension errors that don't affect functionality
-            const suppressedErrors = [
-                'videoElement_redirect.ts',
-                'mediaSource_redirect.ts',
-                'sourceBuffer_redirect.ts',
-                'remoteObjectManager.ts',
-                'nativeMessagingPageProxy.ts',
-                'reading \'proxy\'',
-                'MMR readInjectionParameters'
-            ];
-            
-            const shouldSuppress = suppressedErrors.some(pattern => 
-                errorMessage.includes(pattern) || errorSource.includes(pattern)
-            );
-            
-            if (shouldSuppress) {
-                event.preventDefault();
-                return false;
-            }
-        });
-        
-        // Suppress unhandled promise rejections from extensions
-        window.addEventListener('unhandledrejection', function(event) {
-            const reason = event.reason || '';
-            if (typeof reason === 'string' && reason.includes('proxy')) {
-                event.preventDefault();
-            }
-        });
-        
-        let videoTimers = {};
-        let players = {};
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            // Initialize video players that start expanded
-            initializeExpandedVideos();
-            
-            // Set up intersection observer for video pause/play when scrolling
-            setupVideoScrollObserver();
-            
-            // Video collapse/expand functionality
-            window.expandVideo = function(videoId) {
-                const collapsed = document.getElementById(`${videoId}-video-collapsed`);
-                const expanded = document.getElementById(`${videoId}-video-expanded`);
-                
-                collapsed.classList.add('d-none');
-                expanded.classList.remove('d-none');
-                
-                // Initialize Plyr for this video when expanded
-                initializeVideoPlayer(videoId);
-                
-                // Auto-play when expanded (with error handling)
-                setTimeout(() => {
-                    if (players[videoId]) {
-                        try {
-                            players[videoId].play().catch(error => {
-                                console.log('Auto-play prevented by browser policy - user interaction required');
-                            });
-                        } catch (error) {
-                            console.log('Auto-play error handled');
-                        }
-                    }
-                }, 500);
-            };
-            
-            window.collapseVideo = function(videoId) {
-                const collapsed = document.getElementById(`${videoId}-video-collapsed`);
-                const expanded = document.getElementById(`${videoId}-video-expanded`);
-                
-                // Pause video before collapsing
-                if (players[videoId]) {
-                    try {
-                        players[videoId].pause();
-                        // Reset to beginning for next play
-                        setTimeout(() => {
-                            if (players[videoId]) {
-                                players[videoId].currentTime = 0;
-                            }
-                        }, 100);
-                    } catch (error) {
-                        console.log('Video pause error handled');
-                    }
-                }
-                
-                expanded.classList.add('d-none');
-                collapsed.classList.remove('d-none');
-            };
-            
-            // Initialize videos that start expanded
-            function initializeExpandedVideos() {
-                // Find all video sections that are expanded by default
-                const expandedVideos = document.querySelectorAll('.video-expanded:not(.d-none)');
-                expandedVideos.forEach(expanded => {
-                    const videoId = expanded.id.replace('-video-expanded', '');
-                    initializeVideoPlayer(videoId);
-                });
-            }
-            
-            // Initialize individual video player
-            function initializeVideoPlayer(videoId) {
-                const playerElement = document.getElementById(`${videoId}-video-player`);
-                
-                if (playerElement && !players[videoId]) {
-                    try {
-                        // Set dynamic iframe src with correct origin for localhost/production
-                        const iframe = playerElement.querySelector('iframe[data-video-id]');
-                        if (iframe && !iframe.src) {
-                            const videoIdFromData = iframe.getAttribute('data-video-id');
-                            const origin = window.location.origin;
-                            iframe.src = `https://www.youtube.com/embed/${videoIdFromData}?origin=${encodeURIComponent(origin)}&iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1&disablekb=1&fs=1&hl=en`;
-                        }
-                        
-                        players[videoId] = new Plyr(playerElement, {
-                            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
-                            youtube: {
-                                noCookie: false,
-                                rel: 0,
-                                showinfo: 0,
-                                iv_load_policy: 3,
-                                modestbranding: 1
-                            },
-                            // Add defensive options to reduce extension conflicts
-                            hideControls: false,
-                            resetOnEnd: false,
-                            disableContextMenu: false
-                        });
-                        
-                        // Set up timer to collapse video before it ends with error protection
-                        players[videoId].on('timeupdate', () => {
-                            try {
-                                const duration = players[videoId].duration;
-                                const currentTime = players[videoId].currentTime;
-                                
-                                // Collapse 1 second before video ends
-                                if (duration && currentTime && (duration - currentTime) <= 1) {
-                                    collapseVideo(videoId);
-                                }
-                            } catch (error) {
-                                // Silently handle timeupdate errors
-                            }
-                        });
-                        
-                        // Handle player errors gracefully
-                        players[videoId].on('error', (error) => {
-                            console.log('Video player error handled:', error);
-                        });
-                        
-                        // Additional event handlers to prevent extension conflicts
-                        players[videoId].on('ready', () => {
-                            try {
-                                // Ensure the player is properly initialized
-                                const iframe = playerElement.querySelector('iframe');
-                                if (iframe) {
-                                    // Add additional attributes to prevent extension interference
-                                    iframe.setAttribute('data-plyr-provider', 'youtube');
-                                    iframe.setAttribute('data-plyr-embed-id', videoId);
-                                }
-                            } catch (error) {
-                                // Silently handle initialization errors
-                            }
-                        });
-                        
-                    } catch (error) {
-                        console.log('Player initialization error handled:', error);
-                    }
-                }
-            }
-            
-            // Set up intersection observer to pause videos when scrolled out of view
-            function setupVideoScrollObserver() {
-                const observerOptions = {
-                    root: null,
-                    rootMargin: '-50px 0px -50px 0px', // Pause when 50px out of view
-                    threshold: 0.5 // At least 50% visible
-                };
-                
-                const videoObserver = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        const videoWrapper = entry.target;
-                        const videoId = videoWrapper.id.replace('-video-wrapper', '');
-                        
-                        if (players[videoId]) {
-                            try {
-                                if (entry.isIntersecting) {
-                                    // Video is in view - allow it to play if user interacts
-                                    console.log(`Video ${videoId} is in view`);
-                                } else {
-                                    // Video is out of view - pause it
-                                    if (!players[videoId].paused) {
-                                        players[videoId].pause();
-                                        console.log(`Video ${videoId} paused (out of view)`);
-                                    }
-                                }
-                            } catch (error) {
-                                console.log('Video scroll observer error handled');
-                            }
-                        }
-                    });
-                }, observerOptions);
-                
-                // Observe all video wrappers
-                const videoWrappers = document.querySelectorAll('.video-wrapper');
-                videoWrappers.forEach(wrapper => {
-                    videoObserver.observe(wrapper);
-                });
-            }
-        });
-    </script>
-    
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        
-        // Configure Google Analytics
-        gtag('config', 'GA_MEASUREMENT_ID', {
-            // Enhanced e-commerce and user engagement tracking
-            send_page_view: true,
-            anonymize_ip: true,
-            allow_google_signals: false,
-            allow_ad_personalization_signals: false
-        });
-        
-        // Track key user interactions
-        function trackEvent(action, category, label, value) {
-            gtag('event', action, {
-                event_category: category,
-                event_label: label,
-                value: value
-            });
-        }
-        
-        // Track download button clicks
-        document.addEventListener('DOMContentLoaded', function() {
-            // Track CTA button clicks
-            const ctaButtons = document.querySelectorAll('[href*="download"], .btn-primary, .btn-success');
-            ctaButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    trackEvent('click', 'CTA', this.textContent.trim());
-                });
-            });
-            
-            // Track pricing tier selections
-            const pricingButtons = document.querySelectorAll('.pricing-card .btn');
-            pricingButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const tierName = this.closest('.pricing-card').querySelector('h3').textContent;
-                    trackEvent('click', 'Pricing', tierName);
-                });
-            });
-            
-            // Track scroll depth
-            let maxScroll = 0;
-            window.addEventListener('scroll', function() {
-                const scrollPercent = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
-                if (scrollPercent > maxScroll) {
-                    maxScroll = scrollPercent;
-                    if (maxScroll % 25 === 0) { // Track at 25%, 50%, 75%, 100%
-                        trackEvent('scroll', 'Engagement', maxScroll + '%');
-                    }
-                }
-            });
-        });
-    </script>
-    
-    <!-- Custom Scripts -->
-    <script>
-        // Threat simulation comparison demo
-        function runComparisonDemo() {
-            // Reset all elements
-            const elementsWithout = ['vuln-exists', 'exploit-incoming', 'exploit-succeeds', 'system-breached'];
-            const elementsWith = ['vuln-detected', 'patch-recommended', 'user-patches', 'attack-fails'];
-            
-            [...elementsWithout, ...elementsWith].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) element.classList.add('d-none');
-            });
-            
-            // Run both simulations simultaneously but with different timings
-            let withoutIndex = 0;
-            let withIndex = 0;
-            
-            // Start the "without MagenSec" scenario (faster, more dramatic)
-            const withoutInterval = setInterval(() => {
-                if (withoutIndex < elementsWithout.length) {
-                    const element = document.getElementById(elementsWithout[withoutIndex]);
-                    if (element) element.classList.remove('d-none');
-                    withoutIndex++;
-                } else {
-                    clearInterval(withoutInterval);
-                }
-            }, 1200);
-            
-            // Start the "with MagenSec" scenario (slightly delayed, shows prevention)
-            setTimeout(() => {
-                const withInterval = setInterval(() => {
-                    if (withIndex < elementsWith.length) {
-                        const element = document.getElementById(elementsWith[withIndex]);
-                        if (element) element.classList.remove('d-none');
-                        withIndex++;
-                    } else {
-                        clearInterval(withInterval);
-                        // Reset after showing results
-                        setTimeout(() => {
-                            [...elementsWithout, ...elementsWith].forEach(id => {
-                                const element = document.getElementById(id);
-                                if (element) element.classList.add('d-none');
-                            });
-                        }, 4000);
-                    }
-                }, 1300);
-            }, 200);
-        }
-        
-        // Legacy function for compatibility
-        function runThreatDemo() {
-            runComparisonDemo();
-        }
-
-        // Download functionality with platform detection
-        function downloadForPlatform(platform) {
-            let downloadUrl = '';
-            let fileName = '';
-            
-            if (platform === 'auto') {
-                // Auto-detect platform (simplified - you'd implement proper detection)
-                platform = 'windows-x64'; // Default to x64 for now
-            }
-            
-            switch(platform) {
-                case 'windows-x64':
-                    downloadUrl = 'https://magensec.short.gy/x64';
-                    fileName = 'MagenSec-Latest-x64.exe';
-                    break;
-                case 'windows-arm64':
-                    downloadUrl = 'https://magensec.short.gy/arm64';
-                    fileName = 'MagenSec-Latest-arm64.exe';
-                    break;
-                default:
-                    downloadUrl = 'https://magensec.short.gy/x64';
-                    fileName = 'MagenSec-Latest-x64.exe';
-            }
-            
-            // Track download attempt
-            console.log('Download initiated for platform:', platform);
-            
-            // Show download message
-            const platformName = platform === 'windows-arm64' ? 'Windows ARM64' : 'Windows x64';
-            const message = `🚀 Starting download of MagenSec for ${platformName}!\n\n` +
-                          `📁 File: ${fileName}\n` +
-                          `💾 Size: ~1 MB\n` +
-                          `⏱️ Time: ~1 minute\n\n` +
-                          `❓ Need help? Contact: magensec@gigabits.co.in`;
-            
-            alert(message);
-            
-            // Trigger download without showing forwarder page
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = fileName;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        // Smooth scrolling for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                const href = this.getAttribute('href');
-                // Skip empty or invalid hashes
-                if (!href || href === '#' || href.length <= 1) {
-                    return;
-                }
-                e.preventDefault();
-                const target = document.querySelector(href);
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            });
-        });
-
-        // Auto-run threat demo on page load
-        setTimeout(() => {
-            runComparisonDemo();
-        }, 2000);
-        
-        // Back to top functionality
-        function scrollToTop() {
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
-        }
-        
-        // Show/hide back to top button and mobile CTA
-        window.addEventListener('scroll', () => {
-            const backToTopBtn = document.getElementById('backToTop');
-            const mobileCTA = document.getElementById('mobileCTA');
-            
-            if (window.pageYOffset > 300) {
-                backToTopBtn.classList.add('show');
-                if (mobileCTA) {
-                    mobileCTA.classList.add('show');
-                }
-            } else {
-                backToTopBtn.classList.remove('show');
-                if (mobileCTA) {
-                    mobileCTA.classList.remove('show');
-                }
-            }
-        });
-
-        // Add animation class when elements come into view
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.style.opacity = '1';
-                    entry.target.style.transform = 'translateY(0)';
-                }
-            });
-        }, observerOptions);
-
-        // Apply fade-in animation to cards
-        document.querySelectorAll('.feature-card, .pricing-card').forEach(card => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(20px)';
-            card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-            observer.observe(card);
-        });
-
-        // Countdown Timer for Limited Offer
-        function updateCountdown() {
-            const countdownElement = document.getElementById('countdown-timer');
-            if (!countdownElement) return;
-
-            // Set end date: 7 days from February 1, 2026 (adjust as needed for your campaign)
-            const endDate = new Date('2026-02-08T23:59:59').getTime();
-            const now = new Date().getTime();
-            const timeRemaining = endDate - now;
-
-            if (timeRemaining <= 0) {
-                countdownElement.textContent = 'Offer ended';
-                countdownElement.style.color = '#6c757d';
-                return;
-            }
-
-            const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
-
-            if (days > 0) {
-                countdownElement.textContent = `${days} day${days !== 1 ? 's' : ''} ${hours}h`;
-            } else if (hours > 0) {
-                countdownElement.textContent = `${hours} hour${hours !== 1 ? 's' : ''} ${minutes}m`;
-            } else {
-                countdownElement.textContent = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-            }
-
-            // Update color based on urgency
-            if (days === 0 && hours < 24) {
-                countdownElement.style.color = '#dc3545'; // Red for last 24h
-            } else if (days < 2) {
-                countdownElement.style.color = '#f76707'; // Orange for last 2 days
-            } else {
-                countdownElement.style.color = '#dc3545'; // Red default
-            }
-        }
-
-        // Update countdown immediately and every minute
-        updateCountdown();
-        setInterval(updateCountdown, 60000); // Update every minute
-    </script>
+<body data-nav-active="home">
+<div class="promo-banner" role="banner" aria-label="Promotional offer">
+<div class="container">
+<span class="promo-banner__icon"></span>
+<span class="promo-banner__text">
+<strong>Limited Offer:</strong> Use code <strong class="promo-coupon">MAGITRY30</strong> for 30 days free on the <strong>Personal</strong> plan. New users only. </span>
+<a href="editions.html" class="promo-banner__link">See Plans</a>
+</div>
+<button class="promo-banner__close" aria-label="Dismiss promotion">
+<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+</button>
+</div>
+<header class="nav nav--transparent" id="nav" role="banner">
+<div class="nav__inner container">
+<a href="index.html" class="nav__logo" aria-label="MagenSec Home">
+<img src="assets/black_shield_256x256.png" alt="" width="32" height="32" loading="eager">
+<span class="nav__brand">Magen<span class="nav__brand-sec">Sec</span></span>
+</a>
+<nav class="nav__links" aria-label="Main navigation">
+<a href="index.html" class="nav__link nav__link--active">Home</a>
+<a href="what-we-cover.html" class="nav__link">Platform</a>
+<a href="magi.html" class="nav__link nav__link--magi">MAGI AI</a>
+<a href="editions.html" class="nav__link">Pricing</a>
+<a href="install.html" class="nav__link">Install</a>
+<a href="about.html" class="nav__link">About</a>
+</nav>
+<div class="nav__actions">
+<div class="nav__dropdown" role="group">
+<button class="btn-ghost btn--sm nav__dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download </button>
+<div class="nav__dropdown-menu" role="menu">
+<div class="nav__dropdown-header">MagenSec for Windows</div>
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="nav__dropdown-item" role="menuitem" target="_blank" rel="nofollow noopener">
+<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>Download on Microsoft Store </a>
+<a href="install.html#enterprise-deploy" class="nav__dropdown-item" role="menuitem">
+<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Manual &amp; CLI install </a>
+</div>
+</div>
+<a href="portal/" class="btn-primary btn--sm">Sign In <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+<button class="nav__hamburger nav__burger" id="nav-burger" aria-controls="mobile-nav" aria-expanded="false" aria-label="Open menu">
+<span></span><span></span><span></span>
+</button>
+</div>
+<div class="nav__mobile-menu" id="mobile-nav" role="dialog" aria-modal="true" aria-label="Navigation">
+<nav>
+<a href="index.html" class="nav__mobile-link nav__mobile-link--active">Home</a>
+<a href="what-we-cover.html" class="nav__mobile-link">Platform</a>
+<a href="magi.html" class="nav__mobile-link nav__mobile-link--accent">MAGI AI</a>
+<a href="editions.html" class="nav__mobile-link">Pricing</a>
+<a href="install.html" class="nav__mobile-link">Install</a>
+<a href="about.html" class="nav__mobile-link">About</a>
+</nav>
+<div class="nav__mobile-divider"></div>
+<div style="padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem">
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-ghost btn--full" target="_blank" rel="nofollow noopener">Get it on Microsoft Store</a>
+<a href="install.html#enterprise-deploy" class="btn-ghost btn--full">Manual &amp; CLI Install</a>
+<a href="portal/" class="btn-primary btn--full">Sign In to Portal</a>
+</div>
+</div>
+</header>
+<section class="hero">
+<div class="hero__bg" aria-hidden="true">
+<div class="hero__bg-mesh"></div>
+<div class="hero__grid"></div>
+</div>
+<div class="hero__inner">
+<div class="hero__content" data-reveal>
+<div class="hero__eyebrow">Continuous Endpoint Security Auditing</div>
+<h1 class="hero__title"> Know exactly where you stand - <span class="hero__typewriter" data-typewriter='["before attackers do","before audits arrive","before risk turns into downtime"]'>
+<span data-typewriter-text>before attackers do</span><span class="hero__typewriter-cursor"></span>
+</span>
+</h1>
+<p class="hero__description">MagenSec gives SMB teams one security operating layer: Protect today, Prove readiness on demand, and use MAGI for prioritized action. This is purpose-built for organizations that are too small for enterprise SOC tooling but too exposed for AV-only security.</p>
+<div class="hero__cta-group">
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-primary btn-lg btn-pulse" target="_blank" rel="nofollow noopener">Download on Microsoft Store <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg></a>
+<a href="install.html#enterprise-deploy" class="btn-ghost btn-lg">Manual &amp; CLI Install <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+<ul class="home-hero-proof-list">
+<li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Uses built-in Windows Defender intelligently instead of piling on another heavy AV stack.</span></li>
+<li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Surfaces exploitable vulnerabilities and policy drift before they become incident reports.</span></li>
+<li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Keeps Personal and Education plans focused on Protect, while Business adds Prove, MAGI, and Audit + Time-Travel (Coming-Soon).</span></li>
+</ul>
+</div><div class="hero__visual" data-reveal="right">
+<div class="hero__magi-wrap">
+<img src="assets/MagiBanner.jpeg" alt="MAGI AI Security Guardian" class="hero__magi-img" width="1080" height="1080" fetchpriority="high" decoding="async" style="width:100%;max-width:540px;border-radius:2rem;box-shadow:0 24px 60px rgba(0,0,0,0.28);object-fit:cover;">
+</div>
+</div>
+</div>
+<div class="hero__stats">
+<div class="hero__stats-grid">
+<div class="hero__stat" data-reveal>
+<div class="hero__stat-number" data-counter data-target="24">24</div>
+<div class="hero__stat-label">hour posture visibility across managed endpoints</div>
+</div>
+<div class="hero__stat" data-reveal data-delay="100">
+<div class="hero__stat-number" data-counter data-target="6">6</div>
+<div class="hero__stat-label">framework families mapped for compliance monitoring</div>
+</div>
+<div class="hero__stat" data-reveal data-delay="200">
+<div class="hero__stat-number" data-counter data-target="4">4</div>
+<div class="hero__stat-label">Business bundles that scale without changing the product</div>
+</div>
+<div class="hero__stat" data-reveal data-delay="300">
+<div class="hero__stat-number">MAGI</div>
+<div class="hero__stat-label">AI analyst for security answers, triage, and reporting</div>
+</div>
+</div>
+</div>
+</section>
+<section class="section section--surface">
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow section-eyebrow--warning">Why attacks still work</p>
+<h2 class="section-title">Most environments fail long before ransomware shows up</h2>
+<p class="section-subtitle">Attackers do not need magic. They need stale software, weakened endpoint controls, and nobody watching compliance drift.</p>
+</div>
+<div class="problem-grid">
+<div class="problem-card problem-card--threat" data-reveal>
+<div class="problem-card__icon card-icon--danger"><svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg></div>
+<h3 class="problem-card__title">Threats start small</h3>
+<p class="problem-card__desc">A routine email, macro, browser exploit, or document lure is usually enough when endpoint posture is already weak.</p>
+</div>
+<div class="problem-card problem-card--fragmented" data-reveal data-delay="100">
+<div class="problem-card__icon card-icon--warning"><svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M8 4h11a1 1 0 0 1 1 1v11"/><path d="M4 8h11a1 1 0 0 1 1 1v11"/><path d="M4 4h4"/><path d="M10 20h10"/></svg></div>
+<h3 class="problem-card__title">Unpatched gaps stay hidden</h3>
+<p class="problem-card__desc">Outdated applications and risky security exceptions create easy openings - especially when nobody is correlating them continuously.</p>
+</div>
+<div class="problem-card problem-card--unknown" data-reveal data-delay="200">
+<div class="problem-card__icon card-icon--primary"><svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 8v5"/><path d="M12 17h.01"/><path d="M5.07 19a10 10 0 1 1 13.86 0"/></svg></div>
+<h3 class="problem-card__title">Audit readiness decays daily</h3>
+<p class="problem-card__desc">Compliance is not a PDF. Device drift, disabled controls, and undocumented changes quietly break your posture over time.</p>
+</div>
+</div>
+<div class="stats-row" data-reveal>
+<div class="stat-card">
+<div class="stat-number" data-counter data-target="3">3</div>
+<div class="stat-label">core failure points: AV health, vulnerabilities, policy drift</div>
+</div>
+<div class="stat-card">
+<div class="stat-number" data-counter data-target="1">1</div>
+<div class="stat-label">platform to monitor them together</div>
+</div>
+<div class="stat-card">
+<div class="stat-number">0</div>
+<div class="stat-label">reason to wait for a full incident to learn the truth</div>
+</div>
+</div>
+</div>
+</section>
+<section class="section">
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow section-eyebrow--danger">Break the chain</p>
+<h2 class="section-title">See where MagenSec interrupts the attack path</h2>
+<p class="section-subtitle">This is the difference between reacting to ransomware headlines and preventing the conditions that make them possible.</p>
+</div>
+<div class="home-attack-layout">
+<div class="home-attack-diagram" data-reveal="left">
+<img src="images/attack-chain.svg" alt="Attack chain diagram showing where MagenSec blocks threats" width="960" height="720" loading="lazy" decoding="async">
+</div>
+<div class="home-side-panel" data-reveal="right">
+<div class="home-side-panel__title">What MagenSec blocks first</div>
+<p class="text-secondary">Instead of waiting until malware executes, MagenSec helps you remove the unsafe conditions that enable the kill chain.</p>
+<ul class="home-side-panel__list">
+<li><strong>Antivirus health</strong><span>Flags disabled Defender, stale signatures, weak exclusions, and missed scans.</span></li>
+<li><strong>Vulnerability exposure</strong><span>Highlights exploitable CVEs and prioritizes fixes based on real risk.</span></li>
+<li><strong>Software visibility</strong><span>Shows unexpected, outdated, or unlicensed applications across the fleet.</span></li>
+<li><strong>Compliance state</strong><span>Continuously checks whether security controls remain audit-ready.</span></li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section class="section section--surface">
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow">Platform capabilities</p>
+<h2 class="section-title">Four pillars, one operational picture</h2>
+<p class="section-subtitle">Every feature page now points back to the same story: know the endpoint, know the risk, know the audit state.</p>
+</div>
+<div class="features-grid">
+<a class="feature-card" href="features/antivirus-management.html" data-reveal>
+<div class="feature-card__head"><div class="feature-card__icon card-icon--success">AV</div><span class="feature-card__label">Protect</span></div>
+<h3 class="feature-card__title">Antivirus Management</h3>
+<p class="feature-card__desc">Manage Windows Defender posture, signature freshness, scan cadence, exclusions, and protection drift across your devices.</p>
+<div class="feature-card__badge badge badge-success">Defender-focused</div>
+</a>
+<a class="feature-card" href="features/vulnerability.html" data-reveal data-delay="100">
+<div class="feature-card__head"><div class="feature-card__icon card-icon--warning">VULN</div><span class="feature-card__label">Protect</span></div>
+<h3 class="feature-card__title">Vulnerability Assessment</h3>
+<p class="feature-card__desc">See which CVEs matter, which are actively exploited, and which devices should be patched first.</p>
+<div class="feature-card__badge badge badge-warning">Prioritized remediation</div>
+</a>
+<a class="feature-card" href="features/software-inventory.html" data-reveal data-delay="200">
+<div class="feature-card__head"><div class="feature-card__icon card-icon--primary">INV</div><span class="feature-card__label">Protect</span></div>
+<h3 class="feature-card__title">Software Inventory</h3>
+<p class="feature-card__desc">Maintain visibility into installed software, version drift, and shadow IT before it becomes risk or licensing pain.</p>
+<div class="feature-card__badge badge badge-primary">Asset visibility</div>
+</a>
+<a class="feature-card" href="features/compliance.html" data-reveal data-delay="300">
+<div class="feature-card__head"><div class="feature-card__icon card-icon--accent">CMP</div><span class="feature-card__label">Prove</span></div>
+<h3 class="feature-card__title">Compliance Monitoring</h3>
+<p class="feature-card__desc">Track controls continuously across supported frameworks and export evidence you can hand to auditors without drama.</p>
+<div class="feature-card__badge badge badge-accent">Education & Business</div>
+</a>
+</div>
+<div class="home-roadmap-grid" data-reveal>
+<div class="home-roadmap-card">
+<span class="badge badge-neutral" style="margin-bottom:var(--space-3)">Coming-Soon</span>
+<h3>License Management</h3>
+<p>Use the same inventory model to identify software entitlement gaps, over-deployment, and audit exposure.</p>
+</div>
+<div class="home-roadmap-card">
+<span class="badge badge-neutral" style="margin-bottom:var(--space-3)">Coming-Soon</span>
+<h3>Time-Travel</h3>
+<p>Answer "what was our posture on that date?" for audits, investigations, and executive reviews.</p>
+</div>
+<div class="home-roadmap-card">
+<span class="badge badge-accent" style="margin-bottom:var(--space-3)">Business</span>
+<h3>MAGI AI Guidance</h3>
+<p>Ask plain-language questions about device risk, failing controls, stale signatures, and remediation priorities.</p>
+</div>
+</div>
+</div>
+</section>
+<section class="section magi-section">
+<div class="container">
+<div class="magi-layout">
+<div data-reveal>
+<p class="section-eyebrow">MAGI AI</p>
+<h2 class="section-title">Your analyst, your assistant, your consultant - without a queue</h2>
+<p class="section-subtitle">MAGI turns device telemetry into plain-language guidance. Ask what is wrong, what matters most, what failed compliance today, or what to fix first.</p>
+<div class="magi-roles">
+<div class="magi-role">
+<div class="magi-role__icon">AI</div>
+<div class="magi-role__content">
+<div class="magi-role__label">Assistant</div>
+<div class="magi-role__title">Explains security in human language</div>
+<div class="magi-role__desc">No hunting through CVE feeds and framework PDFs just to understand the risk.</div>
+</div>
+</div>
+<div class="magi-role">
+<div class="magi-role__icon">AI</div>
+<div class="magi-role__content">
+<div class="magi-role__label">Analyst</div>
+<div class="magi-role__title">Correlates findings across your endpoints</div>
+<div class="magi-role__desc">Highlights which devices, controls, and vulnerabilities deserve attention first.</div>
+</div>
+</div>
+<div class="magi-role">
+<div class="magi-role__icon">AI</div>
+<div class="magi-role__content">
+<div class="magi-role__label">Consultant</div>
+<div class="magi-role__title">Recommends what to do next</div>
+<div class="magi-role__desc">Guides remediation, reporting, and communication - including on WhatsApp for Business.</div>
+</div>
+</div>
+</div>
+<div class="btn-group">
+<a href="magi.html" class="btn-primary">Meet MAGI <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+<a href="editions.html" class="btn-ghost">See Business Access</a>
+</div>
+</div>
+<div data-reveal="right">
+<div class="magi-chat">
+<div class="magi-chat__header">
+<div class="magi-chat__avatar">MAGI</div>
+<div>
+<div class="magi-chat__name">MAGI Security Analyst</div>
+<div class="magi-chat__status">Online - Business plans</div>
+</div>
+</div>
+<div class="magi-chat__messages">
+<div class="chat-msg chat-msg--user">
+<div class="chat-msg__bubble">Which devices need attention first today?</div>
+</div>
+<div class="chat-msg chat-msg--ai">
+<div class="chat-msg__avt">M</div>
+<div class="chat-msg__bubble">I found <strong>4 endpoints</strong> with urgent issues: 2 have stale Defender signatures, 1 has protection disabled, and 1 is failing a compliance control tied to encryption policy.</div>
+</div>
+<div class="chat-msg chat-msg--user">
+<div class="chat-msg__bubble">Which one is the highest risk?</div>
+</div>
+<div class="chat-msg chat-msg--ai">
+<div class="chat-msg__avt">M</div>
+<div class="chat-msg__bubble">DEVICE-11 is highest priority. It combines <span class="chat-msg__critical">disabled real-time protection</span> with an outstanding exploited CVE in Adobe Reader. I recommend remediation today.</div>
+</div>
+</div>
+<div class="magi-chat__input">
+<input type="text" aria-label="MAGI chat preview" readonly placeholder="Ask MAGI in the portal or on WhatsApp (Business)">
+<a href="portal/" class="btn-primary btn--sm">Open Portal <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="section section--surface">
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow">Real-world impact</p>
+<h2 class="section-title">What teams actually get from MagenSec</h2>
+<p class="section-subtitle">Not slogans - operational clarity. Each story starts the same way: too many blind spots, too little time, and one audit or incident too close for comfort.</p>
+</div>
+<div class="home-static-impact attack-stories-grid">
+<article class="attack-card" data-reveal>
+<div class="card-status-top bg-danger"></div>
+<div class="attack-card__header">
+<span class="badge bg-red-lt text-red-lt-fg">Manufacturing</span>
+<span class="badge bg-azure-lt text-azure-lt-fg">Insurance pressure</span>
+</div>
+<div class="card-body" style="padding:var(--space-6)">
+<h3 class="card-title">A premium hike avoided</h3>
+<p class="attack-card__subtitle">A mid-size manufacturer needed hard evidence that endpoint controls and patch posture were being monitored continuously.</p>
+<div class="attack-metrics">
+<div class="metric"><span class="metric-label">Urgent CVEs</span><span class="metric-value">17</span></div>
+<div class="metric"><span class="metric-label">Weeks to clarity</span><span class="metric-value">1</span></div>
+<div class="metric"><span class="metric-label">Outcome</span><span class="metric-value">Renewed</span></div>
+</div>
+<div class="alert alert-warning">MagenSec surfaced exploitable software gaps, documented remediation, and provided the compliance evidence the insurer wanted.</div>
+</div>
+</article>
+<article class="attack-card" data-reveal data-delay="100">
+<div class="card-status-top bg-orange"></div>
+<div class="attack-card__header">
+<span class="badge bg-orange-lt text-orange-lt-fg">Education</span>
+<span class="badge bg-azure-lt text-azure-lt-fg">Audit readiness</span>
+</div>
+<div class="card-body" style="padding:var(--space-6)">
+<h3 class="card-title">A small team got audit-ready fast</h3>
+<p class="attack-card__subtitle">An education environment needed to prove that devices remained compliant without running manual spreadsheet checks every week.</p>
+<div class="attack-metrics">
+<div class="metric"><span class="metric-label">Devices</span><span class="metric-value">25</span></div>
+<div class="metric"><span class="metric-label">Reports</span><span class="metric-value">1-click</span></div>
+<div class="metric"><span class="metric-label">Friction</span><span class="metric-value">DOWN</span></div>
+</div>
+<div class="alert alert-warning">Protect reporting gave administrators a current posture view instead of a point-in-time scramble.</div>
+</div>
+</article>
+<article class="attack-card" data-reveal data-delay="200">
+<div class="card-status-top bg-danger"></div>
+<div class="attack-card__header">
+<span class="badge bg-red-lt text-red-lt-fg">Business</span>
+<span class="badge bg-azure-lt text-azure-lt-fg">MAGI enabled</span>
+</div>
+<div class="card-body" style="padding:var(--space-6)">
+<h3 class="card-title">The risky endpoint was obvious immediately</h3>
+<p class="attack-card__subtitle">A business team asked MAGI what mattered most today and got a ranked answer instead of another dashboard to interpret.</p>
+<div class="attack-metrics">
+<div class="metric"><span class="metric-label">High-risk hosts</span><span class="metric-value">4</span></div>
+<div class="metric"><span class="metric-label">Top issue</span><span class="metric-value">AV off</span></div>
+<div class="metric"><span class="metric-label">Decision time</span><span class="metric-value">Minutes</span></div>
+</div>
+<div class="alert alert-warning">MAGI combined AV health, exploited CVE exposure, and failing controls into a single plain-language answer with remediation order.</div>
+</div>
+</article>
+</div>
+</div>
+</section>
+<section class="section">
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow">Editions</p>
+<h2 class="section-title">Pick the coverage that fits your environment</h2>
+<p class="section-subtitle">Personal and Education are Protect-only. Business adds Prove, MAGI, Audit, License Management (Coming-Soon), and Time-Travel (Coming-Soon) for audit-grade workflows.</p>
+</div>
+<div class="segments-grid">
+<article class="segment-card segment-card--personal" data-reveal><div class="ribbon launch-ribbon launch-ribbon--personal"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M12 8c-2 0-3.5-1.3-3.5-3 0-1.2.9-2 2-2 1.6 0 2.8 1.5 3.5 3 0.7-1.5 1.9-3 3.5-3 1.1 0 2 .8 2 2 0 1.7-1.5 3-3.5 3"/></svg><strong>Limited time $20 launch offer</strong></div>
+<div class="segment-icon card-icon card-icon--primary">P</div>
+<div class="segment-card__header">
+<div class="segment-card__tag">Personal</div>
+<h3 class="segment-card__title">For individuals and families</h3>
+<p class="segment-card__subtitle">Core endpoint clarity for up to 5 devices.</p>
+</div>
+<div class="segment-features">
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Antivirus management</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Vulnerability assessment</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Software inventory</div>
+</div>
+<div class="segment-pricing">
+<div class="segment-price">$120<span class="segment-price__period">/year</span></div>
+</div>
+</article>
+<article class="segment-card segment-card--education" data-reveal data-delay="100"><div class="ribbon launch-ribbon launch-ribbon--education"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M12 8c-2 0-3.5-1.3-3.5-3 0-1.2.9-2 2-2 1.6 0 2.8 1.5 3.5 3 0.7-1.5 1.9-3 3.5-3 1.1 0 2 .8 2 2 0 1.7-1.5 3-3.5 3"/></svg><strong>Limited time $270 launch offer</strong></div>
+<div class="segment-icon card-icon card-icon--success">E</div>
+<div class="segment-card__header">
+<div class="segment-card__tag">Education</div>
+<h3 class="segment-card__title">For institutions and labs</h3>
+<p class="segment-card__subtitle">Protect coverage with reporting across up to 25 devices.</p>
+</div>
+<div class="segment-features">
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Everything in Personal</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Daily snapshot report</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Weekly trend analysis</div>
+</div>
+<div class="segment-pricing">
+<div class="segment-price">$600<span class="segment-price__period">/year</span></div>
+</div>
+</article>
+<article class="segment-card segment-card--business" data-reveal data-delay="200">
+<div class="segment-icon card-icon card-icon--accent">B</div>
+<div class="segment-card__header">
+<div class="segment-card__tag">Business</div>
+<h3 class="segment-card__title">For growing teams to large estates</h3>
+<p class="segment-card__subtitle">Protect + Prove + MAGI + Audit + License Management + Time-Travel for business environments.</p>
+</div>
+<div class="segment-features">
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Prove: Compliance + control evidence</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> MAGI AI + WhatsApp</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Audit + Time-Travel (Coming-Soon)</div><div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> License Management (Coming-Soon)</div><div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Custom bundle pricing available</div>
+</div>
+<div class="segment-pricing">
+<div class="segment-price">$100<span class="segment-price__period">/device/yr</span></div>
+</div>
+</article>
+</div>
+<div class="home-bundle-strip" data-reveal>
+<div class="home-bundle-pill"><strong>Business Rate</strong><span>$100 per device per year</span></div>
+<div class="home-bundle-pill"><strong>Contract Discounts</strong><span>Available by agreement</span></div>
+<div class="home-bundle-pill"><strong>50+ Devices</strong><span>Custom commercial terms</span></div>
+<div class="home-bundle-pill"><strong>Managed Service</strong><span>Optional add-on</span></div>
+</div>
+<div class="text-center" style="margin-top:var(--space-8)">
+<a href="editions.html" class="btn-primary btn-lg">Explore Editions <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+</div>
+</section>
+<section class="cta-section section--surface">
+<div class="cta-section__bg"></div>
+<div class="container cta-section__inner" data-reveal>
+<h2 class="cta-section__title">Start with the truth about your endpoints</h2>
+<p class="cta-section__desc">Download the agent, see what needs attention, and move from vague confidence to evidence-backed security posture.</p>
+<div class="btn-group" style="justify-content:center">
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-primary btn-xl" target="_blank" rel="nofollow noopener">Download on Microsoft Store <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg></a>
+<a href="install.html#enterprise-deploy" class="btn-ghost btn-xl">Manual &amp; CLI Install <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+<div class="cta-section__urgency">Install directly from Microsoft Store for the smoothest setup. Need scripted rollout? The <span>Install</span> page includes the manual and CLI deployment path.</div>
+</div>
+</section>
+<div id="site-footer" data-footer-src="footer.html"></div>
+<script src="assets/js/core.js" defer></script>
+<script src="assets/js/animations.js" defer></script>
+<script src="assets/js/download-links.js" defer></script>
+<script src="assets/js/footer-include.js" defer></script>
 </body>
-</html>
+</html> 
+
+
+
