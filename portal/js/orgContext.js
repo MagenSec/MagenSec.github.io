@@ -239,10 +239,26 @@ class OrgContext {
     }
 
     /**
-     * Check if user is Individual User
+     * Check if user is Individual User (Personal org type)
      */
     isIndividualUser() {
         return this.currentOrg?.type === 'Personal';
+    }
+
+    /**
+     * Check if user is on an Education org
+     */
+    isEducationOrg() {
+        return this.currentOrg?.type === 'Education';
+    }
+
+    /**
+     * Check if org has Business-tier features
+     * Education and Business orgs have multi-user features
+     */
+    hasBusinessFeatures() {
+        const type = this.currentOrg?.type;
+        return type === 'Business' || type === 'Education';
     }
 
     /**

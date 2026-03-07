@@ -1,7 +1,7 @@
 /**
  * Security Savings Calculator Widget
  * Shows ROI from MagenSec license vs potential breach costs
- * Pricing: $1.99/user/device/month (Business), $9.99/org/year up to 5 devices (Personal)
+ * Pricing: $1.99/user/device/month (Business), $0.99/user/device/month (Education), $9.99/org/year up to 5 devices (Personal)
  */
 
 const { html, Component } = window;
@@ -21,7 +21,8 @@ export class SavingsCalculator extends Component {
         if (prevProps.seats !== this.props.seats ||
             prevProps.deviceCount !== this.props.deviceCount || 
             prevProps.vulnerabilities !== this.props.vulnerabilities ||
-            prevProps.isPersonal !== this.props.isPersonal) {
+            prevProps.isPersonal !== this.props.isPersonal ||
+            prevProps.orgType !== this.props.orgType) {
             this.renderChart();
         }
     }
@@ -33,14 +34,34 @@ export class SavingsCalculator extends Component {
         }
     }
 
+    getOrgType() {
+        if (this.props.orgType) return this.props.orgType;
+        return this.props.isPersonal ? 'Personal' : 'Business';
+    }
+
     calculateSavings() {
-        const { seats = 1, deviceCount = 1, vulnerabilities = {}, isPersonal = false } = this.props;
+        const { seats = 1, deviceCount = 1, vulnerabilities = {} } = this.props;
+        const orgType = this.getOrgType();
         
         // MagenSec Pricing
-        // Business: $1.99/user/device/month = $23.88/user/device/year (use seats, not online devices)
+        // Business: $1.99/seat/month = $23.88/seat/year
+        // Education: $0.99/seat/month = $11.88/seat/year
         // Personal: $9.99/org/year (up to 5 devices)
-        const pricePerSeatYear = 1.99 * 12; // $23.88
-        const annualLicenseCost = isPersonal ? 9.99 : (seats * pricePerSeatYear);
+        const businessPricePerSeatYear = 1.99 * 12;   // $23.88
+        const educationPricePerSeatYear = 0.99 * 12;   // $11.88
+        
+        let annualLicenseCost;
+        let pricePerSeatYear;
+        if (orgType === 'Personal') {
+            annualLicenseCost = 9.99;
+            pricePerSeatYear = 9.99;
+        } else if (orgType === 'Education') {
+            pricePerSeatYear = educationPricePerSeatYear;
+            annualLicenseCost = seats * pricePerSeatYear;
+        } else {
+            pricePerSeatYear = businessPricePerSeatYear;
+            annualLicenseCost = seats * pricePerSeatYear;
+        }
         
         // Industry average breach costs (IBM Cost of Data Breach 2024)
         const costPerCritical = 2400;  // $2,400 per critical CVE unpatched
@@ -65,7 +86,8 @@ export class SavingsCalculator extends Component {
             roi,
             paybackDays,
             pricePerSeat: pricePerSeatYear,
-            seats
+            seats,
+            orgType
         };
     }
 
@@ -119,7 +141,10 @@ export class SavingsCalculator extends Component {
 
     render() {
         const savings = this.calculateSavings();
-        const { seats = 1, isPersonal = false } = this.props;
+        const { seats = 1 } = this.props;
+        const orgType = this.getOrgType();
+        const isPersonal = orgType === 'Personal';
+        const isEducation = orgType === 'Education';
         
         return html`
             <div class="card">
@@ -141,7 +166,11 @@ export class SavingsCalculator extends Component {
                         <div class="col-sm-6">
                             <div class="text-muted small text-uppercase fw-semibold">Annual License Cost</div>
                             <div class="h3 mb-0 text-danger">$${savings.annualLicenseCost.toFixed(2)}</div>
-                            <div class="text-muted small">${isPersonal ? 'Personal license' : `${seats} seat${seats !== 1 ? 's' : ''} × $${savings.pricePerSeat.toFixed(2)}/year`}</div>
+                            <div class="text-muted small">
+                                ${isPersonal
+                                    ? 'Personal license (up to 5 devices)'
+                                    : `${seats} seat${seats !== 1 ? 's' : ''} × $${savings.pricePerSeat.toFixed(2)}/year`}
+                            </div>
                         </div>
                         <div class="col-sm-6">
                             <div class="text-muted small text-uppercase fw-semibold">Potential Breach Cost Avoided</div>
@@ -187,7 +216,7 @@ export class SavingsCalculator extends Component {
                                 <div class="fw-semibold">About this calculation</div>
                                 <div class="text-muted small">
                                     Based on industry average breach costs: $2,400 per unpatched critical CVE, $800 per high severity CVE.
-                                    ${isPersonal ? 'Personal' : 'Business'} license pricing applies.
+                                    ${isPersonal ? 'Personal' : isEducation ? 'Education' : 'Business'} license pricing applies.
                                     Actual savings may vary based on threat landscape and remediation speed.
                                 </div>
                             </div>

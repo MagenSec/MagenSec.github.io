@@ -4,13 +4,19 @@
  */
 
 /**
+ * Valid license types aligned with org types
+ */
+export const LICENSE_TYPES = ['Personal', 'Education', 'Business', 'Demo'];
+
+/**
  * Create a new license for an organization
  */
-export async function createLicense(api, orgId, seats, durationDays) {
+export async function createLicense(api, orgId, seats, durationDays, licenseType) {
     return await api.post('/api/v1/licenses', {
         orgId,
         seats: parseInt(seats),
-        durationDays: parseInt(durationDays)
+        durationDays: parseInt(durationDays),
+        ...(licenseType ? { licenseType } : {})
     });
 }
 
@@ -48,6 +54,18 @@ export function getLicenseStatusText(license) {
 }
 
 /**
+ * Get license type badge class for display
+ */
+export function getLicenseTypeBadgeClass(licenseType) {
+    switch (licenseType) {
+        case 'Personal': return 'bg-info-lt text-info';
+        case 'Education': return 'bg-success-lt text-success';
+        case 'Demo': return 'bg-warning-lt text-warning';
+        default: return 'bg-primary-lt text-primary'; // Business
+    }
+}
+
+/**
  * Format license duration for display
  */
 export function formatDuration(days) {
@@ -68,4 +86,12 @@ export function formatDuration(days) {
 export function getCreditUtilization(remainingCredits, totalCredits) {
     if (totalCredits === 0) return 0;
     return Math.round((remainingCredits / totalCredits) * 100);
+}
+
+/**
+ * Check if a license type generates revenue
+ * Demo licenses consume credits but generate $0 revenue
+ */
+export function isRevenueGenerating(licenseType) {
+    return licenseType !== 'Demo';
 }

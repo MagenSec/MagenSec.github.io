@@ -760,7 +760,7 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, curre
                     <div class="alert alert-info" role="alert">
                         <h4 class="alert-title">
                             <i class="ti ti-rocket me-2"></i>
-                            Upgrade to Business License
+                            Upgrade Your License
                         </h4>
                         <div class="text-muted">
                             <p class="mb-2">Personal license is limited to 5 devices and does not include:</p>
@@ -770,10 +770,16 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, curre
                                 <li><strong>Seat-based Licensing:</strong> Scale to unlimited devices based on seats purchased</li>
                                 <li><strong>Advanced Configuration:</strong> Org-level telemetry and compliance settings</li>
                             </ul>
-                            <a href="mailto:sales@magensec.com?subject=Upgrade%20to%20Business%20License" class="btn btn-primary">
-                                <i class="ti ti-mail me-2"></i>
-                                Contact Sales
-                            </a>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a href="mailto:sales@magensec.com?subject=Upgrade%20to%20Education%20License" class="btn btn-outline-success btn-sm">
+                                    <i class="ti ti-school me-2"></i>
+                                    Education Plan
+                                </a>
+                                <a href="mailto:sales@magensec.com?subject=Upgrade%20to%20Business%20License" class="btn btn-primary btn-sm">
+                                    <i class="ti ti-building me-2"></i>
+                                    Business Plan
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1026,7 +1032,12 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="badge bg-primary">${license.licenseType || 'Business'}</span>
+                                            <span class=${`badge ${
+                                                license.licenseType === 'Personal' ? 'bg-info-lt text-info' :
+                                                license.licenseType === 'Education' ? 'bg-success-lt text-success' :
+                                                license.licenseType === 'Demo' ? 'bg-warning-lt text-warning' :
+                                                'bg-primary-lt text-primary'
+                                            }`}>${license.licenseType || 'Business'}</span>
                                         </td>
                                         <td>${license.seats || 'N/A'}</td>
                                         <td>
