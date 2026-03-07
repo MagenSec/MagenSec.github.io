@@ -1,727 +1,468 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MagenSec | Continuous Endpoint Security Auditing with MAGI AI</title>
-  <meta name="description" content="MagenSec helps you manage antivirus health, assess vulnerabilities, monitor compliance, and stay audit-ready with continuous endpoint visibility and MAGI AI guidance.">
-  <link rel="canonical" href="https://magensec.gigabits.co.in/">
-  <link rel="icon" type="image/x-icon" href="assets/black_shield_64.ico">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
-  <link rel="preload" href="assets/css/magensec.css" as="style">
-  <link rel="preload" href="assets/MagiBanner.jpeg" as="image" type="image/jpeg" fetchpriority="high">
-  <link rel="stylesheet" href="assets/css/magensec.css">
-  <style>
-    .home-hero-proof-list {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-      margin-top: var(--space-6);
-    }
-
-    .home-hero-proof-list li {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-3);
-      color: var(--color-text-secondary);
-      font-size: var(--text-sm);
-      line-height: var(--leading-relaxed);
-    }
-
-    .home-hero-proof-list svg {
-      flex-shrink: 0;
-      margin-top: 0.15rem;
-      color: var(--color-success);
-    }
-
-    .home-side-panel {
-      background: linear-gradient(180deg, rgba(10, 22, 40, 0.84), rgba(6, 12, 24, 0.96));
-      border: 1px solid var(--color-border-hover);
-      border-radius: var(--radius-2xl);
-      padding: var(--space-6);
-      box-shadow: var(--shadow-xl);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-
-    .home-side-panel__title {
-      font-size: var(--text-lg);
-      font-weight: var(--weight-semibold);
-      color: var(--color-text-primary);
-      margin-bottom: var(--space-3);
-    }
-
-    .home-side-panel__list {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-      margin-top: var(--space-4);
-    }
-
-    .home-side-panel__list li {
-      display: flex;
-      justify-content: space-between;
-      gap: var(--space-4);
-      font-size: var(--text-sm);
-      color: var(--color-text-secondary);
-      border-bottom: 1px solid rgba(59, 130, 246, 0.08);
-      padding-bottom: var(--space-3);
-    }
-
-    .home-side-panel__list li:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-
-    .home-side-panel__list strong {
-      color: var(--color-text-primary);
-      font-weight: var(--weight-semibold);
-    }
-
-    :root[data-theme="light"] .home-side-panel {
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.96));
-      border-color: rgba(37, 99, 235, 0.12);
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-    }
-
-    :root[data-theme="light"] .home-side-panel__list li {
-      border-bottom-color: rgba(15, 23, 42, 0.08);
-    }
-
-    .store-badge-note {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-2);
-      margin-top: var(--space-4);
-      padding: 0.7rem 1rem;
-      border-radius: var(--radius-full);
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      color: var(--color-text-secondary);
-      font-size: var(--text-sm);
-      font-weight: var(--weight-medium);
-    }
-
-    :root[data-theme="light"] .store-badge-note {
-      background: rgba(255, 255, 255, 0.94);
-      border-color: rgba(37, 99, 235, 0.14);
-      color: var(--color-text-primary);
-    }
-
-    .store-badge-note svg {
-      flex-shrink: 0;
-      color: var(--color-primary);
-    }
-
-    .home-attack-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
-      gap: var(--space-8);
-      align-items: center;
-    }
-
-    .home-attack-diagram {
-      background: var(--color-surface-card);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-2xl);
-      padding: var(--space-6);
-      overflow: hidden;
-    }
-
-    .home-attack-diagram img {
-      width: 100%;
-      height: auto;
-      border-radius: var(--radius-xl);
-    }
-
-    .home-roadmap-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-5);
-      margin-top: var(--space-8);
-    }
-
-    .home-roadmap-card {
-      padding: var(--space-6);
-      background: var(--color-surface-2);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-xl);
-    }
-
-    .home-roadmap-card h3 {
-      font-size: var(--text-lg);
-      color: var(--color-text-primary);
-      margin-bottom: var(--space-2);
-    }
-
-    .home-roadmap-card p {
-      color: var(--color-text-secondary);
-      font-size: var(--text-sm);
-      line-height: var(--leading-relaxed);
-    }
-
-    .home-bundle-strip {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-4);
-      margin-top: var(--space-6);
-    }
-
-    .home-bundle-pill {
-      padding: var(--space-4);
-      background: var(--color-surface-2);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-xl);
-      text-align: center;
-    }
-
-    .home-bundle-pill strong {
-      display: block;
-      color: var(--color-text-primary);
-      font-size: var(--text-base);
-      margin-bottom: var(--space-1);
-    }
-
-    .home-bundle-pill span {
-      color: var(--color-text-secondary);
-      font-size: var(--text-sm);
-    }
-
-    .home-static-impact {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-6);
-      margin-top: var(--space-8);
-    }
-
-    @media (max-width: 1024px) {
-      .home-attack-layout,
-      .home-static-impact,
-      .home-roadmap-grid,
-      .home-bundle-strip {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MagenSec | Continuous Endpoint Security Auditing with MAGI AI</title>
+<meta name="description" content="MagenSec helps you manage antivirus health, assess vulnerabilities, monitor compliance, and stay audit-ready with continuous endpoint visibility and MAGI AI guidance.">
+<link rel="canonical" href="https://magensec.gigabits.co.in/">
+<link rel="icon" type="image/x-icon" href="assets/black_shield_64.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap"><link rel="preload" href="assets/css/magensec.css" as="style">
+<link rel="preload" href="assets/MagiBanner.jpeg" as="image" type="image/jpeg" fetchpriority="high">
+<link rel="stylesheet" href="assets/css/magensec.css">
+<style> .home-hero-proof-list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-6); } .home-hero-proof-list li { display: flex; align-items: flex-start; gap: var(--space-3); color: var(--color-text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); } .home-hero-proof-list svg { flex-shrink: 0; margin-top: 0.15rem; color: var(--color-success); } .home-side-panel { background: linear-gradient(180deg, rgba(10, 22, 40, 0.84), rgba(6, 12, 24, 0.96)); border: 1px solid var(--color-border-hover); border-radius: var(--radius-2xl); padding: var(--space-6); box-shadow: var(--shadow-xl); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); } .home-side-panel__title { font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--color-text-primary); margin-bottom: var(--space-3); } .home-side-panel__list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-4); } .home-side-panel__list li { display: flex; justify-content: space-between; gap: var(--space-4); font-size: var(--text-sm); color: var(--color-text-secondary); border-bottom: 1px solid rgba(59, 130, 246, 0.08); padding-bottom: var(--space-3); } .home-side-panel__list li:last-child { border-bottom: none; padding-bottom: 0; } .home-side-panel__list strong { color: var(--color-text-primary); font-weight: var(--weight-semibold); } :root[data-theme="light"] .home-side-panel { background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.96)); border-color: rgba(37, 99, 235, 0.12); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); backdrop-filter: none; -webkit-backdrop-filter: none; } :root[data-theme="light"] .home-side-panel__list li { border-bottom-color: rgba(15, 23, 42, 0.08); } .store-badge-note { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-4); padding: 0.7rem 1rem; border-radius: var(--radius-full); background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(148, 163, 184, 0.18); color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: var(--weight-medium); } :root[data-theme="light"] .store-badge-note { background: rgba(255, 255, 255, 0.94); border-color: rgba(37, 99, 235, 0.14); color: var(--color-text-primary); } .store-badge-note svg { flex-shrink: 0; color: var(--color-primary); } .home-attack-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr); gap: var(--space-8); align-items: center; } .home-attack-diagram { background: var(--color-surface-card); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: var(--space-6); overflow: hidden; } .home-attack-diagram img { width: 100%; height: auto; border-radius: var(--radius-xl); } .home-roadmap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-5); margin-top: var(--space-8); } .home-roadmap-card { padding: var(--space-6); background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-xl); } .home-roadmap-card h3 { font-size: var(--text-lg); color: var(--color-text-primary); margin-bottom: var(--space-2); } .home-roadmap-card p { color: var(--color-text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); } .home-bundle-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-6); } .home-bundle-pill { padding: var(--space-4); background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-xl); text-align: center; } .home-bundle-pill strong { display: block; color: var(--color-text-primary); font-size: var(--text-base); margin-bottom: var(--space-1); } .home-bundle-pill span { color: var(--color-text-secondary); font-size: var(--text-sm); } .home-static-impact { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-8); } @media (max-width: 1024px) { .home-attack-layout, .home-static-impact, .home-roadmap-grid, .home-bundle-strip { grid-template-columns: 1fr; } } </style>
+<style>.problem-card__icon svg{width:22px;height:22px}.feature-card__head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-3)}.feature-card__label{display:inline-flex;align-items:center;padding:.2rem .55rem;border-radius:var(--radius-full);font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;background:rgba(148,163,184,.14);color:var(--color-text-secondary);border:1px solid rgba(148,163,184,.2)}.segment-card{position:relative;overflow:hidden}</style>
+<style>.launch-ribbon{display:inline-flex;align-items:center;gap:.4rem;top:1rem;left:1rem;right:auto;border-radius:999px;font-weight:800;font-size:.72rem;letter-spacing:.01em;text-transform:none;padding:.45rem .75rem;z-index:2;box-shadow:0 8px 22px rgba(0,0,0,.18)}.launch-ribbon svg{flex-shrink:0}.launch-ribbon--personal{background:linear-gradient(90deg,#16a34a,#22c55e);color:#f0fdf4;border:1px solid rgba(255,255,255,.35)}.launch-ribbon--education{background:linear-gradient(90deg,#2563eb,#38bdf8);color:#eff6ff;border:1px solid rgba(255,255,255,.35)}@media (max-width:768px){.launch-ribbon{position:static;margin-bottom:.75rem}}</style>
 </head>
 <body data-nav-active="home">
-
 <div class="promo-banner" role="banner" aria-label="Promotional offer">
-  <div class="container">
-    <span class="promo-banner__icon"></span>
-    <span class="promo-banner__text">
-      <strong>Limited Offer:</strong> Use code <strong class="promo-coupon">MAGITRY30</strong> for 30 days free on the <strong>Personal</strong> plan. New users only.
-    </span>
-    <a href="editions.html" class="promo-banner__link">See Plans</a>
-  </div>
-  <button class="promo-banner__close" aria-label="Dismiss promotion">
-    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-  </button>
+<div class="container">
+<span class="promo-banner__icon"></span>
+<span class="promo-banner__text">
+<strong>Limited Offer:</strong> Use code <strong class="promo-coupon">MAGITRY30</strong> for 30 days free on the <strong>Personal</strong> plan. New users only. </span>
+<a href="editions.html" class="promo-banner__link">See Plans</a>
 </div>
-
+<button class="promo-banner__close" aria-label="Dismiss promotion">
+<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+</button>
+</div>
 <header class="nav nav--transparent" id="nav" role="banner">
-  <div class="nav__inner container">
-    <a href="index.html" class="nav__logo" aria-label="MagenSec Home">
-      <img src="assets/black_shield_256x256.png" alt="" width="32" height="32" loading="eager">
-      <span class="nav__brand">Magen<span class="nav__brand-sec">Sec</span></span>
-    </a>
-    <nav class="nav__links" aria-label="Main navigation">
-      <a href="index.html" class="nav__link nav__link--active">Home</a>
-      <a href="magi.html" class="nav__link nav__link--magi">MAGI AI</a>
-      <a href="editions.html" class="nav__link">Pricing</a>
-      <a href="install.html" class="nav__link">Install</a>
-      <a href="about.html" class="nav__link">About</a>
-    </nav>
-    <div class="nav__actions">
-      <div class="nav__dropdown" role="group">
-        <button class="btn-ghost btn--sm nav__dropdown-trigger" aria-haspopup="true" aria-expanded="false">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download
-        </button>
-        <div class="nav__dropdown-menu" role="menu">
-          <div class="nav__dropdown-header">MagenSec for Windows</div>
-          <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="nav__dropdown-item" role="menuitem" target="_blank" rel="nofollow noopener">
-            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>Download on Microsoft Store
-          </a>
-          <a href="install.html#enterprise-deploy" class="nav__dropdown-item" role="menuitem">
-            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Manual &amp; CLI install
-          </a>
-        </div>
-      </div>
-      <a href="portal/" class="btn-primary btn--sm">Sign In <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
-    </div>
-    <button class="nav__hamburger nav__burger" id="nav-burger" aria-controls="mobile-nav" aria-expanded="false" aria-label="Open menu">
-      <span></span><span></span><span></span>
-    </button>
-  </div>
-  <div class="nav__mobile-menu" id="mobile-nav" role="dialog" aria-modal="true" aria-label="Navigation">
-    <nav>
-      <a href="index.html" class="nav__mobile-link nav__mobile-link--active">Home</a>
-      <a href="magi.html" class="nav__mobile-link nav__mobile-link--accent">MAGI AI</a>
-      <a href="editions.html" class="nav__mobile-link">Pricing</a>
-      <a href="install.html" class="nav__mobile-link">Install</a>
-      <a href="about.html" class="nav__mobile-link">About</a>
-    </nav>
-    <div class="nav__mobile-divider"></div>
-    <div style="padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem">
-      <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-ghost btn--full" target="_blank" rel="nofollow noopener">Get it on Microsoft Store</a>
-      <a href="install.html#enterprise-deploy" class="btn-ghost btn--full">Manual &amp; CLI Install</a>
-      <a href="portal/" class="btn-primary btn--full">Sign In to Portal</a>
-    </div>
-  </div>
+<div class="nav__inner container">
+<a href="index.html" class="nav__logo" aria-label="MagenSec Home">
+<img src="assets/black_shield_256x256.png" alt="" width="32" height="32" loading="eager">
+<span class="nav__brand">Magen<span class="nav__brand-sec">Sec</span></span>
+</a>
+<nav class="nav__links" aria-label="Main navigation">
+<a href="index.html" class="nav__link nav__link--active">Home</a>
+<a href="what-we-cover.html" class="nav__link">Platform</a>
+<a href="magi.html" class="nav__link nav__link--magi">MAGI AI</a>
+<a href="editions.html" class="nav__link">Pricing</a>
+<a href="install.html" class="nav__link">Install</a>
+<a href="about.html" class="nav__link">About</a>
+</nav>
+<div class="nav__actions">
+<div class="nav__dropdown" role="group">
+<button class="btn-ghost btn--sm nav__dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download </button>
+<div class="nav__dropdown-menu" role="menu">
+<div class="nav__dropdown-header">MagenSec for Windows</div>
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="nav__dropdown-item" role="menuitem" target="_blank" rel="nofollow noopener">
+<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>Download on Microsoft Store </a>
+<a href="install.html#enterprise-deploy" class="nav__dropdown-item" role="menuitem">
+<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Manual &amp; CLI install </a>
+</div>
+</div>
+<a href="portal/" class="btn-primary btn--sm">Sign In <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+<button class="nav__hamburger nav__burger" id="nav-burger" aria-controls="mobile-nav" aria-expanded="false" aria-label="Open menu">
+<span></span><span></span><span></span>
+</button>
+</div>
+<div class="nav__mobile-menu" id="mobile-nav" role="dialog" aria-modal="true" aria-label="Navigation">
+<nav>
+<a href="index.html" class="nav__mobile-link nav__mobile-link--active">Home</a>
+<a href="what-we-cover.html" class="nav__mobile-link">Platform</a>
+<a href="magi.html" class="nav__mobile-link nav__mobile-link--accent">MAGI AI</a>
+<a href="editions.html" class="nav__mobile-link">Pricing</a>
+<a href="install.html" class="nav__mobile-link">Install</a>
+<a href="about.html" class="nav__mobile-link">About</a>
+</nav>
+<div class="nav__mobile-divider"></div>
+<div style="padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem">
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-ghost btn--full" target="_blank" rel="nofollow noopener">Get it on Microsoft Store</a>
+<a href="install.html#enterprise-deploy" class="btn-ghost btn--full">Manual &amp; CLI Install</a>
+<a href="portal/" class="btn-primary btn--full">Sign In to Portal</a>
+</div>
+</div>
 </header>
-
 <section class="hero">
-  <div class="hero__bg" aria-hidden="true">
-    <div class="hero__bg-mesh"></div>
-    <div class="hero__grid"></div>
-  </div>
-  <div class="hero__inner">
-    <div class="hero__content" data-reveal>
-      <div class="hero__eyebrow">Continuous Endpoint Security Auditing</div>
-      <h1 class="hero__title">
-        Know exactly where you stand —
-        <span class="hero__typewriter" data-typewriter='["before attackers do","before audits arrive","before risk turns into downtime"]'>
-          <span data-typewriter-text>before attackers do</span><span class="hero__typewriter-cursor"></span>
-        </span>
-      </h1>
-      <p class="hero__description">MagenSec brings antivirus management, vulnerability assessment, software inventory, compliance monitoring, and MAGI AI guidance into one lightweight platform built for real-world teams.</p>
-      <div class="hero__cta-group">
-        <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-primary btn-lg btn-pulse" target="_blank" rel="nofollow noopener">Download on Microsoft Store <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg></a>
-        <a href="install.html#enterprise-deploy" class="btn-ghost btn-lg">Manual &amp; CLI Install <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
-      </div>
-      <ul class="home-hero-proof-list">
-        <li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Uses built-in Windows Defender intelligently instead of piling on another heavy AV stack.</span></li>
-        <li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Surfaces exploitable vulnerabilities and policy drift before they become incident reports.</span></li>
-        <li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Gives Education and Business plans audit-ready compliance evidence — with MAGI available on Business.</span></li>
-      </ul>
-      <div class="store-badge-note">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>
-        Now available on Microsoft Store for the simplest install on Windows.
-      </div>
-    </div>
-    <div class="hero__visual" data-reveal="right">
-      <div class="hero__magi-wrap">
-        <img src="assets/MagiBanner.jpeg" alt="MAGI AI Security Guardian" class="hero__magi-img" width="1080" height="1080" fetchpriority="high" decoding="async" style="width:100%;max-width:540px;border-radius:2rem;box-shadow:0 24px 60px rgba(0,0,0,0.28);object-fit:cover;">
-      </div>
-    </div>
-  </div>
-  <div class="hero__stats">
-    <div class="hero__stats-grid">
-      <div class="hero__stat" data-reveal>
-        <div class="hero__stat-number" data-counter data-target="24">24</div>
-        <div class="hero__stat-label">hour posture visibility across managed endpoints</div>
-      </div>
-      <div class="hero__stat" data-reveal data-delay="100">
-        <div class="hero__stat-number" data-counter data-target="6">6</div>
-        <div class="hero__stat-label">framework families mapped for compliance monitoring</div>
-      </div>
-      <div class="hero__stat" data-reveal data-delay="200">
-        <div class="hero__stat-number" data-counter data-target="4">4</div>
-        <div class="hero__stat-label">Business bundles that scale without changing the product</div>
-      </div>
-      <div class="hero__stat" data-reveal data-delay="300">
-        <div class="hero__stat-number">MAGI</div>
-        <div class="hero__stat-label">AI analyst for security answers, triage, and reporting</div>
-      </div>
-    </div>
-  </div>
+<div class="hero__bg" aria-hidden="true">
+<div class="hero__bg-mesh"></div>
+<div class="hero__grid"></div>
+</div>
+<div class="hero__inner">
+<div class="hero__content" data-reveal>
+<div class="hero__eyebrow">Continuous Endpoint Security Auditing</div>
+<h1 class="hero__title"> Know exactly where you stand - <span class="hero__typewriter" data-typewriter='["before attackers do","before audits arrive","before risk turns into downtime"]'>
+<span data-typewriter-text>before attackers do</span><span class="hero__typewriter-cursor"></span>
+</span>
+</h1>
+<p class="hero__description">MagenSec gives SMB teams one security operating layer: Protect today, Prove readiness on demand, and use MAGI for prioritized action. This is purpose-built for organizations that are too small for enterprise SOC tooling but too exposed for AV-only security.</p>
+<div class="hero__cta-group">
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-primary btn-lg btn-pulse" target="_blank" rel="nofollow noopener">Download on Microsoft Store <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg></a>
+<a href="install.html#enterprise-deploy" class="btn-ghost btn-lg">Manual &amp; CLI Install <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+<ul class="home-hero-proof-list">
+<li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Uses built-in Windows Defender intelligently instead of piling on another heavy AV stack.</span></li>
+<li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Surfaces exploitable vulnerabilities and policy drift before they become incident reports.</span></li>
+<li><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>Keeps Personal and Education plans focused on Protect, while Business adds Prove, MAGI, and Audit + Time-Travel (Coming-Soon).</span></li>
+</ul>
+</div><div class="hero__visual" data-reveal="right">
+<div class="hero__magi-wrap">
+<img src="assets/MagiBanner.jpeg" alt="MAGI AI Security Guardian" class="hero__magi-img" width="1080" height="1080" fetchpriority="high" decoding="async" style="width:100%;max-width:540px;border-radius:2rem;box-shadow:0 24px 60px rgba(0,0,0,0.28);object-fit:cover;">
+</div>
+</div>
+</div>
+<div class="hero__stats">
+<div class="hero__stats-grid">
+<div class="hero__stat" data-reveal>
+<div class="hero__stat-number" data-counter data-target="24">24</div>
+<div class="hero__stat-label">hour posture visibility across managed endpoints</div>
+</div>
+<div class="hero__stat" data-reveal data-delay="100">
+<div class="hero__stat-number" data-counter data-target="6">6</div>
+<div class="hero__stat-label">framework families mapped for compliance monitoring</div>
+</div>
+<div class="hero__stat" data-reveal data-delay="200">
+<div class="hero__stat-number" data-counter data-target="4">4</div>
+<div class="hero__stat-label">Business bundles that scale without changing the product</div>
+</div>
+<div class="hero__stat" data-reveal data-delay="300">
+<div class="hero__stat-number">MAGI</div>
+<div class="hero__stat-label">AI analyst for security answers, triage, and reporting</div>
+</div>
+</div>
+</div>
 </section>
-
 <section class="section section--surface">
-  <div class="container">
-    <div class="section-header section-header--center" data-reveal>
-      <p class="section-eyebrow section-eyebrow--warning">Why attacks still work</p>
-      <h2 class="section-title">Most environments fail long before ransomware shows up</h2>
-      <p class="section-subtitle">Attackers do not need magic. They need stale software, weakened endpoint controls, and nobody watching compliance drift.</p>
-    </div>
-    <div class="problem-grid">
-      <div class="problem-card problem-card--threat" data-reveal>
-        <div class="problem-card__icon">📧</div>
-        <h3 class="problem-card__title">Threats start small</h3>
-        <p class="problem-card__desc">A routine email, macro, browser exploit, or document lure is usually enough when endpoint posture is already weak.</p>
-      </div>
-      <div class="problem-card problem-card--fragmented" data-reveal data-delay="100">
-        <div class="problem-card__icon">🔓</div>
-        <h3 class="problem-card__title">Unpatched gaps stay hidden</h3>
-        <p class="problem-card__desc">Outdated applications and risky security exceptions create easy openings — especially when nobody is correlating them continuously.</p>
-      </div>
-      <div class="problem-card problem-card--unknown" data-reveal data-delay="200">
-        <div class="problem-card__icon">📉</div>
-        <h3 class="problem-card__title">Audit readiness decays daily</h3>
-        <p class="problem-card__desc">Compliance is not a PDF. Device drift, disabled controls, and undocumented changes quietly break your posture over time.</p>
-      </div>
-    </div>
-    <div class="stats-row" data-reveal>
-      <div class="stat-card">
-        <div class="stat-number" data-counter data-target="3">3</div>
-        <div class="stat-label">core failure points: AV health, vulnerabilities, policy drift</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number" data-counter data-target="1">1</div>
-        <div class="stat-label">platform to monitor them together</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number">0</div>
-        <div class="stat-label">reason to wait for a full incident to learn the truth</div>
-      </div>
-    </div>
-  </div>
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow section-eyebrow--warning">Why attacks still work</p>
+<h2 class="section-title">Most environments fail long before ransomware shows up</h2>
+<p class="section-subtitle">Attackers do not need magic. They need stale software, weakened endpoint controls, and nobody watching compliance drift.</p>
+</div>
+<div class="problem-grid">
+<div class="problem-card problem-card--threat" data-reveal>
+<div class="problem-card__icon card-icon--danger"><svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg></div>
+<h3 class="problem-card__title">Threats start small</h3>
+<p class="problem-card__desc">A routine email, macro, browser exploit, or document lure is usually enough when endpoint posture is already weak.</p>
+</div>
+<div class="problem-card problem-card--fragmented" data-reveal data-delay="100">
+<div class="problem-card__icon card-icon--warning"><svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M8 4h11a1 1 0 0 1 1 1v11"/><path d="M4 8h11a1 1 0 0 1 1 1v11"/><path d="M4 4h4"/><path d="M10 20h10"/></svg></div>
+<h3 class="problem-card__title">Unpatched gaps stay hidden</h3>
+<p class="problem-card__desc">Outdated applications and risky security exceptions create easy openings - especially when nobody is correlating them continuously.</p>
+</div>
+<div class="problem-card problem-card--unknown" data-reveal data-delay="200">
+<div class="problem-card__icon card-icon--primary"><svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 8v5"/><path d="M12 17h.01"/><path d="M5.07 19a10 10 0 1 1 13.86 0"/></svg></div>
+<h3 class="problem-card__title">Audit readiness decays daily</h3>
+<p class="problem-card__desc">Compliance is not a PDF. Device drift, disabled controls, and undocumented changes quietly break your posture over time.</p>
+</div>
+</div>
+<div class="stats-row" data-reveal>
+<div class="stat-card">
+<div class="stat-number" data-counter data-target="3">3</div>
+<div class="stat-label">core failure points: AV health, vulnerabilities, policy drift</div>
+</div>
+<div class="stat-card">
+<div class="stat-number" data-counter data-target="1">1</div>
+<div class="stat-label">platform to monitor them together</div>
+</div>
+<div class="stat-card">
+<div class="stat-number">0</div>
+<div class="stat-label">reason to wait for a full incident to learn the truth</div>
+</div>
+</div>
+</div>
 </section>
-
 <section class="section">
-  <div class="container">
-    <div class="section-header section-header--center" data-reveal>
-      <p class="section-eyebrow section-eyebrow--danger">Break the chain</p>
-      <h2 class="section-title">See where MagenSec interrupts the attack path</h2>
-      <p class="section-subtitle">This is the difference between reacting to ransomware headlines and preventing the conditions that make them possible.</p>
-    </div>
-    <div class="home-attack-layout">
-      <div class="home-attack-diagram" data-reveal="left">
-        <img src="images/attack-chain.svg" alt="Attack chain diagram showing where MagenSec blocks threats" width="960" height="720" loading="lazy" decoding="async">
-      </div>
-      <div class="home-side-panel" data-reveal="right">
-        <div class="home-side-panel__title">What MagenSec blocks first</div>
-        <p class="text-secondary">Instead of waiting until malware executes, MagenSec helps you remove the unsafe conditions that enable the kill chain.</p>
-        <ul class="home-side-panel__list">
-          <li><strong>Antivirus health</strong><span>Flags disabled Defender, stale signatures, weak exclusions, and missed scans.</span></li>
-          <li><strong>Vulnerability exposure</strong><span>Highlights exploitable CVEs and prioritizes fixes based on real risk.</span></li>
-          <li><strong>Software visibility</strong><span>Shows unexpected, outdated, or unlicensed applications across the fleet.</span></li>
-          <li><strong>Compliance state</strong><span>Continuously checks whether security controls remain audit-ready.</span></li>
-        </ul>
-      </div>
-    </div>
-  </div>
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow section-eyebrow--danger">Break the chain</p>
+<h2 class="section-title">See where MagenSec interrupts the attack path</h2>
+<p class="section-subtitle">This is the difference between reacting to ransomware headlines and preventing the conditions that make them possible.</p>
+</div>
+<div class="home-attack-layout">
+<div class="home-attack-diagram" data-reveal="left">
+<img src="images/attack-chain.svg" alt="Attack chain diagram showing where MagenSec blocks threats" width="960" height="720" loading="lazy" decoding="async">
+</div>
+<div class="home-side-panel" data-reveal="right">
+<div class="home-side-panel__title">What MagenSec blocks first</div>
+<p class="text-secondary">Instead of waiting until malware executes, MagenSec helps you remove the unsafe conditions that enable the kill chain.</p>
+<ul class="home-side-panel__list">
+<li><strong>Antivirus health</strong><span>Flags disabled Defender, stale signatures, weak exclusions, and missed scans.</span></li>
+<li><strong>Vulnerability exposure</strong><span>Highlights exploitable CVEs and prioritizes fixes based on real risk.</span></li>
+<li><strong>Software visibility</strong><span>Shows unexpected, outdated, or unlicensed applications across the fleet.</span></li>
+<li><strong>Compliance state</strong><span>Continuously checks whether security controls remain audit-ready.</span></li>
+</ul>
+</div>
+</div>
+</div>
 </section>
-
 <section class="section section--surface">
-  <div class="container">
-    <div class="section-header section-header--center" data-reveal>
-      <p class="section-eyebrow">Platform capabilities</p>
-      <h2 class="section-title">Four pillars, one operational picture</h2>
-      <p class="section-subtitle">Every feature page now points back to the same story: know the endpoint, know the risk, know the audit state.</p>
-    </div>
-    <div class="features-grid">
-      <a class="feature-card" href="features/antivirus-management.html" data-reveal>
-        <div class="feature-card__icon card-icon--success">🛡️</div>
-        <h3 class="feature-card__title">Antivirus Management</h3>
-        <p class="feature-card__desc">Manage Windows Defender posture, signature freshness, scan cadence, exclusions, and protection drift across your devices.</p>
-        <div class="feature-card__badge badge badge-success">Defender-focused</div>
-      </a>
-      <a class="feature-card" href="features/vulnerability.html" data-reveal data-delay="100">
-        <div class="feature-card__icon card-icon--warning">🔎</div>
-        <h3 class="feature-card__title">Vulnerability Assessment</h3>
-        <p class="feature-card__desc">See which CVEs matter, which are actively exploited, and which devices should be patched first.</p>
-        <div class="feature-card__badge badge badge-warning">Prioritized remediation</div>
-      </a>
-      <a class="feature-card" href="features/software-inventory.html" data-reveal data-delay="200">
-        <div class="feature-card__icon card-icon--primary">📦</div>
-        <h3 class="feature-card__title">Software Inventory</h3>
-        <p class="feature-card__desc">Maintain visibility into installed software, version drift, and shadow IT before it becomes risk or licensing pain.</p>
-        <div class="feature-card__badge badge badge-primary">Asset visibility</div>
-      </a>
-      <a class="feature-card" href="features/compliance.html" data-reveal data-delay="300">
-        <div class="feature-card__icon card-icon--accent">📜</div>
-        <h3 class="feature-card__title">Compliance Monitoring</h3>
-        <p class="feature-card__desc">Track controls continuously across supported frameworks and export evidence you can hand to auditors without drama.</p>
-        <div class="feature-card__badge badge badge-accent">Education & Business</div>
-      </a>
-    </div>
-
-    <div class="home-roadmap-grid" data-reveal>
-      <div class="home-roadmap-card">
-        <span class="badge badge-neutral" style="margin-bottom:var(--space-3)">Upcoming</span>
-        <h3>License Management</h3>
-        <p>Use the same inventory model to identify software entitlement gaps, over-deployment, and audit exposure.</p>
-      </div>
-      <div class="home-roadmap-card">
-        <span class="badge badge-neutral" style="margin-bottom:var(--space-3)">Upcoming</span>
-        <h3>Time Travel</h3>
-        <p>Answer “what was our posture on that date?” for audits, investigations, and executive reviews.</p>
-      </div>
-      <div class="home-roadmap-card">
-        <span class="badge badge-accent" style="margin-bottom:var(--space-3)">Business</span>
-        <h3>MAGI AI Guidance</h3>
-        <p>Ask plain-language questions about device risk, failing controls, stale signatures, and remediation priorities.</p>
-      </div>
-    </div>
-  </div>
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow">Platform capabilities</p>
+<h2 class="section-title">Four pillars, one operational picture</h2>
+<p class="section-subtitle">Every feature page now points back to the same story: know the endpoint, know the risk, know the audit state.</p>
+</div>
+<div class="features-grid">
+<a class="feature-card" href="features/antivirus-management.html" data-reveal>
+<div class="feature-card__head"><div class="feature-card__icon card-icon--success">AV</div><span class="feature-card__label">Protect</span></div>
+<h3 class="feature-card__title">Antivirus Management</h3>
+<p class="feature-card__desc">Manage Windows Defender posture, signature freshness, scan cadence, exclusions, and protection drift across your devices.</p>
+<div class="feature-card__badge badge badge-success">Defender-focused</div>
+</a>
+<a class="feature-card" href="features/vulnerability.html" data-reveal data-delay="100">
+<div class="feature-card__head"><div class="feature-card__icon card-icon--warning">VULN</div><span class="feature-card__label">Protect</span></div>
+<h3 class="feature-card__title">Vulnerability Assessment</h3>
+<p class="feature-card__desc">See which CVEs matter, which are actively exploited, and which devices should be patched first.</p>
+<div class="feature-card__badge badge badge-warning">Prioritized remediation</div>
+</a>
+<a class="feature-card" href="features/software-inventory.html" data-reveal data-delay="200">
+<div class="feature-card__head"><div class="feature-card__icon card-icon--primary">INV</div><span class="feature-card__label">Protect</span></div>
+<h3 class="feature-card__title">Software Inventory</h3>
+<p class="feature-card__desc">Maintain visibility into installed software, version drift, and shadow IT before it becomes risk or licensing pain.</p>
+<div class="feature-card__badge badge badge-primary">Asset visibility</div>
+</a>
+<a class="feature-card" href="features/compliance.html" data-reveal data-delay="300">
+<div class="feature-card__head"><div class="feature-card__icon card-icon--accent">CMP</div><span class="feature-card__label">Prove</span></div>
+<h3 class="feature-card__title">Compliance Monitoring</h3>
+<p class="feature-card__desc">Track controls continuously across supported frameworks and export evidence you can hand to auditors without drama.</p>
+<div class="feature-card__badge badge badge-accent">Education & Business</div>
+</a>
+</div>
+<div class="home-roadmap-grid" data-reveal>
+<div class="home-roadmap-card">
+<span class="badge badge-neutral" style="margin-bottom:var(--space-3)">Coming-Soon</span>
+<h3>License Management</h3>
+<p>Use the same inventory model to identify software entitlement gaps, over-deployment, and audit exposure.</p>
+</div>
+<div class="home-roadmap-card">
+<span class="badge badge-neutral" style="margin-bottom:var(--space-3)">Coming-Soon</span>
+<h3>Time-Travel</h3>
+<p>Answer "what was our posture on that date?" for audits, investigations, and executive reviews.</p>
+</div>
+<div class="home-roadmap-card">
+<span class="badge badge-accent" style="margin-bottom:var(--space-3)">Business</span>
+<h3>MAGI AI Guidance</h3>
+<p>Ask plain-language questions about device risk, failing controls, stale signatures, and remediation priorities.</p>
+</div>
+</div>
+</div>
 </section>
-
 <section class="section magi-section">
-  <div class="container">
-    <div class="magi-layout">
-      <div data-reveal>
-        <p class="section-eyebrow">MAGI AI</p>
-        <h2 class="section-title">Your analyst, your assistant, your consultant — without a queue</h2>
-        <p class="section-subtitle">MAGI turns device telemetry into plain-language guidance. Ask what is wrong, what matters most, what failed compliance today, or what to fix first.</p>
-        <div class="magi-roles">
-          <div class="magi-role">
-            <div class="magi-role__icon">💬</div>
-            <div class="magi-role__content">
-              <div class="magi-role__label">Assistant</div>
-              <div class="magi-role__title">Explains security in human language</div>
-              <div class="magi-role__desc">No hunting through CVE feeds and framework PDFs just to understand the risk.</div>
-            </div>
-          </div>
-          <div class="magi-role">
-            <div class="magi-role__icon">🧠</div>
-            <div class="magi-role__content">
-              <div class="magi-role__label">Analyst</div>
-              <div class="magi-role__title">Correlates findings across your endpoints</div>
-              <div class="magi-role__desc">Highlights which devices, controls, and vulnerabilities deserve attention first.</div>
-            </div>
-          </div>
-          <div class="magi-role">
-            <div class="magi-role__icon">🧭</div>
-            <div class="magi-role__content">
-              <div class="magi-role__label">Consultant</div>
-              <div class="magi-role__title">Recommends what to do next</div>
-              <div class="magi-role__desc">Guides remediation, reporting, and communication — including on WhatsApp for Business.</div>
-            </div>
-          </div>
-        </div>
-        <div class="btn-group">
-          <a href="magi.html" class="btn-primary">Meet MAGI <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
-          <a href="editions.html" class="btn-ghost">See Business Access</a>
-        </div>
-      </div>
-      <div data-reveal="right">
-        <div class="magi-chat">
-          <div class="magi-chat__header">
-            <div class="magi-chat__avatar">MAGI</div>
-            <div>
-              <div class="magi-chat__name">MAGI Security Analyst</div>
-              <div class="magi-chat__status">● Online — Business plans</div>
-            </div>
-          </div>
-          <div class="magi-chat__messages">
-            <div class="chat-msg chat-msg--user">
-              <div class="chat-msg__bubble">Which devices need attention first today?</div>
-            </div>
-            <div class="chat-msg chat-msg--ai">
-              <div class="chat-msg__avt">M</div>
-              <div class="chat-msg__bubble">I found <strong>4 endpoints</strong> with urgent issues: 2 have stale Defender signatures, 1 has protection disabled, and 1 is failing a compliance control tied to encryption policy.</div>
-            </div>
-            <div class="chat-msg chat-msg--user">
-              <div class="chat-msg__bubble">Which one is the highest risk?</div>
-            </div>
-            <div class="chat-msg chat-msg--ai">
-              <div class="chat-msg__avt">M</div>
-              <div class="chat-msg__bubble">DEVICE-11 is highest priority. It combines <span class="chat-msg__critical">disabled real-time protection</span> with an outstanding exploited CVE in Adobe Reader. I recommend remediation today.</div>
-            </div>
-          </div>
-          <div class="magi-chat__input">
-            <input type="text" aria-label="MAGI chat preview" readonly placeholder="Ask MAGI in the portal or on WhatsApp (Business)">
-            <a href="portal/" class="btn-primary btn--sm">Open Portal <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="container">
+<div class="magi-layout">
+<div data-reveal>
+<p class="section-eyebrow">MAGI AI</p>
+<h2 class="section-title">Your analyst, your assistant, your consultant - without a queue</h2>
+<p class="section-subtitle">MAGI turns device telemetry into plain-language guidance. Ask what is wrong, what matters most, what failed compliance today, or what to fix first.</p>
+<div class="magi-roles">
+<div class="magi-role">
+<div class="magi-role__icon">AI</div>
+<div class="magi-role__content">
+<div class="magi-role__label">Assistant</div>
+<div class="magi-role__title">Explains security in human language</div>
+<div class="magi-role__desc">No hunting through CVE feeds and framework PDFs just to understand the risk.</div>
+</div>
+</div>
+<div class="magi-role">
+<div class="magi-role__icon">AI</div>
+<div class="magi-role__content">
+<div class="magi-role__label">Analyst</div>
+<div class="magi-role__title">Correlates findings across your endpoints</div>
+<div class="magi-role__desc">Highlights which devices, controls, and vulnerabilities deserve attention first.</div>
+</div>
+</div>
+<div class="magi-role">
+<div class="magi-role__icon">AI</div>
+<div class="magi-role__content">
+<div class="magi-role__label">Consultant</div>
+<div class="magi-role__title">Recommends what to do next</div>
+<div class="magi-role__desc">Guides remediation, reporting, and communication - including on WhatsApp for Business.</div>
+</div>
+</div>
+</div>
+<div class="btn-group">
+<a href="magi.html" class="btn-primary">Meet MAGI <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+<a href="editions.html" class="btn-ghost">See Business Access</a>
+</div>
+</div>
+<div data-reveal="right">
+<div class="magi-chat">
+<div class="magi-chat__header">
+<div class="magi-chat__avatar">MAGI</div>
+<div>
+<div class="magi-chat__name">MAGI Security Analyst</div>
+<div class="magi-chat__status">Online - Business plans</div>
+</div>
+</div>
+<div class="magi-chat__messages">
+<div class="chat-msg chat-msg--user">
+<div class="chat-msg__bubble">Which devices need attention first today?</div>
+</div>
+<div class="chat-msg chat-msg--ai">
+<div class="chat-msg__avt">M</div>
+<div class="chat-msg__bubble">I found <strong>4 endpoints</strong> with urgent issues: 2 have stale Defender signatures, 1 has protection disabled, and 1 is failing a compliance control tied to encryption policy.</div>
+</div>
+<div class="chat-msg chat-msg--user">
+<div class="chat-msg__bubble">Which one is the highest risk?</div>
+</div>
+<div class="chat-msg chat-msg--ai">
+<div class="chat-msg__avt">M</div>
+<div class="chat-msg__bubble">DEVICE-11 is highest priority. It combines <span class="chat-msg__critical">disabled real-time protection</span> with an outstanding exploited CVE in Adobe Reader. I recommend remediation today.</div>
+</div>
+</div>
+<div class="magi-chat__input">
+<input type="text" aria-label="MAGI chat preview" readonly placeholder="Ask MAGI in the portal or on WhatsApp (Business)">
+<a href="portal/" class="btn-primary btn--sm">Open Portal <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+</div>
+</div>
+</div>
+</div>
 </section>
-
 <section class="section section--surface">
-  <div class="container">
-    <div class="section-header section-header--center" data-reveal>
-      <p class="section-eyebrow">Real-world impact</p>
-      <h2 class="section-title">What teams actually get from MagenSec</h2>
-      <p class="section-subtitle">Not slogans — operational clarity. Each story starts the same way: too many blind spots, too little time, and one audit or incident too close for comfort.</p>
-    </div>
-    <div class="home-static-impact attack-stories-grid">
-      <article class="attack-card" data-reveal>
-        <div class="card-status-top bg-danger"></div>
-        <div class="attack-card__header">
-          <span class="badge bg-red-lt text-red-lt-fg">Manufacturing</span>
-          <span class="badge bg-azure-lt text-azure-lt-fg">Insurance pressure</span>
-        </div>
-        <div class="card-body" style="padding:var(--space-6)">
-          <h3 class="card-title">A premium hike avoided</h3>
-          <p class="attack-card__subtitle">A mid-size manufacturer needed hard evidence that endpoint controls and patch posture were being monitored continuously.</p>
-          <div class="attack-metrics">
-            <div class="metric"><span class="metric-label">Urgent CVEs</span><span class="metric-value">17</span></div>
-            <div class="metric"><span class="metric-label">Weeks to clarity</span><span class="metric-value">1</span></div>
-            <div class="metric"><span class="metric-label">Outcome</span><span class="metric-value">Renewed</span></div>
-          </div>
-          <div class="alert alert-warning">MagenSec surfaced exploitable software gaps, documented remediation, and provided the compliance evidence the insurer wanted.</div>
-        </div>
-      </article>
-      <article class="attack-card" data-reveal data-delay="100">
-        <div class="card-status-top bg-orange"></div>
-        <div class="attack-card__header">
-          <span class="badge bg-orange-lt text-orange-lt-fg">Education</span>
-          <span class="badge bg-azure-lt text-azure-lt-fg">Audit readiness</span>
-        </div>
-        <div class="card-body" style="padding:var(--space-6)">
-          <h3 class="card-title">A small team got audit-ready fast</h3>
-          <p class="attack-card__subtitle">An education environment needed to prove that devices remained compliant without running manual spreadsheet checks every week.</p>
-          <div class="attack-metrics">
-            <div class="metric"><span class="metric-label">Devices</span><span class="metric-value">25</span></div>
-            <div class="metric"><span class="metric-label">Reports</span><span class="metric-value">1-click</span></div>
-            <div class="metric"><span class="metric-label">Friction</span><span class="metric-value">↓</span></div>
-          </div>
-          <div class="alert alert-warning">Compliance monitoring and weekly reporting gave administrators a current posture view instead of a point-in-time scramble.</div>
-        </div>
-      </article>
-      <article class="attack-card" data-reveal data-delay="200">
-        <div class="card-status-top bg-danger"></div>
-        <div class="attack-card__header">
-          <span class="badge bg-red-lt text-red-lt-fg">Business</span>
-          <span class="badge bg-azure-lt text-azure-lt-fg">MAGI enabled</span>
-        </div>
-        <div class="card-body" style="padding:var(--space-6)">
-          <h3 class="card-title">The risky endpoint was obvious immediately</h3>
-          <p class="attack-card__subtitle">A business team asked MAGI what mattered most today and got a ranked answer instead of another dashboard to interpret.</p>
-          <div class="attack-metrics">
-            <div class="metric"><span class="metric-label">High-risk hosts</span><span class="metric-value">4</span></div>
-            <div class="metric"><span class="metric-label">Top issue</span><span class="metric-value">AV off</span></div>
-            <div class="metric"><span class="metric-label">Decision time</span><span class="metric-value">Minutes</span></div>
-          </div>
-          <div class="alert alert-warning">MAGI combined AV health, exploited CVE exposure, and failing controls into a single plain-language answer with remediation order.</div>
-        </div>
-      </article>
-    </div>
-  </div>
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow">Real-world impact</p>
+<h2 class="section-title">What teams actually get from MagenSec</h2>
+<p class="section-subtitle">Not slogans - operational clarity. Each story starts the same way: too many blind spots, too little time, and one audit or incident too close for comfort.</p>
+</div>
+<div class="home-static-impact attack-stories-grid">
+<article class="attack-card" data-reveal>
+<div class="card-status-top bg-danger"></div>
+<div class="attack-card__header">
+<span class="badge bg-red-lt text-red-lt-fg">Manufacturing</span>
+<span class="badge bg-azure-lt text-azure-lt-fg">Insurance pressure</span>
+</div>
+<div class="card-body" style="padding:var(--space-6)">
+<h3 class="card-title">A premium hike avoided</h3>
+<p class="attack-card__subtitle">A mid-size manufacturer needed hard evidence that endpoint controls and patch posture were being monitored continuously.</p>
+<div class="attack-metrics">
+<div class="metric"><span class="metric-label">Urgent CVEs</span><span class="metric-value">17</span></div>
+<div class="metric"><span class="metric-label">Weeks to clarity</span><span class="metric-value">1</span></div>
+<div class="metric"><span class="metric-label">Outcome</span><span class="metric-value">Renewed</span></div>
+</div>
+<div class="alert alert-warning">MagenSec surfaced exploitable software gaps, documented remediation, and provided the compliance evidence the insurer wanted.</div>
+</div>
+</article>
+<article class="attack-card" data-reveal data-delay="100">
+<div class="card-status-top bg-orange"></div>
+<div class="attack-card__header">
+<span class="badge bg-orange-lt text-orange-lt-fg">Education</span>
+<span class="badge bg-azure-lt text-azure-lt-fg">Audit readiness</span>
+</div>
+<div class="card-body" style="padding:var(--space-6)">
+<h3 class="card-title">A small team got audit-ready fast</h3>
+<p class="attack-card__subtitle">An education environment needed to prove that devices remained compliant without running manual spreadsheet checks every week.</p>
+<div class="attack-metrics">
+<div class="metric"><span class="metric-label">Devices</span><span class="metric-value">25</span></div>
+<div class="metric"><span class="metric-label">Reports</span><span class="metric-value">1-click</span></div>
+<div class="metric"><span class="metric-label">Friction</span><span class="metric-value">DOWN</span></div>
+</div>
+<div class="alert alert-warning">Protect reporting gave administrators a current posture view instead of a point-in-time scramble.</div>
+</div>
+</article>
+<article class="attack-card" data-reveal data-delay="200">
+<div class="card-status-top bg-danger"></div>
+<div class="attack-card__header">
+<span class="badge bg-red-lt text-red-lt-fg">Business</span>
+<span class="badge bg-azure-lt text-azure-lt-fg">MAGI enabled</span>
+</div>
+<div class="card-body" style="padding:var(--space-6)">
+<h3 class="card-title">The risky endpoint was obvious immediately</h3>
+<p class="attack-card__subtitle">A business team asked MAGI what mattered most today and got a ranked answer instead of another dashboard to interpret.</p>
+<div class="attack-metrics">
+<div class="metric"><span class="metric-label">High-risk hosts</span><span class="metric-value">4</span></div>
+<div class="metric"><span class="metric-label">Top issue</span><span class="metric-value">AV off</span></div>
+<div class="metric"><span class="metric-label">Decision time</span><span class="metric-value">Minutes</span></div>
+</div>
+<div class="alert alert-warning">MAGI combined AV health, exploited CVE exposure, and failing controls into a single plain-language answer with remediation order.</div>
+</div>
+</article>
+</div>
+</div>
 </section>
-
 <section class="section">
-  <div class="container">
-    <div class="section-header section-header--center" data-reveal>
-      <p class="section-eyebrow">Editions</p>
-      <h2 class="section-title">Pick the coverage that fits your environment</h2>
-      <p class="section-subtitle">Personal gets core endpoint visibility. Education adds compliance operations. Business adds MAGI and scales through four bundles without changing the platform.</p>
-    </div>
-    <div class="segments-grid">
-      <article class="segment-card segment-card--personal" data-reveal>
-        <div class="segment-icon card-icon card-icon--primary">🏠</div>
-        <div class="segment-card__header">
-          <div class="segment-card__tag">Personal</div>
-          <h3 class="segment-card__title">For individuals and families</h3>
-          <p class="segment-card__subtitle">Core endpoint clarity for up to 5 devices.</p>
-        </div>
-        <div class="segment-features">
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Antivirus management</div>
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Vulnerability assessment</div>
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Software inventory</div>
-        </div>
-        <div class="segment-pricing">
-          <div class="segment-price">$10<span class="segment-price__period">/month</span></div>
-        </div>
-      </article>
-      <article class="segment-card segment-card--education" data-reveal data-delay="100">
-        <div class="segment-icon card-icon card-icon--success">🎓</div>
-        <div class="segment-card__header">
-          <div class="segment-card__tag">Education</div>
-          <h3 class="segment-card__title">For institutions and labs</h3>
-          <p class="segment-card__subtitle">Adds compliance monitoring and reporting across up to 25 devices.</p>
-        </div>
-        <div class="segment-features">
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Everything in Personal</div>
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Compliance monitoring</div>
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Weekly reporting</div>
-        </div>
-        <div class="segment-pricing">
-          <div class="segment-price">$270<span class="segment-price__period">/year</span></div>
-        </div>
-      </article>
-      <article class="segment-card segment-card--business" data-reveal data-delay="200">
-        <div class="segment-icon card-icon card-icon--accent">🏢</div>
-        <div class="segment-card__header">
-          <div class="segment-card__tag">Business</div>
-          <h3 class="segment-card__title">For growing teams to large estates</h3>
-          <p class="segment-card__subtitle">MAGI, compliance, reporting, and bundle-based scaling from 25 devices upward.</p>
-        </div>
-        <div class="segment-features">
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Everything in Education</div>
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> MAGI AI + WhatsApp</div>
-          <div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Audit-ready evidence</div>
-        </div>
-        <div class="segment-pricing">
-          <div class="segment-price">from $20<span class="segment-price__period">/device/mo</span></div>
-        </div>
-      </article>
-    </div>
-    <div class="home-bundle-strip" data-reveal>
-      <div class="home-bundle-pill"><strong>Starter</strong><span>25–50 devices</span></div>
-      <div class="home-bundle-pill"><strong>Growth</strong><span>51–150 devices</span></div>
-      <div class="home-bundle-pill"><strong>Scale</strong><span>151–500 devices</span></div>
-      <div class="home-bundle-pill"><strong>Custom</strong><span>500+ devices</span></div>
-    </div>
-    <div class="text-center" style="margin-top:var(--space-8)">
-      <a href="editions.html" class="btn-primary btn-lg">Explore Editions <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
-    </div>
-  </div>
+<div class="container">
+<div class="section-header section-header--center" data-reveal>
+<p class="section-eyebrow">Editions</p>
+<h2 class="section-title">Pick the coverage that fits your environment</h2>
+<p class="section-subtitle">Personal and Education are Protect-only. Business adds Prove, MAGI, Audit, License Management, and Time-Travel (Coming-Soon) for audit-grade workflows.</p>
+</div>
+<div class="segments-grid">
+<article class="segment-card segment-card--personal" data-reveal><div class="ribbon launch-ribbon launch-ribbon--personal"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M12 8c-2 0-3.5-1.3-3.5-3 0-1.2.9-2 2-2 1.6 0 2.8 1.5 3.5 3 0.7-1.5 1.9-3 3.5-3 1.1 0 2 .8 2 2 0 1.7-1.5 3-3.5 3"/></svg><strong>Limited time $20 launch offer</strong></div>
+<div class="segment-icon card-icon card-icon--primary">P</div>
+<div class="segment-card__header">
+<div class="segment-card__tag">Personal</div>
+<h3 class="segment-card__title">For individuals and families</h3>
+<p class="segment-card__subtitle">Core endpoint clarity for up to 5 devices.</p>
+</div>
+<div class="segment-features">
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Antivirus management</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Vulnerability assessment</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Software inventory</div>
+</div>
+<div class="segment-pricing">
+<div class="segment-price">$120<span class="segment-price__period">/year</span></div>
+</div>
+</article>
+<article class="segment-card segment-card--education" data-reveal data-delay="100"><div class="ribbon launch-ribbon launch-ribbon--education"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M12 8c-2 0-3.5-1.3-3.5-3 0-1.2.9-2 2-2 1.6 0 2.8 1.5 3.5 3 0.7-1.5 1.9-3 3.5-3 1.1 0 2 .8 2 2 0 1.7-1.5 3-3.5 3"/></svg><strong>Limited time $270 launch offer</strong></div>
+<div class="segment-icon card-icon card-icon--success">E</div>
+<div class="segment-card__header">
+<div class="segment-card__tag">Education</div>
+<h3 class="segment-card__title">For institutions and labs</h3>
+<p class="segment-card__subtitle">Protect coverage with reporting across up to 25 devices.</p>
+</div>
+<div class="segment-features">
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Everything in Personal</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Daily snapshot report</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Weekly trend analysis</div>
+</div>
+<div class="segment-pricing">
+<div class="segment-price">$600<span class="segment-price__period">/year</span></div>
+</div>
+</article>
+<article class="segment-card segment-card--business" data-reveal data-delay="200">
+<div class="segment-icon card-icon card-icon--accent">B</div>
+<div class="segment-card__header">
+<div class="segment-card__tag">Business</div>
+<h3 class="segment-card__title">For growing teams to large estates</h3>
+<p class="segment-card__subtitle">Protect + Prove + MAGI + Audit + License Management + Time-Travel for business environments.</p>
+</div>
+<div class="segment-features">
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Prove: Compliance + control evidence</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> MAGI AI + WhatsApp</div>
+<div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Audit + Time-Travel (Coming-Soon)</div><div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> License Management</div><div class="segment-feature"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Custom bundle pricing available</div>
+</div>
+<div class="segment-pricing">
+<div class="segment-price">$100<span class="segment-price__period">/device/yr</span></div>
+</div>
+</article>
+</div>
+<div class="home-bundle-strip" data-reveal>
+<div class="home-bundle-pill"><strong>Business Rate</strong><span>$100 per device per year</span></div>
+<div class="home-bundle-pill"><strong>Contract Discounts</strong><span>Available by agreement</span></div>
+<div class="home-bundle-pill"><strong>50+ Devices</strong><span>Custom commercial terms</span></div>
+<div class="home-bundle-pill"><strong>Managed Service</strong><span>Optional add-on</span></div>
+</div>
+<div class="text-center" style="margin-top:var(--space-8)">
+<a href="editions.html" class="btn-primary btn-lg">Explore Editions <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+</div>
 </section>
-
 <section class="cta-section section--surface">
-  <div class="cta-section__bg"></div>
-  <div class="container cta-section__inner" data-reveal>
-    <h2 class="cta-section__title">Start with the truth about your endpoints</h2>
-    <p class="cta-section__desc">Download the agent, see what needs attention, and move from vague confidence to evidence-backed security posture.</p>
-    <div class="btn-group" style="justify-content:center">
-      <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-primary btn-xl" target="_blank" rel="nofollow noopener">Download on Microsoft Store <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg></a>
-      <a href="install.html#enterprise-deploy" class="btn-ghost btn-xl">Manual &amp; CLI Install <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
-    </div>
-    <div class="cta-section__urgency">Install directly from Microsoft Store for the smoothest setup. Need scripted rollout? The <span>Install</span> page includes the manual and CLI deployment path.</div>
-  </div>
+<div class="cta-section__bg"></div>
+<div class="container cta-section__inner" data-reveal>
+<h2 class="cta-section__title">Start with the truth about your endpoints</h2>
+<p class="cta-section__desc">Download the agent, see what needs attention, and move from vague confidence to evidence-backed security posture.</p>
+<div class="btn-group" style="justify-content:center">
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-primary btn-xl" target="_blank" rel="nofollow noopener">Download on Microsoft Store <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg></a>
+<a href="install.html#enterprise-deploy" class="btn-ghost btn-xl">Manual &amp; CLI Install <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+<div class="cta-section__urgency">Install directly from Microsoft Store for the smoothest setup. Need scripted rollout? The <span>Install</span> page includes the manual and CLI deployment path.</div>
+</div>
 </section>
-
-<footer class="footer" role="contentinfo">
-  <div class="container">
-    <div class="footer__grid">
-      <div class="footer__brand">
-        <a href="index.html" class="footer__brand-logo">
-          <img src="assets/black_shield_256x256.png" alt="" width="32" height="32" loading="lazy" decoding="async">
-          <span class="footer__brand-name">MagenSec</span>
-        </a>
-        <p class="footer__brand-tagline">Continuous security auditing powered by autonomous AI. Know exactly where you stand — always.</p>
-        <a href="mailto:MagenSec@Gigabits.co.in" class="footer__contact-link">MagenSec@Gigabits.co.in</a>
-      </div>
-      <div>
-        <h3 class="footer__col-title">Product</h3>
-        <div class="footer__links">
-          <a href="magi.html" class="footer__link">MAGI AI</a>
-          <a href="features/antivirus-management.html" class="footer__link">Antivirus Management</a>
-          <a href="features/vulnerability.html" class="footer__link">Vulnerability Assessment</a>
-          <a href="features/compliance.html" class="footer__link">Compliance Monitoring</a>
-          <a href="features/software-inventory.html" class="footer__link">Software Inventory</a>
-        </div>
-      </div>
-      <div>
-        <h3 class="footer__col-title">Plans</h3>
-        <div class="footer__links">
-          <a href="editions.html" class="footer__link">Editions & Pricing</a>
-          <a href="editions/personal.html" class="footer__link">Personal</a>
-          <a href="editions/education.html" class="footer__link">Education</a>
-          <a href="editions/business.html" class="footer__link">Business Bundles</a>
-        </div>
-      </div>
-      <div>
-        <h3 class="footer__col-title">Company</h3>
-        <div class="footer__links">
-          <a href="install.html" class="footer__link">Download & Install</a>
-          <a href="about.html" class="footer__link">About</a>
-          <a href="terms.html" class="footer__link">Terms & Privacy</a>
-          <a href="portal/" class="footer__link">Customer Portal</a>
-        </div>
-      </div>
-    </div>
-    <div class="footer__bottom">
-      <div class="footer__copyright">&copy; 2024–2026 MagenSec by Gigabits. All rights reserved.</div>
-      <div class="footer__bottom-links">
-        <a href="terms.html#privacy" class="footer__bottom-link">Privacy Policy</a>
-        <a href="terms.html" class="footer__bottom-link">Terms of Service</a>
-      </div>
-    </div>
-  </div>
-</footer>
-
+<div id="site-footer" data-footer-src="footer.html"></div>
 <script src="assets/js/core.js" defer></script>
 <script src="assets/js/animations.js" defer></script>
 <script src="assets/js/download-links.js" defer></script>
+<script src="assets/js/footer-include.js" defer></script>
 </body>
-</html>
+</html> 
+
+
+
