@@ -149,6 +149,8 @@ function App() {
             return html`<${AuditorPage} />`;
         case 'reports':
             return html`<${ReportsPage} />`;
+        case 'review':
+            return html`<${ReviewPage} />`;
         case 'siteadmin/review':
             return html`<${ClientDevicePage} />`;
         case 'account':
