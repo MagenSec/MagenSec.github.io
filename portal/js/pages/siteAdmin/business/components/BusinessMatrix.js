@@ -175,14 +175,21 @@ export function BusinessMatrixPage() {
 
         const currencySymbol = getCurrencySymbolForDisplay();
 
+        // Build segments - include Education if data is available
+        const segments = [
+            { label: 'Personal', value: convertFromBilling(breakdown.personalRevenue || 0), color: '#4299e1' },
+            { label: 'Education', value: convertFromBilling(breakdown.educationRevenue || 0), color: '#2fb344' },
+            { label: 'Business', value: convertFromBilling(breakdown.businessRevenue || 0), color: '#0054a6' }
+        ].filter(s => s.value > 0 || (s.label === 'Education' && breakdown.educationRevenue !== undefined));
+
         const options = {
-            series: [convertFromBilling(breakdown.personalRevenue), convertFromBilling(breakdown.businessRevenue)],
+            series: segments.map(s => s.value),
             chart: {
                 type: 'donut',
                 height: 280
             },
-            labels: ['Personal', 'Business'],
-            colors: ['#4299e1', '#0054a6'],
+            labels: segments.map(s => s.label),
+            colors: segments.map(s => s.color),
             legend: {
                 position: 'bottom'
             },
@@ -1477,6 +1484,7 @@ export function BusinessMatrixPage() {
                             <div>
                                 <strong>Overall Profit Margin: ${platformSummary.profitMargin.toFixed(1)}%</strong>
                                 · ${platformSummary.totalOrgs} Organizations
+                                ${(revenueBreakdown.educationCount || 0) > 0 ? html`<span class="badge bg-success-lt text-success ms-1">${revenueBreakdown.educationCount} Education</span>` : ''}
                                 ${(revenueBreakdown.demoOrgCount || 0) > 0 ? html`<span class="badge bg-warning-lt text-warning ms-1">${revenueBreakdown.demoOrgCount} Demo</span>` : ''}
                                 · ${deviceHealth.activeCount} Active Devices
                                 · ${(metrics.telemetryVolumes?.platform?.totalRows || 0).toLocaleString()} Daily Telemetry Rows
@@ -1598,7 +1606,7 @@ export function BusinessMatrixPage() {
                                 }
                             </div>
                             <div class="text-body-secondary small mt-1">
-                                ${revenueBreakdown.personalCount || 0} Personal · ${revenueBreakdown.businessCount || 0} Business
+                                ${revenueBreakdown.personalCount || 0} Personal · ${revenueBreakdown.educationCount || 0} Education · ${revenueBreakdown.businessCount || 0} Business
                                 ${(revenueBreakdown.demoOrgCount || 0) > 0 ? html` · <span class="text-warning">${revenueBreakdown.demoOrgCount} Demo</span>` : ''}
                             </div>
                             <div class="text-body-secondary small mt-1">

@@ -4,6 +4,11 @@
  */
 
 /**
+ * Valid license types
+ */
+export const LICENSE_TYPES = ['Personal', 'Education', 'Business', 'Demo'];
+
+/**
  * Validate license key format
  */
 export function validateLicenseKey(key) {
@@ -11,14 +16,26 @@ export function validateLicenseKey(key) {
         return { valid: false, error: 'License key is required' };
     }
 
-    // Business license format: XXXX-XXXX-XXXX (uppercase alphanumeric)
-    const businessPattern = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+    // License format: XXXX-XXXX-XXXX (uppercase alphanumeric)
+    const licensePattern = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
     
-    if (businessPattern.test(key)) {
-        return { valid: true, type: 'Business' };
+    if (licensePattern.test(key)) {
+        return { valid: true };
     }
 
     return { valid: false, error: 'Invalid license key format. Expected: XXXX-XXXX-XXXX' };
+}
+
+/**
+ * Get license type badge class
+ */
+export function getLicenseTypeBadgeClass(licenseType) {
+    switch (licenseType) {
+        case 'Personal': return 'bg-info-lt text-info';
+        case 'Education': return 'bg-success-lt text-success';
+        case 'Demo': return 'bg-warning-lt text-warning';
+        default: return 'bg-primary-lt text-primary'; // Business
+    }
 }
 
 /**
@@ -63,10 +80,12 @@ export function formatLicenseDisplay(license) {
         remainingCredits: license.remainingCredits ?? license.creditsRemaining ?? 0,
         totalCredits: license.totalCredits ?? license.creditsTotal ?? 0,
         isDisabled: license.isDisabled || license.disabled || false,
+        isDemo: (license.licenseType || license.type) === 'Demo',
         createdAt: license.createdAt || license.created,
         lastRotated: license.lastRotated || license.rotatedAt,
         status: getLicenseStatusText(license),
-        badgeClass: getLicenseStatusBadgeClass(license)
+        badgeClass: getLicenseStatusBadgeClass(license),
+        typeBadgeClass: getLicenseTypeBadgeClass(license.licenseType || license.type)
     };
 }
 
@@ -83,4 +102,12 @@ export function calculateLicenseUtilization(license) {
     const used = total - remaining;
     
     return Math.round((used / total) * 100);
+}
+
+/**
+ * Check if a license type generates revenue
+ * Demo licenses consume credits but generate $0 revenue
+ */
+export function isRevenueGenerating(licenseType) {
+    return licenseType !== 'Demo';
 }
