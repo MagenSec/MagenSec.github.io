@@ -107,8 +107,8 @@ export class ManagePage extends Component {
                     durationDays: data.duration,
                     orgType: data.orgType || 'Business',
                     isDemoOrg: !!data.isDemoOrg,
-                    dailyReportEnabled: data.dailyReportEnabled !== undefined ? data.dailyReportEnabled : data.reportEnabled,
-                    weeklyReportEnabled: data.weeklyReportEnabled !== undefined ? data.weeklyReportEnabled : data.weeklyEnabled,
+                    dailyReportEnabled: !!data.dailyReportEnabled,
+                    weeklyReportEnabled: !!data.weeklyReportEnabled,
                     sendToAllTeamMembers: data.sendToAllTeamMembers
                 })
             });
@@ -136,8 +136,8 @@ export class ManagePage extends Component {
                     orgName: data.orgName,
                     orgType: data.orgType,
                     isDemoOrg: data.isDemoOrg !== undefined ? !!data.isDemoOrg : undefined,
-                    dailyReportEnabled: data.dailyReportEnabled !== undefined ? data.dailyReportEnabled : data.reportEnabled,
-                    weeklyReportEnabled: data.weeklyReportEnabled !== undefined ? data.weeklyReportEnabled : data.weeklyEnabled,
+                    dailyReportEnabled: !!data.dailyReportEnabled,
+                    weeklyReportEnabled: !!data.weeklyReportEnabled,
                     sendToAllTeamMembers: data.sendToAllTeamMembers,
                     industry: data.industry,
                     orgSize: data.orgSize,

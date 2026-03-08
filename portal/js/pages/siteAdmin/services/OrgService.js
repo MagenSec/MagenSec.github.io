@@ -114,8 +114,11 @@ export function buildOrgPayload(formData) {
         durationDays: parseInt(formData.duration, 10),
         orgType: formData.orgType || 'Business',
         isDemoOrg: !!formData.isDemoOrg,
-        dailyReportEnabled: formData.dailyReportEnabled !== undefined ? formData.dailyReportEnabled : formData.reportEnabled,
-        weeklyReportEnabled: formData.weeklyReportEnabled !== undefined ? formData.weeklyReportEnabled : formData.weeklyEnabled,
-        sendToAllTeamMembers: formData.sendToAllTeamMembers
+        dailyReportEnabled: !!formData.dailyReportEnabled,
+        weeklyReportEnabled: !!formData.weeklyReportEnabled,
+        sendToAllTeamMembers: formData.sendToAllTeamMembers,
+        industry: formData.industry || null,
+        orgSize: formData.orgSize || null,
+        nextAuditDate: formData.nextAuditDate || null
     };
 }

@@ -76,6 +76,7 @@ export function OrganizationsTab({
     const [showCreateLicense, setShowCreateLicense] = useState(false);
     const [newLicenseSeats, setNewLicenseSeats] = useState(20);
     const [newLicenseDuration, setNewLicenseDuration] = useState(365);
+    const [newLicenseType, setNewLicenseType] = useState('Business');
 
     // Email validation
     const isValidEmail = (email) => {
@@ -163,6 +164,7 @@ export function OrganizationsTab({
         setUpdateIndustry(org.industry || '');
         setUpdateOrgSize(org.orgSize || '');
         setUpdateNextAuditDate(org.nextAuditDate || '');
+        setNewLicenseType(getOrgType(org));
         setShowDangerZone(false);
 
         // Load report config + licenses lazily
@@ -327,13 +329,15 @@ export function OrganizationsTab({
             const res = await window.api.post('/api/v1/licenses', {
                 orgId: selectedOrgId,
                 seats: parseInt(newLicenseSeats) || 20,
-                durationDays: parseInt(newLicenseDuration) || 365
+                durationDays: parseInt(newLicenseDuration) || 365,
+                licenseType: newLicenseType
             });
             if (res?.success !== false) {
                 window.toast?.show?.('License created successfully', 'success');
                 setShowCreateLicense(false);
                 setNewLicenseSeats(20);
                 setNewLicenseDuration(365);
+                setNewLicenseType(getOrgType(selectedOrg));
                 await handleSelectOrg(selectedOrg);
             } else {
                 window.toast?.show?.(res?.message || 'Failed to create license', 'error');
@@ -935,15 +939,23 @@ export function OrganizationsTab({
                                                     <div class="card-body">
                                                         <h6 class="card-title">New License</h6>
                                                         <div class="row g-2 align-items-end">
-                                                            <div class="col-md-4">
+                                                            <div class="col-md-3">
                                                                 <label class="form-label small">Seats</label>
                                                                 <input type="number" class="form-control form-control-sm" value=${newLicenseSeats} onInput=${(e) => setNewLicenseSeats(e.target.value)} />
                                                             </div>
-                                                            <div class="col-md-4">
+                                                            <div class="col-md-3">
                                                                 <label class="form-label small">Duration (Days)</label>
                                                                 <input type="number" class="form-control form-control-sm" value=${newLicenseDuration} onInput=${(e) => setNewLicenseDuration(e.target.value)} />
                                                             </div>
-                                                            <div class="col-md-4">
+                                                            <div class="col-md-3">
+                                                                <label class="form-label small">License Type</label>
+                                                                <select class="form-select form-select-sm" value=${newLicenseType} onChange=${(e) => setNewLicenseType(e.target.value)}>
+                                                                    ${['Business', 'Education', 'Personal', 'Demo'].map(t => html`
+                                                                        <option value=${t}>${t}</option>
+                                                                    `)}
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-3">
                                                                 <button class="btn btn-sm btn-success me-1" onClick=${handleCreateLicense}>Create</button>
                                                                 <button class="btn btn-sm btn-ghost-secondary" onClick=${() => setShowCreateLicense(false)}>Cancel</button>
                                                             </div>
