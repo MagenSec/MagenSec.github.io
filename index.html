@@ -15,7 +15,7 @@
 <script>if (window.location.protocol !== 'file:') document.documentElement.classList.add('js-ready');</script>
 <noscript><style>[data-reveal]{opacity:1!important;transform:none!important}</style></noscript>
 <style> .home-hero-proof-list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-6); } .home-hero-proof-list li { display: flex; align-items: flex-start; gap: var(--space-3); color: var(--color-text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); } .home-hero-proof-list svg { flex-shrink: 0; margin-top: 0.15rem; color: var(--color-success); } .home-side-panel { background: linear-gradient(180deg, rgba(10, 22, 40, 0.84), rgba(6, 12, 24, 0.96)); border: 1px solid var(--color-border-hover); border-radius: var(--radius-2xl); padding: var(--space-6); box-shadow: var(--shadow-xl); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); } .home-side-panel__title { font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--color-text-primary); margin-bottom: var(--space-3); } .home-side-panel__list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-4); } .home-side-panel__list li { display: flex; justify-content: space-between; gap: var(--space-4); font-size: var(--text-sm); color: var(--color-text-secondary); border-bottom: 1px solid rgba(59, 130, 246, 0.08); padding-bottom: var(--space-3); } .home-side-panel__list li:last-child { border-bottom: none; padding-bottom: 0; } .home-side-panel__list strong { color: var(--color-text-primary); font-weight: var(--weight-semibold); } :root[data-theme="light"] .home-side-panel { background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.96)); border-color: rgba(37, 99, 235, 0.12); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); backdrop-filter: none; -webkit-backdrop-filter: none; } :root[data-theme="light"] .home-side-panel__list li { border-bottom-color: rgba(15, 23, 42, 0.08); } .store-badge-note { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-4); padding: 0.7rem 1rem; border-radius: var(--radius-full); background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(148, 163, 184, 0.18); color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: var(--weight-medium); } :root[data-theme="light"] .store-badge-note { background: rgba(255, 255, 255, 0.94); border-color: rgba(37, 99, 235, 0.14); color: var(--color-text-primary); } .store-badge-note svg { flex-shrink: 0; color: var(--color-primary); } .home-attack-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr); gap: var(--space-8); align-items: center; } .home-attack-diagram { background: var(--color-surface-card); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: var(--space-6); overflow: hidden; } .home-attack-diagram img { width: 100%; height: auto; border-radius: var(--radius-xl); } .home-roadmap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-5); margin-top: var(--space-8); } .home-roadmap-card { padding: var(--space-6); background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-xl); } .home-roadmap-card h3 { font-size: var(--text-lg); color: var(--color-text-primary); margin-bottom: var(--space-2); } .home-roadmap-card p { color: var(--color-text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); } .home-bundle-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-6); } .home-bundle-pill { padding: var(--space-4); background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-xl); text-align: center; } .home-bundle-pill strong { display: block; color: var(--color-text-primary); font-size: var(--text-base); margin-bottom: var(--space-1); } .home-bundle-pill span { color: var(--color-text-secondary); font-size: var(--text-sm); } .home-static-impact { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-8); } @media (max-width: 1024px) { .home-attack-layout, .home-static-impact, .home-roadmap-grid, .home-bundle-strip { grid-template-columns: 1fr; } } </style>
-<style>.problem-card__icon svg{width:22px;height:22px}.feature-card__head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-3)}.feature-card__label{display:inline-flex;align-items:center;padding:.2rem .55rem;border-radius:var(--radius-full);font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;background:rgba(148,163,184,.14);color:var(--color-text-secondary);border:1px solid rgba(148,163,184,.2)}.segment-card{position:relative;overflow:hidden}</style>
+<style>.problem-card__icon svg{width:22px;height:22px}.segment-card{position:relative;overflow:hidden}</style>
 <style>.launch-ribbon{display:inline-flex;align-items:center;gap:.4rem;top:1rem;left:1rem;right:auto;border-radius:999px;font-weight:800;font-size:.72rem;letter-spacing:.01em;text-transform:none;padding:.45rem .75rem;z-index:2;box-shadow:0 8px 22px rgba(0,0,0,.18)}.launch-ribbon svg{flex-shrink:0}.launch-ribbon--personal{background:linear-gradient(90deg,#16a34a,#22c55e);color:#f0fdf4;border:1px solid rgba(255,255,255,.35)}.launch-ribbon--education{background:linear-gradient(90deg,#2563eb,#38bdf8);color:#eff6ff;border:1px solid rgba(255,255,255,.35)}@media (max-width:768px){.launch-ribbon{position:static;margin-bottom:.75rem}}</style>
 </head>
 <body data-nav-active="home">
@@ -196,34 +196,45 @@
 <div class="container">
 <div class="section-header section-header--center" data-reveal>
 <p class="section-eyebrow">Platform capabilities</p>
-<h2 class="section-title">Four pillars, one operational picture</h2>
-<p class="section-subtitle">Every feature page now points back to the same story: know the endpoint, know the risk, know the audit state.</p>
+<h2 class="section-title">Core capabilities, one operational picture</h2>
+<p class="section-subtitle">These capabilities form the Protect + Prove foundation, while MAGI AI and Audit workflows complete the full operating model for Business environments.</p>
 </div>
-<div class="features-grid">
+<div class="home-pillar-legend" data-reveal>
+<span class="home-pillar-legend__label">Operating pillars</span>
+<span class="badge badge-primary">Protect</span>
+<span class="badge badge-accent">Prove</span>
+<span class="badge badge-info">MAGI AI</span>
+<span class="badge badge-neutral">Audit</span>
+</div>
+<div class="features-grid home-capabilities-grid">
 <a class="feature-card" href="platform/antivirus-management.html" data-reveal>
-<div class="feature-card__head"><div class="feature-card__icon card-icon--success">AV</div><span class="feature-card__label">Protect</span></div>
+<div class="feature-card__head"><span class="feature-card__icon">Endpoint AV</span><span class="feature-card__label">Protect</span></div>
 <h3 class="feature-card__title">Antivirus Management</h3>
 <p class="feature-card__desc">Manage Windows Defender posture, signature freshness, scan cadence, exclusions, and protection drift across your devices.</p>
 <div class="feature-card__badge badge badge-success">Defender-focused</div>
 </a>
 <a class="feature-card" href="platform/vulnerability.html" data-reveal data-delay="100">
-<div class="feature-card__head"><div class="feature-card__icon card-icon--warning">VULN</div><span class="feature-card__label">Protect</span></div>
+<div class="feature-card__head"><span class="feature-card__icon">Risk Exposure</span><span class="feature-card__label">Protect</span></div>
 <h3 class="feature-card__title">Vulnerability Assessment</h3>
 <p class="feature-card__desc">See which CVEs matter, which are actively exploited, and which devices should be patched first.</p>
 <div class="feature-card__badge badge badge-warning">Prioritized remediation</div>
 </a>
 <a class="feature-card" href="platform/software-inventory.html" data-reveal data-delay="200">
-<div class="feature-card__head"><div class="feature-card__icon card-icon--primary">INV</div><span class="feature-card__label">Protect</span></div>
+<div class="feature-card__head"><span class="feature-card__icon">Asset Insight</span><span class="feature-card__label">Protect</span></div>
 <h3 class="feature-card__title">Software Inventory</h3>
 <p class="feature-card__desc">Maintain visibility into installed software, version drift, and shadow IT before it becomes risk or licensing pain.</p>
 <div class="feature-card__badge badge badge-primary">Asset visibility</div>
 </a>
 <a class="feature-card" href="platform/compliance.html" data-reveal data-delay="300">
-<div class="feature-card__head"><div class="feature-card__icon card-icon--accent">CMP</div><span class="feature-card__label">Prove</span></div>
+<div class="feature-card__head"><span class="feature-card__icon">Control Coverage</span><span class="feature-card__label">Prove</span></div>
 <h3 class="feature-card__title">Compliance Monitoring</h3>
 <p class="feature-card__desc">Track controls continuously across supported frameworks and export evidence you can hand to auditors without drama.</p>
-<div class="feature-card__badge badge badge-accent">Education & Business</div>
+<div class="feature-card__badge badge badge-accent">Business</div>
 </a>
+</div>
+<div class="home-roadmap-intro" data-reveal>
+<p class="home-roadmap-intro__kicker">Roadmap extensions</p>
+<p class="home-roadmap-intro__desc">These are add-on capabilities that expand the platform and are not part of the current four operational pillars above.</p>
 </div>
 <div class="home-roadmap-grid" data-reveal>
 <div class="home-roadmap-card">
@@ -386,8 +397,8 @@
 <p class="section-subtitle">Personal and Education are Protect-only. Business adds Prove, MAGI, Audit, License Management (Coming-Soon), and Time-Travel (Coming-Soon) for audit-grade workflows.</p>
 </div>
 <div class="segments-grid">
-<article class="segment-card segment-card--personal" data-reveal><div class="ribbon launch-ribbon launch-ribbon--personal"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M12 8c-2 0-3.5-1.3-3.5-3 0-1.2.9-2 2-2 1.6 0 2.8 1.5 3.5 3 0.7-1.5 1.9-3 3.5-3 1.1 0 2 .8 2 2 0 1.7-1.5 3-3.5 3"/></svg><strong>Limited time $20 launch offer</strong></div>
-<div class="segment-icon card-icon card-icon--primary">P</div>
+<article class="segment-card segment-card--personal" data-reveal><div class="launch-ribbon launch-ribbon--personal"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M12 8c-2 0-3.5-1.3-3.5-3 0-1.2.9-2 2-2 1.6 0 2.8 1.5 3.5 3 0.7-1.5 1.9-3 3.5-3 1.1 0 2 .8 2 2 0 1.7-1.5 3-3.5 3"/></svg><strong>Limited time $20 launch offer</strong></div>
+<div class="segment-icon card-icon card-icon--primary"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
 <div class="segment-card__header">
 <div class="segment-card__tag">Personal</div>
 <h3 class="segment-card__title">For individuals and families</h3>
@@ -402,8 +413,8 @@
 <div class="segment-price">$120<span class="segment-price__period">/year</span></div>
 </div>
 </article>
-<article class="segment-card segment-card--education" data-reveal data-delay="100"><div class="ribbon launch-ribbon launch-ribbon--education"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M12 8c-2 0-3.5-1.3-3.5-3 0-1.2.9-2 2-2 1.6 0 2.8 1.5 3.5 3 0.7-1.5 1.9-3 3.5-3 1.1 0 2 .8 2 2 0 1.7-1.5 3-3.5 3"/></svg><strong>Limited time $270 launch offer</strong></div>
-<div class="segment-icon card-icon card-icon--success">E</div>
+<article class="segment-card segment-card--education" data-reveal data-delay="100"><div class="launch-ribbon launch-ribbon--education"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M3 12h18"/><path d="M12 8c-2 0-3.5-1.3-3.5-3 0-1.2.9-2 2-2 1.6 0 2.8 1.5 3.5 3 0.7-1.5 1.9-3 3.5-3 1.1 0 2 .8 2 2 0 1.7-1.5 3-3.5 3"/></svg><strong>Limited time $270 launch offer</strong></div>
+<div class="segment-icon card-icon card-icon--success"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
 <div class="segment-card__header">
 <div class="segment-card__tag">Education</div>
 <h3 class="segment-card__title">For institutions and labs</h3>
@@ -418,8 +429,8 @@
 <div class="segment-price">$600<span class="segment-price__period">/year</span></div>
 </div>
 </article>
-<article class="segment-card segment-card--business" data-reveal data-delay="200">
-<div class="segment-icon card-icon card-icon--accent">B</div>
+<article class="segment-card segment-card--business" data-reveal data-delay="200"><div class="launch-ribbon launch-ribbon--business"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><strong>Contract discounts available</strong></div>
+<div class="segment-icon card-icon card-icon--accent"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg></div>
 <div class="segment-card__header">
 <div class="segment-card__tag">Business</div>
 <h3 class="segment-card__title">For growing teams to large estates</h3>
