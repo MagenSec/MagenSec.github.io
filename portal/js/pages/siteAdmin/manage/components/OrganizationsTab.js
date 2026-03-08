@@ -13,6 +13,12 @@ const ORG_DURATION_OPTIONS = [
     { label: '3 years (1095 days)', value: 1095 }
 ];
 
+const ORG_TYPE_OPTIONS = [
+    { label: 'Business', value: 'Business', icon: 'ti-building', description: 'Full enterprise features, multiple licenses, team access' },
+    { label: 'Education', value: 'Education', icon: 'ti-school', description: 'Educational pricing, institution-wide access' },
+    { label: 'Personal', value: 'Personal', icon: 'ti-user', description: 'Individual use, limited to 5 devices' }
+];
+
 export function OrganizationsTab({ 
     orgs = [], 
     accounts = [],
@@ -41,13 +47,15 @@ export function OrganizationsTab({
     const [newOwnerEmail, setNewOwnerEmail] = useState('');
     const [newOrgSeats, setNewOrgSeats] = useState(20);
     const [newOrgDuration, setNewOrgDuration] = useState(365);
+    const [newOrgType, setNewOrgType] = useState('Business');
     const [orgOwnerSearch, setOrgOwnerSearch] = useState('');
     const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
 
     // Form state for updating org
     const [updateOrgName, setUpdateOrgName] = useState('');
+    const [updateOrgType, setUpdateOrgType] = useState('Business');
 
-    // Report configuration state (daily + weekly only — no tier concept)
+    // Report configuration state (daily + weekly only)
     const [newDailyReportEnabled, setNewDailyReportEnabled] = useState(true);
     const [newWeeklyReportEnabled, setNewWeeklyReportEnabled] = useState(false);
     const [newSendToAllMembers, setNewSendToAllMembers] = useState(false);
@@ -58,7 +66,7 @@ export function OrganizationsTab({
     const [updateSendToAllMembers, setUpdateSendToAllMembers] = useState(false);
     const [updateIsDemoOrg, setUpdateIsDemoOrg] = useState(false);
 
-    // AI context fields (B2 / C8)
+    // AI context fields
     const [updateIndustry, setUpdateIndustry] = useState('');
     const [updateOrgSize, setUpdateOrgSize] = useState('');
     const [updateNextAuditDate, setUpdateNextAuditDate] = useState('');
@@ -68,6 +76,7 @@ export function OrganizationsTab({
     const [showCreateLicense, setShowCreateLicense] = useState(false);
     const [newLicenseSeats, setNewLicenseSeats] = useState(20);
     const [newLicenseDuration, setNewLicenseDuration] = useState(365);
+    const [newLicenseType, setNewLicenseType] = useState('Business');
 
     // Email validation
     const isValidEmail = (email) => {
@@ -75,11 +84,23 @@ export function OrganizationsTab({
         return emailRegex.test(email);
     };
 
-    // Determine if org is personal (based on isPersonal flag or email pattern)
-    const isPersonalOrg = (org) => {
-        return org.isPersonal !== undefined 
-            ? org.isPersonal 
-            : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(org.orgId);
+    // Resolve org type from multiple possible fields
+    const getOrgType = (org) => {
+        if (org.orgType) return org.orgType;
+        if (org.type && ['Personal', 'Education', 'Business'].includes(org.type)) return org.type;
+        if (org.isPersonal !== undefined) return org.isPersonal ? 'Personal' : 'Business';
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(org.orgId) ? 'Personal' : 'Business';
+    };
+
+    // Determine if org is personal (based on orgType or legacy isPersonal flag)
+    const isPersonalOrg = (org) => getOrgType(org) === 'Personal';
+
+    // Org type badge config
+    const getOrgTypeBadge = (org) => {
+        const type = getOrgType(org);
+        if (type === 'Personal') return { bgClass: 'bg-info-lt text-info', icon: 'ti-user', label: 'Personal' };
+        if (type === 'Education') return { bgClass: 'bg-success-lt text-success', icon: 'ti-school', label: 'Education' };
+        return { bgClass: 'bg-primary-lt text-primary', icon: 'ti-building', label: 'Business' };
     };
 
     const getMagiCodeForOrg = (org) => {
@@ -97,10 +118,8 @@ export function OrganizationsTab({
             (org.orgId || '').toLowerCase().includes(orgSearch.toLowerCase()) ||
             (org.ownerEmail || '').toLowerCase().includes(orgSearch.toLowerCase());
         
-        const isPersonal = isPersonalOrg(org);
-        const matchesType = orgTypeFilter === 'All' || 
-                           (orgTypeFilter === 'Personal' && isPersonal) ||
-                           (orgTypeFilter === 'Business' && !isPersonal);
+        const orgType = getOrgType(org);
+        const matchesType = orgTypeFilter === 'All' || orgTypeFilter === orgType;
         return matchesSearch && matchesType;
     });
 
@@ -139,11 +158,13 @@ export function OrganizationsTab({
         setSelectedOrg(org);
         setSelectedOrgId(org.orgId);
         setUpdateOrgName(org.orgName || org.name || '');
+        setUpdateOrgType(getOrgType(org));
         setNewTransferOwner(org.ownerEmail);
         setUpdateIsDemoOrg(!!org.isDemoOrg);
         setUpdateIndustry(org.industry || '');
         setUpdateOrgSize(org.orgSize || '');
         setUpdateNextAuditDate(org.nextAuditDate || '');
+        setNewLicenseType(getOrgType(org));
         setShowDangerZone(false);
 
         // Load report config + licenses lazily
@@ -192,6 +213,7 @@ export function OrganizationsTab({
             ownerEmail: newOwnerEmail,
             seats: parseInt(newOrgSeats) || 20,
             duration: parseInt(newOrgDuration) || 365,
+            orgType: newOrgType,
             dailyReportEnabled: newDailyReportEnabled,
             weeklyReportEnabled: newWeeklyReportEnabled,
             sendToAllTeamMembers: newSendToAllMembers,
@@ -203,6 +225,7 @@ export function OrganizationsTab({
             setNewOwnerEmail('');
             setNewOrgSeats(20);
             setNewOrgDuration(365);
+            setNewOrgType('Business');
             setShowCreateForm(false);
         }
     };
@@ -216,6 +239,7 @@ export function OrganizationsTab({
         const result = await onUpdateOrg?.({
             orgId: selectedOrgId,
             orgName: updateOrgName,
+            orgType: updateOrgType,
             dailyReportEnabled: updateDailyReportEnabled,
             weeklyReportEnabled: updateWeeklyReportEnabled,
             sendToAllTeamMembers: updateSendToAllMembers,
@@ -305,13 +329,15 @@ export function OrganizationsTab({
             const res = await window.api.post('/api/v1/licenses', {
                 orgId: selectedOrgId,
                 seats: parseInt(newLicenseSeats) || 20,
-                durationDays: parseInt(newLicenseDuration) || 365
+                durationDays: parseInt(newLicenseDuration) || 365,
+                licenseType: newLicenseType
             });
             if (res?.success !== false) {
                 window.toast?.show?.('License created successfully', 'success');
                 setShowCreateLicense(false);
                 setNewLicenseSeats(20);
                 setNewLicenseDuration(365);
+                setNewLicenseType(getOrgType(selectedOrg));
                 await handleSelectOrg(selectedOrg);
             } else {
                 window.toast?.show?.(res?.message || 'Failed to create license', 'error');
@@ -438,6 +464,33 @@ export function OrganizationsTab({
                                             `)}
                                         </select>
                                     </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Organization Type <span class="text-danger">*</span></label>
+                                        <div class="d-flex gap-3 flex-wrap">
+                                            ${ORG_TYPE_OPTIONS.map(opt => html`
+                                                <div
+                                                    class=${`card flex-grow-1 cursor-pointer mb-0 ${newOrgType === opt.value ? 'border-primary' : 'border-light'}`}
+                                                    style="min-width: 150px; cursor: pointer;"
+                                                    onClick=${() => setNewOrgType(opt.value)}
+                                                >
+                                                    <div class="card-body p-2 d-flex align-items-center gap-2">
+                                                        <input
+                                                            type="radio"
+                                                            name="newOrgType"
+                                                            value=${opt.value}
+                                                            checked=${newOrgType === opt.value}
+                                                            onChange=${() => setNewOrgType(opt.value)}
+                                                            class="form-check-input mt-0 flex-shrink-0"
+                                                        />
+                                                        <div>
+                                                            <div class="fw-semibold small"><i class=${`ti ${opt.icon} me-1`}></i>${opt.label}</div>
+                                                            <div class="text-muted" style="font-size: 11px;">${opt.description}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `)}
+                                        </div>
+                                    </div>
 
                                     <!-- Report Toggles -->
                                     <div class="col-12">
@@ -501,7 +554,7 @@ export function OrganizationsTab({
                                                                 style="width: 40px; height: 20px; margin-top: 0px;"
                                                             />
                                                         </div>
-                                                        <small class="text-muted">$0 revenue</small>
+                                                        <small class="text-muted">Credits deducted · $0 revenue</small>
                                                     </div>
                                                 </div>
                                             </div>
@@ -561,6 +614,19 @@ export function OrganizationsTab({
                                     <input 
                                         type="radio" 
                                         class="btn-check" 
+                                        id="filterEducation"
+                                        name="orgTypeFilter"
+                                        value="Education"
+                                        checked=${orgTypeFilter === 'Education'}
+                                        onChange=${(e) => {
+                                            setOrgTypeFilter(e.target.value);
+                                            setVisibleCount(30);
+                                        }}
+                                    />
+                                    <label class="btn btn-outline-secondary btn-sm" for="filterEducation"><i class="ti ti-school me-1"></i>Education</label>
+                                    <input 
+                                        type="radio" 
+                                        class="btn-check" 
                                         id="filterPersonal"
                                         name="orgTypeFilter"
                                         value="Personal"
@@ -607,17 +673,19 @@ export function OrganizationsTab({
                                             <tr>
                                                 <td>
                                                     <div class="d-flex align-items-center gap-2">
-                                                        ${isPersonalOrg(org) ? html`
-                                                            <span class="badge bg-info-lt text-info" style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;">
-                                                                <i class="ti ti-user" style="font-size: 16px;"></i>
-                                                            </span>
-                                                        ` : html`
-                                                            <span class="badge bg-primary-lt text-primary" style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;">
-                                                                <i class="ti ti-building" style="font-size: 16px;"></i>
-                                                            </span>
-                                                        `}
+                                                        ${(() => {
+                                                            const badge = getOrgTypeBadge(org);
+                                                            return html`
+                                                                <span class=${`badge ${badge.bgClass}`} style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;" title=${badge.label}>
+                                                                    <i class=${`ti ${badge.icon}`} style="font-size: 16px;"></i>
+                                                                </span>
+                                                            `;
+                                                        })()}
                                                         <div>
-                                                            <div class="fw-bold">${org.orgName || org.name}</div>
+                                                            <div class="fw-bold">
+                                                                ${org.orgName || org.name}
+                                                                ${org.isDemoOrg ? html`<span class="badge bg-warning-lt text-warning ms-1" style="font-size: 10px;">Demo</span>` : ''}
+                                                            </div>
                                                             <div class="text-muted small">${org.orgId}</div>
                                                         </div>
                                                     </div>
@@ -769,14 +837,50 @@ export function OrganizationsTab({
                                                             <div class="form-check form-switch">
                                                                 <input class="form-check-input" type="checkbox" id="updateIsDemoOrg" checked=${updateIsDemoOrg} onChange=${(e) => setUpdateIsDemoOrg(e.target.checked)} style="width: 40px; height: 20px;" />
                                                             </div>
-                                                            <small class="text-muted">$0 revenue</small>
+                                                            <small class="text-muted">Credits deducted · $0 revenue</small>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <!-- AI Context (B2 / C8) -->
+                                        <!-- Organization Type -->
+                                        <div class="col-12">
+                                            <div class="card border border-light">
+                                                <div class="card-header">
+                                                    <h5 class="card-title mb-0"><i class="ti ti-tag me-2"></i>Organization Type</h5>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="d-flex gap-3 flex-wrap">
+                                                        ${ORG_TYPE_OPTIONS.map(opt => html`
+                                                            <div
+                                                                class=${`card flex-grow-1 cursor-pointer mb-0 ${updateOrgType === opt.value ? 'border-primary' : 'border-light'}`}
+                                                                style="min-width: 150px; cursor: pointer;"
+                                                                onClick=${() => setUpdateOrgType(opt.value)}
+                                                            >
+                                                                <div class="card-body p-2 d-flex align-items-center gap-2">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name="updateOrgType"
+                                                                        value=${opt.value}
+                                                                        checked=${updateOrgType === opt.value}
+                                                                        onChange=${() => setUpdateOrgType(opt.value)}
+                                                                        class="form-check-input mt-0 flex-shrink-0"
+                                                                    />
+                                                                    <div>
+                                                                        <div class="fw-semibold small"><i class=${`ti ${opt.icon} me-1`}></i>${opt.label}</div>
+                                                                        <div class="text-muted" style="font-size: 11px;">${opt.description}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        `)}
+                                                    </div>
+                                                    <small class="form-text text-muted mt-2 d-block">Changing org type affects license constraints and feature access.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- AI Context -->
                                         <div class="col-12">
                                             <div class="card border border-light">
                                                 <div class="card-header">
@@ -825,7 +929,7 @@ export function OrganizationsTab({
                                         <div class="col-12 mt-3">
                                             <div class="d-flex justify-content-between align-items-center mb-3">
                                                 <h5 class="m-0">Licenses</h5>
-                                                <button class="btn btn-sm btn-primary" onClick=${() => setShowCreateLicense(true)} disabled=${isPersonalOrg(selectedOrg)} title=${isPersonalOrg(selectedOrg) ? 'Personal orgs limited to 1 license' : 'Create license'}>
+                                                <button class="btn btn-sm btn-primary" onClick=${() => setShowCreateLicense(true)} disabled=${updateOrgType === 'Personal' && orgLicenses.length >= 1} title=${updateOrgType === 'Personal' && orgLicenses.length >= 1 ? 'Personal orgs are limited to 1 license' : 'Create license'}>
                                                     <i class="ti ti-plus me-1"></i> Create
                                                 </button>
                                             </div>
@@ -835,15 +939,23 @@ export function OrganizationsTab({
                                                     <div class="card-body">
                                                         <h6 class="card-title">New License</h6>
                                                         <div class="row g-2 align-items-end">
-                                                            <div class="col-md-4">
+                                                            <div class="col-md-3">
                                                                 <label class="form-label small">Seats</label>
                                                                 <input type="number" class="form-control form-control-sm" value=${newLicenseSeats} onInput=${(e) => setNewLicenseSeats(e.target.value)} />
                                                             </div>
-                                                            <div class="col-md-4">
+                                                            <div class="col-md-3">
                                                                 <label class="form-label small">Duration (Days)</label>
                                                                 <input type="number" class="form-control form-control-sm" value=${newLicenseDuration} onInput=${(e) => setNewLicenseDuration(e.target.value)} />
                                                             </div>
-                                                            <div class="col-md-4">
+                                                            <div class="col-md-3">
+                                                                <label class="form-label small">License Type</label>
+                                                                <select class="form-select form-select-sm" value=${newLicenseType} onChange=${(e) => setNewLicenseType(e.target.value)}>
+                                                                    ${['Business', 'Education', 'Personal', 'Demo'].map(t => html`
+                                                                        <option value=${t}>${t}</option>
+                                                                    `)}
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-3">
                                                                 <button class="btn btn-sm btn-success me-1" onClick=${handleCreateLicense}>Create</button>
                                                                 <button class="btn btn-sm btn-ghost-secondary" onClick=${() => setShowCreateLicense(false)}>Cancel</button>
                                                             </div>
@@ -860,10 +972,20 @@ export function OrganizationsTab({
                                                     <tbody>
                                                         ${orgLicenses.length > 0 ? orgLicenses.map(lic => html`
                                                             <tr>
-                                                                <td>${lic.licenseType}</td>
+                                                                <td>
+                                                                    <span class=${`badge ${
+                                                                        lic.licenseType === 'Personal' ? 'bg-info-lt text-info' :
+                                                                        lic.licenseType === 'Education' ? 'bg-success-lt text-success' :
+                                                                        lic.licenseType === 'Demo' ? 'bg-warning-lt text-warning' :
+                                                                        'bg-primary-lt text-primary'
+                                                                    }`}>${lic.licenseType || 'Business'}</span>
+                                                                </td>
                                                                 <td><div class="text-truncate" style="max-width: 150px;" title=${lic.serialKey}>${lic.serialKey}</div></td>
                                                                 <td>${lic.seats || '-'}</td>
-                                                                <td><div class="small">${lic.remainingCredits} / ${lic.totalCredits}</div></td>
+                                                                <td>
+                                                                    <div class="small">${lic.remainingCredits} / ${lic.totalCredits}</div>
+                                                                    ${lic.licenseType === 'Demo' ? html`<small class="text-warning">$0 revenue</small>` : ''}
+                                                                </td>
                                                                 <td><span class=${`badge ${lic.isDisabled ? 'bg-danger' : 'bg-success'}`}>${lic.isDisabled ? 'Disabled' : 'Active'}</span></td>
                                                                 <td class="text-muted small">${new Date(lic.createdAt).toLocaleDateString()}</td>
                                                                 <td>

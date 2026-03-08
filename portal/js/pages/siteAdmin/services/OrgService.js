@@ -47,10 +47,8 @@ export async function loadOrgDetails(api, orgId) {
         // Provide defaults
         result.emailConfig = {
             dailyReportEnabled: true,
-            weeklyEnabled: true,
-            dailySnapshotEnabled: false,
-            sendToAllTeamMembers: true,
-            weeklyReportTier: 'Professional'
+            weeklyReportEnabled: false,
+            sendToAllTeamMembers: true
         };
     }
 
@@ -114,10 +112,13 @@ export function buildOrgPayload(formData) {
         ownerEmail: formData.ownerEmail,
         seats: parseInt(formData.seats, 10),
         durationDays: parseInt(formData.duration, 10),
-        dailyReportEnabled: formData.reportEnabled,
-        weeklyEnabled: formData.weeklyEnabled,
-        dailySnapshotEnabled: formData.dailySnapshotEnabled,
+        orgType: formData.orgType || 'Business',
+        isDemoOrg: !!formData.isDemoOrg,
+        dailyReportEnabled: !!formData.dailyReportEnabled,
+        weeklyReportEnabled: !!formData.weeklyReportEnabled,
         sendToAllTeamMembers: formData.sendToAllTeamMembers,
-        weeklyReportTier: formData.businessTier
+        industry: formData.industry || null,
+        orgSize: formData.orgSize || null,
+        nextAuditDate: formData.nextAuditDate || null
     };
 }

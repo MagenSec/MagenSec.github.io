@@ -58,9 +58,12 @@ let currentParams = null;
 function applyOrgUiRestrictions() {
     const body = document.body;
     if (!body) return;
-    const isPersonal = orgContext.getCurrentOrg()?.type === 'Personal';
+    const orgType = orgContext.getCurrentOrg()?.type || 'Business';
+    const isPersonal = orgType === 'Personal';
+    const isEducation = orgType === 'Education';
     body.classList.toggle('org-personal', isPersonal);
-    body.classList.toggle('org-business', !isPersonal);
+    body.classList.toggle('org-education', isEducation);
+    body.classList.toggle('org-business', !isPersonal && !isEducation);
 
     const businessOnlyItems = document.querySelectorAll('.business-license-only');
     businessOnlyItems.forEach((item) => {

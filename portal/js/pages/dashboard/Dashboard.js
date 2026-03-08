@@ -1197,6 +1197,7 @@ export class DashboardPage extends Component {
                             deviceCount=${Number(deviceCount) || 1}
                             vulnerabilities=${{critical: Number(threatSummary.critical) || 0, high: Number(threatSummary.high) || 0}}
                             isPersonal=${!!isPersonalOrg}
+                            orgType=${currentOrg?.type || 'Business'}
                         />
                         
                         ${this.renderPostureWidget()}
