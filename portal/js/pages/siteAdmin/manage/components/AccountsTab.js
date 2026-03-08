@@ -18,6 +18,8 @@ export function AccountsTab({ accounts, showToast, onChangeUserType, onDeleteAcc
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteTargetUser, setDeleteTargetUser] = useState(null);
     const [deletingAccount, setDeletingAccount] = useState(false);
+    const [sortBy, setSortBy] = useState('lastLoginAt');
+    const [sortDir, setSortDir] = useState('desc');
 
     const [visibleCount, setVisibleCount] = useState(30);
     const loadMoreStep = 20;
@@ -25,7 +27,58 @@ export function AccountsTab({ accounts, showToast, onChangeUserType, onDeleteAcc
     const sentinelRef = useRef(null);
 
     const filteredAccounts = filterAccounts(safeAccounts, accountsSearch) || [];
-    const currentAccounts = filteredAccounts.slice(0, visibleCount);
+
+    const getDateValue = (value) => {
+        if (!value) return null;
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? null : d.getTime();
+    };
+
+    const sortedAccounts = [...filteredAccounts].sort((a, b) => {
+        const dir = sortDir === 'asc' ? 1 : -1;
+        if (sortBy === 'email') {
+            const av = String(a.email || '').toLowerCase();
+            const bv = String(b.email || '').toLowerCase();
+            if (av < bv) return -1 * dir;
+            if (av > bv) return 1 * dir;
+            return 0;
+        }
+
+        if (sortBy === 'userType') {
+            const av = String(a.userType || '').toLowerCase();
+            const bv = String(b.userType || '').toLowerCase();
+            if (av < bv) return -1 * dir;
+            if (av > bv) return 1 * dir;
+            return 0;
+        }
+
+        if (sortBy === 'createdAt') {
+            const av = getDateValue(a.createdAt) ?? 0;
+            const bv = getDateValue(b.createdAt) ?? 0;
+            return (av - bv) * dir;
+        }
+
+        const av = getDateValue(a.lastLoginAt) ?? -1;
+        const bv = getDateValue(b.lastLoginAt) ?? -1;
+        return (av - bv) * dir;
+    });
+
+    const currentAccounts = sortedAccounts.slice(0, visibleCount);
+
+    const toggleSort = (column) => {
+        if (sortBy === column) {
+            setSortDir((prev) => prev === 'asc' ? 'desc' : 'asc');
+            return;
+        }
+
+        setSortBy(column);
+        setSortDir(column === 'email' || column === 'userType' ? 'asc' : 'desc');
+    };
+
+    const getSortIcon = (column) => {
+        if (sortBy !== column) return 'ti-selector';
+        return sortDir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending';
+    };
 
     useEffect(() => {
         setVisibleCount(30);
@@ -122,7 +175,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType, onDeleteAcc
                     />
                 </div>
                 <div class="col-md-6 text-end text-muted align-self-center">
-                    <small>${filteredAccounts.length} of ${safeAccounts.length} accounts</small>
+                    <small>${sortedAccounts.length} of ${safeAccounts.length} accounts</small>
                 </div>
             </div>
 
@@ -136,11 +189,11 @@ export function AccountsTab({ accounts, showToast, onChangeUserType, onDeleteAcc
                     <table class="table table-sm table-hover">
                         <thead>
                             <tr>
-                                <th>Email</th>
-                                <th>User Type</th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('email')}>Email <i class=${`ti ${getSortIcon('email')} ms-1 text-muted`}></i></th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('userType')}>User Type <i class=${`ti ${getSortIcon('userType')} ms-1 text-muted`}></i></th>
                                 <th>MAGICode</th>
-                                <th>Created</th>
-                                <th>Last Login</th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('createdAt')}>Created <i class=${`ti ${getSortIcon('createdAt')} ms-1 text-muted`}></i></th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('lastLoginAt')}>Last Login <i class=${`ti ${getSortIcon('lastLoginAt')} ms-1 text-muted`}></i></th>
                                 <th class="text-center">Actions</th>
                             </tr>
                         </thead>
@@ -148,7 +201,11 @@ export function AccountsTab({ accounts, showToast, onChangeUserType, onDeleteAcc
                             ${currentAccounts.map(acc => html`
                                 <tr>
                                     <td><span class="fw-semibold">${acc.email}</span></td>
-                                    <td><span class="badge bg-primary-lt text-primary text-uppercase">${acc.userType === 'SiteAdmin' ? 'SITEADMIN' : 'ENDUSER'}</span></td>
+                                    <td>
+                                        <span class=${`badge text-uppercase ${acc.userType === 'SiteAdmin' ? 'bg-danger text-white' : 'bg-info-lt text-info'}`}>
+                                            ${acc.userType === 'SiteAdmin' ? 'SITEADMIN' : 'ENDUSER'}
+                                        </span>
+                                    </td>
                                     <td>
                                         ${acc.magiCodeUsed || acc.MagiCodeUsed
                                             ? html`<span class="badge bg-success text-white" title=${acc.magiCodeUsed || acc.MagiCodeUsed}>${acc.magiCodeUsed || acc.MagiCodeUsed}</span>`
@@ -186,7 +243,7 @@ export function AccountsTab({ accounts, showToast, onChangeUserType, onDeleteAcc
                             `)}
                         </tbody>
                     </table>
-                    <div ref=${sentinelRef} class="py-2 text-center text-muted small">${visibleCount < filteredAccounts.length ? 'Loading more…' : 'End of list'}</div>
+                    <div ref=${sentinelRef} class="py-2 text-center text-muted small">${visibleCount < sortedAccounts.length ? 'Loading more…' : 'End of list'}</div>
                 </div>
             `}
 

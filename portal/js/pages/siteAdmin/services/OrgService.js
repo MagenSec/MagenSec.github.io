@@ -28,7 +28,7 @@ export async function loadOrgDetails(api, orgId) {
 
     // Load licenses
     try {
-        const res = await api.get(`/api/v1/licenses/org/${orgId}`);
+        const res = await api.get('/api/v1/licenses/action', { operation: 'list', orgId });
         if (res.success) {
             result.licenses = res.data || [];
         }

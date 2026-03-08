@@ -345,27 +345,27 @@ export class ApiClient {
 
     // === LICENSES ===
     async getLicenses(orgId) {
-        return this.get(`/api/v1/orgs/${orgId}/licenses`);
+        return this.get('/api/v1/licenses/action', { operation: 'list', orgId });
     }
 
-    async getLicense(licenseId) {
-        return this.get(`/api/v1/licenses/${licenseId}`);
+    async getLicense(licenseId, orgId) {
+        return this.get('/api/v1/licenses/action', { operation: 'get', orgId, licenseId });
     }
 
-    async createLicense(data) {
-        return this.post('/api/v1/licenses', data);
+    async createLicense(data, operation = 'create-new') {
+        return this.post('/api/v1/licenses/action', { operation, ...data });
     }
 
-    async rotateLicense(licenseId) {
-        return this.put(`/api/v1/licenses/${licenseId}/rotate`);
+    async rotateLicense(licenseId, orgId) {
+        return this.post('/api/v1/licenses/action', { operation: 'rotate', licenseId, orgId });
     }
 
     async toggleLicense(licenseId, orgId, enabled) {
-        return this.put(`/api/v1/licenses/${licenseId}/state`, { orgId, active: enabled });
+        return this.post('/api/v1/licenses/action', { operation: 'state', licenseId, orgId, active: enabled });
     }
 
-    async deleteLicense(licenseId) {
-        return this.delete(`/api/v1/licenses/${licenseId}`);
+    async deleteLicense(licenseId, orgId) {
+        return this.post('/api/v1/licenses/action', { operation: 'delete', licenseId, orgId });
     }
 
     async adjustLicense(licenseId, { seats, totalCredits, forceAdjust = false, reason }) {

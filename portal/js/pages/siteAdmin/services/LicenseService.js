@@ -12,7 +12,8 @@ export const LICENSE_TYPES = ['Personal', 'Education', 'Business', 'Demo'];
  * Create a new license for an organization
  */
 export async function createLicense(api, orgId, seats, durationDays, licenseType) {
-    return await api.post('/api/v1/licenses', {
+    return await api.post('/api/v1/licenses/action', {
+        operation: 'create-new',
         orgId,
         seats: parseInt(seats),
         durationDays: parseInt(durationDays),
@@ -24,15 +25,23 @@ export async function createLicense(api, orgId, seats, durationDays, licenseType
  * Toggle license enabled/disabled status
  */
 export async function toggleLicenseStatus(api, licenseId, orgId, isCurrentlyDisabled) {
-    return await api.put(`/api/v1/licenses/${licenseId}/state`, { orgId, active: isCurrentlyDisabled });
+    return await api.post('/api/v1/licenses/action', {
+        operation: 'state',
+        licenseId,
+        orgId,
+        active: isCurrentlyDisabled
+    });
 }
 
 /**
  * Delete a license
  */
 export async function deleteLicense(api, licenseId, orgId) {
-    const query = orgId ? `?orgId=${encodeURIComponent(orgId)}` : '';
-    return await api.delete(`/api/v1/licenses/${licenseId}${query}`);
+    return await api.post('/api/v1/licenses/action', {
+        operation: 'delete',
+        licenseId,
+        orgId
+    });
 }
 
 /**

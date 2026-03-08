@@ -45,7 +45,9 @@ export class ManagePage extends Component {
             activeTab: 'organizations', // 'organizations', 'accounts', 'magi-codes', 'admin-actions', 'platform-settings'
             loading: true,
             orgs: [],
+            orgsRefreshKey: 0,
             accounts: [],
+            licenseCatalog: null,
             platformSettings: {
                 whatsappDailyEnabled: false,
                 aiExecutiveSummaryEnabled: false,
@@ -58,6 +60,49 @@ export class ManagePage extends Component {
 
     async componentDidMount() {
         await this.loadData();
+    }
+
+    listOrganizations = async ({
+        includeDisabled = true,
+        orgType = 'All',
+        search = '',
+        orgIds = [],
+        includeLicenses = true,
+        activeOnlyLicenses = true,
+        page = 1,
+        pageSize = 50,
+        sortBy = 'CreatedAt',
+        sortOrder = 'desc'
+    } = {}) => {
+        try {
+            const params = new URLSearchParams();
+            params.set('includeDisabled', includeDisabled ? 'true' : 'false');
+            params.set('orgType', orgType || 'All');
+            params.set('includeLicenses', includeLicenses ? 'true' : 'false');
+            params.set('activeOnlyLicenses', activeOnlyLicenses ? 'true' : 'false');
+            params.set('page', String(page || 1));
+            params.set('pageSize', String(pageSize || 50));
+            params.set('sortBy', sortBy || 'CreatedAt');
+            params.set('sortOrder', sortOrder || 'desc');
+
+            if (typeof search === 'string' && search.trim().length > 0) {
+                params.set('search', search.trim());
+            }
+
+            if (Array.isArray(orgIds) && orgIds.length > 0) {
+                params.set('orgIds', orgIds.join(','));
+            }
+
+            const response = await window.api.get(`/api/v1/admin/orgs?${params.toString()}`);
+            if (response?.success === false) {
+                return { success: false, message: response?.message || 'Failed to list organizations' };
+            }
+
+            return { success: true, data: response?.data || {} };
+        } catch (err) {
+            console.error('[ManagePage] listOrganizations failed', err);
+            return { success: false, message: err?.message || 'Failed to list organizations' };
+        }
     }
 
     changeUserType = async (userId, newUserType) => {
@@ -106,10 +151,18 @@ export class ManagePage extends Component {
                     seats: data.seats,
                     durationDays: data.duration,
                     orgType: data.orgType || 'Business',
+                    licenseType: data.licenseType,
+                    licenseTier: data.licenseTier,
+                    licenseAddOns: data.licenseAddOns,
+                    discountType: data.discountType,
+                    discountValue: data.discountValue,
                     isDemoOrg: !!data.isDemoOrg,
                     dailyReportEnabled: !!data.dailyReportEnabled,
                     weeklyReportEnabled: !!data.weeklyReportEnabled,
-                    sendToAllTeamMembers: data.sendToAllTeamMembers
+                    sendToAllTeamMembers: data.sendToAllTeamMembers,
+                    industry: data.industry,
+                    orgSize: data.orgSize,
+                    nextAuditDate: data.nextAuditDate
                 })
             });
             
@@ -232,19 +285,22 @@ export class ManagePage extends Component {
         try {
             this.setState({ loading: true });
             
-            const [orgsRes, accountsRes] = await Promise.all([
+            const [orgsRes, accountsRes, catalogRes] = await Promise.all([
                 window.api.get('/api/v1/admin/orgs'),
-                window.api.get('/api/v1/admin/accounts')
+                window.api.get('/api/v1/admin/accounts'),
+                window.api.get('/api/v1/admin/orgs/license-catalog')
             ]);
 
             const orgsData = firstArrayOf(orgsRes, ['data', 'items', 'orgs', 'organizations']);
             const accountsData = firstArrayOf(accountsRes, ['data', 'items', 'accounts']);
 
-            this.setState({
+            this.setState((prev) => ({
                 loading: false,
                 orgs: orgsData,
-                accounts: accountsData
-            });
+                orgsRefreshKey: prev.orgsRefreshKey + 1,
+                accounts: accountsData,
+                licenseCatalog: catalogRes?.data || null
+            }));
         } catch (error) {
             console.error('Failed to load data:', error);
             this.setState({ loading: false });
@@ -334,7 +390,7 @@ export class ManagePage extends Component {
     }
 
     render() {
-        const { activeTab, loading, orgs, accounts, platformSettings, platformLoading, platformSaving } = this.state;
+        const { activeTab, loading, orgs, orgsRefreshKey, accounts, licenseCatalog, platformSettings, platformLoading, platformSaving } = this.state;
 
         return html`
             <div class="container-xl">
@@ -410,6 +466,9 @@ export class ManagePage extends Component {
                     ${activeTab === 'organizations' && html`<${OrganizationsTab} 
                         orgs=${orgs} 
                         accounts=${accounts}
+                        licenseCatalog=${licenseCatalog}
+                        refreshKey=${orgsRefreshKey}
+                        onListOrgs=${this.listOrganizations}
                         onRefresh=${() => this.loadData()}
                         onCreateOrg=${this.createOrg}
                         onUpdateOrg=${this.updateOrg}
@@ -503,6 +562,17 @@ export class ManagePage extends Component {
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="mt-4 pt-3 border-top">
+                                        <h4 class="mb-2">Org License Catalog (JSON)</h4>
+                                        <div class="text-muted small mb-2">
+                                            View current effective catalog (loaded from Metadata override if present, otherwise fallback JSON file).
+                                        </div>
+                                        <pre
+                                            class="form-control"
+                                            style="font-family: Consolas, 'Courier New', monospace; white-space: pre-wrap; max-height: 360px; overflow: auto;"
+                                        >${JSON.stringify(licenseCatalog || {}, null, 2)}</pre>
+                                    </div>
+
                                     <div class="mt-4 pt-3 border-top">
                                         <h4 class="mb-2">WhatsApp AI Chat</h4>
                                         <div class="text-muted small">

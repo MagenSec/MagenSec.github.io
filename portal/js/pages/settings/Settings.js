@@ -160,7 +160,7 @@ export function SettingsPage() {
             const batch2Keys = [];
 
             if (!isPersonalType) {
-                batch2Calls.push(api.get(`/api/v1/licenses/org/${currentOrgId}`));
+                batch2Calls.push(api.get('/api/v1/licenses/action', { operation: 'list', orgId: currentOrgId }));
                 batch2Keys.push('licenses');
                 batch2Calls.push(api.get(`/api/v1/orgs/${currentOrgId}/members`));
                 batch2Keys.push('members');
@@ -233,7 +233,11 @@ export function SettingsPage() {
 
         try {
             const currentOrg = orgContext.getCurrentOrg();
-            const res = await api.put(`/api/v1/licenses/${licenseId}/rotate`, { orgId: currentOrg?.orgId });
+            const res = await api.post('/api/v1/licenses/action', {
+                operation: 'rotate',
+                orgId: currentOrg?.orgId,
+                licenseId
+            });
             
             if (res.success) {
                 showToast('License rotated successfully', 'success');

@@ -13,26 +13,227 @@ const ORG_DURATION_OPTIONS = [
     { label: '3 years (1095 days)', value: 1095 }
 ];
 
-const ORG_TYPE_OPTIONS = [
-    { label: 'Business', value: 'Business', icon: 'ti-building', description: 'Full enterprise features, multiple licenses, team access' },
-    { label: 'Education', value: 'Education', icon: 'ti-school', description: 'Educational pricing, institution-wide access' },
-    { label: 'Personal', value: 'Personal', icon: 'ti-user', description: 'Individual use, limited to 5 devices' }
-];
+const DEFAULT_LICENSE_CATALOG = {
+    orgTypes: [
+        { label: 'Business', value: 'Business', icon: 'ti-building', description: 'Full enterprise features, multiple licenses, team access' },
+        { label: 'Education', value: 'Education', icon: 'ti-school', description: 'Educational pricing, institution-wide access' },
+        { label: 'Personal', value: 'Personal', icon: 'ti-user', description: 'Individual use, limited to 5 devices' }
+    ],
+    tiersByOrgType: {
+        Business: [
+            { label: 'Startup (10 devices)', value: 'Startup', defaultSeats: 10 },
+            { label: 'Growth (25 devices)', value: 'Growth', defaultSeats: 25 },
+            { label: 'Scale (50 devices)', value: 'Scale', defaultSeats: 50 },
+            { label: 'Custom', value: 'Custom', defaultSeats: 20 }
+        ],
+        Education: [
+            { label: 'School Lab (25 devices)', value: 'SchoolLab', defaultSeats: 25 },
+            { label: 'Custom', value: 'Custom', defaultSeats: 20 }
+        ],
+        Personal: [
+            { label: 'Individual (5 devices)', value: 'Individual', defaultSeats: 5 }
+        ]
+    },
+    demoTier: {
+        enabledForOrgTypes: ['Business', 'Education'],
+        label: 'Demo (10 devices)',
+        value: 'Demo',
+        defaultSeats: 10,
+        allowCustomSeats: true,
+        minSeats: 1,
+        maxSeats: 500
+    },
+    addOns: [
+        { key: 'Security', label: 'Security', description: 'Core protection controls', requiredForAll: true, includedByDefaultForDemo: true, lockedForDemo: true },
+        { key: 'Compliance', label: 'Compliance', description: 'Compliance reporting and tracking', requiredForAll: false, includedByDefaultForDemo: true, lockedForDemo: true },
+        { key: 'ThreatIntel', label: 'Threat Intelligence', description: 'Threat intel enrichment and scoring', requiredForAll: false, includedByDefaultForDemo: true, lockedForDemo: true },
+        { key: 'ExecutiveReports', label: 'Executive Reports', description: 'Board-ready summaries and briefings', requiredForAll: false, includedByDefaultForDemo: true, lockedForDemo: true },
+        { key: 'Automation', label: 'Automation', description: 'Automated remediation workflows', requiredForAll: false, includedByDefaultForDemo: true, lockedForDemo: true }
+    ]
+};
+
+function resolveLicenseCatalog(catalog) {
+    if (!catalog || typeof catalog !== 'object') {
+        return DEFAULT_LICENSE_CATALOG;
+    }
+
+    return {
+        orgTypes: Array.isArray(catalog.orgTypes) && catalog.orgTypes.length ? catalog.orgTypes : DEFAULT_LICENSE_CATALOG.orgTypes,
+        tiersByOrgType: catalog.tiersByOrgType && typeof catalog.tiersByOrgType === 'object' ? catalog.tiersByOrgType : DEFAULT_LICENSE_CATALOG.tiersByOrgType,
+        demoTier: catalog.demoTier && typeof catalog.demoTier === 'object' ? catalog.demoTier : DEFAULT_LICENSE_CATALOG.demoTier,
+        addOns: Array.isArray(catalog.addOns) && catalog.addOns.length ? catalog.addOns : DEFAULT_LICENSE_CATALOG.addOns
+    };
+}
+
+function isDemoAllowedForOrgType(orgType, catalog) {
+    const enabled = catalog.demoTier?.enabledForOrgTypes;
+    return Array.isArray(enabled) && enabled.includes(orgType);
+}
+
+function getTierOptionsForOrgType(orgType, catalog) {
+    const tierCatalog = catalog.tiersByOrgType || {};
+    const fallback = tierCatalog.Business || DEFAULT_LICENSE_CATALOG.tiersByOrgType.Business;
+    const baseOptions = Array.isArray(tierCatalog[orgType]) && tierCatalog[orgType].length ? tierCatalog[orgType] : fallback;
+
+    if (!isDemoAllowedForOrgType(orgType, catalog)) {
+        return [...baseOptions];
+    }
+
+    const demoTier = catalog.demoTier || DEFAULT_LICENSE_CATALOG.demoTier;
+    return [...baseOptions, {
+        label: demoTier.label || 'Demo',
+        value: demoTier.value || 'Demo',
+        defaultSeats: Number.isFinite(demoTier.defaultSeats) ? demoTier.defaultSeats : 10
+    }];
+}
+
+function getLicenseTierConfig(orgType, tier, catalog) {
+    const options = getTierOptionsForOrgType(orgType, catalog);
+    return options.find((opt) => opt.value === tier) || options[0];
+}
+
+function normalizeCustomAddOns(addOns = [], isDemo = false, catalog = DEFAULT_LICENSE_CATALOG) {
+    const addOnCatalog = Array.isArray(catalog.addOns) ? catalog.addOns : DEFAULT_LICENSE_CATALOG.addOns;
+    if (isDemo) {
+        return addOnCatalog
+            .filter((x) => x.includedByDefaultForDemo !== false)
+            .map((x) => x.key);
+    }
+
+    const normalized = new Set(Array.isArray(addOns) ? addOns : []);
+    addOnCatalog
+        .filter((x) => x.requiredForAll)
+        .forEach((x) => normalized.add(x.key));
+    return Array.from(normalized);
+}
+
+function buildLicensePayload({ orgType, tier, seats, duration, addOns, catalog }) {
+    const config = getLicenseTierConfig(orgType, tier, catalog);
+    const demoTierValue = catalog.demoTier?.value || 'Demo';
+    const isCustom = tier === 'Custom';
+    const isDemo = tier === demoTierValue && isDemoAllowedForOrgType(orgType, catalog);
+    const effectiveSeats = isCustom ? (parseInt(seats, 10) || config.defaultSeats) : config.defaultSeats;
+    const effectiveDuration = parseInt(duration, 10) || 365;
+    const licenseType = isDemo ? 'Demo' : orgType;
+    const demoDefaultSeats = Number.isFinite(catalog.demoTier?.defaultSeats) ? catalog.demoTier.defaultSeats : 10;
+    const demoAllowCustomSeats = !!catalog.demoTier?.allowCustomSeats;
+
+    return {
+        licenseType,
+        licenseTier: tier,
+        seats: isDemo ? (demoAllowCustomSeats ? Math.max(1, parseInt(seats, 10) || demoDefaultSeats) : demoDefaultSeats) : effectiveSeats,
+        durationDays: effectiveDuration,
+        addOns: normalizeCustomAddOns(addOns, isDemo, catalog),
+        isCustom,
+        isDemo
+    };
+}
+
+function normalizeDiscountValue(value) {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function calculateInvoicePreview({ orgType, tier, seats, duration, discountType, discountValue, catalog }) {
+    const config = getLicenseTierConfig(orgType, tier, catalog) || {};
+    const demoTierValue = catalog.demoTier?.value || 'Demo';
+    const isDemo = tier === demoTierValue && isDemoAllowedForOrgType(orgType, catalog);
+    const bundlePricing = config.bundlePricing || null;
+    const effectiveSeats = Math.max(1, parseInt(seats, 10) || config.defaultSeats || 1);
+    const effectiveDuration = Math.max(1, parseInt(duration, 10) || 365);
+    const currency = bundlePricing?.currency || 'USD';
+
+    let baseAmount = 0;
+    let pricingMode = 'fallback:seatsxdays';
+    if (isDemo) {
+        baseAmount = 0;
+        pricingMode = 'demo';
+    } else if (bundlePricing?.mode === 'perSeat') {
+        baseAmount = Math.max(0, (Number(bundlePricing.amount) || 0) * effectiveSeats);
+        pricingMode = 'perSeat';
+    } else if (bundlePricing?.mode === 'flat') {
+        baseAmount = Math.max(0, Number(bundlePricing.amount) || 0);
+        pricingMode = 'flat';
+    } else {
+        baseAmount = Math.max(0, effectiveSeats * effectiveDuration);
+    }
+
+    const explicitType = (discountType || 'none').toLowerCase();
+    const explicitValue = normalizeDiscountValue(discountValue);
+    const tierDefault = config.defaultInvoiceDiscount || null;
+
+    let appliedType = 'none';
+    let appliedValue = 0;
+    if (explicitType !== 'none' && explicitValue > 0) {
+        appliedType = explicitType;
+        appliedValue = explicitValue;
+    } else if (tierDefault && typeof tierDefault === 'object') {
+        const mode = String(tierDefault.mode || '').toLowerCase();
+        const val = normalizeDiscountValue(tierDefault.value);
+        if ((mode === 'percent' || mode === 'fixed' || mode === 'targetfinal') && val > 0) {
+            appliedType = mode;
+            appliedValue = val;
+        }
+    }
+
+    let discountAmount = 0;
+    if (appliedType === 'percent') {
+        const capped = Math.min(100, Math.max(0, appliedValue));
+        discountAmount = (baseAmount * capped) / 100;
+        appliedValue = capped;
+    } else if (appliedType === 'fixed') {
+        discountAmount = appliedValue;
+    } else if (appliedType === 'targetfinal') {
+        discountAmount = Math.max(0, baseAmount - appliedValue);
+    }
+
+    discountAmount = Math.min(baseAmount, Math.max(0, Number(discountAmount) || 0));
+    const finalAmount = Math.max(0, baseAmount - discountAmount);
+
+    return {
+        currency,
+        baseAmount,
+        discountAmount,
+        finalAmount,
+        discountType: appliedType,
+        discountValue: appliedValue,
+        pricingMode,
+        effectiveSeats,
+        effectiveDuration
+    };
+}
 
 export function OrganizationsTab({ 
     orgs = [], 
     accounts = [],
+    licenseCatalog = null,
+    refreshKey = 0,
+    onListOrgs,
     onCreateOrg,
     onUpdateOrg,
     onToggleOrgStatus,
     onDeleteOrg,
     onTransferOwnership
 }) {
+    const licenseUxCatalog = resolveLicenseCatalog(licenseCatalog);
+    const orgTypeOptions = licenseUxCatalog.orgTypes || DEFAULT_LICENSE_CATALOG.orgTypes;
+    const addOnCatalog = licenseUxCatalog.addOns || DEFAULT_LICENSE_CATALOG.addOns;
+    const demoTierValue = licenseUxCatalog.demoTier?.value || 'Demo';
+
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [showOrgList, setShowOrgList] = useState(false);
     const [visibleCount, setVisibleCount] = useState(30);
     const loadMoreStep = 20;
     const [orgSearch, setOrgSearch] = useState('');
-    const [orgTypeFilter, setOrgTypeFilter] = useState('All');
+    const [debouncedOrgSearch, setDebouncedOrgSearch] = useState('');
+    const [orgIdsFilter, setOrgIdsFilter] = useState('');
+    const [orgTypeFilter, setOrgTypeFilter] = useState('Business');
+    const [orgListLoading, setOrgListLoading] = useState(false);
+    const [orgListError, setOrgListError] = useState('');
+    const [serverOrgs, setServerOrgs] = useState([]);
+    const [serverPage, setServerPage] = useState(1);
+    const [serverHasMore, setServerHasMore] = useState(false);
+    const [serverTotalCount, setServerTotalCount] = useState(0);
     const [selectedOrgId, setSelectedOrgId] = useState('');
     const [selectedOrg, setSelectedOrg] = useState(null);
     const [showTransferOwner, setShowTransferOwner] = useState(false);
@@ -48,6 +249,14 @@ export function OrganizationsTab({
     const [newOrgSeats, setNewOrgSeats] = useState(20);
     const [newOrgDuration, setNewOrgDuration] = useState(365);
     const [newOrgType, setNewOrgType] = useState('Business');
+    const [newOrgLicenseTier, setNewOrgLicenseTier] = useState('Startup');
+    const [newOrgLicenseAddOns, setNewOrgLicenseAddOns] = useState(['Security']);
+    const [newOrgDiscountType, setNewOrgDiscountType] = useState('none');
+    const [newOrgDiscountValue, setNewOrgDiscountValue] = useState(0);
+    const [newIndustry, setNewIndustry] = useState('');
+    const [newOrgSize, setNewOrgSize] = useState('');
+    const [newNextAuditDate, setNewNextAuditDate] = useState('');
+    const [showCreateAiContext, setShowCreateAiContext] = useState(false);
     const [orgOwnerSearch, setOrgOwnerSearch] = useState('');
     const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
 
@@ -59,12 +268,10 @@ export function OrganizationsTab({
     const [newDailyReportEnabled, setNewDailyReportEnabled] = useState(true);
     const [newWeeklyReportEnabled, setNewWeeklyReportEnabled] = useState(false);
     const [newSendToAllMembers, setNewSendToAllMembers] = useState(false);
-    const [newIsDemoOrg, setNewIsDemoOrg] = useState(false);
 
     const [updateDailyReportEnabled, setUpdateDailyReportEnabled] = useState(true);
     const [updateWeeklyReportEnabled, setUpdateWeeklyReportEnabled] = useState(false);
     const [updateSendToAllMembers, setUpdateSendToAllMembers] = useState(false);
-    const [updateIsDemoOrg, setUpdateIsDemoOrg] = useState(false);
 
     // AI context fields
     const [updateIndustry, setUpdateIndustry] = useState('');
@@ -76,7 +283,31 @@ export function OrganizationsTab({
     const [showCreateLicense, setShowCreateLicense] = useState(false);
     const [newLicenseSeats, setNewLicenseSeats] = useState(20);
     const [newLicenseDuration, setNewLicenseDuration] = useState(365);
-    const [newLicenseType, setNewLicenseType] = useState('Business');
+    const [newLicenseTier, setNewLicenseTier] = useState('Startup');
+    const [newLicenseAddOns, setNewLicenseAddOns] = useState(['Security']);
+    const [newLicenseDiscountType, setNewLicenseDiscountType] = useState('none');
+    const [newLicenseDiscountValue, setNewLicenseDiscountValue] = useState(0);
+    const [orgPayments, setOrgPayments] = useState([]);
+
+    const createOrgInvoicePreview = calculateInvoicePreview({
+        orgType: newOrgType,
+        tier: newOrgLicenseTier,
+        seats: newOrgSeats,
+        duration: newOrgDuration,
+        discountType: newOrgDiscountType,
+        discountValue: newOrgDiscountValue,
+        catalog: licenseUxCatalog
+    });
+
+    const createLicenseInvoicePreview = calculateInvoicePreview({
+        orgType: updateOrgType || getOrgType(selectedOrg || {}),
+        tier: newLicenseTier,
+        seats: newLicenseSeats,
+        duration: newLicenseDuration,
+        discountType: newLicenseDiscountType,
+        discountValue: newLicenseDiscountValue,
+        catalog: licenseUxCatalog
+    });
 
     // Email validation
     const isValidEmail = (email) => {
@@ -111,8 +342,78 @@ export function OrganizationsTab({
         return account?.magiCodeUsed || account?.MagiCodeUsed || null;
     };
 
+    const getOrgName = (org) => org?.orgName || org?.name || org?.OrgName || org?.OrgId || org?.orgId || '-';
+    const getOwnerEmail = (org) => org?.ownerEmail || org?.OwnerEmail || '-';
+    const getOrgId = (org) => org?.orgId || org?.OrgId || '-';
+    const getCreatedAt = (org) => org?.createdAt || org?.CreatedAt || null;
+    const isOrgDisabled = (org) => {
+        if (typeof org?.isDisabled === 'boolean') return org.isDisabled;
+        if (typeof org?.IsDisabled === 'boolean') return org.IsDisabled;
+        if (typeof org?.isEnabled === 'boolean') return !org.isEnabled;
+        if (typeof org?.IsEnabled === 'boolean') return !org.IsEnabled;
+        return false;
+    };
+    const getCreditSnapshot = (org) => {
+        const remaining = Number(org?.remainingCredits ?? org?.RemainingCredits ?? 0);
+        const total = Number(org?.totalCredits ?? org?.TotalCredits ?? 0);
+        const hasSnapshot = total > 0 || remaining > 0;
+        const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
+        return { remaining, total, hasSnapshot, pct };
+    };
+
+    const isServerListMode = typeof onListOrgs === 'function';
+
+    const parseOrgIdsFilter = () => orgIdsFilter
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => x.length > 0);
+
+    const fetchOrgPage = async (page, append = false) => {
+        if (!isServerListMode) return;
+
+        setOrgListLoading(true);
+        setOrgListError('');
+        try {
+            const orgIds = parseOrgIdsFilter();
+            const response = await onListOrgs({
+                orgType: orgTypeFilter,
+                search: debouncedOrgSearch,
+                orgIds,
+                page,
+                pageSize: 50,
+                includeDisabled: true,
+                sortBy: 'CreatedAt',
+                sortOrder: 'desc'
+            });
+
+            if (!response?.success) {
+                const message = response?.message || 'Failed to load organizations';
+                setOrgListError(message);
+                return;
+            }
+
+            const items = Array.isArray(response.data?.items) ? response.data.items : [];
+            setServerOrgs((prev) => append ? [...prev, ...items] : items);
+            setServerPage(page);
+            setServerHasMore(!!response.data?.hasMore);
+            setServerTotalCount(Number(response.data?.totalCount || items.length));
+        } catch (err) {
+            console.error('[OrganizationsTab] Failed to query organizations', err);
+            setOrgListError(err?.message || 'Failed to load organizations');
+        } finally {
+            setOrgListLoading(false);
+        }
+    };
+
     // Filter organizations
-    const filteredOrgs = orgs.filter(org => {
+    const sourceOrgs = isServerListMode ? serverOrgs : orgs;
+
+    const filteredOrgs = sourceOrgs.filter(org => {
+        if (isServerListMode) {
+            // Server already applies orgType/search/orgIds filtering in this mode.
+            return true;
+        }
+
         const matchesSearch = !orgSearch || 
             (org.orgName || org.name || '').toLowerCase().includes(orgSearch.toLowerCase()) ||
             (org.orgId || '').toLowerCase().includes(orgSearch.toLowerCase()) ||
@@ -123,15 +424,37 @@ export function OrganizationsTab({
         return matchesSearch && matchesType;
     });
 
-    const currentOrgs = filteredOrgs.slice(0, visibleCount);
+    const currentOrgs = isServerListMode ? filteredOrgs : filteredOrgs.slice(0, visibleCount);
 
     const listContainerRef = useRef(null);
     const sentinelRef = useRef(null);
 
-    // Reset visible count when filters change
+    // Reset visible count when filters change (local mode only)
     useEffect(() => {
-        setVisibleCount(30);
-    }, [orgSearch, orgTypeFilter, orgs]);
+        if (!isServerListMode) {
+            setVisibleCount(30);
+        }
+    }, [orgSearch, orgTypeFilter, orgs, isServerListMode]);
+
+    // Debounce search input for server list mode to avoid one API call per keystroke.
+    useEffect(() => {
+        if (!isServerListMode) {
+            setDebouncedOrgSearch(orgSearch);
+            return;
+        }
+
+        const handle = setTimeout(() => {
+            setDebouncedOrgSearch(orgSearch);
+        }, 250);
+
+        return () => clearTimeout(handle);
+    }, [orgSearch, isServerListMode]);
+
+    // Server query load on filter changes or external refresh.
+    useEffect(() => {
+        if (!isServerListMode || !showOrgList) return;
+        fetchOrgPage(1, false);
+    }, [isServerListMode, showOrgList, orgTypeFilter, orgIdsFilter, debouncedOrgSearch, refreshKey]);
 
     // Infinite scroll via intersection observer
     useEffect(() => {
@@ -140,8 +463,18 @@ export function OrganizationsTab({
 
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                if (entry.isIntersecting && visibleCount < filteredOrgs.length) {
-                    setVisibleCount(prev => Math.min(prev + loadMoreStep, filteredOrgs.length));
+                const shouldLoad = isServerListMode
+                    ? serverHasMore
+                    : (visibleCount < filteredOrgs.length);
+
+                if (entry.isIntersecting && shouldLoad) {
+                    if (isServerListMode) {
+                        if (!orgListLoading && serverHasMore) {
+                            fetchOrgPage(serverPage + 1, true);
+                        }
+                    } else {
+                        setVisibleCount(prev => Math.min(prev + loadMoreStep, filteredOrgs.length));
+                    }
                 }
             });
         }, {
@@ -152,7 +485,7 @@ export function OrganizationsTab({
 
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [filteredOrgs.length, visibleCount]);
+    }, [filteredOrgs.length, visibleCount, isServerListMode, orgListLoading, serverHasMore, serverPage]);
 
     const handleSelectOrg = async (org) => {
         setSelectedOrg(org);
@@ -160,11 +493,13 @@ export function OrganizationsTab({
         setUpdateOrgName(org.orgName || org.name || '');
         setUpdateOrgType(getOrgType(org));
         setNewTransferOwner(org.ownerEmail);
-        setUpdateIsDemoOrg(!!org.isDemoOrg);
         setUpdateIndustry(org.industry || '');
         setUpdateOrgSize(org.orgSize || '');
         setUpdateNextAuditDate(org.nextAuditDate || '');
-        setNewLicenseType(getOrgType(org));
+        const orgType = getOrgType(org);
+        const defaultTier = getTierOptionsForOrgType(orgType, licenseUxCatalog)[0]?.value || 'Startup';
+        setNewLicenseTier(defaultTier);
+        setNewLicenseSeats(getLicenseTierConfig(orgType, defaultTier, licenseUxCatalog).defaultSeats);
         setShowDangerZone(false);
 
         // Load report config + licenses lazily
@@ -181,7 +516,7 @@ export function OrganizationsTab({
         }
 
         try {
-            const licRes = await window.api.get(`/api/v1/licenses/org/${org.orgId}`);
+            const licRes = await window.api.get(`/api/v1/licenses/action?operation=list&orgId=${encodeURIComponent(org.orgId)}`);
             if (licRes?.success !== false) {
                 const licenses = licRes.data || licRes?.Data || [];
                 setOrgLicenses(Array.isArray(licenses) ? licenses : []);
@@ -189,6 +524,18 @@ export function OrganizationsTab({
         } catch (err) {
             console.error('[OrganizationsTab] Failed to load licenses', err);
             setOrgLicenses([]);
+        }
+
+        try {
+            const paymentsRes = await window.api.get(`/api/v1/orgs/${org.orgId}/payments`);
+            if (paymentsRes?.success !== false) {
+                const payments = paymentsRes.data || [];
+                setOrgPayments(Array.isArray(payments) ? payments : []);
+            }
+        } catch (err) {
+            console.error('[OrganizationsTab] Failed to load payments', err);
+            window.toast?.show?.(err?.message || 'Failed to load payment requests', 'warning');
+            setOrgPayments([]);
         }
     };
 
@@ -208,16 +555,33 @@ export function OrganizationsTab({
             return;
         }
 
+        const licensePayload = buildLicensePayload({
+            orgType: newOrgType,
+            tier: newOrgLicenseTier,
+            seats: newOrgSeats,
+            duration: newOrgDuration,
+            addOns: newOrgLicenseAddOns,
+            catalog: licenseUxCatalog
+        });
+
         const result = await onCreateOrg?.({
             orgName: newOrgName,
             ownerEmail: newOwnerEmail,
-            seats: parseInt(newOrgSeats) || 20,
-            duration: parseInt(newOrgDuration) || 365,
+            seats: licensePayload.seats,
+            duration: licensePayload.durationDays,
             orgType: newOrgType,
+            licenseType: licensePayload.licenseType,
+            licenseTier: licensePayload.licenseTier,
+            licenseAddOns: licensePayload.addOns,
             dailyReportEnabled: newDailyReportEnabled,
             weeklyReportEnabled: newWeeklyReportEnabled,
             sendToAllTeamMembers: newSendToAllMembers,
-            isDemoOrg: newIsDemoOrg
+            isDemoOrg: licensePayload.isDemo,
+            discountType: newOrgDiscountType === 'none' ? null : newOrgDiscountType,
+            discountValue: newOrgDiscountType === 'none' ? null : (parseFloat(newOrgDiscountValue) || 0),
+            industry: newIndustry || null,
+            orgSize: newOrgSize || null,
+            nextAuditDate: newNextAuditDate || null
         });
 
         if (result?.success) {
@@ -226,9 +590,41 @@ export function OrganizationsTab({
             setNewOrgSeats(20);
             setNewOrgDuration(365);
             setNewOrgType('Business');
+            setNewOrgLicenseTier('Startup');
+            setNewOrgLicenseAddOns(['Security']);
+            setNewOrgDiscountType('none');
+            setNewOrgDiscountValue(0);
+            setNewIndustry('');
+            setNewOrgSize('');
+            setNewNextAuditDate('');
+            setShowCreateAiContext(false);
             setShowCreateForm(false);
         }
     };
+
+    useEffect(() => {
+        if (newOrgLicenseTier === 'Custom') return;
+        const config = getLicenseTierConfig(newOrgType, newOrgLicenseTier, licenseUxCatalog);
+        setNewOrgSeats(config.defaultSeats);
+        if (newOrgLicenseTier === (licenseUxCatalog.demoTier?.value || 'Demo')) {
+            setNewOrgLicenseAddOns(normalizeCustomAddOns([], true, licenseUxCatalog));
+        }
+    }, [newOrgLicenseTier, newOrgType, licenseCatalog]);
+
+    useEffect(() => {
+        if (newLicenseTier === 'Custom') return;
+        const orgType = updateOrgType || getOrgType(selectedOrg || {});
+        const config = getLicenseTierConfig(orgType || 'Business', newLicenseTier, licenseUxCatalog);
+        setNewLicenseSeats(config.defaultSeats);
+        if (newLicenseTier === (licenseUxCatalog.demoTier?.value || 'Demo')) {
+            setNewLicenseAddOns(normalizeCustomAddOns([], true, licenseUxCatalog));
+        }
+    }, [newLicenseTier, updateOrgType, selectedOrg, licenseCatalog]);
+
+    useEffect(() => {
+        const defaultTier = getTierOptionsForOrgType(newOrgType, licenseUxCatalog)[0]?.value || 'Startup';
+        setNewOrgLicenseTier(defaultTier);
+    }, [newOrgType, licenseCatalog]);
 
     const handleUpdateOrg = async () => {
         if (!updateOrgName.trim() || updateOrgName.trim().length < 4) {
@@ -243,7 +639,6 @@ export function OrganizationsTab({
             dailyReportEnabled: updateDailyReportEnabled,
             weeklyReportEnabled: updateWeeklyReportEnabled,
             sendToAllTeamMembers: updateSendToAllMembers,
-            isDemoOrg: updateIsDemoOrg,
             industry: updateIndustry || null,
             orgSize: updateOrgSize || null,
             nextAuditDate: updateNextAuditDate || null
@@ -326,18 +721,53 @@ export function OrganizationsTab({
     const handleCreateLicense = async () => {
         if (!selectedOrgId) return;
         try {
-            const res = await window.api.post('/api/v1/licenses', {
+            const selectedOrgType = updateOrgType || getOrgType(selectedOrg || {});
+            const licensePayload = buildLicensePayload({
+                orgType: selectedOrgType,
+                tier: newLicenseTier,
+                seats: newLicenseSeats,
+                duration: newLicenseDuration,
+                addOns: newLicenseAddOns,
+                catalog: licenseUxCatalog
+            });
+
+            const activeLicense = orgLicenses.find((x) => (x.isActive || x.IsActive) && !(x.isDisabled || x.IsDisabled));
+            const allowCreateNew = selectedOrgType === 'Business' || selectedOrgType === 'Education';
+            const operation = allowCreateNew ? 'create-new' : 'renew-in-place';
+
+            if (operation === 'renew-in-place' && !activeLicense?.licenseId) {
+                window.toast?.show?.('No active license found to renew in place', 'warning');
+                return;
+            }
+
+            const res = await window.api.post('/api/v1/licenses/action', {
+                operation,
                 orgId: selectedOrgId,
-                seats: parseInt(newLicenseSeats) || 20,
-                durationDays: parseInt(newLicenseDuration) || 365,
-                licenseType: newLicenseType
+                licenseId: operation === 'renew-in-place' ? activeLicense.licenseId : null,
+                seats: licensePayload.seats,
+                durationDays: licensePayload.durationDays,
+                licenseType: licensePayload.licenseType,
+                licenseTier: licensePayload.licenseTier,
+                addOns: licensePayload.addOns,
+                discountType: newLicenseDiscountType === 'none' ? null : newLicenseDiscountType,
+                discountValue: newLicenseDiscountType === 'none' ? null : (parseFloat(newLicenseDiscountValue) || 0)
             });
             if (res?.success !== false) {
                 window.toast?.show?.('License created successfully', 'success');
+                if (res?.data?.paymentRequestId) {
+                    const paymentStatus = res?.data?.paymentStatus || 'Succeeded';
+                    const isAutoCompleted = String(paymentStatus).toLowerCase() === 'succeeded';
+                    window.toast?.show?.(`Invoice ${res.data.paymentRequestId} ${isAutoCompleted ? 'auto-completed' : 'created'} (${paymentStatus})`, 'info');
+                }
                 setShowCreateLicense(false);
                 setNewLicenseSeats(20);
                 setNewLicenseDuration(365);
-                setNewLicenseType(getOrgType(selectedOrg));
+                const currentOrgType = updateOrgType || getOrgType(selectedOrg || {});
+                const defaultTier = getTierOptionsForOrgType(currentOrgType, licenseUxCatalog)[0]?.value || 'Startup';
+                setNewLicenseTier(defaultTier);
+                setNewLicenseAddOns(['Security']);
+                setNewLicenseDiscountType('none');
+                setNewLicenseDiscountValue(0);
                 await handleSelectOrg(selectedOrg);
             } else {
                 window.toast?.show?.(res?.message || 'Failed to create license', 'error');
@@ -353,7 +783,9 @@ export function OrganizationsTab({
         const action = license.isDisabled ? 'enable' : 'disable';
         if (!confirm(`Are you sure you want to ${action} this license?`)) return;
         try {
-            const res = await window.api.put(`/api/v1/licenses/${license.licenseId}/state`, {
+            const res = await window.api.post('/api/v1/licenses/action', {
+                operation: 'state',
+                licenseId: license.licenseId,
                 orgId: selectedOrgId,
                 active: !!license.isDisabled
             });
@@ -373,8 +805,11 @@ export function OrganizationsTab({
         if (!licenseId) return;
         if (!confirm('Are you sure you want to DELETE this license? This action cannot be undone.')) return;
         try {
-            const orgQuery = selectedOrgId ? `?orgId=${encodeURIComponent(selectedOrgId)}` : '';
-            const res = await window.api.delete(`/api/v1/licenses/${licenseId}${orgQuery}`);
+            const res = await window.api.post('/api/v1/licenses/action', {
+                operation: 'delete',
+                licenseId,
+                orgId: selectedOrgId
+            });
             if (res?.success !== false) {
                 window.toast?.show?.('License deleted successfully', 'success');
                 await handleSelectOrg(selectedOrg);
@@ -387,11 +822,61 @@ export function OrganizationsTab({
         }
     };
 
+    const handleCompletePayment = async (paymentRequestId) => {
+        if (!selectedOrgId || !paymentRequestId) return;
+        try {
+            const res = await window.api.post(`/api/v1/payments/${paymentRequestId}/complete`, {
+                orgId: selectedOrgId,
+                method: 'Online'
+            });
+            if (res?.success !== false) {
+                window.toast?.show?.('Payment completed and license activated', 'success');
+                await handleSelectOrg(selectedOrg);
+            } else {
+                window.toast?.show?.(res?.message || 'Failed to complete payment', 'error');
+            }
+        } catch (err) {
+            console.error('[OrganizationsTab] complete payment failed', err);
+            window.toast?.show?.(err?.message || 'Failed to complete payment', 'error');
+        }
+    };
+
+    const handleApproveOfflinePayment = async (paymentRequestId) => {
+        if (!selectedOrgId || !paymentRequestId) return;
+        const notes = prompt('Enter approval notes for offline payment:') || '';
+        try {
+            const res = await window.api.post(`/api/v1/payments/${paymentRequestId}/approve-offline`, {
+                orgId: selectedOrgId,
+                notes
+            });
+            if (res?.success !== false) {
+                window.toast?.show?.('Offline payment approved and license activated', 'success');
+                await handleSelectOrg(selectedOrg);
+            } else {
+                window.toast?.show?.(res?.message || 'Failed to approve offline payment', 'error');
+            }
+        } catch (err) {
+            console.error('[OrganizationsTab] approve offline payment failed', err);
+            window.toast?.show?.(err?.message || 'Failed to approve offline payment', 'error');
+        }
+    };
+
+    const activeLicenseCount = orgLicenses.filter((x) => (x.isActive || x.IsActive) && !(x.isDisabled || x.IsDisabled)).length;
+    const selectedOrgType = updateOrgType || getOrgType(selectedOrg || {});
+    const isSelectedPersonal = selectedOrgType === 'Personal';
+    const hasPendingPayment = orgPayments.some((p) => (p.status || '').toLowerCase() === 'pending');
+    const createLicenseButtonLabel = isSelectedPersonal && activeLicenseCount >= 1 ? 'Renew' : 'Create';
+    const createLicenseButtonTitle = hasPendingPayment
+        ? 'A pending payment request already exists for this organization'
+        : (isSelectedPersonal && activeLicenseCount >= 1
+            ? 'Generate renewal invoice for Personal license'
+            : 'Create license');
+
     return html`
         <div id="organizations">
             <div class="row g-3">
                 <div class="col-12">
-                    <div class="card">
+                    <div class="card org-create-card">
                         <div class="card-header" style="cursor: pointer;" onClick=${() => setShowCreateForm(!showCreateForm)}>
                             <div class="d-flex justify-content-between align-items-center">
                                 <h3 class="card-title mb-0">
@@ -448,26 +933,10 @@ export function OrganizationsTab({
                                             `}
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Seats</label>
-                                        <input type="number" class="form-control" placeholder="20" value=${newOrgSeats} onInput=${(e) => setNewOrgSeats(e.target.value)} />
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">License Duration</label>
-                                        <select 
-                                            class="form-select" 
-                                            value=${newOrgDuration}
-                                            onChange=${(e) => setNewOrgDuration(e.target.value)}
-                                        >
-                                            ${ORG_DURATION_OPTIONS.map(opt => html`
-                                                <option value=${opt.value}>${opt.label}</option>
-                                            `)}
-                                        </select>
-                                    </div>
                                     <div class="col-12">
                                         <label class="form-label">Organization Type <span class="text-danger">*</span></label>
                                         <div class="d-flex gap-3 flex-wrap">
-                                            ${ORG_TYPE_OPTIONS.map(opt => html`
+                                            ${orgTypeOptions.map(opt => html`
                                                 <div
                                                     class=${`card flex-grow-1 cursor-pointer mb-0 ${newOrgType === opt.value ? 'border-primary' : 'border-light'}`}
                                                     style="min-width: 150px; cursor: pointer;"
@@ -542,26 +1011,165 @@ export function OrganizationsTab({
                                                         </div>
                                                         <small class="text-muted">Owner + team</small>
                                                     </div>
-                                                    <div class="d-flex flex-column gap-2">
-                                                        <label class="form-label mb-0"><strong>Demo Org</strong></label>
-                                                        <div class="form-check form-switch">
-                                                            <input
-                                                                class="form-check-input"
-                                                                type="checkbox"
-                                                                id="newIsDemoOrg"
-                                                                checked=${newIsDemoOrg}
-                                                                onChange=${(e) => setNewIsDemoOrg(e.target.checked)}
-                                                                style="width: 40px; height: 20px; margin-top: 0px;"
-                                                            />
-                                                        </div>
-                                                        <small class="text-muted">Credits deducted · $0 revenue</small>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    <div class="col-12">
+                                        <div class="card border border-light">
+                                            <div class="card-header">
+                                                <h5 class="card-title mb-0"><i class="ti ti-certificate me-2"></i>License Configuration</h5>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row g-3">
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">License Tier</label>
+                                                        <select class="form-select" value=${newOrgLicenseTier} onChange=${(e) => setNewOrgLicenseTier(e.target.value)}>
+                                                            ${getTierOptionsForOrgType(newOrgType, licenseUxCatalog).map((opt) => html`<option value=${opt.value}>${opt.label}</option>`)}
+                                                        </select>
+                                                        <small class="text-muted">Tier decides seats unless Custom is selected. Type follows org type, except Demo.</small>
                                                     </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Seats</label>
+                                                        <input
+                                                            type="number"
+                                                            class="form-control"
+                                                            min="1"
+                                                            value=${newOrgSeats}
+                                                            disabled=${newOrgLicenseTier !== 'Custom' && !(newOrgLicenseTier === demoTierValue && licenseUxCatalog.demoTier?.allowCustomSeats)}
+                                                            onInput=${(e) => setNewOrgSeats(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Duration</label>
+                                                        <select class="form-select" value=${newOrgDuration} onChange=${(e) => setNewOrgDuration(e.target.value)}>
+                                                            ${ORG_DURATION_OPTIONS.map(opt => html`<option value=${opt.value}>${opt.label}</option>`)}
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Discount Type</label>
+                                                        <select class="form-select" value=${newOrgDiscountType} onChange=${(e) => setNewOrgDiscountType(e.target.value)}>
+                                                            <option value="none">None</option>
+                                                            <option value="percent">Percent (%)</option>
+                                                            <option value="fixed">Fixed (${createOrgInvoicePreview.currency})</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Discount Value</label>
+                                                        <input
+                                                            type="number"
+                                                            class="form-control"
+                                                            min="0"
+                                                            value=${newOrgDiscountValue}
+                                                            disabled=${newOrgDiscountType === 'none'}
+                                                            onInput=${(e) => setNewOrgDiscountValue(e.target.value)}
+                                                        />
+                                                        <small class="text-muted">Leave None to use tier default discount (if configured).</small>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <div class="alert alert-info mb-0 py-2">
+                                                            <div class="d-flex flex-wrap gap-3 small">
+                                                                <span><strong>Base:</strong> ${createOrgInvoicePreview.currency} ${createOrgInvoicePreview.baseAmount.toFixed(2)}</span>
+                                                                <span><strong>Discount:</strong> ${createOrgInvoicePreview.currency} ${createOrgInvoicePreview.discountAmount.toFixed(2)}</span>
+                                                                <span><strong>Final Invoice:</strong> ${createOrgInvoicePreview.currency} ${createOrgInvoicePreview.finalAmount.toFixed(2)}</span>
+                                                                <span class="text-muted">Mode: ${createOrgInvoicePreview.pricingMode}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    ${(newOrgLicenseTier === 'Custom' || newOrgLicenseTier === demoTierValue) && html`
+                                                        <div class="col-12">
+                                                            <label class="form-label">Platform Features / Add-ons</label>
+                                                            <div class="row g-2">
+                                                                ${addOnCatalog.map((addOn) => html`
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-check border rounded p-2 mb-0 ${addOn.requiredForAll ? 'bg-light' : ''}">
+                                                                            <input
+                                                                                class="form-check-input"
+                                                                                type="checkbox"
+                                                                                        checked=${normalizeCustomAddOns(newOrgLicenseAddOns, newOrgLicenseTier === demoTierValue, licenseUxCatalog).includes(addOn.key)}
+                                                                                        disabled=${!!addOn.requiredForAll || (newOrgLicenseTier === demoTierValue && !!addOn.lockedForDemo)}
+                                                                                onChange=${(e) => {
+                                                                                    if (addOn.requiredForAll || (newOrgLicenseTier === demoTierValue && addOn.lockedForDemo)) return;
+                                                                                            const selected = new Set(normalizeCustomAddOns(newOrgLicenseAddOns, newOrgLicenseTier === demoTierValue, licenseUxCatalog));
+                                                                                    if (e.target.checked) selected.add(addOn.key);
+                                                                                    else selected.delete(addOn.key);
+                                                                                    setNewOrgLicenseAddOns(normalizeCustomAddOns(Array.from(selected), newOrgLicenseTier === demoTierValue, licenseUxCatalog));
+                                                                                }}
+                                                                            />
+                                                                            <span class="form-check-label ms-2">
+                                                                                <strong>${addOn.label}${addOn.requiredForAll ? ' (required)' : ''}</strong>
+                                                                                <div class="text-muted small">${addOn.description}</div>
+                                                                            </span>
+                                                                        </label>
+                                                                    </div>
+                                                                `)}
+                                                            </div>
+                                                        </div>
+                                                    `}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div class="col-12">
+                                        <div class="card border border-light">
+                                            <div
+                                                class="card-header"
+                                                style="cursor: pointer;"
+                                                onClick=${() => setShowCreateAiContext(!showCreateAiContext)}
+                                            >
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <h5 class="card-title mb-0"><i class="ti ti-brain me-2"></i>AI Context</h5>
+                                                    <i class=${`ti ${showCreateAiContext ? 'ti-chevron-down' : 'ti-chevron-right'}`}></i>
+                                                </div>
+                                            </div>
+                                            ${showCreateAiContext && html`
+                                                <div class="card-body">
+                                                    <div class="row g-3">
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Industry</label>
+                                                            <input
+                                                                type="text"
+                                                                class="form-control"
+                                                                placeholder="e.g. Healthcare, Finance, Legal"
+                                                                value=${newIndustry}
+                                                                onInput=${(e) => setNewIndustry(e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Organisation Size</label>
+                                                            <input
+                                                                type="text"
+                                                                class="form-control"
+                                                                placeholder="e.g. 1-10, 11-50, 50-200"
+                                                                value=${newOrgSize}
+                                                                onInput=${(e) => setNewOrgSize(e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Next Audit Date</label>
+                                                            <input
+                                                                type="date"
+                                                                class="form-control"
+                                                                value=${newNextAuditDate}
+                                                                onInput=${(e) => setNewNextAuditDate(e.target.value)}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `}
+                                        </div>
+                                    </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="org-create-summary mb-2">
+                                            <div class="org-create-summary__item"><span>Type</span><strong>${newOrgType}</strong></div>
+                                            <div class="org-create-summary__item"><span>Tier</span><strong>${newOrgLicenseTier}</strong></div>
+                                            <div class="org-create-summary__item"><span>Seats</span><strong>${createOrgInvoicePreview.effectiveSeats}</strong></div>
+                                            <div class="org-create-summary__item"><span>Days</span><strong>${createOrgInvoicePreview.effectiveDuration}</strong></div>
+                                            <div class="org-create-summary__item"><span>Invoice</span><strong>${createOrgInvoicePreview.currency} ${createOrgInvoicePreview.finalAmount.toFixed(2)}</strong></div>
+                                        </div>
                                         <button 
                                             class="btn btn-primary" 
                                             onClick=${handleCreateOrg}
@@ -578,11 +1186,15 @@ export function OrganizationsTab({
                 </div>
 
                 <div class="col-12">
-                    <div class="card" ref=${listContainerRef} style="overflow: auto; max-height: 70vh;">
-                        <div class="card-header">
-                            <h3 class="card-title">Organizations List</h3>
+                    <div class="card org-list-card">
+                        <div class="card-header" style="cursor: pointer;" onClick=${() => setShowOrgList(!showOrgList)}>
+                            <h3 class="card-title mb-0">
+                                <i class="${`ti ${showOrgList ? 'ti-chevron-down' : 'ti-chevron-right'}`} me-2"></i>
+                                Organizations List
+                            </h3>
                         </div>
-                        <div class="card-body">
+                        ${showOrgList && html`
+                        <div class="card-body" ref=${listContainerRef} style="overflow: auto; max-height: 70vh;">
                             <div class="d-flex gap-3 mb-3 flex-wrap">
                                 <div class="btn-group" role="group">
                                     <input 
@@ -653,9 +1265,29 @@ export function OrganizationsTab({
                                         }}
                                     />
                                 </div>
+                                <div class="input-icon" style="min-width: 280px;">
+                                    <span class="input-icon-addon">
+                                        <i class="ti ti-filter"></i>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        class="form-control"
+                                        placeholder="Org IDs (comma-separated)"
+                                        value=${orgIdsFilter}
+                                        onInput=${(e) => setOrgIdsFilter(e.target.value)}
+                                    />
+                                </div>
                             </div>
 
-                            <div class="table-responsive">
+                            ${orgListError && html`<div class="alert alert-danger py-2">${orgListError}</div>`}
+
+                            ${isServerListMode && html`
+                                <div class="text-muted small mb-2">
+                                    Loaded ${sourceOrgs.length} of ${serverTotalCount} organizations from server
+                                </div>
+                            `}
+
+                            <div class="table-responsive org-list-table-wrap">
                                 <table class="table table-vcenter card-table">
                                     <thead>
                                         <tr>
@@ -669,46 +1301,52 @@ export function OrganizationsTab({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${currentOrgs.map(org => html`
+                                        ${currentOrgs.map(org => {
+                                            const badge = getOrgTypeBadge(org);
+                                            const credits = getCreditSnapshot(org);
+                                            const ownerEmail = getOwnerEmail(org);
+                                            const orgId = getOrgId(org);
+                                            const orgName = getOrgName(org);
+                                            const createdAt = getCreatedAt(org);
+                                            const disabled = isOrgDisabled(org);
+                                            return html`
                                             <tr>
                                                 <td>
                                                     <div class="d-flex align-items-center gap-2">
-                                                        ${(() => {
-                                                            const badge = getOrgTypeBadge(org);
-                                                            return html`
-                                                                <span class=${`badge ${badge.bgClass}`} style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;" title=${badge.label}>
-                                                                    <i class=${`ti ${badge.icon}`} style="font-size: 16px;"></i>
-                                                                </span>
-                                                            `;
-                                                        })()}
+                                                        <span class=${`badge ${badge.bgClass}`} style="padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 4px;" title=${badge.label}>
+                                                            <i class=${`ti ${badge.icon}`} style="font-size: 16px;"></i>
+                                                        </span>
                                                         <div>
                                                             <div class="fw-bold">
-                                                                ${org.orgName || org.name}
+                                                                ${orgName}
                                                                 ${org.isDemoOrg ? html`<span class="badge bg-warning-lt text-warning ms-1" style="font-size: 10px;">Demo</span>` : ''}
                                                             </div>
-                                                            <div class="text-muted small">${org.orgId}</div>
+                                                            <div class="text-muted small">${orgId}</div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td>${org.ownerEmail}</td>
+                                                <td>
+                                                    <div class="fw-semibold">${ownerEmail}</div>
+                                                    <div class="text-muted small">${badge.label}</div>
+                                                </td>
                                                 <td>
                                                     ${getMagiCodeForOrg(org)
                                                         ? html`<span class="badge bg-success text-white">${getMagiCodeForOrg(org)}</span>`
-                                                        : html`<span class="text-muted">-</span>`}
+                                                        : html`<span class="text-muted small">Not used</span>`}
                                                 </td>
                                                 <td>
-                                                    <div>${org.remainingCredits ?? 0} / ${org.totalCredits ?? 0}</div>
-                                                    <div class="progress progress-sm mt-1">
-                                                        <div class="progress-bar bg-primary" style="width: ${org.totalCredits ? (org.remainingCredits / org.totalCredits) * 100 : 0}%"></div>
-                                                    </div>
+                                                    <div class="fw-semibold">${credits.remaining} / ${credits.total}</div>
+                                                    ${credits.hasSnapshot
+                                                        ? html`<div class="progress progress-sm mt-1"><div class="progress-bar bg-primary" style="width: ${credits.pct}%"></div></div>`
+                                                        : html`<small class="text-muted">No credit snapshot</small>`}
                                                 </td>
                                                 <td>
-                                                    <span class=${`badge ${org.isDisabled ? 'bg-danger' : 'bg-success'}`}>
-                                                        ${org.isDisabled ? 'Disabled' : 'Active'}
+                                                    <span class=${`badge ${disabled ? 'bg-danger' : 'bg-success'}`}>
+                                                        ${disabled ? 'Disabled' : 'Active'}
                                                     </span>
                                                 </td>
                                                 <td class="text-muted">
-                                                    ${org.createdAt ? new Date(org.createdAt).toLocaleDateString() : '-'}
+                                                    ${createdAt ? new Date(createdAt).toLocaleDateString() : '-'}
                                                 </td>
                                                 <td>
                                                     <button 
@@ -719,7 +1357,7 @@ export function OrganizationsTab({
                                                     </button>
                                                 </td>
                                             </tr>
-                                        `)}
+                                        `;})}
                                         ${currentOrgs.length === 0 && html`
                                             <tr>
                                                 <td colspan="7" class="text-center py-4 text-muted">
@@ -732,12 +1370,19 @@ export function OrganizationsTab({
                                 <div ref=${sentinelRef} style="height: 10px;"></div>
                             </div>
 
-                            ${visibleCount < filteredOrgs.length && html`
+                            ${!isServerListMode && visibleCount < filteredOrgs.length && html`
                                 <div class="card-footer text-center py-3">
                                     <small class="text-muted">Showing ${visibleCount} of ${filteredOrgs.length} organizations (scroll to load more)</small>
                                 </div>
                             `}
+
+                            ${isServerListMode && orgListLoading && html`
+                                <div class="card-footer text-center py-3">
+                                    <small class="text-muted">Loading organizations...</small>
+                                </div>
+                            `}
                         </div>
+                        `}
                     </div>
                 </div>
             </div>
@@ -747,19 +1392,19 @@ export function OrganizationsTab({
                 <div class="modal-root">
                     <div class="modal-backdrop fade show custom-backdrop"></div>
                     <div
-                        class="modal modal-blur fade show"
+                        class="modal modal-blur fade show org-manage-modal"
                         style="display: block;"
                         tabindex="-1"
                         onClick=${() => { setSelectedOrg(null); setSelectedOrgId(''); }}
                     >
                         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" onClick=${(e) => e.stopPropagation()}>
-                            <div class="modal-content">
+                            <div class="modal-content org-manage-modal__content">
                                 <div class="modal-header">
-                                    <h3 class="modal-title">Manage Organization: ${selectedOrg.orgName}</h3>
+                                    <h3 class="modal-title">Manage Organization: ${getOrgName(selectedOrg)}</h3>
                                     <button type="button" class="btn-close" onClick=${() => { setSelectedOrg(null); setSelectedOrgId(''); }}></button>
                                 </div>
 
-                                <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
+                                <div class="modal-body org-manage-modal__body" style="max-height: 80vh; overflow-y: auto;">
                                     <div class="row g-3">
                                         <div class="col-md-6">
                                             <label class="form-label">Organization Name</label>
@@ -832,13 +1477,6 @@ export function OrganizationsTab({
                                                             </div>
                                                             <small class="text-muted">${isPersonalOrg(selectedOrg) ? 'Business only' : 'Owner + team'}</small>
                                                         </div>
-                                                        <div class="d-flex flex-column gap-2">
-                                                            <label class="form-label mb-0"><strong>Demo Org</strong></label>
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input" type="checkbox" id="updateIsDemoOrg" checked=${updateIsDemoOrg} onChange=${(e) => setUpdateIsDemoOrg(e.target.checked)} style="width: 40px; height: 20px;" />
-                                                            </div>
-                                                            <small class="text-muted">Credits deducted · $0 revenue</small>
-                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -852,7 +1490,7 @@ export function OrganizationsTab({
                                                 </div>
                                                 <div class="card-body">
                                                     <div class="d-flex gap-3 flex-wrap">
-                                                        ${ORG_TYPE_OPTIONS.map(opt => html`
+                                                        ${orgTypeOptions.map(opt => html`
                                                             <div
                                                                 class=${`card flex-grow-1 cursor-pointer mb-0 ${updateOrgType === opt.value ? 'border-primary' : 'border-light'}`}
                                                                 style="min-width: 150px; cursor: pointer;"
@@ -929,36 +1567,101 @@ export function OrganizationsTab({
                                         <div class="col-12 mt-3">
                                             <div class="d-flex justify-content-between align-items-center mb-3">
                                                 <h5 class="m-0">Licenses</h5>
-                                                <button class="btn btn-sm btn-primary" onClick=${() => setShowCreateLicense(true)} disabled=${updateOrgType === 'Personal' && orgLicenses.length >= 1} title=${updateOrgType === 'Personal' && orgLicenses.length >= 1 ? 'Personal orgs are limited to 1 license' : 'Create license'}>
-                                                    <i class="ti ti-plus me-1"></i> Create
+                                                <button class="btn btn-sm btn-primary" onClick=${() => setShowCreateLicense(true)} disabled=${hasPendingPayment} title=${createLicenseButtonTitle}>
+                                                    <i class="ti ti-plus me-1"></i> ${createLicenseButtonLabel}
                                                 </button>
                                             </div>
 
                                             ${showCreateLicense && html`
                                                 <div class="card mb-3 bg-light">
                                                     <div class="card-body">
-                                                        <h6 class="card-title">New License</h6>
+                                                        <h6 class="card-title">${isSelectedPersonal && activeLicenseCount >= 1 ? 'Renew Personal License' : 'New License'}</h6>
+                                                        ${isSelectedPersonal && activeLicenseCount >= 1 && html`
+                                                            <div class="alert alert-info py-2 mb-2 small">
+                                                                Renewal will generate an invoice/payment record and rotate to the new license after payment processing.
+                                                            </div>
+                                                        `}
                                                         <div class="row g-2 align-items-end">
-                                                            <div class="col-md-3">
+                                                            <div class="col-md-2">
                                                                 <label class="form-label small">Seats</label>
-                                                                <input type="number" class="form-control form-control-sm" value=${newLicenseSeats} onInput=${(e) => setNewLicenseSeats(e.target.value)} />
+                                                                <input
+                                                                    type="number"
+                                                                    class="form-control form-control-sm"
+                                                                    min="1"
+                                                                    value=${newLicenseSeats}
+                                                                    disabled=${newLicenseTier !== 'Custom' && !(newLicenseTier === demoTierValue && licenseUxCatalog.demoTier?.allowCustomSeats)}
+                                                                    onInput=${(e) => setNewLicenseSeats(e.target.value)}
+                                                                />
                                                             </div>
-                                                            <div class="col-md-3">
+                                                            <div class="col-md-2">
                                                                 <label class="form-label small">Duration (Days)</label>
-                                                                <input type="number" class="form-control form-control-sm" value=${newLicenseDuration} onInput=${(e) => setNewLicenseDuration(e.target.value)} />
-                                                            </div>
-                                                            <div class="col-md-3">
-                                                                <label class="form-label small">License Type</label>
-                                                                <select class="form-select form-select-sm" value=${newLicenseType} onChange=${(e) => setNewLicenseType(e.target.value)}>
-                                                                    ${['Business', 'Education', 'Personal', 'Demo'].map(t => html`
-                                                                        <option value=${t}>${t}</option>
-                                                                    `)}
+                                                                <select class="form-select form-select-sm" value=${newLicenseDuration} onChange=${(e) => setNewLicenseDuration(e.target.value)}>
+                                                                    ${ORG_DURATION_OPTIONS.map(opt => html`<option value=${opt.value}>${opt.label}</option>`)}
                                                                 </select>
                                                             </div>
-                                                            <div class="col-md-3">
+                                                            <div class="col-md-2">
+                                                                <label class="form-label small">Tier</label>
+                                                                <select class="form-select form-select-sm" value=${newLicenseTier} onChange=${(e) => setNewLicenseTier(e.target.value)}>
+                                                                    ${getTierOptionsForOrgType(updateOrgType || getOrgType(selectedOrg || {}), licenseUxCatalog).map((opt) => html`<option value=${opt.value}>${opt.label}</option>`)}
+                                                                </select>
+                                                                <small class="text-muted">Matches org type, or Demo.</small>
+                                                            </div>
+                                                            <div class="col-md-2">
+                                                                <label class="form-label small">Discount</label>
+                                                                <select class="form-select form-select-sm" value=${newLicenseDiscountType} onChange=${(e) => setNewLicenseDiscountType(e.target.value)}>
+                                                                    <option value="none">None</option>
+                                                                    <option value="percent">Percent (%)</option>
+                                                                    <option value="fixed">Fixed (${createLicenseInvoicePreview.currency})</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-2">
+                                                                <label class="form-label small">Value</label>
+                                                                <input type="number" class="form-control form-control-sm" min="0" value=${newLicenseDiscountValue} disabled=${newLicenseDiscountType === 'none'} onInput=${(e) => setNewLicenseDiscountValue(e.target.value)} />
+                                                            </div>
+                                                            <div class="col-md-2">
                                                                 <button class="btn btn-sm btn-success me-1" onClick=${handleCreateLicense}>Create</button>
                                                                 <button class="btn btn-sm btn-ghost-secondary" onClick=${() => setShowCreateLicense(false)}>Cancel</button>
                                                             </div>
+                                                            <div class="col-12">
+                                                                <div class="alert alert-info mb-0 py-2">
+                                                                    <div class="d-flex flex-wrap gap-3 small">
+                                                                        <span><strong>Base:</strong> ${createLicenseInvoicePreview.currency} ${createLicenseInvoicePreview.baseAmount.toFixed(2)}</span>
+                                                                        <span><strong>Discount:</strong> ${createLicenseInvoicePreview.currency} ${createLicenseInvoicePreview.discountAmount.toFixed(2)}</span>
+                                                                        <span><strong>Final Invoice:</strong> ${createLicenseInvoicePreview.currency} ${createLicenseInvoicePreview.finalAmount.toFixed(2)}</span>
+                                                                        <span class="text-muted">Mode: ${createLicenseInvoicePreview.pricingMode}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            ${(newLicenseTier === 'Custom' || newLicenseTier === demoTierValue) && html`
+                                                                <div class="col-12">
+                                                                    <label class="form-label small">Platform Features / Add-ons</label>
+                                                                    <div class="row g-2">
+                                                                        ${addOnCatalog.map((addOn) => html`
+                                                                            <div class="col-md-6">
+                                                                                <label class="form-check border rounded p-2 mb-0 ${addOn.requiredForAll ? 'bg-light' : ''}">
+                                                                                    <input
+                                                                                        class="form-check-input"
+                                                                                        type="checkbox"
+                                                                                        checked=${normalizeCustomAddOns(newLicenseAddOns, newLicenseTier === demoTierValue, licenseUxCatalog).includes(addOn.key)}
+                                                                                        disabled=${!!addOn.requiredForAll || (newLicenseTier === demoTierValue && !!addOn.lockedForDemo)}
+                                                                                        onChange=${(e) => {
+                                                                                            if (addOn.requiredForAll || (newLicenseTier === demoTierValue && addOn.lockedForDemo)) return;
+                                                                                            const selected = new Set(normalizeCustomAddOns(newLicenseAddOns, newLicenseTier === demoTierValue, licenseUxCatalog));
+                                                                                            if (e.target.checked) selected.add(addOn.key);
+                                                                                            else selected.delete(addOn.key);
+                                                                                            setNewLicenseAddOns(normalizeCustomAddOns(Array.from(selected), newLicenseTier === demoTierValue, licenseUxCatalog));
+                                                                                        }}
+                                                                                    />
+                                                                                    <span class="form-check-label ms-2">
+                                                                                        <strong>${addOn.label}${addOn.requiredForAll ? ' (required)' : ''}</strong>
+                                                                                        <div class="text-muted small">${addOn.description}</div>
+                                                                                    </span>
+                                                                                </label>
+                                                                            </div>
+                                                                        `)}
+                                                                    </div>
+                                                                </div>
+                                                            `}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -978,7 +1681,7 @@ export function OrganizationsTab({
                                                                         lic.licenseType === 'Education' ? 'bg-success-lt text-success' :
                                                                         lic.licenseType === 'Demo' ? 'bg-warning-lt text-warning' :
                                                                         'bg-primary-lt text-primary'
-                                                                    }`}>${lic.licenseType || 'Business'}</span>
+                                                                    }`}>${lic.licenseTier || lic.licenseType || 'Business'}</span>
                                                                 </td>
                                                                 <td><div class="text-truncate" style="max-width: 150px;" title=${lic.serialKey}>${lic.serialKey}</div></td>
                                                                 <td>${lic.seats || '-'}</td>
@@ -986,7 +1689,16 @@ export function OrganizationsTab({
                                                                     <div class="small">${lic.remainingCredits} / ${lic.totalCredits}</div>
                                                                     ${lic.licenseType === 'Demo' ? html`<small class="text-warning">$0 revenue</small>` : ''}
                                                                 </td>
-                                                                <td><span class=${`badge ${lic.isDisabled ? 'bg-danger' : 'bg-success'}`}>${lic.isDisabled ? 'Disabled' : 'Active'}</span></td>
+                                                                <td>
+                                                                    <span class=${`badge ${
+                                                                        (lic.status || '').toLowerCase() === 'pendingpayment' ? 'bg-warning text-white' :
+                                                                        lic.isDisabled ? 'bg-danger' :
+                                                                        lic.isActive ? 'bg-success' :
+                                                                        'bg-secondary'
+                                                                    }`}>
+                                                                        ${(lic.status || (lic.isDisabled ? 'Disabled' : lic.isActive ? 'Active' : 'Inactive'))}
+                                                                    </span>
+                                                                </td>
                                                                 <td class="text-muted small">${new Date(lic.createdAt).toLocaleDateString()}</td>
                                                                 <td>
                                                                     <div class="btn-list flex-nowrap">
@@ -1000,6 +1712,57 @@ export function OrganizationsTab({
                                                                 </td>
                                                             </tr>
                                                         `) : html`<tr><td colspan="7" class="text-center py-3 text-muted small">No licenses</td></tr>`}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        <!-- Payment Requests Section -->
+                                        <div class="col-12 mt-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <h5 class="m-0">Payment Requests</h5>
+                                            </div>
+                                            <div class="table-responsive border rounded" style="font-size: 13px;">
+                                                <table class="table table-vcenter card-table table-sm mb-0">
+                                                    <thead>
+                                                        <tr><th>Invoice</th><th>License</th><th>Base</th><th>Discount</th><th>Final</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        ${orgPayments.length > 0 ? orgPayments.map((p) => html`
+                                                            <tr>
+                                                                <td><span class="badge bg-secondary text-white">${p.invoiceId || p.paymentRequestId}</span></td>
+                                                                <td class="text-muted small">${p.licenseId || '-'}</td>
+                                                                <td>${p.currency || 'USD'} ${p.baseAmount ?? p.amount ?? 0}</td>
+                                                                <td>
+                                                                    ${(p.discountAmount ?? 0) > 0
+                                                                        ? html`${p.discountType === 'percent' ? `${p.discountValue}%` : `${p.currency || 'USD'} ${p.discountAmount}`}`
+                                                                        : html`-`}
+                                                                </td>
+                                                                <td><strong>${p.currency || 'USD'} ${p.amount ?? 0}</strong></td>
+                                                                <td>
+                                                                    <span class=${`badge ${
+                                                                        (p.status || '').toLowerCase().includes('success') || (p.status || '').toLowerCase().includes('approved') ? 'bg-success' :
+                                                                        (p.status || '').toLowerCase() === 'pending' ? 'bg-warning text-white' :
+                                                                        'bg-secondary'
+                                                                    }`}>
+                                                                        ${p.status || 'Pending'}
+                                                                    </span>
+                                                                </td>
+                                                                <td class="text-muted small">${p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '-'}</td>
+                                                                <td>
+                                                                    ${(p.status || '').toLowerCase() === 'pending' ? html`
+                                                                        <div class="btn-list flex-nowrap">
+                                                                            <button class="btn btn-sm btn-outline-success" onClick=${() => handleCompletePayment(p.paymentRequestId)} title="Mark payment complete">
+                                                                                <i class="ti ti-check"></i>
+                                                                            </button>
+                                                                            <button class="btn btn-sm btn-outline-primary" onClick=${() => handleApproveOfflinePayment(p.paymentRequestId)} title="Approve offline payment">
+                                                                                <i class="ti ti-receipt"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    ` : html`<span class="text-muted small">-</span>`}
+                                                                </td>
+                                                            </tr>
+                                                        `) : html`<tr><td colspan="8" class="text-center py-3 text-muted small">No payment requests</td></tr>`}
                                                     </tbody>
                                                 </table>
                                             </div>

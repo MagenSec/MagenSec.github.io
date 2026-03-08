@@ -234,7 +234,7 @@ export function SiteAdminPage() {
             }
             // Load licenses
             try {
-                const res = await api.get(`/api/v1/licenses/org/${orgId}`);
+                const res = await api.get(`/api/v1/licenses/action?operation=list&orgId=${encodeURIComponent(orgId)}`);
                 if (res.success) {
                     setOrgLicenses(res.data || []);
                 }
@@ -328,7 +328,8 @@ export function SiteAdminPage() {
         if (!selectedOrgId) return;
 
         try {
-            const res = await api.post('/api/v1/licenses', {
+            const res = await api.post('/api/v1/licenses/action', {
+                operation: 'create-new',
                 orgId: selectedOrgId,
                 seats: parseInt(newLicenseSeats),
                 durationDays: parseInt(newLicenseDuration)
@@ -353,8 +354,12 @@ export function SiteAdminPage() {
         if (!confirm(`Are you sure you want to ${license.isDisabled ? 'enable' : 'disable'} this license?`)) return;
 
         try {
-            const endpoint = license.isDisabled ? 'enable' : 'disable';
-            const res = await api.put(`/api/v1/licenses/${license.licenseId}/${endpoint}`);
+            const res = await api.post('/api/v1/licenses/action', {
+                operation: 'state',
+                licenseId: license.licenseId,
+                orgId: selectedOrgId,
+                active: !!license.isDisabled
+            });
 
             if (res.success) {
                 showToast(`License ${license.isDisabled ? 'enabled' : 'disabled'} successfully`, 'success');
@@ -372,7 +377,11 @@ export function SiteAdminPage() {
         if (!confirm('Are you sure you want to DELETE this license? This action cannot be undone.')) return;
 
         try {
-            const res = await api.delete(`/api/v1/licenses/${licenseId}`);
+            const res = await api.post('/api/v1/licenses/action', {
+                operation: 'delete',
+                licenseId,
+                orgId: selectedOrgId
+            });
 
             if (res.success) {
                 showToast('License deleted successfully', 'success');

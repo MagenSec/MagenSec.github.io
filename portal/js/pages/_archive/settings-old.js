@@ -186,7 +186,7 @@ export function SettingsPage() {
             if (!isPersonal) {
                 // Load licenses
                 // Use portal-friendly alias for org licenses
-                const licensesRes = await api.get(`/api/v1/licenses/org/${currentOrgId}`);
+                const licensesRes = await api.get(`/api/v1/licenses/action?operation=list&orgId=${encodeURIComponent(currentOrgId)}`);
                 if (licensesRes.success && licensesRes.data) {
                     setLicenses(licensesRes.data);
                 }
@@ -283,7 +283,11 @@ export function SettingsPage() {
 
         try {
             const currentOrg = orgContext.getCurrentOrg();
-            const res = await api.put(`/api/v1/licenses/${licenseId}/rotate`, { orgId: currentOrg?.orgId });
+            const res = await api.post('/api/v1/licenses/action', {
+                operation: 'rotate',
+                orgId: currentOrg?.orgId,
+                licenseId
+            });
             
             if (res.success) {
                 showToast('License rotated successfully', 'success');
