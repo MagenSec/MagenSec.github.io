@@ -207,7 +207,8 @@
   function initActiveNavLink() {
     const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
     document.querySelectorAll('.nav__link').forEach((link) => {
-      const href = link.getAttribute('href')?.replace(/\/$/, '') || '';
+      const rawHref = link.getAttribute('href') || '';
+      const href = rawHref.replace(/\/$/, '');
       if (!href) return;
       if (href === currentPath || (href !== '/' && currentPath.startsWith(href))) {
         link.classList.add('nav__link--active');

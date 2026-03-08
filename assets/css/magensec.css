@@ -2657,16 +2657,16 @@ h1, h2, h3, h4, h5, h6 { line-height: var(--leading-tight); font-weight: var(--w
    SCROLL REVEAL ANIMATIONS
    ═══════════════════════════════════════════════════════════════════ */
 
-html.js-ready [data-reveal] {
+[data-reveal].reveal-pending {
   opacity: 0;
   transform: translateY(32px);
   transition: opacity var(--duration-slow) var(--ease-out),
               transform var(--duration-slow) var(--ease-out);
 }
 
-html.js-ready [data-reveal="left"]  { transform: translateX(-32px); }
-html.js-ready [data-reveal="right"] { transform: translateX(32px); }
-html.js-ready [data-reveal="scale"] { transform: scale(0.94); }
+[data-reveal="left"].reveal-pending  { transform: translateX(-32px); }
+[data-reveal="right"].reveal-pending { transform: translateX(32px); }
+[data-reveal="scale"].reveal-pending { transform: scale(0.94); }
 
 [data-reveal].is-revealed {
   opacity: 1;

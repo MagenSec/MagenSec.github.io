@@ -11,9 +11,18 @@
     const els = document.querySelectorAll('[data-reveal]');
     if (!els.length) return;
 
+    els.forEach((el) => {
+      if (!el.classList.contains('is-revealed')) {
+        el.classList.add('reveal-pending');
+      }
+    });
+
     // If observer APIs are unavailable, reveal everything immediately.
     if (!('IntersectionObserver' in window)) {
-      els.forEach((el) => el.classList.add('is-revealed'));
+      els.forEach((el) => {
+        el.classList.remove('reveal-pending');
+        el.classList.add('is-revealed');
+      });
       return;
     }
 
@@ -21,6 +30,7 @@
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
+            entry.target.classList.remove('reveal-pending');
             entry.target.classList.add('is-revealed');
             observer.unobserve(entry.target);
           }
@@ -227,10 +237,13 @@
     document.querySelectorAll('[data-copy]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const text = btn.dataset.copy;
-        navigator.clipboard?.writeText(text).then(() => {
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') return;
+        navigator.clipboard.writeText(text).then(() => {
           const orig = btn.textContent;
           btn.textContent = 'Copied!';
           setTimeout(() => { btn.textContent = orig; }, 2000);
+        }).catch(() => {
+          // Clipboard permissions can fail silently; keep UX unchanged.
         });
       });
     });
@@ -280,7 +293,10 @@
       initChatDemo();
     } catch (error) {
       // Never leave reveal-gated pages blank if animations fail.
-      document.querySelectorAll('[data-reveal]').forEach((el) => el.classList.add('is-revealed'));
+      document.querySelectorAll('[data-reveal]').forEach((el) => {
+        el.classList.remove('reveal-pending');
+        el.classList.add('is-revealed');
+      });
     }
   }
 
