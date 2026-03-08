@@ -13,6 +13,44 @@
 <link rel="stylesheet" href="assets/css/magensec.css">
 <script>if (window.location.protocol !== 'file:') document.documentElement.classList.add('js-ready');</script>
 <noscript><style>[data-reveal]{opacity:1!important;transform:none!important}</style></noscript>
+<style>
+	.platform-hub .features-grid {
+		gap: var(--space-6);
+	}
+
+	.platform-hub .feature-card--tabler {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		min-height: 100%;
+		padding: var(--space-6);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-xl);
+		background: linear-gradient(180deg, rgba(15, 23, 42, 0.24), rgba(15, 23, 42, 0.12));
+		box-shadow: var(--shadow-md);
+		transition: transform var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+	}
+
+	.platform-hub .feature-card--tabler::after {
+		content: 'Open capability';
+		margin-top: auto;
+		padding-top: var(--space-4);
+		font-size: var(--text-xs);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-text-muted);
+	}
+
+	.platform-hub .feature-card--tabler:hover {
+		transform: translateY(-3px);
+		border-color: var(--color-primary);
+		box-shadow: var(--shadow-xl);
+	}
+
+	:root[data-theme="light"] .platform-hub .feature-card--tabler {
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
+	}
+</style>
 </head>
 <body data-nav-active="what-we-cover">
 <header class="nav" id="nav" role="banner">
@@ -54,46 +92,46 @@
 </div>
 </section>
 
-<section class="section section--surface">
+<section class="section section--surface platform-hub">
 <div class="container">
 <div class="features-grid">
-<a class="feature-card" href="features/antivirus-management.html">
+<a class="feature-card feature-card--tabler" href="platform/antivirus-management.html">
 <div class="feature-card__icon card-icon--success">AV</div>
 <h3 class="feature-card__title">Security Coverage</h3>
 <p class="feature-card__desc">Windows Defender health, signatures, scans, and protection drift management.</p>
 <div class="feature-card__badge badge badge-success">Protect</div>
 </a>
-<a class="feature-card" href="features/vulnerability.html">
+<a class="feature-card feature-card--tabler" href="platform/vulnerability.html">
 <div class="feature-card__icon card-icon--warning">VULN</div>
 <h3 class="feature-card__title">Vulnerability Detection</h3>
 <p class="feature-card__desc">CVE-based exposure mapping and prioritized remediation guidance.</p>
 <div class="feature-card__badge badge badge-warning">Protect</div>
 </a>
-<a class="feature-card" href="features/software-inventory.html">
+<a class="feature-card feature-card--tabler" href="platform/software-inventory.html">
 <div class="feature-card__icon card-icon--primary">INV</div>
 <h3 class="feature-card__title">Software Inventory</h3>
 <p class="feature-card__desc">Version visibility, shadow IT discovery, and entitlement risk context.</p>
 <div class="feature-card__badge badge badge-primary">Protect</div>
 </a>
-<a class="feature-card" href="features/compliance.html">
+<a class="feature-card feature-card--tabler" href="platform/compliance.html">
 <div class="feature-card__icon card-icon--accent">CMP</div>
 <h3 class="feature-card__title">Compliance Monitoring</h3>
 <p class="feature-card__desc">Control evidence and framework alignment for business plans.</p>
 <div class="feature-card__badge badge badge-accent">Prove</div>
 </a>
-<a class="feature-card" href="features/license-management.html">
+<a class="feature-card feature-card--tabler" href="platform/license-management.html">
 <div class="feature-card__icon card-icon--danger">LIC</div>
 <h3 class="feature-card__title">License Management</h3>
 <p class="feature-card__desc">Entitlement drift detection, over-deployment tracking, and vendor audit readiness.</p>
 <div class="feature-card__badge badge badge-danger">Business</div>
 </a>
-<a class="feature-card" href="features/audit.html">
+<a class="feature-card feature-card--tabler" href="platform/audit.html">
 <div class="feature-card__icon card-icon--danger">AUD</div>
 <h3 class="feature-card__title">Audit + Time-Travel</h3>
 <p class="feature-card__desc">Historical posture reconstruction and defensible audit trails.</p>
 <div class="feature-card__badge badge badge-danger">Audit</div>
 </a>
-<a class="feature-card" href="magi.html">
+<a class="feature-card feature-card--tabler" href="magi.html">
 <div class="feature-card__icon card-icon--accent">AI</div>
 <h3 class="feature-card__title">MAGI AI Analyst</h3>
 <p class="feature-card__desc">Plain-language analysis, prioritization, and action recommendations.</p>

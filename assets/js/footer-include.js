@@ -26,7 +26,12 @@
       return path;
     }
     var cleaned = path.replace(/^\.?\//, '').replace(/^\//, '');
-    if (isFileProtocol) return cleaned;
+    if (isFileProtocol) {
+      // On file://, keep links anchored to detected project base so subfolder pages
+      // do not resolve assets under /features/assets or /editions/assets.
+      if (basePath) return basePath + '/' + cleaned;
+      return cleaned;
+    }
     if (!basePath) return '/' + cleaned;
     return basePath + '/' + cleaned;
   }
@@ -111,14 +116,14 @@
         <h3 class="footer__col-title">Platform</h3>
         <div class="footer__product-grid">
           <div class="footer__stack">
-            <a href="features/antivirus-management.html" class="footer__link">Security Coverage</a>
-            <a href="features/vulnerability.html" class="footer__link">Vulnerability Detection</a>
-            <a href="features/software-inventory.html" class="footer__link">Software Inventory</a>
-            <a href="features/license-management.html" class="footer__link">License Management</a>
+            <a href="platform/antivirus-management.html" class="footer__link">Security Coverage</a>
+            <a href="platform/vulnerability.html" class="footer__link">Vulnerability Detection</a>
+            <a href="platform/software-inventory.html" class="footer__link">Software Inventory</a>
+            <a href="platform/license-management.html" class="footer__link">License Management</a>
           </div>
           <div class="footer__stack">
-            <a href="features/compliance.html" class="footer__link">Compliance Monitoring</a>
-            <a href="features/audit.html" class="footer__link">Audit + Time-Travel</a>
+            <a href="platform/compliance.html" class="footer__link">Compliance Monitoring</a>
+            <a href="platform/audit.html" class="footer__link">Audit + Time-Travel</a>
             <a href="magi.html" class="footer__link">MAGI AI</a>
           </div>
         </div>

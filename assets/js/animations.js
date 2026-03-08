@@ -11,6 +11,12 @@
     const els = document.querySelectorAll('[data-reveal]');
     if (!els.length) return;
 
+    // If observer APIs are unavailable, reveal everything immediately.
+    if (!('IntersectionObserver' in window)) {
+      els.forEach((el) => el.classList.add('is-revealed'));
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -54,6 +60,16 @@
   function initCounters() {
     const els = document.querySelectorAll('[data-counter]');
     if (!els.length) return;
+
+    if (!('IntersectionObserver' in window)) {
+      els.forEach((el) => {
+        const target = el.dataset.target;
+        if (typeof target !== 'undefined' && target !== '') {
+          el.textContent = target + (el.dataset.suffix || '');
+        }
+      });
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -252,15 +268,20 @@
 
   /* ── Init all ──────────────────────────────────────────────────────── */
   function init() {
-    initScrollReveal();
-    initCounters();
-    initTypewriter();
-    initFaq();
-    initPromoBanner();
-    initPricingTabs();
-    initTermsToc();
-    initCopy();
-    initChatDemo();
+    try {
+      initScrollReveal();
+      initCounters();
+      initTypewriter();
+      initFaq();
+      initPromoBanner();
+      initPricingTabs();
+      initTermsToc();
+      initCopy();
+      initChatDemo();
+    } catch (error) {
+      // Never leave reveal-gated pages blank if animations fail.
+      document.querySelectorAll('[data-reveal]').forEach((el) => el.classList.add('is-revealed'));
+    }
   }
 
   if (document.readyState === 'loading') {
