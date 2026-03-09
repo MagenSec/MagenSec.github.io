@@ -325,6 +325,69 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         return true;
     });
 
+    function getTaskLiveState(task) {
+        const taskRuns = events
+            .filter(e => e.eventType === 'CRONRUN' && (e.metadata?.taskId || e.metadata?.TaskId) === task.taskId)
+            .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+
+        const latestRun = taskRuns[0] || null;
+        const runStatus = latestRun?.metadata?.status || latestRun?.metadata?.Status || null;
+
+        if (!latestRun || runStatus !== 'Running') {
+            return {
+                key: task.isOverdue ? 'overdue' : 'scheduled',
+                label: task.isOverdue ? 'Overdue' : 'On Schedule',
+                badgeClass: task.isOverdue ? 'bg-danger text-white' : 'bg-success text-white',
+                icon: task.isOverdue ? 'ti-alert-circle' : 'ti-check',
+                progressPercent: null,
+                ageMinutes: null
+            };
+        }
+
+        const progressAtRaw =
+            latestRun.metadata?.progressAt ||
+            latestRun.metadata?.lastProgressAt ||
+            latestRun.metadata?.progress?.at ||
+            latestRun.timestamp;
+        const progressAt = progressAtRaw ? new Date(progressAtRaw) : null;
+        const ageMinutes = progressAt ? (Date.now() - progressAt.getTime()) / 60000 : null;
+        const progressPercent = latestRun.metadata?.progressPercent ?? latestRun.metadata?.progress?.percent ?? null;
+
+        const lockExpiresRaw = cronStatus?.currentStatus?.lockExpires;
+        const lockExpired = lockExpiresRaw ? new Date(lockExpiresRaw) < new Date() : false;
+
+        if (ageMinutes != null && ageMinutes > 10 && lockExpired) {
+            return {
+                key: 'killed',
+                label: 'Possibly Killed',
+                badgeClass: 'bg-dark text-white',
+                icon: 'ti-plug-x',
+                progressPercent,
+                ageMinutes
+            };
+        }
+
+        if (ageMinutes != null && ageMinutes > 10) {
+            return {
+                key: 'stuck',
+                label: 'Stuck',
+                badgeClass: 'bg-warning text-white',
+                icon: 'ti-alert-triangle',
+                progressPercent,
+                ageMinutes
+            };
+        }
+
+        return {
+            key: 'running',
+            label: 'Running',
+            badgeClass: 'bg-primary text-white',
+            icon: 'ti-player-play',
+            progressPercent,
+            ageMinutes
+        };
+    }
+
     return html`
         <div class="page-header d-print-none mb-3">
             <div class="container-xl">
@@ -499,9 +562,8 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                             </thead>
                             <tbody>
                                 ${cronStatus.tasks.map(task => {
-                                    const hoursOverdue = task.hoursSinceLastRun ? task.hoursSinceLastRun - task.frequencyHours : 0;
-                                    const isOverdue = task.isOverdue;
                                     const failureRate = task.totalExecutions > 0 ? (task.failedExecutions / task.totalExecutions * 100).toFixed(1) : 0;
+                                    const liveState = getTaskLiveState(task);
 
                                     const execHistory = Array.isArray(task.executionHistory) ? task.executionHistory : [];
                                     const lastExec = execHistory
@@ -558,19 +620,16 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                                     : html`<span class="text-muted">-</span>`}
                                             </td>
                                             <td>
-                                                ${isOverdue 
-                                                    ? html`
-                                                        <span class="badge bg-danger">
-                                                            <i class="ti ti-alert-circle me-1"></i>
-                                                            Overdue
-                                                        </span>
-                                                    `
-                                                    : html`
-                                                        <span class="badge bg-success">
-                                                            <i class="ti ti-check me-1"></i>
-                                                            On Schedule
-                                                        </span>
-                                                    `}
+                                                <span class="badge ${liveState.badgeClass}">
+                                                    <i class="ti ${liveState.icon} me-1"></i>
+                                                    ${liveState.label}
+                                                </span>
+                                                ${liveState.progressPercent != null && html`
+                                                    <div class="text-muted small mt-1">${liveState.progressPercent}% complete</div>
+                                                `}
+                                                ${liveState.ageMinutes != null && html`
+                                                    <div class="text-muted small">last update ${Math.floor(liveState.ageMinutes)}m ago</div>
+                                                `}
                                             </td>
                                         </tr>
                                     `;
