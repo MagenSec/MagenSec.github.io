@@ -6,62 +6,19 @@
 const { html } = window;
 const { useState, useEffect, useRef } = window.preactHooks;
 
-const ORG_DURATION_OPTIONS = [
-    { label: '6 months (180 days)', value: 180 },
-    { label: '1 year (365 days)', value: 365 },
-    { label: '2 years (730 days)', value: 730 },
-    { label: '3 years (1095 days)', value: 1095 }
+const FALLBACK_DURATION_OPTIONS = [
+    { label: '1 year (365 days)', value: 365 }
 ];
 
-const DEFAULT_LICENSE_CATALOG = {
-    orgTypes: [
-        { label: 'Business', value: 'Business', icon: 'ti-building', description: 'Full enterprise features, multiple licenses, team access' },
-        { label: 'Education', value: 'Education', icon: 'ti-school', description: 'Educational pricing, institution-wide access' },
-        { label: 'Personal', value: 'Personal', icon: 'ti-user', description: 'Individual use, limited to 5 devices' }
-    ],
-    tiersByOrgType: {
-        Business: [
-            { label: 'Startup (10 devices)', value: 'Startup', defaultSeats: 10 },
-            { label: 'Growth (25 devices)', value: 'Growth', defaultSeats: 25 },
-            { label: 'Scale (50 devices)', value: 'Scale', defaultSeats: 50 },
-            { label: 'Custom', value: 'Custom', defaultSeats: 20 }
-        ],
-        Education: [
-            { label: 'School Lab (25 devices)', value: 'SchoolLab', defaultSeats: 25 },
-            { label: 'Custom', value: 'Custom', defaultSeats: 20 }
-        ],
-        Personal: [
-            { label: 'Individual (5 devices)', value: 'Individual', defaultSeats: 5 }
-        ]
-    },
-    demoTier: {
-        enabledForOrgTypes: ['Business', 'Education'],
-        label: 'Demo (10 devices)',
-        value: 'Demo',
-        defaultSeats: 10,
-        allowCustomSeats: true,
-        minSeats: 1,
-        maxSeats: 500
-    },
-    addOns: [
-        { key: 'Security', label: 'Security', description: 'Core protection controls', requiredForAll: true, includedByDefaultForDemo: true, lockedForDemo: true },
-        { key: 'Compliance', label: 'Compliance', description: 'Compliance reporting and tracking', requiredForAll: false, includedByDefaultForDemo: true, lockedForDemo: true },
-        { key: 'ThreatIntel', label: 'Threat Intelligence', description: 'Threat intel enrichment and scoring', requiredForAll: false, includedByDefaultForDemo: true, lockedForDemo: true },
-        { key: 'ExecutiveReports', label: 'Executive Reports', description: 'Board-ready summaries and briefings', requiredForAll: false, includedByDefaultForDemo: true, lockedForDemo: true },
-        { key: 'Automation', label: 'Automation', description: 'Automated remediation workflows', requiredForAll: false, includedByDefaultForDemo: true, lockedForDemo: true }
-    ]
-};
-
 function resolveLicenseCatalog(catalog) {
-    if (!catalog || typeof catalog !== 'object') {
-        return DEFAULT_LICENSE_CATALOG;
-    }
+    const c = (catalog && typeof catalog === 'object') ? catalog : {};
 
     return {
-        orgTypes: Array.isArray(catalog.orgTypes) && catalog.orgTypes.length ? catalog.orgTypes : DEFAULT_LICENSE_CATALOG.orgTypes,
-        tiersByOrgType: catalog.tiersByOrgType && typeof catalog.tiersByOrgType === 'object' ? catalog.tiersByOrgType : DEFAULT_LICENSE_CATALOG.tiersByOrgType,
-        demoTier: catalog.demoTier && typeof catalog.demoTier === 'object' ? catalog.demoTier : DEFAULT_LICENSE_CATALOG.demoTier,
-        addOns: Array.isArray(catalog.addOns) && catalog.addOns.length ? catalog.addOns : DEFAULT_LICENSE_CATALOG.addOns
+        orgTypes: Array.isArray(c.orgTypes) && c.orgTypes.length ? c.orgTypes : [],
+        tiersByOrgType: c.tiersByOrgType && typeof c.tiersByOrgType === 'object' ? c.tiersByOrgType : {},
+        demoTier: c.demoTier && typeof c.demoTier === 'object' ? c.demoTier : null,
+        addOns: Array.isArray(c.addOns) && c.addOns.length ? c.addOns : [],
+        licenseDuration: Array.isArray(c.licenseDuration) && c.licenseDuration.length ? c.licenseDuration : FALLBACK_DURATION_OPTIONS
     };
 }
 
@@ -72,14 +29,14 @@ function isDemoAllowedForOrgType(orgType, catalog) {
 
 function getTierOptionsForOrgType(orgType, catalog) {
     const tierCatalog = catalog.tiersByOrgType || {};
-    const fallback = tierCatalog.Business || DEFAULT_LICENSE_CATALOG.tiersByOrgType.Business;
+    const fallback = tierCatalog.Business || [];
     const baseOptions = Array.isArray(tierCatalog[orgType]) && tierCatalog[orgType].length ? tierCatalog[orgType] : fallback;
 
     if (!isDemoAllowedForOrgType(orgType, catalog)) {
         return [...baseOptions];
     }
 
-    const demoTier = catalog.demoTier || DEFAULT_LICENSE_CATALOG.demoTier;
+    const demoTier = catalog.demoTier || {};
     return [...baseOptions, {
         label: demoTier.label || 'Demo',
         value: demoTier.value || 'Demo',
@@ -89,11 +46,11 @@ function getTierOptionsForOrgType(orgType, catalog) {
 
 function getLicenseTierConfig(orgType, tier, catalog) {
     const options = getTierOptionsForOrgType(orgType, catalog);
-    return options.find((opt) => opt.value === tier) || options[0];
+    return options.find((opt) => opt.value === tier) || options[0] || { defaultSeats: 20 };
 }
 
-function normalizeCustomAddOns(addOns = [], isDemo = false, catalog = DEFAULT_LICENSE_CATALOG) {
-    const addOnCatalog = Array.isArray(catalog.addOns) ? catalog.addOns : DEFAULT_LICENSE_CATALOG.addOns;
+function normalizeCustomAddOns(addOns = [], isDemo = false, catalog = {}) {
+    const addOnCatalog = Array.isArray(catalog.addOns) ? catalog.addOns : [];
     if (isDemo) {
         return addOnCatalog
             .filter((x) => x.includedByDefaultForDemo !== false)
@@ -145,14 +102,15 @@ function calculateInvoicePreview({ orgType, tier, seats, duration, discountType,
 
     let baseAmount = 0;
     let pricingMode = 'fallback:seatsxdays';
+    const durationFactor = effectiveDuration / 365;
     if (isDemo) {
         baseAmount = 0;
         pricingMode = 'demo';
     } else if (bundlePricing?.mode === 'perSeat') {
-        baseAmount = Math.max(0, (Number(bundlePricing.amount) || 0) * effectiveSeats);
+        baseAmount = Math.max(0, (Number(bundlePricing.amount) || 0) * effectiveSeats * durationFactor);
         pricingMode = 'perSeat';
     } else if (bundlePricing?.mode === 'flat') {
-        baseAmount = Math.max(0, Number(bundlePricing.amount) || 0);
+        baseAmount = Math.max(0, (Number(bundlePricing.amount) || 0) * durationFactor);
         pricingMode = 'flat';
     } else {
         baseAmount = Math.max(0, effectiveSeats * effectiveDuration);
@@ -216,8 +174,9 @@ export function OrganizationsTab({
     onTransferOwnership
 }) {
     const licenseUxCatalog = resolveLicenseCatalog(licenseCatalog);
-    const orgTypeOptions = licenseUxCatalog.orgTypes || DEFAULT_LICENSE_CATALOG.orgTypes;
-    const addOnCatalog = licenseUxCatalog.addOns || DEFAULT_LICENSE_CATALOG.addOns;
+    const orgTypeOptions = licenseUxCatalog.orgTypes || [];
+    const addOnCatalog = licenseUxCatalog.addOns || [];
+    const durationOptions = licenseUxCatalog.licenseDuration || FALLBACK_DURATION_OPTIONS;
     const demoTierValue = licenseUxCatalog.demoTier?.value || 'Demo';
 
     const [showCreateForm, setShowCreateForm] = useState(false);
@@ -499,7 +458,7 @@ export function OrganizationsTab({
         const orgType = getOrgType(org);
         const defaultTier = getTierOptionsForOrgType(orgType, licenseUxCatalog)[0]?.value || 'Startup';
         setNewLicenseTier(defaultTier);
-        setNewLicenseSeats(getLicenseTierConfig(orgType, defaultTier, licenseUxCatalog).defaultSeats);
+        setNewLicenseSeats(getLicenseTierConfig(orgType, defaultTier, licenseUxCatalog)?.defaultSeats ?? 20);
         setShowDangerZone(false);
 
         // Load report config + licenses lazily
@@ -1043,7 +1002,7 @@ export function OrganizationsTab({
                                                     <div class="col-md-4">
                                                         <label class="form-label">Duration</label>
                                                         <select class="form-select" value=${newOrgDuration} onChange=${(e) => setNewOrgDuration(e.target.value)}>
-                                                            ${ORG_DURATION_OPTIONS.map(opt => html`<option value=${opt.value}>${opt.label}</option>`)}
+                                                            ${durationOptions.map(opt => html`<option value=${opt.value}>${opt.label}</option>`)}
                                                         </select>
                                                     </div>
                                                     <div class="col-md-4">
@@ -1596,7 +1555,7 @@ export function OrganizationsTab({
                                                             <div class="col-md-2">
                                                                 <label class="form-label small">Duration (Days)</label>
                                                                 <select class="form-select form-select-sm" value=${newLicenseDuration} onChange=${(e) => setNewLicenseDuration(e.target.value)}>
-                                                                    ${ORG_DURATION_OPTIONS.map(opt => html`<option value=${opt.value}>${opt.label}</option>`)}
+                                                                    ${durationOptions.map(opt => html`<option value=${opt.value}>${opt.label}</option>`)}
                                                                 </select>
                                                             </div>
                                                             <div class="col-md-2">
