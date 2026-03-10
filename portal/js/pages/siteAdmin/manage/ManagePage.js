@@ -52,6 +52,7 @@ export class ManagePage extends Component {
                 whatsappDailyEnabled: false,
                 aiExecutiveSummaryEnabled: false,
                 aiExecutiveSummaryInternetEnabled: false,
+                sweTodaySnapshotRefreshHours: 6,
             },
             platformLoading: false,
             platformSaving: false
@@ -162,7 +163,8 @@ export class ManagePage extends Component {
                     sendToAllTeamMembers: data.sendToAllTeamMembers,
                     industry: data.industry,
                     orgSize: data.orgSize,
-                    nextAuditDate: data.nextAuditDate
+                    nextAuditDate: data.nextAuditDate,
+                    todaySnapshotRefreshHoursOverride: data.todaySnapshotRefreshHoursOverride
                 })
             });
             
@@ -558,6 +560,39 @@ export class ManagePage extends Component {
                                                 </label>
                                                 <div class="text-muted small mt-1">
                                                     When enabled, the AI summary may include KEV/EPSS/CVE description context (if available). Disable to keep the summary strictly snapshot-only.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <h4 class="mb-2">SWE Freshness Controls</h4>
+                                        <div class="row g-3 align-items-end">
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-bold" for="sweTodaySnapshotRefreshHours">
+                                                    Today's Snapshot Refresh Cadence (hours)
+                                                </label>
+                                                <input
+                                                    id="sweTodaySnapshotRefreshHours"
+                                                    type="number"
+                                                    min="1"
+                                                    max="24"
+                                                    step="1"
+                                                    class="form-control"
+                                                    value=${platformSettings.sweTodaySnapshotRefreshHours ?? 6}
+                                                    disabled=${platformSaving}
+                                                    onChange=${(e) => {
+                                                        const parsed = Number.parseInt(e.target.value, 10);
+                                                        if (!Number.isNaN(parsed)) {
+                                                            this.savePlatformSetting('sweTodaySnapshotRefreshHours', Math.max(1, Math.min(24, parsed)));
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                            <div class="col-md-8">
+                                                <div class="text-muted small mt-1">
+                                                    Controls how often cron refreshes <strong>today's rolling snapshot</strong>. Default is 6 hours; lower this for high-volume orgs to reduce merge gaps.
+                                                    Per-org overrides are stored on organization rows and evaluated in the hourly cron pass.
                                                 </div>
                                             </div>
                                         </div>

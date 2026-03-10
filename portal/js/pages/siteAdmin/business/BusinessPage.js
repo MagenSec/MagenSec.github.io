@@ -21,9 +21,9 @@ export class BusinessPage extends Component {
         const { activeTab } = this.state;
 
         return html`
-            <div class="container-xl">
+            <div class="container-xl business-intelligence-shell">
                 <!-- Page header -->
-                <div class="page-header d-print-none mb-3">
+                <div class="page-header d-print-none mb-3 business-intelligence-header">
                     <div class="row align-items-center">
                         <div class="col">
                             <div class="page-pretitle">Site Admin</div>
@@ -33,7 +33,7 @@ export class BusinessPage extends Component {
                 </div>
 
                 <!-- Tabs -->
-                <ul class="nav nav-tabs mb-3">
+                <ul class="nav nav-tabs mb-3 business-intelligence-tabs">
                     <li class="nav-item">
                         <a 
                             class="nav-link ${activeTab === 'matrix' ? 'active' : ''}" 

@@ -236,6 +236,7 @@ export function OrganizationsTab({
     const [updateIndustry, setUpdateIndustry] = useState('');
     const [updateOrgSize, setUpdateOrgSize] = useState('');
     const [updateNextAuditDate, setUpdateNextAuditDate] = useState('');
+    const [updateTodaySnapshotRefreshHoursOverride, setUpdateTodaySnapshotRefreshHoursOverride] = useState('');
 
     // License state
     const [orgLicenses, setOrgLicenses] = useState([]);
@@ -455,6 +456,9 @@ export function OrganizationsTab({
         setUpdateIndustry(org.industry || '');
         setUpdateOrgSize(org.orgSize || '');
         setUpdateNextAuditDate(org.nextAuditDate || '');
+        setUpdateTodaySnapshotRefreshHoursOverride(
+            org.todaySnapshotRefreshHoursOverride ?? org.TodaySnapshotRefreshHoursOverride ?? ''
+        );
         const orgType = getOrgType(org);
         const defaultTier = getTierOptionsForOrgType(orgType, licenseUxCatalog)[0]?.value || 'Startup';
         setNewLicenseTier(defaultTier);
@@ -600,7 +604,10 @@ export function OrganizationsTab({
             sendToAllTeamMembers: updateSendToAllMembers,
             industry: updateIndustry || null,
             orgSize: updateOrgSize || null,
-            nextAuditDate: updateNextAuditDate || null
+            nextAuditDate: updateNextAuditDate || null,
+            todaySnapshotRefreshHoursOverride: updateTodaySnapshotRefreshHoursOverride === ''
+                ? 0
+                : Math.max(1, Math.min(24, parseInt(updateTodaySnapshotRefreshHoursOverride, 10) || 0))
         });
 
         if (result?.success) {
@@ -1516,6 +1523,20 @@ export function OrganizationsTab({
                                                                 onInput=${(e) => setUpdateNextAuditDate(e.target.value)}
                                                             />
                                                             <small class="form-text text-muted">Shown as compliance countdown in weekly email</small>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Today's Snapshot Refresh Override (hours)</label>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                max="24"
+                                                                step="1"
+                                                                class="form-control"
+                                                                placeholder="Use platform default"
+                                                                value=${updateTodaySnapshotRefreshHoursOverride}
+                                                                onInput=${(e) => setUpdateTodaySnapshotRefreshHoursOverride(e.target.value)}
+                                                            />
+                                                            <small class="form-text text-muted">Leave blank to use platform default cadence.</small>
                                                         </div>
                                                     </div>
                                                 </div>

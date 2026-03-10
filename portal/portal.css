@@ -260,6 +260,87 @@ pre.json-metadata {
   padding: 0.25rem 0.5rem;
 }
 
+/* ========================================
+   Business Intelligence Shell
+   ======================================== */
+
+.business-intelligence-shell {
+  --bi-surface: #f7f9fc;
+  --bi-border: #d9e1ec;
+  --bi-header-bg: linear-gradient(120deg, #0f3d73 0%, #2b7a9a 50%, #5aa7b8 100%);
+  --bi-header-text: #f8fbff;
+}
+
+[data-bs-theme="dark"] .business-intelligence-shell {
+  --bi-surface: #111926;
+  --bi-border: #2b3b52;
+  --bi-header-bg: linear-gradient(120deg, #10263f 0%, #1a4461 55%, #24677f 100%);
+  --bi-header-text: #f4f8ff;
+}
+
+.business-intelligence-header {
+  background: var(--bi-header-bg);
+  color: var(--bi-header-text);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.business-intelligence-header .page-pretitle,
+.business-intelligence-header .page-title {
+  color: var(--bi-header-text);
+}
+
+.business-intelligence-tabs {
+  border-bottom: 0;
+  gap: 0.5rem;
+}
+
+.business-intelligence-tabs .nav-link {
+  border: 1px solid var(--bi-border);
+  border-radius: 10px;
+  background: var(--bi-surface);
+}
+
+.business-intelligence-tabs .nav-link.active {
+  background: #0f5ea8;
+  color: #ffffff;
+  border-color: #0f5ea8;
+}
+
+.business-hero-card {
+  background: linear-gradient(130deg, #1a4d7e 0%, #1e6e8f 55%, #4ba7aa 100%) !important;
+  color: #f3f8ff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 28px rgba(16, 45, 79, 0.22);
+}
+
+[data-bs-theme="dark"] .business-hero-card {
+  background: linear-gradient(130deg, #102640 0%, #17435e 55%, #236877 100%) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
+}
+
+.diagnostics-shell {
+  --diag-surface: #f7f9fc;
+  --diag-border: #d9e1ec;
+}
+
+[data-bs-theme="dark"] .diagnostics-shell {
+  --diag-surface: #111926;
+  --diag-border: #2b3b52;
+}
+
+.diagnostics-header {
+  background: var(--diag-surface);
+  border: 1px solid var(--diag-border);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+}
+
+.diagnostics-content-card {
+  border: 1px solid var(--diag-border);
+}
+
 .badge.bg-danger-lt {
   background: var(--tblr-danger-lt) !important;
   color: var(--tblr-danger) !important;

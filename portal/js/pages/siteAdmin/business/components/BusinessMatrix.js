@@ -9,7 +9,6 @@ export function BusinessMatrixPage() {
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState(null);
     const [error, setError] = useState(null);
-    const [forceRefresh, setForceRefresh] = useState(false);
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [expandedOrgs, setExpandedOrgs] = useState(new Set());
@@ -20,6 +19,7 @@ export function BusinessMatrixPage() {
     const [costTrendDays, setCostTrendDays] = useState(30);          // 7, 14, 30
     const [costBreakdownPeriod, setCostBreakdownPeriod] = useState('mtd'); // 'latest', '7d', 'mtd'
     const [showMrrMlDetails, setShowMrrMlDetails] = useState(false);
+    const [freshness, setFreshness] = useState(null);
     
     // Chart refs
     const revenueChartRef = useRef(null);
@@ -30,6 +30,7 @@ export function BusinessMatrixPage() {
     const telemetryByTypeChartRef = useRef(null);
     const topOrgTelemetryChartRef = useRef(null);
     const telemetryCostMixChartRef = useRef(null);
+    const chartInstancesRef = useRef({});
     
     // Service cost trend chart refs (dynamic)
     const [serviceChartRefs, setServiceChartRefs] = useState({});
@@ -91,8 +92,26 @@ export function BusinessMatrixPage() {
             if (telemetryByTypeChart) telemetryByTypeChart.destroy();
             if (topOrgTelemetryChart) topOrgTelemetryChart.destroy();
             if (telemetryCostMixChart) telemetryCostMixChart.destroy();
+            Object.values(chartInstancesRef.current || {}).forEach((instance) => {
+                if (instance && typeof instance.destroy === 'function') {
+                    instance.destroy();
+                }
+            });
+            chartInstancesRef.current = {};
         };
     }, []);
+
+    const destroyCanvasChart = (canvasRef) => {
+        const canvas = canvasRef?.current;
+        if (!canvas || !window.Chart || typeof window.Chart.getChart !== 'function') {
+            return;
+        }
+
+        const existing = window.Chart.getChart(canvas);
+        if (existing) {
+            existing.destroy();
+        }
+    };
 
     // Re-render cost trend when period selector changes
     useEffect(() => {
@@ -116,7 +135,18 @@ export function BusinessMatrixPage() {
         }
     }, [displayCurrencyCode, billingCurrencyCode]);
 
-    const loadBusinessMetrics = async () => {
+    useEffect(() => {
+        const onRecovered = () => {
+            if (freshness?.degraded) {
+                loadBusinessMetrics();
+            }
+        };
+
+        window.addEventListener('api:degraded-recovered', onRecovered);
+        return () => window.removeEventListener('api:degraded-recovered', onRecovered);
+    }, [freshness]);
+
+    const loadBusinessMetrics = async (forceRefresh = false) => {
         try {
             setLoading(true);
             setError(null);
@@ -130,6 +160,7 @@ export function BusinessMatrixPage() {
             
             if (response.success) {
                 setMetrics(response.data);
+                setFreshness(response.data?.freshness || null);
                 setBillingCurrencyCode((response.data?.platformSummary?.billingCurrencyCode || 'USD').toUpperCase());
                 // Render charts after metrics loaded
                 setTimeout(() => {
@@ -223,6 +254,7 @@ export function BusinessMatrixPage() {
         const ctx = mrrTrendChartRef.current.getContext('2d');
         const currencySymbol = getCurrencySymbolForDisplay();
 
+        destroyCanvasChart(mrrTrendChartRef);
         if (mrrTrendChart) {
             mrrTrendChart.destroy();
         }
@@ -280,6 +312,7 @@ export function BusinessMatrixPage() {
         const ctx = marginBandChartRef.current.getContext('2d');
         const currencySymbol = getCurrencySymbolForDisplay();
 
+        destroyCanvasChart(marginBandChartRef);
         if (marginBandChart) {
             marginBandChart.destroy();
         }
@@ -361,6 +394,7 @@ export function BusinessMatrixPage() {
 
         const ctx = costTrendChartRef.current.getContext('2d');
 
+        destroyCanvasChart(costTrendChartRef);
         if (costTrendChart) {
             costTrendChart.destroy();
         }
@@ -441,6 +475,7 @@ export function BusinessMatrixPage() {
 
         const ctx = costBreakdownChartRef.current.getContext('2d');
 
+        destroyCanvasChart(costBreakdownChartRef);
         if (costBreakdownChart) {
             costBreakdownChart.destroy();
         }
@@ -534,19 +569,59 @@ export function BusinessMatrixPage() {
         setCostBreakdownChart(chart);
     };
 
-    const renderTelemetryEconomicsCharts = (costAnalytics) => {
-        const dailyTelemetry = costAnalytics?.dailyTelemetryTypeVolumes || [];
-        if (dailyTelemetry.length > 0) {
-            renderTelemetryByTypeChart(dailyTelemetry);
-            renderTopOrgTelemetryChart(dailyTelemetry);
-            renderTelemetryCostMixChart(dailyTelemetry[dailyTelemetry.length - 1]);
+    const hasAnyTelemetrySignal = (series) => {
+        return (series || []).some(item => {
+            const rowTotal = Number(item.totalRows || 0);
+            const costTotal = Object.values(item.costByType || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+            const orgRows = (item.topTelemetryOrgs || []).reduce((sum, org) => sum + Number(org.telemetryRows || 0), 0);
+            return rowTotal > 0 || costTotal > 0 || orgRows > 0;
+        });
+    };
+
+    const mapSnapshotToTelemetryPoint = (snapshot) => {
+        const rowsByType = snapshot?.telemetryRowsByType || {};
+        const costByType = snapshot?.telemetryCostByType || {};
+        return {
+            date: snapshot?.date,
+            heartbeatRows: Number(rowsByType.Heartbeat || 0),
+            appTelemetryRows: Number(rowsByType.AppTelemetry || 0),
+            cveTelemetryRows: Number(rowsByType.CveTelemetry || 0),
+            perfTelemetryRows: Number(rowsByType.PerfTelemetry || 0),
+            machineTelemetryRows: Number(rowsByType.MachineTelemetry || 0),
+            totalRows: Object.values(rowsByType).reduce((sum, value) => sum + Number(value || 0), 0),
+            costByType,
+            topTelemetryOrgs: snapshot?.topTelemetryOrgs || []
+        };
+    };
+
+    const buildTelemetrySeries = (costAnalytics) => {
+        const typedSeries = (costAnalytics?.dailyTelemetryTypeVolumes || []).map(item => ({
+            ...item,
+            topTelemetryOrgs: item.topTelemetryOrgs || []
+        }));
+        if (typedSeries.length > 0 && hasAnyTelemetrySignal(typedSeries)) {
+            return typedSeries;
         }
+
+        return (costAnalytics?.dailySnapshots || []).map(mapSnapshotToTelemetryPoint);
+    };
+
+    const renderTelemetryEconomicsCharts = (costAnalytics) => {
+        const telemetrySeries = buildTelemetrySeries(costAnalytics);
+        if (telemetrySeries.length === 0) {
+            return;
+        }
+
+        renderTelemetryByTypeChart(telemetrySeries);
+        renderTopOrgTelemetryChart(telemetrySeries, costAnalytics?.topOrgTelemetryAggregates || []);
+        renderTelemetryCostMixChart(telemetrySeries[telemetrySeries.length - 1]);
     };
 
     const renderTelemetryByTypeChart = (dailyTelemetry) => {
         if (!telemetryByTypeChartRef.current) return;
 
         const ctx = telemetryByTypeChartRef.current.getContext('2d');
+        destroyCanvasChart(telemetryByTypeChartRef);
         if (telemetryByTypeChart) {
             telemetryByTypeChart.destroy();
         }
@@ -596,10 +671,11 @@ export function BusinessMatrixPage() {
         setTelemetryByTypeChart(chart);
     };
 
-    const renderTopOrgTelemetryChart = (dailyTelemetry) => {
+    const renderTopOrgTelemetryChart = (dailyTelemetry, topOrgTelemetryAggregates = []) => {
         if (!topOrgTelemetryChartRef.current) return;
 
         const ctx = topOrgTelemetryChartRef.current.getContext('2d');
+        destroyCanvasChart(topOrgTelemetryChartRef);
         if (topOrgTelemetryChart) {
             topOrgTelemetryChart.destroy();
         }
@@ -609,15 +685,17 @@ export function BusinessMatrixPage() {
             .slice(-30);
 
         const latest = rows[rows.length - 1] || {};
-        const topOrgs = [...(latest.topTelemetryOrgs || [])]
-            .sort((a, b) => Number(b.telemetryRows || 0) - Number(a.telemetryRows || 0))
-            .slice(0, 5);
+        const topOrgIds = topOrgTelemetryAggregates.length > 0
+            ? topOrgTelemetryAggregates.slice(0, 5).map(item => item.orgId)
+            : [...(latest.topTelemetryOrgs || [])]
+                .sort((a, b) => Number(b.telemetryRows || 0) - Number(a.telemetryRows || 0))
+                .slice(0, 5)
+                .map(item => item.orgId);
 
         const labels = rows.map(t => new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
         const colors = ['#0054a6', '#2fb344', '#f59f00', '#f76707', '#667eea'];
 
-        const datasets = topOrgs.map((org, index) => {
-            const orgId = org.orgId;
+        const datasets = topOrgIds.map((orgId, index) => {
             return {
                 label: orgId,
                 data: rows.map(day => {
@@ -663,6 +741,7 @@ export function BusinessMatrixPage() {
         if (!telemetryCostMixChartRef.current || !latestTelemetrySnapshot) return;
 
         const ctx = telemetryCostMixChartRef.current.getContext('2d');
+        destroyCanvasChart(telemetryCostMixChartRef);
         if (telemetryCostMixChart) {
             telemetryCostMixChart.destroy();
         }
@@ -980,6 +1059,13 @@ export function BusinessMatrixPage() {
             const canvas = document.getElementById(canvasId);
             if (!canvas) return;
 
+            if (window.Chart && typeof window.Chart.getChart === 'function') {
+                const existing = window.Chart.getChart(canvas);
+                if (existing) {
+                    existing.destroy();
+                }
+            }
+
             const serviceData = serviceGroups[service].sort((a, b) => new Date(a.date) - new Date(b.date));
             const labels = serviceData.map(e => new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
             const costs = serviceData.map(e => convertFromBilling(e.cost));
@@ -1232,6 +1318,9 @@ export function BusinessMatrixPage() {
         `;
     }
 
+    const degraded = freshness?.degraded === true;
+    const freshnessHours = metrics?.dataFreshnessHours ?? 0;
+
     // Build projected costs section with capacity planning scenarios
     const buildProjectedCostsSection = (currentMetrics) => {
         if (!currentMetrics || !currentMetrics.costAnalytics) return null;
@@ -1431,7 +1520,7 @@ export function BusinessMatrixPage() {
             ${buildBusinessAlerts()}
 
             <!-- Hero Section with Platform Summary -->
-            <div class="card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <div class="card mb-4 business-hero-card">
                 <div class="card-body p-4">
                     <!-- Row 1: Business Health + Profit % + Currency Toggle -->
                     <div class="row align-items-center mb-2">
@@ -1501,7 +1590,7 @@ export function BusinessMatrixPage() {
                             <div class="small opacity-75">Profit Margin</div>
                         </div>
                         <div class="col-md-3 text-end">
-                            <button class="btn btn-light btn-sm" onClick=${() => { setForceRefresh(true); loadBusinessMetrics(); }}>
+                            <button class="btn btn-light btn-sm" onClick=${() => loadBusinessMetrics(true)}>
                                 <i class="bi bi-arrow-clockwise"></i> Refresh Now
                             </button>
                         </div>
@@ -1518,6 +1607,15 @@ export function BusinessMatrixPage() {
                     </select>
                 </div>
             </div>
+
+            ${degraded ? html`
+                <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+                    <i class="ti ti-alert-triangle me-2"></i>
+                    <div>
+                        Snapshot is degraded (${freshnessHours}h old). Auto-refresh retries are running every 30 seconds.
+                    </div>
+                </div>
+            ` : null}
 
             <!-- KPI Cards Row -->
             <div class="row g-3 mb-4">
@@ -1723,9 +1821,13 @@ export function BusinessMatrixPage() {
                             <h5 class="card-title mb-0">Telemetry Volume by Type (Daily)</h5>
                         </div>
                         <div class="card-body" style="height: 290px;">
-                            ${metrics?.costAnalytics?.dailyTelemetryTypeVolumes?.length > 0
+                            ${(() => {
+                                const telemetrySeries = buildTelemetrySeries(metrics?.costAnalytics);
+                                const hasSignal = hasAnyTelemetrySignal(telemetrySeries);
+                                return hasSignal
                                 ? html`<canvas ref=${telemetryByTypeChartRef}></canvas>`
-                                : html`<div class="text-body-secondary text-center py-5">Telemetry type trends are building from daily cost snapshots.</div>`}
+                                : html`<div class="text-body-secondary text-center py-5">No telemetry rows were ingested in this period. Trends will render automatically once ingestion resumes.</div>`;
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -1735,9 +1837,13 @@ export function BusinessMatrixPage() {
                             <h5 class="card-title mb-0">Top 5 Orgs by Telemetry (30D)</h5>
                         </div>
                         <div class="card-body" style="height: 290px;">
-                            ${metrics?.costAnalytics?.dailyTelemetryTypeVolumes?.length > 0
+                            ${(() => {
+                                const telemetrySeries = buildTelemetrySeries(metrics?.costAnalytics);
+                                const hasTopOrgSignal = telemetrySeries.some(day => (day.topTelemetryOrgs || []).some(org => Number(org.telemetryRows || 0) > 0));
+                                return hasTopOrgSignal
                                 ? html`<canvas ref=${topOrgTelemetryChartRef}></canvas>`
-                                : html`<div class="text-body-secondary text-center py-5">Top-organization telemetry trends are not available yet.</div>`}
+                                : html`<div class="text-body-secondary text-center py-5">Top-organization telemetry trends are unavailable for this range because daily telemetry totals are zero.</div>`;
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -1747,9 +1853,16 @@ export function BusinessMatrixPage() {
                             <h5 class="card-title mb-0">Telemetry Cost Mix (Latest Day)</h5>
                         </div>
                         <div class="card-body" style="height: 290px;">
-                            ${metrics?.costAnalytics?.dailyTelemetryTypeVolumes?.length > 0
+                            ${(() => {
+                                const telemetrySeries = buildTelemetrySeries(metrics?.costAnalytics);
+                                const latest = telemetrySeries.length > 0 ? telemetrySeries[telemetrySeries.length - 1] : null;
+                                const latestCostTotal = latest
+                                    ? Object.values(latest.costByType || {}).reduce((sum, value) => sum + Number(value || 0), 0)
+                                    : 0;
+                                return latestCostTotal > 0
                                 ? html`<canvas ref=${telemetryCostMixChartRef}></canvas>`
-                                : html`<div class="text-body-secondary text-center py-5">Telemetry cost attribution will appear after daily snapshot rebuild.</div>`}
+                                : html`<div class="text-body-secondary text-center py-5">No telemetry-attributed cost was recorded on the latest day.</div>`;
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -1814,7 +1927,9 @@ export function BusinessMatrixPage() {
                             </div>
                         </div>
                         <div class="card-body" style="height: 280px;">
-                            <canvas ref=${mrrTrendChartRef}></canvas>
+                            ${(metrics?.platformSummary?.trends || []).length > 1
+                                ? html`<canvas ref=${mrrTrendChartRef}></canvas>`
+                                : html`<div class="text-body-secondary text-center py-5">MRR trend requires at least 2 daily points. Cron is still building the series.</div>`}
                         </div>
                     </div>
                 </div>

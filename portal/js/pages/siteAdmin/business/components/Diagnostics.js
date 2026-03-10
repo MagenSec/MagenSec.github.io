@@ -17,11 +17,12 @@ export class DiagnosticsPage extends Component {
             loading: true,
             error: null,
             overview: null,
-            activeView: 'devices', // devices, orgs, revenue, health
+            activeView: 'devices', // devices, orgs, revenue, health, snapshots
             problemDevices: [],
             problemOrgs: [],
             revenueLeaks: [],
             systemHealth: null,
+            snapshotDiagnostics: null,
             filters: {
                 minFailures: 10,
                 minOfflineDays: 30,
@@ -60,6 +61,8 @@ export class DiagnosticsPage extends Component {
                 data.revenueLeaks = await this.loadRevenueLeaks();
             } else if (this.state.activeView === 'health') {
                 data.systemHealth = await this.loadSystemHealth();
+            } else if (this.state.activeView === 'snapshots') {
+                data.snapshotDiagnostics = await this.loadSnapshotDiagnostics();
             }
 
             this.setState({
@@ -99,6 +102,11 @@ export class DiagnosticsPage extends Component {
         return response.data;
     }
 
+    async loadSnapshotDiagnostics() {
+        const response = await api.get('/api/v1/admin/diagnostics?category=business-snapshots');
+        return response.data;
+    }
+
     async handleViewChange(view) {
         this.setState({ activeView: view });
         
@@ -113,6 +121,8 @@ export class DiagnosticsPage extends Component {
                 data.revenueLeaks = await this.loadRevenueLeaks();
             } else if (view === 'health' && !this.state.systemHealth) {
                 data.systemHealth = await this.loadSystemHealth();
+            } else if (view === 'snapshots' && !this.state.snapshotDiagnostics) {
+                data.snapshotDiagnostics = await this.loadSnapshotDiagnostics();
             }
             
             if (Object.keys(data).length > 0) {
@@ -131,9 +141,12 @@ export class DiagnosticsPage extends Component {
         const telemetryBadgeClass = telemetryRate >= 95 ? 'bg-success text-white' : telemetryRate >= 85 ? 'bg-warning text-white' : 'bg-danger text-white';
         const healthScore = Number(overview.systemHealthScore || 0);
         const healthBadgeClass = healthScore >= 90 ? 'bg-success text-white' : healthScore >= 75 ? 'bg-warning text-white' : 'bg-danger text-white';
-        const publicIntel = overview.publicCveIntelSecurity || {};
+        const publicIntel = overview.publicIntelSecurity || {};
         const abuseEvents = Number(publicIntel.events24h || 0);
         const abuseBadgeClass = abuseEvents === 0 ? 'bg-success text-white' : abuseEvents < 20 ? 'bg-warning text-white' : 'bg-danger text-white';
+        const degraded = overview.degradedResponses || {};
+        const degradedEvents = Number(degraded.events24h || 0);
+        const degradedBadgeClass = degradedEvents === 0 ? 'bg-success text-white' : degradedEvents < 10 ? 'bg-warning text-white' : 'bg-danger text-white';
 
         return html`
             <div class="row row-cards mb-3">
@@ -242,6 +255,27 @@ export class DiagnosticsPage extends Component {
                         </div>
                     </div>
                 </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card card-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <span class="bg-indigo text-white avatar">
+                                        <i class="ti ti-refresh-alert"></i>
+                                    </span>
+                                </div>
+                                <div class="col">
+                                    <div class="font-weight-medium">
+                                        <span class="badge ${degradedBadgeClass}">${degradedEvents} Degraded API Responses (24h)</span>
+                                    </div>
+                                    <div class="text-muted">
+                                        Health: ${degraded.health || 'unknown'} · Last: ${degraded.lastEventAt ? formatRelativeTime(degraded.lastEventAt) : 'N/A'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -289,6 +323,16 @@ export class DiagnosticsPage extends Component {
                     >
                         <i class="ti ti-heart-rate-monitor me-2"></i>
                         System Health
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a
+                        class="nav-link ${activeView === 'snapshots' ? 'active' : ''}"
+                        href="#"
+                        onClick=${(e) => { e.preventDefault(); this.handleViewChange('snapshots'); }}
+                    >
+                        <i class="ti ti-database me-2"></i>
+                        Business Snapshots
                     </a>
                 </li>
             </ul>
@@ -394,7 +438,7 @@ export class DiagnosticsPage extends Component {
                                 </td>
                                 <td>${org.deviceCount} devices</td>
                                 <td>
-                                    <span class="badge bg-${org.licenseStatus === 'Active' ? 'success' : 'warning'}">
+                                    <span class="badge bg-${(org.licenseStatus || '').toUpperCase() === 'ACTIVE' ? 'success' : 'warning'}">
                                         ${org.licenseStatus}
                                     </span>
                                 </td>
@@ -568,13 +612,144 @@ export class DiagnosticsPage extends Component {
         `;
     }
 
+    renderSnapshotDiagnosticsView() {
+        const { snapshotDiagnostics, loading } = this.state;
+
+        if (loading) {
+            return html`<div class="text-center py-4"><div class="spinner-border"></div></div>`;
+        }
+
+        if (!snapshotDiagnostics) {
+            return html`<div class="text-muted">No snapshot diagnostics available</div>`;
+        }
+
+        const parts = snapshotDiagnostics.parts || [];
+        const requiredOk = !!snapshotDiagnostics.health?.requiredPartsPresent;
+        const ageMinutes = snapshotDiagnostics.snapshotAgeMinutes;
+        const ageBadgeClass = ageMinutes == null ? 'bg-secondary text-white' : ageMinutes <= 240 ? 'bg-success text-white' : 'bg-warning text-white';
+        const metadata = snapshotDiagnostics.metadata || {};
+        const metadataOverflow = !!metadata.overflowWarning;
+        const missingCount = Number(metadata.missingCount || 0);
+        const missingSample = metadata.missingSample || [];
+
+        return html`
+            <div class="row row-cards mb-3">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted mb-1">Latest Snapshot Date</div>
+                            <div class="h2 mb-0">${snapshotDiagnostics.latestDate || 'N/A'}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted mb-1">Snapshot Age</div>
+                            <div class="h2 mb-0">
+                                <span class="badge ${ageBadgeClass}">
+                                    ${ageMinutes == null ? 'Unknown' : `${ageMinutes} min`}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted mb-1">Required Parts</div>
+                            <div class="h2 mb-0">
+                                <span class="badge ${requiredOk ? 'bg-success text-white' : 'bg-danger text-white'}">
+                                    ${requiredOk ? 'Healthy' : 'Missing Parts'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            ${metadataOverflow ? html`
+                <div class="alert alert-warning mb-3" role="alert">
+                    <div class="d-flex">
+                        <div class="me-2"><i class="ti ti-alert-triangle"></i></div>
+                        <div>
+                            Metadata guardrail trimmed old entries to prevent row overflow.
+                            Last trim: ${metadata.lastTrimmedAtUtc ? formatRelativeTime(metadata.lastTrimmedAtUtc) : 'N/A'}
+                            · Trimmed: ${formatNumber(metadata.lastTrimmedCount || 0)}
+                            · Current payload: ${formatNumber(metadata.payloadBytes || 0)} bytes
+                        </div>
+                    </div>
+                </div>
+            ` : null}
+
+            ${missingCount > 0 ? html`
+                <div class="alert alert-danger mb-3" role="alert">
+                    <div class="d-flex">
+                        <div class="me-2"><i class="ti ti-bug"></i></div>
+                        <div>
+                            Snapshot gap detected in rolling 450-day coverage.
+                            Missing days: ${formatNumber(missingCount)}
+                            ${metadata.lastBackfilledCount > 0 ? html`· Backfilled this sync: ${formatNumber(metadata.lastBackfilledCount)}` : null}
+                            ${metadata.lastSyncAtUtc ? html`· Synced: ${formatRelativeTime(metadata.lastSyncAtUtc)}` : null}
+                            ${missingSample.length > 0 ? html`· Sample: ${missingSample.slice(0, 5).join(', ')}` : null}
+                        </div>
+                    </div>
+                </div>
+            ` : null}
+
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Part</th>
+                            <th>Mode</th>
+                            <th>Code</th>
+                            <th>Payload Size</th>
+                            <th>Blob Path</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${parts.map(part => html`
+                            <tr>
+                                <td>
+                                    <span class="badge ${part.present ? 'bg-primary text-white' : 'bg-danger text-white'}">${part.part}</span>
+                                </td>
+                                <td>
+                                    <span class="badge ${part.mode === 'blob' ? 'bg-warning text-white' : part.mode === 'inline' ? 'bg-success text-white' : 'bg-secondary text-white'}">
+                                        ${part.mode}
+                                    </span>
+                                </td>
+                                <td>${part.partCode || '-'}</td>
+                                <td>${formatNumber(part.payloadChars || 0)} chars</td>
+                                <td>
+                                    <code class="small">${part.blobPath || '-'}</code>
+                                </td>
+                                <td>${part.timestamp ? formatRelativeTime(part.timestamp) : '-'}</td>
+                            </tr>
+                        `)}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="alert alert-info mt-3 mb-0">
+                <div class="d-flex">
+                    <div class="me-2"><i class="ti ti-info-circle"></i></div>
+                    <div>
+                        <strong>FULL part relevance:</strong> ${snapshotDiagnostics.fullPartRelevance || 'FULL is optional and not required for runtime assembly.'}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     render() {
         const { loading, error, activeView } = this.state;
 
         return html`
-            <div class="container-xl">
+            <div class="container-xl diagnostics-shell">
                 <!-- Page header -->
-                <div class="page-header d-print-none mb-3">
+                <div class="page-header d-print-none mb-3 diagnostics-header">
                     <div class="row align-items-center">
                         <div class="col">
                             <div class="page-pretitle">Site Admin</div>
@@ -599,12 +774,13 @@ export class DiagnosticsPage extends Component {
                 ${this.renderKPICards()}
                 ${this.renderTabs()}
 
-                <div class="card">
+                <div class="card diagnostics-content-card">
                     <div class="card-body">
                         ${activeView === 'devices' ? this.renderProblemDevicesTable() :
                           activeView === 'orgs' ? this.renderProblemOrgsTable() :
                           activeView === 'revenue' ? this.renderRevenueLeaksTable() :
-                          activeView === 'health' ? this.renderSystemHealthView() : ''}
+                                                    activeView === 'health' ? this.renderSystemHealthView() :
+                                                    activeView === 'snapshots' ? this.renderSnapshotDiagnosticsView() : ''}
                     </div>
                 </div>
             </div>

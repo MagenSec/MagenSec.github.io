@@ -19,6 +19,7 @@ import { getLicenseStatusBadgeClass, formatLicenseDisplay } from './services/Lic
 
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
+const PHONE_CACHE_KEY = (email) => `magensec_phone_${email}`;
 
 // Local helper to keep existing showToast signature while using default export
 const showToast = (message, type) => toast.show(message, type);
@@ -410,6 +411,24 @@ export function SettingsPage() {
             if (res.success) {
                 setPhoneNumber(newPhone || '');
                 setWhatsAppEnabled(newWhatsApp);
+
+                try {
+                    const sessionUser = auth.getUser();
+                    const email = (sessionUser?.email || '').trim();
+                    if (email) {
+                        const key = PHONE_CACHE_KEY(email);
+                        const trimmedPhone = (newPhone || '').trim();
+                        if (trimmedPhone) {
+                            localStorage.setItem(key, trimmedPhone);
+                            sessionStorage.setItem('phone_toast_shown', '1');
+                        } else {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                } catch {
+                    // Non-blocking cache sync for login toast suppression.
+                }
+
                 showToast('Phone settings saved', 'success');
             } else {
                 showToast(res.message || 'Failed to save phone settings', 'error');

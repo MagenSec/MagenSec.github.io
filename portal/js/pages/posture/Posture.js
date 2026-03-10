@@ -21,6 +21,7 @@ export class PosturePage extends Component {
             snapshot: null,
             trendSnapshots: [],
             triggeredGeneration: false,
+            freshness: null,
             period: 'daily',
             isRefreshingInBackground: false,
             frameworkView: 'cis', // 'cis', 'nist', or 'both'
@@ -201,6 +202,7 @@ export class PosturePage extends Component {
             const payload = res?.data || res;
             const snapshot = payload?.snapshot || payload?.data?.snapshot || null;
             const triggeredGeneration = payload?.triggeredGeneration ?? payload?.data?.triggeredGeneration ?? force;
+            const freshness = payload?.freshness || payload?.data?.freshness || null;
 
             if (!snapshot) {
                 throw new Error('Snapshot unavailable');
@@ -214,6 +216,7 @@ export class PosturePage extends Component {
                 snapshot,
                 trendSnapshots,
                 triggeredGeneration,
+                freshness,
                 loading: false,
                 refreshing: false,
                 isRefreshingInBackground: false
@@ -247,6 +250,7 @@ export class PosturePage extends Component {
             const res = await api.getPostureSnapshot(currentOrg.orgId, { period, force: false });
             const payload = res?.data || res;
             const snapshot = payload?.snapshot || payload?.data?.snapshot || null;
+            const freshness = payload?.freshness || payload?.data?.freshness || null;
 
             if (snapshot) {
                 // Cache the fresh data
@@ -257,6 +261,7 @@ export class PosturePage extends Component {
                 this.setState(prev => ({
                     snapshot,
                     trendSnapshots,
+                    freshness,
                     isRefreshingInBackground: false
                 }));
 
@@ -770,6 +775,11 @@ export class PosturePage extends Component {
                             </div>
                             <div class="page-subtitle">
                                 <span class="text-muted">Generated: ${generatedAt}</span>
+                                ${this.state.freshness?.degraded ? html`
+                                    <span class="badge bg-warning text-white ms-2">
+                                        Degraded snapshot
+                                    </span>
+                                ` : null}
                             </div>
                         </div>
                         <div class="col-auto ms-auto">

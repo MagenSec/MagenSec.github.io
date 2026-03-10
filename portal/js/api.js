@@ -5,6 +5,7 @@
 
 import { auth } from './auth.js';
 import { config, logger } from './config.js';
+import toast from './toast.js';
 
 /**
  * Normalize API response to handle both camelCase and PascalCase
@@ -81,6 +82,104 @@ export class ApiClient {
     constructor() {
         this.cache = new Map();
         this.cacheTimeout = 60000; // 1 minute default
+        this.degradedRetryState = new Map();
+        this.degradedRetryDelayMs = 30000;
+        this.degradedRetryMaxAttempts = 3;
+    }
+
+    extractFreshness(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return null;
+        }
+
+        const directFreshness = payload.freshness;
+        if (directFreshness && typeof directFreshness === 'object') {
+            return directFreshness;
+        }
+
+        const dataFreshness = payload.data?.freshness;
+        if (dataFreshness && typeof dataFreshness === 'object') {
+            return dataFreshness;
+        }
+
+        const metricsFreshness = payload.data?.platformSummary?.freshness || payload.data?.Freshness;
+        if (metricsFreshness && typeof metricsFreshness === 'object') {
+            return metricsFreshness;
+        }
+
+        return null;
+    }
+
+    isDegradedSnapshotResponse(payload) {
+        const freshness = this.extractFreshness(payload);
+        if (!freshness) {
+            return false;
+        }
+
+        return freshness.degraded === true
+            && (typeof freshness.strategy !== 'string' || freshness.strategy.includes('snapshot'));
+    }
+
+    scheduleDegradedRecovery(cacheKey, requestUrl) {
+        if (this.degradedRetryState.has(cacheKey)) {
+            return;
+        }
+
+        const state = {
+            attempts: 0,
+            timer: null
+        };
+        this.degradedRetryState.set(cacheKey, state);
+
+        const runAttempt = async () => {
+            state.attempts += 1;
+            try {
+                const probeData = await this.request(requestUrl, {
+                    method: 'GET',
+                    headers: {
+                        'X-SWE-Recovery-Probe': '1'
+                    }
+                });
+
+                if (!this.isDegradedSnapshotResponse(probeData)) {
+                    this.cache.set(cacheKey, { data: probeData, timestamp: Date.now() });
+                    this.degradedRetryState.delete(cacheKey);
+
+                    window.dispatchEvent(new CustomEvent('api:degraded-recovered', {
+                        detail: {
+                            cacheKey,
+                            attempts: state.attempts,
+                            recoveredAt: new Date().toISOString()
+                        }
+                    }));
+                    return;
+                }
+            } catch (error) {
+                logger.warn('[API] degraded recovery probe failed', {
+                    cacheKey,
+                    attempts: state.attempts,
+                    error: error?.message || String(error)
+                });
+            }
+
+            if (state.attempts >= this.degradedRetryMaxAttempts) {
+                this.degradedRetryState.delete(cacheKey);
+
+                toast.warning('Live security data is delayed. Showing cached snapshot. Please refresh later.');
+                window.dispatchEvent(new CustomEvent('api:degraded-alert', {
+                    detail: {
+                        cacheKey,
+                        attempts: state.attempts,
+                        exhaustedAt: new Date().toISOString()
+                    }
+                }));
+                return;
+            }
+
+            state.timer = setTimeout(runAttempt, this.degradedRetryDelayMs);
+        };
+
+        state.timer = setTimeout(runAttempt, this.degradedRetryDelayMs);
     }
 
     getCsrfToken() {
@@ -237,6 +336,11 @@ export class ApiClient {
             const cached = this.cache.get(cacheKey);
             if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
                 logger.debug(`[API] Cache hit: ${url}`);
+
+                if (!options.skipDegradedHandling && this.isDegradedSnapshotResponse(cached.data)) {
+                    this.scheduleDegradedRecovery(cacheKey, url);
+                }
+
                 return cached.data;
             }
         }
@@ -245,6 +349,10 @@ export class ApiClient {
         
         // Store in cache
         this.cache.set(cacheKey, { data, timestamp: Date.now() });
+
+        if (!options.skipDegradedHandling && this.isDegradedSnapshotResponse(data)) {
+            this.scheduleDegradedRecovery(cacheKey, url);
+        }
         
         return data;
     }

@@ -275,6 +275,47 @@ function renderApp(state = {}) {
     render(html`<${App} key=${uniqueKey} />`, document.getElementById('app'));
 }
 
+function hasUserPhoneConfigured() {
+    try {
+        const u = auth.getUser();
+        const email = (u?.email || '').trim();
+        const phoneFromSession = (u?.phoneNumber || u?.phone || '').trim();
+        if (phoneFromSession) {
+            return true;
+        }
+
+        if (!email) {
+            return false;
+        }
+
+        const phoneKey = `magensec_phone_${email}`;
+        const cachedPhone = (localStorage.getItem(phoneKey) || '').trim();
+        return cachedPhone.length > 0;
+    } catch {
+        return false;
+    }
+}
+
+function maybeShowMissingPhoneToast(delayMs = 1200) {
+    setTimeout(() => {
+        if (sessionStorage.getItem('phone_toast_shown')) {
+            return;
+        }
+
+        if (hasUserPhoneConfigured()) {
+            sessionStorage.setItem('phone_toast_shown', '1');
+            return;
+        }
+
+        sessionStorage.setItem('phone_toast_shown', '1');
+        window.toast?.show(
+            `<strong>Add your phone number</strong> &mdash; Set a contact number in your <a href="#!/account" style="color:inherit;font-weight:600;">Account</a> for security alerts.`,
+            'warning',
+            0
+        );
+    }, delayMs);
+}
+
 // Initialize
 async function init() {
     logger.info('[App] Initializing MagenSec Portal...');
@@ -306,23 +347,7 @@ async function init() {
             const hasOrgsAfterOAuth = orgContext.getAvailableOrgs().length > 0;
             const isPersonalOrg = orgContext.getCurrentOrg()?.type === 'Personal';
 
-            // Toast if phone number not yet set
-            setTimeout(() => {
-                if (!sessionStorage.getItem('phone_toast_shown')) {
-                    try {
-                        const u = auth.getUser();
-                        const phoneKey = u?.email ? `magensec_phone_${u.email}` : null;
-                        if (phoneKey && !localStorage.getItem(phoneKey)) {
-                            sessionStorage.setItem('phone_toast_shown', '1');
-                            window.toast?.show(
-                                `<strong>Add your phone number</strong> &mdash; Set a contact number in your <a href="#!/account" style="color:inherit;font-weight:600;">Account</a> for security alerts.`,
-                                'warning',
-                                0
-                            );
-                        }
-                    } catch (_) {}
-                }
-            }, 1200);
+            maybeShowMissingPhoneToast(1200);
 
             // Use hash navigation instead of full page redirect
             window.location.hash = hasOrgsAfterOAuth
@@ -365,23 +390,7 @@ async function init() {
             }, 500);
         }
 
-        // Toast if phone number not set (once per session)
-        setTimeout(() => {
-            if (!sessionStorage.getItem('phone_toast_shown')) {
-                try {
-                    const u = auth.getUser();
-                    const phoneKey = u?.email ? `magensec_phone_${u.email}` : null;
-                    if (phoneKey && !localStorage.getItem(phoneKey)) {
-                        sessionStorage.setItem('phone_toast_shown', '1');
-                        window.toast?.show(
-                            `<strong>Add your phone number</strong> &mdash; Set a contact number in your <a href="#!/account" style="color:inherit;font-weight:600;">Account</a> for security alerts.`,
-                            'warning',
-                            0
-                        );
-                    }
-                } catch (_) {}
-            }
-        }, 1500);
+        maybeShowMissingPhoneToast(1500);
     } else {
         // Show login overlay
         setAuthenticationState(false);
