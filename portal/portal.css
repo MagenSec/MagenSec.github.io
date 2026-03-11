@@ -320,6 +320,42 @@ pre.json-metadata {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
 }
 
+/* ─── Business Metrics: Margin Band Badges ──────────────────────────────────── */
+.badge-margin-0 { background: #ffe5e5 !important; color: #dc3545 !important; }
+.badge-margin-1 { background: #fff3e0 !important; color: #f76707 !important; }
+.badge-margin-2 { background: #fff8e1 !important; color: #f59f00 !important; }
+.badge-margin-3 { background: #e3f2fd !important; color: #0054a6 !important; }
+.badge-margin-4 { background: #e8f5e9 !important; color: #2fb344 !important; }
+.badge-margin-5 { background: #fff9e6 !important; color: #b8860b !important; }
+
+[data-bs-theme="dark"] .badge-margin-0 { background: rgba(214, 57, 57, 0.2) !important; color: #ff6b6b !important; }
+[data-bs-theme="dark"] .badge-margin-1 { background: rgba(247, 103, 7, 0.2) !important; color: #ff9545 !important; }
+[data-bs-theme="dark"] .badge-margin-2 { background: rgba(245, 159, 0, 0.2) !important; color: #ffc040 !important; }
+[data-bs-theme="dark"] .badge-margin-3 { background: rgba(0, 84, 166, 0.25) !important; color: #5fa8ff !important; }
+[data-bs-theme="dark"] .badge-margin-4 { background: rgba(47, 179, 68, 0.2) !important; color: #4dd669 !important; }
+[data-bs-theme="dark"] .badge-margin-5 { background: rgba(184, 134, 11, 0.2) !important; color: #ffd700 !important; }
+
+/* ─── Business Metrics: Section Headers ─────────────────────────────────────── */
+.bm-section-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tblr-muted, #6c757d);
+  padding: 0.75rem 0 0.35rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.bm-section-header::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--bs-border-color);
+  opacity: 0.6;
+}
+
 .diagnostics-shell {
   --diag-surface: #f7f9fc;
   --diag-border: #d9e1ec;

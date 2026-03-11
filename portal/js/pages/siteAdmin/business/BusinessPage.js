@@ -1,5 +1,5 @@
 /**
- * Business Page - Business Matrix + Diagnostics
+ * Business Page - Business Metrics + Diagnostics
  * Route: #!/siteadmin/business
  */
 
@@ -41,7 +41,7 @@ export class BusinessPage extends Component {
                             onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'matrix' }); }}
                         >
                             <i class="ti ti-chart-dots-2 me-2"></i>
-                            Business Matrix
+                            Business Metrics
                         </a>
                     </li>
                     <li class="nav-item">

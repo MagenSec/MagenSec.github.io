@@ -9,17 +9,16 @@ export function BusinessMatrixPage() {
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState(null);
     const [error, setError] = useState(null);
-    const [startDate, setStartDate] = useState(null);
-    const [endDate, setEndDate] = useState(null);
     const [expandedOrgs, setExpandedOrgs] = useState(new Set());
-    const [billingCurrencyCode, setBillingCurrencyCode] = useState('USD');
+    const billingCurrencyCode = 'USD'; // Billing is always USD; not returned by snapshot API
     const [displayCurrencyCode, setDisplayCurrencyCode] = useState(localStorage.getItem('businessMatrixCurrency') || 'USD');
     const [kpiWindowDays, setKpiWindowDays] = useState(7);
     const [serviceCostDays, setServiceCostDays] = useState(30); // 7, 30, or 90 days
     const [costTrendDays, setCostTrendDays] = useState(30);          // 7, 14, 30
     const [costBreakdownPeriod, setCostBreakdownPeriod] = useState('mtd'); // 'latest', '7d', 'mtd'
+    const [topOrgTelemetryMetric, setTopOrgTelemetryMetric] = useState('avgPerDevice'); // 'rows' | 'avgPerDevice'
+    const [telemetryVolumeDays, setTelemetryVolumeDays] = useState(30); // 30 | 90
     const [showMrrMlDetails, setShowMrrMlDetails] = useState(false);
-    const [freshness, setFreshness] = useState(null);
     
     // Chart refs
     const revenueChartRef = useRef(null);
@@ -136,35 +135,23 @@ export function BusinessMatrixPage() {
     }, [displayCurrencyCode, billingCurrencyCode]);
 
     useEffect(() => {
-        const onRecovered = () => {
-            if (freshness?.degraded) {
-                loadBusinessMetrics();
-            }
-        };
+        if (metrics?.costAnalytics) {
+            setTimeout(() => renderTelemetryEconomicsCharts(metrics.costAnalytics, telemetryVolumeDays), 50);
+        }
+    }, [topOrgTelemetryMetric, telemetryVolumeDays]);
 
-        window.addEventListener('api:degraded-recovered', onRecovered);
-        return () => window.removeEventListener('api:degraded-recovered', onRecovered);
-    }, [freshness]);
-
-    const loadBusinessMetrics = async (forceRefresh = false) => {
+    const loadBusinessMetrics = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const params = new URLSearchParams();
-            if (startDate) params.append('startDate', startDate);
-            if (endDate) params.append('endDate', endDate);
-            if (forceRefresh) params.append('forceRefresh', 'true');
+            const response = await api.get('/api/v1/admin/business-metrics');
 
-            const response = await api.get(`/api/v1/admin/business-metrics?${params}`);
-            
             if (response.success) {
-                setMetrics(response.data);
-                setFreshness(response.data?.freshness || null);
-                setBillingCurrencyCode((response.data?.platformSummary?.billingCurrencyCode || 'USD').toUpperCase());
-                // Render charts after metrics loaded
+                const normalized = normalizeSnapshot(response.data);
+                setMetrics(normalized);
                 setTimeout(() => {
-                    renderCharts(response.data);
+                    renderCharts(normalized);
                 }, 100);
             } else {
                 setError(response.message || 'Failed to load business metrics');
@@ -177,25 +164,152 @@ export function BusinessMatrixPage() {
         }
     };
 
+    // Adapts PlatformDailySnapshot (new shape) into the backward-compat shape expected by this component.
+    // costAnalytics ← costDetail, platformSummary built from flat fields, telemetryVolumes ← telemetryDetail.
+    const normalizeSnapshot = (snapshot) => {
+        if (!snapshot) return null;
+
+        const now = new Date();
+        const dayOfMonth = Math.max(1, now.getUTCDate());
+        const currentYear = now.getUTCFullYear();
+        const currentMonth = now.getUTCMonth();
+
+        // Trends: snapshot provides newest-first; reverse to oldest-first for charts
+        const trends = [...(snapshot.trends || [])].reverse();
+
+        // Compute MTD cost from costDetail dailySnapshots; fall back to dailyCost × dayOfMonth
+        const mtdCost = (() => {
+            const snapshots = snapshot.costDetail?.dailySnapshots || [];
+            const mtd = snapshots.filter(s => {
+                const d = new Date(s.date);
+                return d.getUTCFullYear() === currentYear && d.getUTCMonth() === currentMonth;
+            });
+            return mtd.length > 0
+                ? mtd.reduce((sum, s) => sum + Number(s.totalCost || 0), 0)
+                : Number(snapshot.dailyCost || 0) * dayOfMonth;
+        })();
+
+        return {
+            // Backward-compat platformSummary
+            platformSummary: {
+                mrr: snapshot.mrr,
+                arr: snapshot.arr,
+                profitMargin: snapshot.profitMargin,
+                marginBand: snapshot.marginBand,
+                totalOrgs: snapshot.totalOrgs,
+                activeOrgs: snapshot.activeOrgs,
+                totalDevices: snapshot.totalDevices,
+                activeDevices: snapshot.activeDevices,
+                actualMonthlyAzureCost: mtdCost,
+                billingCurrencyCode: 'USD',
+                trends,
+            },
+
+            // Revenue breakdown: org-type counts and MRR from PlatformDailySnapshot
+            revenueBreakdown: {
+                personalCount: snapshot.personalOrgCount || 0,
+                educationCount: snapshot.educationOrgCount || 0,
+                businessCount: snapshot.businessOrgCount || 0,
+                demoOrgCount: snapshot.demoOrgCount || 0,
+                personalRevenue: snapshot.personalMrr || 0,
+                educationRevenue: snapshot.educationMrr || 0,
+                businessRevenue: snapshot.businessMrr || 0,
+            },
+
+            // Cost analytics: mapped from costDetail (same CostAnalytics type)
+            costAnalytics: snapshot.costDetail || {},
+
+            // Telemetry volumes: mapped from new TelemetryVolumesSnapshot
+            telemetryVolumes: {
+                platform: {
+                    totalRows: snapshot.telemetryDetail?.total || 0,
+                    heartbeatRows: snapshot.telemetryDetail?.byType?.['Heartbeat'] || 0,
+                    appTelemetryRows: snapshot.telemetryDetail?.byType?.['AppTelemetry'] || 0,
+                    cveTelemetryRows: snapshot.telemetryDetail?.byType?.['CveTelemetry'] || 0,
+                    perfTelemetryRows: snapshot.telemetryDetail?.byType?.['PerfTelemetry'] || 0,
+                    machineTelemetryRows: snapshot.telemetryDetail?.byType?.['MachineTelemetry'] || 0,
+                },
+                perOrg: {},
+            },
+
+            // Device health: only active/total available at snapshot level
+            deviceHealth: {
+                activeCount: snapshot.activeDevices || 0,
+                disabledCount: Math.max(0, (snapshot.totalDevices || 0) - (snapshot.activeDevices || 0)),
+                blockedCount: 0,
+                onlineCount: 0,
+                offlineCount: 0,
+                heartbeatOnlyCount: 0,
+            },
+
+            // Top orgs: simplified OrgFinancialSnapshot (no per-device expansion)
+            topOrganizations: (snapshot.topCostOrgs || []).map(org => ({
+                orgId: org.orgId,
+                orgName: org.orgName,
+                isDemoOrg: false,
+                licenseType: 'Business',
+                seats: org.activeDevices || 0,
+                deviceCount: org.activeDevices || 0,
+                devices: [],
+                monthlyRevenue: org.monthlyCostProjection || 0,
+                monthlyCost: org.monthlyCostProjection || 0,
+                profit: 0,
+                marginBand: 3,
+                marginPercent: 0,
+                riskIndicator: org.riskIndicator,
+                avgCostPerDevice: org.avgCostPerDevice || 0,
+                telemetryVolume: org.telemetryVolume || 0,
+            })),
+
+            // At-risk orgs: simplified OrgFinancialSnapshot
+            atRiskOrganizations: (snapshot.atRiskOrgs || []).map(org => ({
+                orgId: org.orgId,
+                orgName: org.orgName,
+                deviceCount: org.activeDevices || 0,
+                daysToExpiry: null,
+                marginPercent: 0,
+                marginBand: 0,
+                riskIndicator: org.riskIndicator,
+                dailyCost: org.dailyCost || 0,
+            })),
+
+            // New fields: delta, rolling windows, noisy devices, alerts
+            delta: snapshot.delta || null,
+            window7d: snapshot.window7d || null,
+            window30d: snapshot.window30d || null,
+            window90d: snapshot.window90d || null,
+            mlInsights: snapshot.mlInsights || null,
+            noisyDevices: snapshot.noisyDevices || [],
+            complianceAlerts: snapshot.complianceAlerts || [],
+            operationalAlerts: snapshot.operationalAlerts || [],
+
+            // Direct passthrough
+            snapshotDate: snapshot.date,
+            dailyCost: snapshot.dailyCost,
+            arr: snapshot.arr,
+            dataSource: snapshot.dataSource || null,
+        };
+    };
+
     const renderCharts = (data) => {
         if (!data) return;
 
-        // Revenue Breakdown Donut Chart (ApexCharts)
+        // Revenue Breakdown Donut (shows empty state when revenueBreakdown is unavailable)
         renderRevenueChart(data.revenueBreakdown);
-        
-        // MRR Trend Line Chart (Chart.js)
-        renderMRRTrendChart(data.platformSummary.trends);
-        
-        // Margin Band Distribution (Chart.js horizontal bar)
+
+        // MRR Trend Line Chart
+        renderMRRTrendChart(data.platformSummary?.trends);
+
+        // Margin Band Distribution (shows empty state when revenueByBand is unavailable)
         renderMarginBandChart(data.revenueBreakdown);
 
-        // Cost Analytics Charts (if available)
-        if (data.costAnalytics) {
+        // Cost Analytics Charts (only when daily snapshot data is present)
+        if (data.costAnalytics?.dailySnapshots?.length > 0) {
             renderCostAnalytics(data.costAnalytics);
-            renderTelemetryEconomicsCharts(data.costAnalytics);
-            
-            // Service cost trend charts (if available)
-            if (data.costAnalytics.dailyServiceCosts && data.costAnalytics.dailyServiceCosts.length > 0) {
+        }
+        if (data.costAnalytics) {
+            renderTelemetryEconomicsCharts(data.costAnalytics, telemetryVolumeDays);
+            if (data.costAnalytics.dailyServiceCosts?.length > 0) {
                 setTimeout(() => renderServiceCostCharts(data.costAnalytics.dailyServiceCosts, serviceCostDays), 200);
             }
         }
@@ -400,43 +514,123 @@ export function BusinessMatrixPage() {
         }
 
         const currencySymbol = getCurrencySymbolForDisplay();
+        const mrr = convertFromBilling(metrics?.platformSummary?.mrr || 0);
+        const mrrDailyEquiv = mrr > 0 ? mrr / 30 : 0;
 
         const sortedSnapshots = [...snapshots]
             .sort((a, b) => new Date(a.date) - new Date(b.date))
             .slice(-days);
-        const labels = sortedSnapshots.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-        const dailyCosts = sortedSnapshots.map(s => convertFromBilling(s.totalCost));
-        const runRate7 = dailyCosts.map((_, idx) => {
+        const historicalLabels = sortedSnapshots.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        const historicalCosts = sortedSnapshots.map(s => convertFromBilling(s.totalCost));
+
+        // Calculate current 7-day run-rate for projection
+        const trailing7 = historicalCosts.slice(-7);
+        const currentRunRate = trailing7.length > 0
+            ? trailing7.reduce((sum, v) => sum + v, 0) / trailing7.length
+            : 0;
+
+        // Build future projected days for the remainder of the current calendar month
+        const now = new Date();
+        const dayOfMonth = now.getUTCDate();
+        const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+        const remainingDays = Math.max(0, daysInMonth - dayOfMonth);
+        const futureLabels = [];
+        for (let d = 1; d <= remainingDays; d++) {
+            const futureDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), dayOfMonth + d));
+            futureLabels.push(futureDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        }
+
+        const allLabels = [...historicalLabels, ...futureLabels];
+        const histLen = historicalCosts.length;
+
+        // Historical bars (null for future slots)
+        const dailyCosts = [...historicalCosts, ...futureLabels.map(() => null)];
+
+        // Projected bars for future days (null for historical slots)
+        const projectedCosts = [...historicalCosts.map(() => null), ...futureLabels.map(() => currentRunRate)];
+
+        // Solid run-rate line for historical period only
+        const runRate7Solid = historicalCosts.map((_, idx) => {
             const start = Math.max(0, idx - 6);
-            const window = dailyCosts.slice(start, idx + 1);
-            const avg = window.reduce((sum, value) => sum + value, 0) / window.length;
+            const win = historicalCosts.slice(start, idx + 1);
+            const avg = win.reduce((sum, v) => sum + v, 0) / win.length;
             return Number.isFinite(avg) ? avg : 0;
         });
+        // Dashed projection line: last historical point + all future points (creates visual continuity)
+        const runRate7Dashed = [
+            ...historicalCosts.map((_, idx) => idx === histLen - 1 ? runRate7Solid[idx] : null),
+            ...futureLabels.map(() => currentRunRate)
+        ];
+
+        const datasets = [
+            {
+                type: 'bar',
+                label: 'Daily Expense',
+                data: dailyCosts,
+                borderColor: '#f76707',
+                backgroundColor: 'rgba(247, 103, 7, 0.25)',
+                borderWidth: 1,
+                borderRadius: 4
+            },
+            {
+                type: 'bar',
+                label: 'Projected',
+                data: projectedCosts,
+                borderColor: 'rgba(247, 103, 7, 0.5)',
+                backgroundColor: 'rgba(247, 103, 7, 0.08)',
+                borderWidth: 1,
+                borderRadius: 4
+            },
+            {
+                type: 'line',
+                label: '7-day Run-rate',
+                data: [...runRate7Solid, ...futureLabels.map(() => null)],
+                borderColor: '#0054a6',
+                backgroundColor: 'rgba(0, 84, 166, 0.08)',
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                tension: 0.3,
+                fill: false,
+                spanGaps: false
+            },
+            {
+                type: 'line',
+                label: 'Month-end Trend',
+                data: runRate7Dashed,
+                borderColor: '#0054a6',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                borderDash: [5, 4],
+                pointRadius: 0,
+                pointHoverRadius: 3,
+                tension: 0,
+                fill: false,
+                spanGaps: false
+            }
+        ];
+
+        if (mrrDailyEquiv > 0) {
+            datasets.push({
+                type: 'line',
+                label: 'Daily MRR (Break-even)',
+                data: allLabels.map(() => mrrDailyEquiv),
+                borderColor: '#2fb344',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                borderDash: [6, 3],
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                tension: 0,
+                fill: false
+            });
+        }
 
         const chart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels,
-                datasets: [{
-                    type: 'bar',
-                    label: 'Daily Expense',
-                    data: dailyCosts,
-                    borderColor: '#f76707',
-                    backgroundColor: 'rgba(247, 103, 7, 0.25)',
-                    borderWidth: 1,
-                    borderRadius: 4
-                }, {
-                    type: 'line',
-                    label: '7-day Run-rate',
-                    data: runRate7,
-                    borderColor: '#0054a6',
-                    backgroundColor: 'rgba(0, 84, 166, 0.08)',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    pointHoverRadius: 4,
-                    tension: 0.3,
-                    fill: false
-                }]
+                labels: allLabels,
+                datasets
             },
             options: {
                 responsive: true,
@@ -449,6 +643,7 @@ export function BusinessMatrixPage() {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
+                                if (context.parsed.y === null) return null;
                                 return context.dataset.label + ': ' + currencySymbol + context.parsed.y.toFixed(2);
                             }
                         }
@@ -606,18 +801,18 @@ export function BusinessMatrixPage() {
         return (costAnalytics?.dailySnapshots || []).map(mapSnapshotToTelemetryPoint);
     };
 
-    const renderTelemetryEconomicsCharts = (costAnalytics) => {
+    const renderTelemetryEconomicsCharts = (costAnalytics, days = 30) => {
         const telemetrySeries = buildTelemetrySeries(costAnalytics);
         if (telemetrySeries.length === 0) {
             return;
         }
 
-        renderTelemetryByTypeChart(telemetrySeries);
+        renderTelemetryByTypeChart(telemetrySeries, days);
         renderTopOrgTelemetryChart(telemetrySeries, costAnalytics?.topOrgTelemetryAggregates || []);
         renderTelemetryCostMixChart(telemetrySeries[telemetrySeries.length - 1]);
     };
 
-    const renderTelemetryByTypeChart = (dailyTelemetry) => {
+    const renderTelemetryByTypeChart = (dailyTelemetry, days = 30) => {
         if (!telemetryByTypeChartRef.current) return;
 
         const ctx = telemetryByTypeChartRef.current.getContext('2d');
@@ -628,7 +823,7 @@ export function BusinessMatrixPage() {
 
         const series = [...dailyTelemetry]
             .sort((a, b) => new Date(a.date) - new Date(b.date))
-            .slice(-30);
+            .slice(-days);
 
         const labels = series.map(t => new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
 
@@ -700,7 +895,12 @@ export function BusinessMatrixPage() {
                 label: orgId,
                 data: rows.map(day => {
                     const match = (day.topTelemetryOrgs || []).find(x => x.orgId === orgId);
-                    return Number(match?.telemetryRows || 0);
+                    const telemetryRows = Number(match?.telemetryRows || 0);
+                    const activeDevices = Number(match?.activeDevices || 0);
+                    if (topOrgTelemetryMetric === 'avgPerDevice') {
+                        return activeDevices > 0 ? telemetryRows / activeDevices : 0;
+                    }
+                    return telemetryRows;
                 }),
                 borderColor: colors[index % colors.length],
                 backgroundColor: `${colors[index % colors.length]}33`,
@@ -721,14 +921,23 @@ export function BusinessMatrixPage() {
                     legend: { position: 'bottom' },
                     tooltip: {
                         callbacks: {
-                            label: (context) => `${context.dataset.label}: ${formatCompactNumber(context.parsed.y || 0)} rows`
+                            label: (context) => {
+                                if (topOrgTelemetryMetric === 'avgPerDevice') {
+                                    return `${context.dataset.label}: ${formatRowsPerDevice(context.parsed.y || 0)} rows/device`;
+                                }
+                                return `${context.dataset.label}: ${formatCompactNumber(context.parsed.y || 0)} rows`;
+                            }
                         }
                     }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        ticks: { callback: (value) => formatCompactNumber(value) }
+                        ticks: {
+                            callback: (value) => topOrgTelemetryMetric === 'avgPerDevice'
+                                ? formatRowsPerDevice(value)
+                                : formatCompactNumber(value)
+                        }
                     }
                 }
             }
@@ -809,14 +1018,14 @@ export function BusinessMatrixPage() {
     const getMarginBadgeClass = (band) => {
         const bandNum = typeof band === 'number' ? band : 0;
         const classes = {
-            0: 'badge-danger',   // Critical
-            1: 'badge-warning',  // Low
-            2: 'badge-info',     // Medium
-            3: 'badge-primary',  // Acceptable
-            4: 'badge-success',  // Desirable
-            5: 'badge-success'   // Bliss
+            0: 'bg-danger text-white',   // Critical
+            1: 'bg-warning text-dark',   // Low
+            2: 'bg-warning text-dark',   // Medium
+            3: 'bg-primary text-white',  // Acceptable
+            4: 'bg-success text-white',  // Desirable
+            5: 'bg-success text-white'   // Bliss
         };
-        return classes[bandNum] || 'badge-secondary';
+        return classes[bandNum] || 'bg-secondary text-white';
     };
 
     const getMarginBadgeStyle = (band) => {
@@ -845,6 +1054,25 @@ export function BusinessMatrixPage() {
         if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
         return n.toString();
     };
+
+    const formatRowsPerDevice = (value) => {
+        const n = Number(value || 0);
+        if (n >= 1000) return formatCompactNumber(n);
+        return n.toFixed(1);
+    };
+
+    const formatRelativeDate = (value) => {
+        if (!value) return 'No telemetry yet';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'No telemetry yet';
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
     // Calculate trend from historical data
     const calculateTrend = (currentValue, trends, metricKey) => {
         if (!trends || trends.length < 2) return null;
@@ -1241,17 +1469,9 @@ export function BusinessMatrixPage() {
         };
     };
 
-    const getMarginBadgeLightStyle = (band) => {
+    const getMarginBandClass = (band) => {
         const bandNum = typeof band === 'number' ? band : 0;
-        const styles = {
-            0: { bg: '#ffe5e5', text: '#dc3545' },  // Critical
-            1: { bg: '#fff3e0', text: '#f76707' },  // Low
-            2: { bg: '#fff8e1', text: '#f59f00' },  // Medium
-            3: { bg: '#e3f2fd', text: '#0054a6' },  // Acceptable
-            4: { bg: '#e8f5e9', text: '#2fb344' },  // Desirable
-            5: { bg: '#fff9e6', text: '#b8860b' }   // Bliss (Gold with darker text)
-        };
-        return styles[bandNum] || { bg: '#f5f5f5', text: '#6c757d' };
+        return `badge-margin-${bandNum}`;
     };
 
     const buildBusinessAlerts = () => {
@@ -1318,9 +1538,6 @@ export function BusinessMatrixPage() {
         `;
     }
 
-    const degraded = freshness?.degraded === true;
-    const freshnessHours = metrics?.dataFreshnessHours ?? 0;
-
     // Build projected costs section with capacity planning scenarios
     const buildProjectedCostsSection = (currentMetrics) => {
         if (!currentMetrics || !currentMetrics.costAnalytics) return null;
@@ -1355,7 +1572,7 @@ export function BusinessMatrixPage() {
                     <!-- Platform-Wide Summary -->
                     <div class="row mb-4">
                         <div class="col-md-3">
-                            <div class="card bg-light">
+                            <div class="card border">
                                 <div class="card-body text-center">
                                     <div class="text-body-secondary small mb-1">Current Monthly Cost</div>
                                     <div class="h3 mb-0">${formatCurrency(totalCurrentMonthlyCost)}</div>
@@ -1363,7 +1580,7 @@ export function BusinessMatrixPage() {
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card bg-success-lt">
+                            <div class="card border-success">
                                 <div class="card-body text-center">
                                     <div class="text-body-secondary small mb-1">Projected (Avg Scenario)</div>
                                     <div class="h4 mb-0 text-success">+${formatCurrency(totalAdditionalCostAvg)}/mo</div>
@@ -1372,7 +1589,7 @@ export function BusinessMatrixPage() {
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card bg-warning-lt">
+                            <div class="card border-warning">
                                 <div class="card-body text-center">
                                     <div class="text-body-secondary small mb-1">Projected (Peak Scenario)</div>
                                     <div class="h4 mb-0 text-warning">+${formatCurrency(totalAdditionalCostPeak)}/mo</div>
@@ -1381,7 +1598,7 @@ export function BusinessMatrixPage() {
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card bg-info-lt">
+                            <div class="card border-info">
                                 <div class="card-body text-center">
                                     <div class="text-body-secondary small mb-1">Cost Range</div>
                                     <div class="h4 mb-0 text-info">${projectionRangePercent.toFixed(0)}%</div>
@@ -1541,8 +1758,7 @@ export function BusinessMatrixPage() {
                                 role="group"
                                 title=${(() => {
                                     const rate = getConversionRate('USD', 'INR');
-                                    const source = normalizeCurrency(platformSummary.billingCurrencyCode || billingCurrencyCode || 'USD');
-                                    return `Source (API): ${source} | FX: 1 USD = ${rate.toFixed(2)} INR, 1 INR = ${(1 / rate).toFixed(4)} USD`;
+                                    return `Source: USD | FX: 1 USD = ${rate.toFixed(2)} INR, 1 INR = ${(1 / rate).toFixed(4)} USD`;
                                 })()}
                             >
                                 <button
@@ -1573,8 +1789,6 @@ export function BusinessMatrixPage() {
                             <div>
                                 <strong>Overall Profit Margin: ${platformSummary.profitMargin.toFixed(1)}%</strong>
                                 · ${platformSummary.totalOrgs} Organizations
-                                ${(revenueBreakdown.educationCount || 0) > 0 ? html`<span class="badge bg-success-lt text-success ms-1">${revenueBreakdown.educationCount} Education</span>` : ''}
-                                ${(revenueBreakdown.demoOrgCount || 0) > 0 ? html`<span class="badge bg-warning-lt text-warning ms-1">${revenueBreakdown.demoOrgCount} Demo</span>` : ''}
                                 · ${deviceHealth.activeCount} Active Devices
                                 · ${(metrics.telemetryVolumes?.platform?.totalRows || 0).toLocaleString()} Daily Telemetry Rows
                             </div>
@@ -1590,9 +1804,15 @@ export function BusinessMatrixPage() {
                             <div class="small opacity-75">Profit Margin</div>
                         </div>
                         <div class="col-md-3 text-end">
-                            <button class="btn btn-light btn-sm" onClick=${() => loadBusinessMetrics(true)}>
+                            <button class="btn btn-light btn-sm" onClick=${() => loadBusinessMetrics()}>
                                 <i class="bi bi-arrow-clockwise"></i> Refresh Now
                             </button>
+                            ${metrics.snapshotDate ? html`
+                                <span class="badge bg-secondary-lt ms-2 small text-secondary">
+                                    <i class="bi bi-clock me-1"></i>Data: ${new Date(metrics.snapshotDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${metrics.dataSource === 'live-generated' ? html` &middot; <span class="text-success fw-medium">Live</span>` : ''}
+                                </span>
+                            ` : ''}
+
                         </div>
                     </div>
                 </div>
@@ -1608,11 +1828,54 @@ export function BusinessMatrixPage() {
                 </div>
             </div>
 
-            ${degraded ? html`
-                <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
-                    <i class="ti ti-alert-triangle me-2"></i>
-                    <div>
-                        Snapshot is degraded (${freshnessHours}h old). Auto-refresh retries are running every 30 seconds.
+
+
+            <!-- Section: Financial Overview -->
+            <div class="bm-section-header"><span>Financial Overview</span></div>
+
+            <!-- Day-over-Day Delta Strip -->
+            ${metrics.delta ? html`
+                <div class="card mb-3 border-start border-primary border-3">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex align-items-center gap-4 flex-wrap">
+                            <div class="text-muted small fw-medium" style="min-width:80px;">vs Yesterday</div>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="small text-muted">MRR</span>
+                                <span class="badge ${(metrics.delta.mrrChangePercent || 0) >= 0 ? 'bg-success' : 'bg-danger'} text-white">
+                                    ${(metrics.delta.mrrChangePercent || 0) >= 0 ? '↑' : '↓'} ${Math.abs(metrics.delta.mrrChangePercent || 0).toFixed(1)}%
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="small text-muted">Cost</span>
+                                <span class="badge ${(metrics.delta.costChangePercent || 0) <= 0 ? 'bg-success' : 'bg-danger'} text-white">
+                                    ${(metrics.delta.costChangePercent || 0) >= 0 ? '↑' : '↓'} ${Math.abs(metrics.delta.costChangePercent || 0).toFixed(1)}%
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="small text-muted">Margin</span>
+                                <span class="badge ${(metrics.delta.marginChangePoints || 0) >= 0 ? 'bg-success' : 'bg-danger'} text-white">
+                                    ${(metrics.delta.marginChangePoints || 0) >= 0 ? '↑' : '↓'} ${Math.abs(metrics.delta.marginChangePoints || 0).toFixed(1)} pts
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="small text-muted">Orgs</span>
+                                <span class="badge ${(metrics.delta.orgCountChange || 0) >= 0 ? 'bg-success' : 'bg-warning text-dark'}">
+                                    ${(metrics.delta.orgCountChange || 0) >= 0 ? '+' : ''}${metrics.delta.orgCountChange || 0}
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="small text-muted">Devices</span>
+                                <span class="badge ${(metrics.delta.deviceCountChange || 0) >= 0 ? 'bg-success' : 'bg-warning text-dark'}">
+                                    ${(metrics.delta.deviceCountChange || 0) >= 0 ? '+' : ''}${metrics.delta.deviceCountChange || 0}
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="small text-muted">Trend</span>
+                                <span class="badge ${metrics.delta.mrrTrend === 'up' ? 'bg-success' : metrics.delta.mrrTrend === 'down' ? 'bg-danger' : 'bg-secondary'} text-white">
+                                    ${metrics.delta.mrrTrend === 'up' ? '↑ Growing' : metrics.delta.mrrTrend === 'down' ? '↓ Declining' : '→ Stable'}
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             ` : null}
@@ -1661,9 +1924,10 @@ export function BusinessMatrixPage() {
                 </div>
             </div>
 
+            <!-- Revenue Leak / Orgs / Telemetry row -->
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
-                    <div class="card h-100 ${atRiskOrganizations && atRiskOrganizations.length > 0 ? 'border-warning' : ''}">
+                    <div class="card h-100">
                         <div class="card-body text-center">
                             <div class="text-body-secondary small mb-2">
                                 <i class="bi bi-exclamation-triangle-fill text-warning"></i> Revenue Leak Alert
@@ -1674,14 +1938,9 @@ export function BusinessMatrixPage() {
                                     ${atRiskOrganizations.length === 1 ? 'Organization' : 'Organizations'} Need Attention
                                 </div>
                                 <div class="d-flex justify-content-center gap-2 flex-wrap">
-                                    ${atRiskOrganizations.filter(o => o.daysToExpiry !== null && o.daysToExpiry < 30).length > 0 ? html`
-                                        <span class="badge bg-danger text-white">
-                                            ${atRiskOrganizations.filter(o => o.daysToExpiry !== null && o.daysToExpiry < 30).length} Expiring
-                                        </span>
-                                    ` : ''}
-                                    ${atRiskOrganizations.filter(o => (o.marginPercent || 0) < 20).length > 0 ? html`
-                                        <span class="badge bg-warning text-white">
-                                            ${atRiskOrganizations.filter(o => (o.marginPercent || 0) < 20).length} Low Margin
+                                    ${atRiskOrganizations.filter(o => o.riskIndicator).length > 0 ? html`
+                                        <span class="badge bg-warning text-dark">
+                                            ${atRiskOrganizations.filter(o => o.riskIndicator).length} with Risk Indicators
                                         </span>
                                     ` : ''}
                                 </div>
@@ -1704,8 +1963,7 @@ export function BusinessMatrixPage() {
                                 }
                             </div>
                             <div class="text-body-secondary small mt-1">
-                                ${revenueBreakdown.personalCount || 0} Personal · ${revenueBreakdown.educationCount || 0} Education · ${revenueBreakdown.businessCount || 0} Business
-                                ${(revenueBreakdown.demoOrgCount || 0) > 0 ? html` · <span class="text-warning">${revenueBreakdown.demoOrgCount} Demo</span>` : ''}
+                                ${revenueBreakdown.personalCount || 0} Personal &middot; ${revenueBreakdown.educationCount || 0} Education &middot; ${revenueBreakdown.businessCount || 0} Business${(revenueBreakdown.demoOrgCount || 0) > 0 ? html` &middot; <span class="text-warning">${revenueBreakdown.demoOrgCount} Demo</span>` : ""}
                             </div>
                             <div class="text-body-secondary small mt-1">
                                 ${deviceHealth.activeCount} Active · ${deviceHealth.disabledCount} Disabled
@@ -1733,6 +1991,9 @@ export function BusinessMatrixPage() {
                     </div>
                 </div>
             </div>
+
+            <!-- Section: Key Results -->
+            <div class="bm-section-header"><span>Key Results</span></div>
 
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
@@ -1772,6 +2033,55 @@ export function BusinessMatrixPage() {
                     </div>
                 </div>
             </div>
+
+            <!-- Section: Rolling Windows -->
+            ${(metrics.window7d || metrics.window30d || metrics.window90d) ? html`
+                <div class="bm-section-header"><span>Rolling Windows</span></div>
+                <div class="row g-3 mb-4">
+                    ${[
+                        { key: 'window7d', label: '7-Day', data: metrics.window7d },
+                        { key: 'window30d', label: '30-Day', data: metrics.window30d },
+                        { key: 'window90d', label: '90-Day', data: metrics.window90d },
+                    ].filter(w => w.data).map(w => html`
+                        <div class="col-md-4" key=${w.key}>
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="text-body-secondary small fw-medium">${w.label} Window</div>
+                                        ${w.data.trendDirection ? html`
+                                            <span class="badge ${w.data.trendDirection === 'up' ? 'bg-success' : w.data.trendDirection === 'down' ? 'bg-danger' : 'bg-secondary'} text-white">
+                                                ${w.data.trendDirection === 'up' ? '↑' : w.data.trendDirection === 'down' ? '↓' : '→'}
+                                                ${w.data.trendPercent > 0 ? (w.data.trendPercent || 0).toFixed(1) + '%' : ''}
+                                            </span>
+                                        ` : null}
+                                    </div>
+                                    <div class="row g-2 text-center">
+                                        <div class="col-6">
+                                            <div class="text-muted small">Total Cost</div>
+                                            <div class="h5 mb-0">${formatCurrency(w.data.totalCost || 0)}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="text-muted small">Avg/Device</div>
+                                            <div class="h5 mb-0">${formatCurrency(w.data.avgCostPerDevice || 0)}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="text-muted small">Devices</div>
+                                            <div class="h5 mb-0">${(w.data.deviceCount || 0).toLocaleString()}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="text-muted small">Telemetry</div>
+                                            <div class="h5 mb-0">${formatCompactNumber(w.data.telemetryVolume || 0)}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `)}
+                </div>
+            ` : null}
+
+            <!-- Section: Unit Economics -->
+            <div class="bm-section-header"><span>Unit Economics</span></div>
 
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
@@ -1814,11 +2124,28 @@ export function BusinessMatrixPage() {
                 </div>
             </div>
 
+            <!-- Section: Cost Analytics -->
+            <div class="bm-section-header">
+                <span>Cost Analytics</span>
+                ${(() => {
+                    const snapshots = metrics?.costAnalytics?.dailySnapshots;
+                    if (!snapshots || snapshots.length === 0) return null;
+                    const latestDate = [...snapshots].reduce((max, s) => s.date > max ? s.date : max, '');
+                    if (!latestDate) return null;
+                    const dateStr = new Date(latestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    return html`<span class="badge bg-secondary text-white ms-2" style="font-size:0.7rem;vertical-align:middle;">Data as of ${dateStr}</span>`;
+                })()}
+            </div>
+
             <div class="row g-3 mb-4">
                 <div class="col-md-6">
                     <div class="card h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Telemetry Volume by Type (Daily)</h5>
+                        <div class="card-header d-flex align-items-center justify-content-between">
+                            <h5 class="card-title mb-0">Telemetry Volume by Type (${telemetryVolumeDays}D)</h5>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class=${`btn ${telemetryVolumeDays === 30 ? 'btn-primary' : 'btn-outline-primary'}`} onClick=${() => setTelemetryVolumeDays(30)}>30D</button>
+                                <button type="button" class=${`btn ${telemetryVolumeDays === 90 ? 'btn-primary' : 'btn-outline-primary'}`} onClick=${() => setTelemetryVolumeDays(90)}>90D</button>
+                            </div>
                         </div>
                         <div class="card-body" style="height: 290px;">
                             ${(() => {
@@ -1833,8 +2160,22 @@ export function BusinessMatrixPage() {
                 </div>
                 <div class="col-md-6">
                     <div class="card h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Top 5 Orgs by Telemetry (30D)</h5>
+                        <div class="card-header d-flex align-items-center justify-content-between gap-2">
+                            <h5 class="card-title mb-0">
+                                ${topOrgTelemetryMetric === 'avgPerDevice' ? 'Top 5 Orgs by Avg Rows/Active Device (30D)' : 'Top 5 Orgs by Telemetry Rows (30D)'}
+                            </h5>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Top org telemetry metric mode">
+                                <button
+                                    type="button"
+                                    class=${`btn ${topOrgTelemetryMetric === 'avgPerDevice' ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick=${() => setTopOrgTelemetryMetric('avgPerDevice')}
+                                >Rows/Device</button>
+                                <button
+                                    type="button"
+                                    class=${`btn ${topOrgTelemetryMetric === 'rows' ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick=${() => setTopOrgTelemetryMetric('rows')}
+                                >Rows</button>
+                            </div>
                         </div>
                         <div class="card-body" style="height: 290px;">
                             ${(() => {
@@ -1877,18 +2218,25 @@ export function BusinessMatrixPage() {
                                     <thead>
                                         <tr>
                                             <th>Org</th>
-                                            <th class="text-end">Rows (30D)</th>
-                                            <th class="text-end">Avg Cost/Day</th>
-                                            <th class="text-end">Cost/Device/Day</th>
+                                            <th class="text-end">Rows (90D)</th>
+                                            <th class="text-end">7d /Dev</th>
+                                            <th class="text-end">30d /Dev</th>
+                                            <th class="text-center">Trend</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         ${(metrics?.costAnalytics?.topOrgTelemetryAggregates || []).slice(0, 10).map(item => html`
                                             <tr key=${item.orgId}>
-                                                <td>${item.orgId}</td>
+                                                <td>
+                                                    <div class="fw-medium text-truncate" style="max-width:140px;" title=${item.orgName || item.orgId}>${item.orgName || item.orgId}</div>
+                                                    ${item.orgName ? html`<div class="text-muted small">${item.orgId}</div>` : null}
+                                                </td>
                                                 <td class="text-end">${formatCompactNumber(item.totalTelemetryRows || 0)}</td>
-                                                <td class="text-end">${formatCurrency(item.avgCostPerDay || 0)}</td>
-                                                <td class="text-end">${formatCurrency(item.avgCostPerDevicePerDay || 0)}</td>
+                                                <td class="text-end">${formatRowsPerDevice(item.avg7dRowsPerDevice || 0)}</td>
+                                                <td class="text-end">${formatRowsPerDevice(item.avg30dRowsPerDevice || 0)}</td>
+                                                <td class="text-center">
+                                                    ${item.trendDirection7d === 'up' ? html`<span class="text-success fw-bold" title="Trending up (7d)">↑</span>` : item.trendDirection7d === 'down' ? html`<span class="text-danger fw-bold" title="Trending down (7d)">↓</span>` : html`<span class="text-muted" title="Stable">−</span>`}
+                                                </td>
                                             </tr>
                                         `)}
                                     </tbody>
@@ -1898,6 +2246,9 @@ export function BusinessMatrixPage() {
                     </div>
                 </div>
             </div>
+
+            <!-- Section: Revenue & Margin -->
+            <div class="bm-section-header"><span>Revenue & Margin</span></div>
 
             <!-- Charts Row -->
             <div class="row g-3 mb-4">
@@ -2017,6 +2368,76 @@ export function BusinessMatrixPage() {
             <!-- Projected Costs Section -->
             ${buildProjectedCostsSection(metrics)}
 
+            <!-- Section: Alerts (Compliance + Operational) -->
+            ${(metrics.operationalAlerts?.length > 0 || metrics.complianceAlerts?.length > 0) ? html`
+                <div class="bm-section-header"><span>Alerts</span></div>
+                <div class="card border-warning mb-4">
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            ${[...(metrics.complianceAlerts || []), ...(metrics.operationalAlerts || [])]
+                                .sort((a, b) => {
+                                    const order = { Critical: 0, Warning: 1, Info: 2 };
+                                    return (order[a.severity] ?? 2) - (order[b.severity] ?? 2);
+                                })
+                                .map((alert, i) => html`
+                                    <div class="list-group-item d-flex align-items-start py-2 px-3" key=${i}>
+                                        <span class="badge ${alert.severity === 'Critical' ? 'bg-danger text-white' : alert.severity === 'Warning' ? 'bg-warning text-dark' : 'bg-info text-white'} me-2 align-self-center flex-shrink-0">${alert.severity}</span>
+                                        <div class="small">
+                                            <div class="fw-medium">${alert.alertType}</div>
+                                            <div class="text-muted">${alert.message}</div>
+                                        </div>
+                                    </div>
+                                `)}
+                        </div>
+                    </div>
+                </div>
+            ` : null}
+
+            <!-- Section: Noisy Devices -->
+            ${metrics.noisyDevices?.length > 0 ? html`
+                <div class="bm-section-header"><span>Noisy Devices</span></div>
+                <div class="card mb-4">
+                    <div class="card-header"><h5 class="card-title mb-0">Top Telemetry Emitters Today</h5></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Device</th>
+                                        <th>Organization</th>
+                                        <th class="text-end">Rows Today</th>
+                                        <th class="text-end">Est. Daily Cost</th>
+                                        <th class="text-center">Activity Level</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${(metrics.noisyDevices || []).slice(0, 10).map(d => html`
+                                        <tr key=${d.deviceId}>
+                                            <td>
+                                                <a href="#!/devices/${d.deviceId}" class="text-reset fw-medium">
+                                                    ${d.deviceName || d.deviceId}
+                                                </a>
+                                            </td>
+                                            <td class="text-muted small">${d.orgId}</td>
+                                            <td class="text-end">${formatCompactNumber(d.telemetryRowsToday || 0)}</td>
+                                            <td class="text-end">${formatCurrency(d.estimatedDailyCost || 0)}</td>
+                                            <td class="text-center">
+                                                <span class="badge ${d.activityLevel === 'Very High' ? 'bg-danger text-white' : d.activityLevel === 'High' ? 'bg-warning text-dark' : 'bg-secondary text-white'}">
+                                                    ${d.activityLevel || 'Normal'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            ` : null}
+
+            <!-- Section: Organization Details -->
+            <div class="bm-section-header"><span>Organization Details</span></div>
+
             <!-- Top Organizations Table with Expandable Device Rows -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -2055,8 +2476,7 @@ export function BusinessMatrixPage() {
                                             ${formatCurrency(org.profit || 0)}
                                         </td>
                                         <td class="text-center">
-                                            <span class="badge" 
-                                                  style="background: ${getMarginBadgeLightStyle(org.marginBand).bg}; color: ${getMarginBadgeLightStyle(org.marginBand).text};" 
+                                            <span class="badge ${getMarginBandClass(org.marginBand)}" 
                                                   title="${getMarginBandText(org.marginBand)}">
                                                 ${(org.marginPercent || 0).toFixed(1)}%
                                             </span>
@@ -2065,7 +2485,7 @@ export function BusinessMatrixPage() {
                                             ${org.seats > org.deviceCount ? html`
                                                 <div class="d-flex flex-column align-items-center" 
                                                      title="If all ${org.seats} seats were used: ${(org.projectedFullUtilizationMargin || 0).toFixed(1)}% margin, ${formatCurrency(org.projectedFullUtilizationProfit || 0)} profit">
-                                                    <span class="badge ${org.wouldBeProfitableAtFullUtilization ? 'badge-success' : 'badge-danger'}">
+                                                    <span class="badge ${org.wouldBeProfitableAtFullUtilization ? 'bg-success text-white' : 'bg-danger text-white'}">
                                                         ${org.wouldBeProfitableAtFullUtilization ? '✓' : '✗'} ${(org.projectedFullUtilizationMargin || 0).toFixed(0)}%
                                                     </span>
                                                     <small class="text-body-secondary">${formatCurrency(org.projectedFullUtilizationProfit || 0)}</small>
@@ -2077,15 +2497,16 @@ export function BusinessMatrixPage() {
                                     </tr>
                                     ${expandedOrgs.has(org.orgId) && org.devices && org.devices.length > 0 && html`
                                         <tr>
-                                            <td colspan="7" class="p-0">
-                                                <div class="bg-light p-3">
+                                            <td colspan="8" class="p-0">
+                                                <div class="p-3" style="background: var(--bs-tertiary-bg, #f8f9fa);">
                                                     <h6 class="mb-2">Devices (Top ${Math.min(10, org.devices.length)})</h6>
                                                     <table class="table table-sm table-bordered mb-0">
                                                         <thead>
                                                             <tr>
                                                                 <th>Device Name</th>
                                                                 <th>State</th>
-                                                                <th class="text-end">Daily Cost</th>
+                                                                <th>Last Telemetry</th>
+                                                                <th class="text-end">Monthly Cost</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -2097,11 +2518,23 @@ export function BusinessMatrixPage() {
                                                                         </a>
                                                                     </td>
                                                                     <td>
-                                                                        <span class="badge badge-${device.state === 'ACTIVE' ? 'success' : 'secondary'}">
+                                                                        <span class="badge ${device.state === 'ACTIVE' ? 'bg-success text-white' : 'bg-secondary text-white'}">
                                                                             ${device.state}
                                                                         </span>
                                                                     </td>
-                                                                    <td class="text-end">${formatCurrency(device.dailyCost || 0)}</td>
+                                                                    <td class="small text-body-secondary">
+                                                                        ${device.lastTelemetry
+                                                                            ? formatRelativeDate(device.lastTelemetry)
+                                                                            : (device.lastHeartbeat
+                                                                                ? html`<span title="No scan data; heartbeat ${formatRelativeDate(device.lastHeartbeat)}">${formatRelativeDate(device.lastHeartbeat)} <span class="text-body-secondary">(heartbeat)</span></span>`
+                                                                                : 'No data yet')}
+                                                                    </td>
+                                                                    <td class="text-end">
+                                                                        <div>${formatCurrency(device.monthlyCost || 0)}</div>
+                                                                        ${device.state === 'ACTIVE' && Number(device.monthlyCost || 0) < 0.01 ? html`
+                                                                            <div class="small text-body-secondary">est.</div>
+                                                                        ` : ''}
+                                                                    </td>
                                                                 </tr>
                                                             `)}
                                                         </tbody>
@@ -2132,8 +2565,8 @@ export function BusinessMatrixPage() {
                                     <tr>
                                         <th>Organization</th>
                                         <th class="text-end">Devices</th>
-                                        <th class="text-end">Margin</th>
-                                        <th class="text-end">Days to Expiry</th>
+                                        <th class="text-end">Daily Cost</th>
+                                        <th>Risk Indicator</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2141,19 +2574,12 @@ export function BusinessMatrixPage() {
                                         <tr key=${org.orgId}>
                                             <td><strong>${org.orgName || org.orgId}</strong></td>
                                             <td class="text-end">${org.deviceCount || 0}</td>
-                                            <td class="text-end">
-                                                <span class="badge" 
-                                                      style="background: ${getMarginBadgeLightStyle(org.marginBand).bg}; color: ${getMarginBadgeLightStyle(org.marginBand).text};" 
-                                                      title="${getMarginBandText(org.marginBand)}">
-                                                    ${(org.marginPercent || 0).toFixed(1)}%
-                                                </span>
-                                            </td>
-                                            <td class="text-end">
-                                                ${org.daysToExpiry !== null ? html`
-                                                    <span class="badge ${org.daysToExpiry < 30 ? 'badge-danger' : 'badge-warning'}">
-                                                        ${org.daysToExpiry} days
-                                                    </span>
-                                                ` : 'N/A'}
+                                            <td class="text-end">${formatCurrency(org.dailyCost || 0)}</td>
+                                            <td>
+                                                ${org.riskIndicator
+                                                    ? html`<span class="badge bg-warning text-dark small">${org.riskIndicator}</span>`
+                                                    : html`<span class="text-muted small">—</span>`
+                                                }
                                             </td>
                                         </tr>
                                     `)}
@@ -2208,6 +2634,8 @@ export function BusinessMatrixPage() {
                                                     <tr>
                                                         <th>Org</th>
                                                         <th class="text-end">Rows (24h)</th>
+                                                        <th class="text-end">Active Devices</th>
+                                                        <th class="text-end">Avg Rows/Device</th>
                                                         <th class="text-end">Share</th>
                                                     </tr>
                                                 </thead>
@@ -2216,11 +2644,15 @@ export function BusinessMatrixPage() {
                                                         .sort((a, b) => (b.totalRows || 0) - (a.totalRows || 0))
                                                         .slice(0, 8)
                                                         .map(org => {
+                                                            const activeDevices = Number(org.activeDevices || 0);
+                                                            const avgRowsPerDevice = activeDevices > 0 ? Number(org.totalRows || 0) / activeDevices : 0;
                                                             const share = totalRows > 0 ? ((org.totalRows || 0) / totalRows) * 100 : 0;
                                                             return html`
                                                                 <tr key=${org.orgId}>
                                                                     <td>${org.orgName || org.orgId}</td>
                                                                     <td class="text-end">${formatCompactNumber(org.totalRows || 0)}</td>
+                                                                    <td class="text-end">${activeDevices}</td>
+                                                                    <td class="text-end">${formatRowsPerDevice(avgRowsPerDevice)}</td>
                                                                     <td class="text-end">${share.toFixed(1)}%</td>
                                                                 </tr>
                                                             `;
@@ -2243,23 +2675,23 @@ export function BusinessMatrixPage() {
                         </div>
                         <div class="card-body">
                             <div class="mb-2 d-flex justify-content-between">
-                                <span><span class="badge badge-success">Active</span></span>
+                                <span><span class="badge bg-success text-white">Active</span></span>
                                 <strong>${deviceHealth.activeCount} devices</strong>
                             </div>
                             <div class="mb-2 d-flex justify-content-between">
-                                <span><span class="badge badge-secondary">Disabled</span></span>
+                                <span><span class="badge bg-secondary text-white">Disabled</span></span>
                                 <strong>${deviceHealth.disabledCount} devices</strong>
                             </div>
                             <div class="mb-2 d-flex justify-content-between">
-                                <span><span class="badge badge-danger">Blocked</span></span>
+                                <span><span class="badge bg-danger text-white">Blocked</span></span>
                                 <strong>${deviceHealth.blockedCount} devices</strong>
                             </div>
                             <div class="mb-2 d-flex justify-content-between">
-                                <span><span class="badge badge-info">Online</span></span>
+                                <span><span class="badge bg-info text-dark">Online</span></span>
                                 <strong>${deviceHealth.onlineCount} devices</strong>
                             </div>
                             <div class="d-flex justify-content-between">
-                                <span><span class="badge badge-warning">Heartbeat Only</span></span>
+                                <span><span class="badge bg-warning text-dark">Heartbeat Only</span></span>
                                 <strong>${deviceHealth.heartbeatOnlyCount} devices</strong>
                             </div>
                         </div>

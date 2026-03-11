@@ -134,12 +134,13 @@ export class DiagnosticsPage extends Component {
     }
 
     renderKPICards() {
-        const { overview } = this.state;
+        const { overview, systemHealth } = this.state;
         if (!overview) return null;
 
-        const telemetryRate = Number(overview.systemHealth?.telemetrySuccessRate || 0);
+        // Prefer fresh system-health data if the tab has been loaded, else fall back to overview snapshot
+        const telemetryRate = Number(systemHealth?.telemetrySuccessRate ?? overview.systemHealth?.telemetrySuccessRate ?? 0);
         const telemetryBadgeClass = telemetryRate >= 95 ? 'bg-success text-white' : telemetryRate >= 85 ? 'bg-warning text-white' : 'bg-danger text-white';
-        const healthScore = Number(overview.systemHealthScore || 0);
+        const healthScore = Number(systemHealth?.deviceHealthScore ?? overview.systemHealthScore ?? 0);
         const healthBadgeClass = healthScore >= 90 ? 'bg-success text-white' : healthScore >= 75 ? 'bg-warning text-white' : 'bg-danger text-white';
         const publicIntel = overview.publicIntelSecurity || {};
         const abuseEvents = Number(publicIntel.events24h || 0);
@@ -378,7 +379,7 @@ export class DiagnosticsPage extends Component {
                                 </td>
                                 <td>${device.orgName}</td>
                                 <td>
-                                    <span class="badge bg-${device.issueType === 'High Failures' ? 'danger' : 'warning'}">
+                                    <span class="badge bg-${device.issueType === 'High Failures' ? 'danger' : 'warning'} text-white">
                                         ${device.issueType}
                                     </span>
                                 </td>
@@ -432,18 +433,18 @@ export class DiagnosticsPage extends Component {
                             <tr>
                                 <td>${org.orgName}</td>
                                 <td>
-                                    <span class="badge bg-danger">
-                                        ${org.errorRate}%
+                                    <span class="badge bg-danger text-white">
+                                        ${Number(org.errorRate || 0).toFixed(1)}%
                                     </span>
                                 </td>
                                 <td>${org.deviceCount} devices</td>
                                 <td>
-                                    <span class="badge bg-${(org.licenseStatus || '').toUpperCase() === 'ACTIVE' ? 'success' : 'warning'}">
+                                    <span class="badge bg-${(org.licenseStatus || '').toUpperCase() === 'ACTIVE' ? 'success' : 'warning'} text-white">
                                         ${org.licenseStatus}
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="#!/siteadmin" class="btn btn-sm btn-primary">
+                                    <a href="#!/siteadmin/manage" class="btn btn-sm btn-primary">
                                         Manage
                                     </a>
                                 </td>
@@ -491,7 +492,7 @@ export class DiagnosticsPage extends Component {
                             <tr>
                                 <td>${leak.orgName}</td>
                                 <td>
-                                    <span class="badge bg-warning">
+                                    <span class="badge bg-warning text-white">
                                         ${leak.issueType}
                                     </span>
                                 </td>
