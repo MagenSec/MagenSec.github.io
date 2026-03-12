@@ -2,7 +2,7 @@
 const { html, Component } = window;
 
 // Phone number persisted in localStorage as a cache for the "add phone" toast skip logic
-const PHONE_CACHE_KEY = (email) => `magensec_phone_${email}`;
+const PHONE_CACHE_KEY = (email) => `magensec_phone_${String(email || '').trim().toLowerCase()}`;
 
 class AccountPage extends Component {
     constructor() {
@@ -34,6 +34,10 @@ class AccountPage extends Component {
                 return;
             }
             const { user, orgs } = response.data;
+            const profilePhone = (user.phoneNumber || '').trim();
+            if (profilePhone && user.email) {
+                localStorage.setItem(PHONE_CACHE_KEY(user.email), profilePhone);
+            }
             this.setState({
                 loading: false,
                 user,

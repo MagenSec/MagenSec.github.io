@@ -147,7 +147,7 @@ export class VulnerabilitiesPage extends Component {
     }
 
     render() {
-        const { loading, error, vulnerabilities, severityFilter, isRefreshingInBackground } = this.state;
+        const { loading, error, vulnerabilities, severityFilter, isRefreshingInBackground, summary } = this.state;
 
         if (loading && !vulnerabilities.length) {
             return html`<div class="d-flex align-items-center justify-content-center" style="min-height: 60vh;"><div class="spinner-border text-primary"></div></div>`;
@@ -159,10 +159,10 @@ export class VulnerabilitiesPage extends Component {
 
         const filtered = severityFilter === 'all' ? vulnerabilities : vulnerabilities.filter(v => v.severity === severityFilter);
 
-        const criticalCount = vulnerabilities.filter(v => v.severity === 'Critical').length;
-        const highCount = vulnerabilities.filter(v => v.severity === 'High').length;
-        const mediumCount = vulnerabilities.filter(v => v.severity === 'Medium').length;
-        const lowCount = vulnerabilities.filter(v => v.severity === 'Low').length;
+        const criticalCount = Number(summary?.critical ?? vulnerabilities.filter(v => v.severity === 'Critical').length);
+        const highCount = Number(summary?.high ?? vulnerabilities.filter(v => v.severity === 'High').length);
+        const mediumCount = Number(summary?.medium ?? vulnerabilities.filter(v => v.severity === 'Medium').length);
+        const lowCount = Number(summary?.low ?? vulnerabilities.filter(v => v.severity === 'Low').length);
 
         return html`
             <div class="page-header d-print-none">

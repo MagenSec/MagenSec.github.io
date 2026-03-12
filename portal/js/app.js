@@ -278,7 +278,7 @@ function renderApp(state = {}) {
 function hasUserPhoneConfigured() {
     try {
         const u = auth.getUser();
-        const email = (u?.email || '').trim();
+        const email = (u?.email || '').trim().toLowerCase();
         const phoneFromSession = (u?.phoneNumber || u?.phone || '').trim();
         if (phoneFromSession) {
             return true;
@@ -298,6 +298,23 @@ function hasUserPhoneConfigured() {
 
 function maybeShowMissingPhoneToast(delayMs = 1200) {
     setTimeout(() => {
+        const showToast = () => {
+            window.toast?.show(
+                `<div class="d-flex align-items-center gap-2 flex-wrap"><span><strong>Add your phone number</strong> &mdash; Set a contact number in your Account for security alerts.</span><a href="#!/account" class="btn btn-sm btn-warning">Open Account</a></div>`,
+                'warning',
+                0
+            );
+        };
+
+        const cachePhoneIfPresent = (email, phone) => {
+            const normalizedEmail = (email || '').trim().toLowerCase();
+            const normalizedPhone = (phone || '').trim();
+            if (!normalizedEmail || !normalizedPhone) {
+                return;
+            }
+            localStorage.setItem(`magensec_phone_${normalizedEmail}`, normalizedPhone);
+        };
+
         if (sessionStorage.getItem('phone_toast_shown')) {
             return;
         }
@@ -307,12 +324,24 @@ function maybeShowMissingPhoneToast(delayMs = 1200) {
             return;
         }
 
-        sessionStorage.setItem('phone_toast_shown', '1');
-        window.toast?.show(
-            `<strong>Add your phone number</strong> &mdash; Set a contact number in your <a href="#!/account" style="color:inherit;font-weight:600;">Account</a> for security alerts.`,
-            'warning',
-            0
-        );
+        // Fallback check against backend profile to avoid false warnings when auth session lacks phone fields.
+        const user = auth.getUser();
+        const userEmail = (user?.email || '').trim();
+        api.get('/api/v1/users/me').then((response) => {
+            const profilePhone = (response?.data?.user?.phoneNumber || '').trim();
+            if (profilePhone) {
+                cachePhoneIfPresent(userEmail, profilePhone);
+                sessionStorage.setItem('phone_toast_shown', '1');
+                return;
+            }
+
+            sessionStorage.setItem('phone_toast_shown', '1');
+            showToast();
+        }).catch(() => {
+            // If profile lookup fails, still surface the prompt.
+            sessionStorage.setItem('phone_toast_shown', '1');
+            showToast();
+        });
     }, delayMs);
 }
 

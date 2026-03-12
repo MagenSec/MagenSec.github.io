@@ -82,8 +82,12 @@ export class AIPosturePage extends Component {
             
             // Real error - show to user
             logger.error('[AI Posture] Failed to load report:', err);
+            const rawMessage = err?.message || 'Failed to load AI reports';
+            const friendlyMessage = rawMessage.includes('Unable to resolve service for type')
+                ? 'AI posture service is temporarily unavailable. You can continue using Security Posture for live risk and compliance insights.'
+                : rawMessage;
             this.setState({
-                error: err?.message || 'Failed to load AI reports',
+                error: friendlyMessage,
                 loading: false
             });
         }
@@ -513,7 +517,10 @@ export class AIPosturePage extends Component {
             return html`
                 <div class="container py-4">
                     <div class="alert alert-danger">${this.state.error}</div>
-                    <button class="btn btn-primary" onClick=${() => this.loadReports()}>Retry</button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-primary" onClick=${() => this.loadReports()}>Retry</button>
+                        <a class="btn btn-outline-secondary" href="#!/posture">Open Security Posture</a>
+                    </div>
                 </div>
             `;
         }

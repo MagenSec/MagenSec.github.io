@@ -72,9 +72,20 @@ export class DeviceSummaryService {
         if (!constituents || constituents.cveCount === 0) {
             return { score: summary.score, constituents: summary.constituents || {}, enrichmentFactors: {} };
         }
+
+        const normalizeUnitInterval = (value) => {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+            if (numeric <= 1) return numeric;
+            if (numeric <= 100) return numeric / 100;
+            if (numeric <= 1000000000) return numeric / 1000000000;
+            return 1;
+        };
         
-        // Base calculation: CVSS × EPSS
-        let riskFactor = constituents.maxCvssNormalized * constituents.maxEpssStored;
+        // Base calculation: CVSS × EPSS (both normalized to 0-1)
+        const maxCvssNormalized = normalizeUnitInterval(constituents.maxCvssNormalized);
+        const maxEpssNormalized = normalizeUnitInterval(constituents.maxEpssStored);
+        const riskFactor = maxCvssNormalized * maxEpssNormalized;
         
         // Check if any CVE is a known exploit
         const hasKnownExploit = false; // Updated when we have CVE details
@@ -88,17 +99,21 @@ export class DeviceSummaryService {
         // Final score with all factors
         const finalRisk = (
             riskFactor *
-            constituents.exposureFactor *
-            constituents.privilegeFactor *
+            (Number(constituents.exposureFactor) || 1) *
+            (Number(constituents.privilegeFactor) || 1) *
             exploitFactor *
             timeDecayFactor
         ) * 100;
         
-        const enrichedScore = Math.round(finalRisk * 100) / 100;
+        const enrichedScore = Math.min(100, Math.max(0, Math.round(finalRisk * 100) / 100));
         
         return {
             score: enrichedScore,
-            constituents,
+            constituents: {
+                ...constituents,
+                maxCvssNormalized,
+                maxEpssStored: maxEpssNormalized
+            },
             enrichmentFactors: {
                 hasKnownExploit,
                 timeDecayFactor: Math.round(timeDecayFactor * 10000) / 10000,

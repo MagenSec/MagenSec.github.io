@@ -865,9 +865,20 @@ class DevicesPage extends window.Component {
         if (!constituents || constituents.cveCount === 0) {
             return { score: summary.score, constituents, enrichmentFactors: {} };
         }
+
+        const normalizeUnitInterval = (value) => {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+            if (numeric <= 1) return numeric;
+            if (numeric <= 100) return numeric / 100;
+            if (numeric <= 1000000000) return numeric / 1000000000;
+            return 1;
+        };
         
-        // Base calculation: CVSS × EPSS
-        let riskFactor = constituents.maxCvssNormalized * constituents.maxEpssStored;
+        // Base calculation: CVSS × EPSS (both normalized to 0-1)
+        const maxCvssNormalized = normalizeUnitInterval(constituents.maxCvssNormalized);
+        const maxEpssNormalized = normalizeUnitInterval(constituents.maxEpssStored);
+        const riskFactor = maxCvssNormalized * maxEpssNormalized;
         
         // Check if any CVE is a known exploit (would need CVE details in summary for this)
         const hasKnownExploit = false; // Updated when we have CVE details
@@ -881,17 +892,21 @@ class DevicesPage extends window.Component {
         // Final score with all factors
         const finalRisk = (
             riskFactor *
-            constituents.exposureFactor *
-            constituents.privilegeFactor *
+            (Number(constituents.exposureFactor) || 1) *
+            (Number(constituents.privilegeFactor) || 1) *
             exploitFactor *
             timeDecayFactor
         ) * 100;
         
-        const enrichedScore = Math.round(finalRisk * 100) / 100;
+        const enrichedScore = Math.min(100, Math.max(0, Math.round(finalRisk * 100) / 100));
         
         return {
             score: enrichedScore,
-            constituents,
+            constituents: {
+                ...constituents,
+                maxCvssNormalized,
+                maxEpssStored: maxEpssNormalized
+            },
             enrichmentFactors: {
                 hasKnownExploit,
                 timeDecayFactor: Math.round(timeDecayFactor * 10000) / 10000,
@@ -922,11 +937,12 @@ class DevicesPage extends window.Component {
                 this.setState({ installers: manifestConfig, manifestError: null });
                 console.log('[Devices] Loaded installer config from manifest cache:', manifestConfig);
             } else {
-                this.setState({ manifestError: 'Failed to load installer manifest. Please try again later or contact support.' });
+                // Local/dev fallback: use static installer config without surfacing an error state.
+                this.setState({ installers: config.INSTALLERS || this.state.installers, manifestError: null });
             }
         } catch (error) {
             console.error('[Devices] Failed to load manifest config, using fallback:', error);
-            this.setState({ manifestError: 'Failed to load installer manifest due to network or server error.' });
+            this.setState({ installers: config.INSTALLERS || this.state.installers, manifestError: 'Installer metadata is temporarily unavailable. Using built-in download configuration.' });
         }
     }
 
@@ -3013,7 +3029,7 @@ class DevicesPage extends window.Component {
         const securityStats = DeviceStatsService.computeSecurityStats(filteredDevices, this.state.enrichedScores, this.state.deviceSummaries);
 
         return html`
-            ${manifestError ? html`<div class="alert alert-danger mt-2">${manifestError}</div>` : null}
+            ${manifestError ? html`<div class="alert alert-warning mt-2">${manifestError}</div>` : null}
             
             <!-- Admin View Tabs -->
 <div class="row align-items-center mb-0 mt-2 border-bottom pb-2">

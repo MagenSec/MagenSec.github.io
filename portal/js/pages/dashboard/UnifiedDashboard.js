@@ -776,7 +776,9 @@ export default class UnifiedDashboard extends Component {
         badge: a.urgency || 'normal',
         badgeColor: a.urgency === 'critical' || a.urgency === 'urgent' ? '#dc2626' : a.urgency === 'high' || a.urgency === 'important' ? '#d97706' : '#6b7280',
         title: a.title || '',
-        sub: a.deadlineText || a.description || ''
+        sub: a.primaryDeviceName
+          ? `Affected device: ${a.primaryDeviceName}${a.deadlineText ? ` · ${a.deadlineText}` : ''}`
+          : (a.deadlineText || a.description || '')
       }));
     } else if (activePersona === 'it') {
       actionRows = (it.appRisks || []).slice(0, 3).map(a => ({
