@@ -103,10 +103,10 @@ export default class UnifiedDashboard extends Component {
     }
   }
 
-  async loadDashboard({ refresh, background } = {}) {
+  async loadDashboard({ refresh, background, skipCache } = {}) {
     try {
-      const isRefresh = !!refresh;
       const isBackground = !!background;
+      const isRefresh = !!refresh && !isBackground;
       this.setState({
         loading: !this.state.data && !isRefresh && !isBackground,
         refreshing: isRefresh && !isBackground,
@@ -125,22 +125,23 @@ export default class UnifiedDashboard extends Component {
 
       const cacheKey = `unified_dashboard_${orgId}`;
 
-      if (!isRefresh) {
+      if (!isRefresh && !skipCache) {
         const cached = this.getCachedDashboard(cacheKey, 30);
         if (cached?.data) {
-          this.setState({
+          this.setState(prevState => ({
             data: cached.data,
             loading: false,
             refreshing: false,
             isRefreshingInBackground: true,
             error: null,
-            refreshError: null
-          });
+            refreshError: null,
+            personaSheetOpen: prevState.personaSheetOpen || !isBackground
+          }));
 
           // If cached fleet counters are stale/invalid, hydrate from devices API.
           this.hydrateFleetStatsFromDevices(orgId, cached.data);
 
-          await this.loadDashboard({ refresh: true, background: true });
+          await this.loadDashboard({ background: true, skipCache: true });
           return;
         }
       }
@@ -164,12 +165,14 @@ export default class UnifiedDashboard extends Component {
         this.setCachedDashboard(cacheKey, normalizedData);
       }
 
-      this.setState({
+      this.setState(prevState => ({
         data: normalizedData,
         loading: false,
         refreshing: false,
-        isRefreshingInBackground: false
-      });
+        isRefreshingInBackground: false,
+        // Auto-open persona sheet on first data load so there's no blank area
+        personaSheetOpen: prevState.personaSheetOpen || !isBackground
+      }));
     } catch (err) {
       console.error('Failed to load unified dashboard:', err);
 

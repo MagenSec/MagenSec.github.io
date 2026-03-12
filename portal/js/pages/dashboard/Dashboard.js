@@ -288,6 +288,7 @@ export class DashboardPage extends Component {
     }
 
     componentWillUnmount() {
+        this._unmounted = true;
         if (this.orgUnsubscribe) this.orgUnsubscribe();
         if (this.state.refreshInterval) {
             clearInterval(this.state.refreshInterval);
@@ -924,7 +925,7 @@ export class DashboardPage extends Component {
     }
 
     renderCoveragePolar(coverage, retryCount = 0) {
-        if (!window.ApexCharts || !this.coverageChartEl) {
+        if (!window.ApexCharts || !this.coverageChartEl || this._unmounted) {
             return;
         }
 
@@ -1056,8 +1057,15 @@ export class DashboardPage extends Component {
         };
     }
 
-    renderPostureRadar() {
-        if (!window.ApexCharts || !this.radarChartEl) {
+    renderPostureRadar(retryCount = 0) {
+        if (!window.ApexCharts || !this.radarChartEl || this._unmounted) {
+            return;
+        }
+
+        if (!this.isChartContainerReady(this.radarChartEl)) {
+            if (retryCount < 6) {
+                setTimeout(() => this.renderPostureRadar(retryCount + 1), 120);
+            }
             return;
         }
 
@@ -1078,10 +1086,21 @@ export class DashboardPage extends Component {
         }
 
         const options = {
-            chart: { type: 'radar', height: 250, toolbar: { show: false } },
+            chart: {
+                type: 'radar',
+                height: 250,
+                toolbar: { show: false },
+                animations: { enabled: false }
+            },
             series: [{ name: 'Posture', data: series }],
             labels: ['Compliance', 'Coverage', 'Active Devices', 'Low Threats', 'Low Alerts'],
-            yaxis: { show: true, labels: { formatter: (v) => `${Math.round(v)}` } },
+            yaxis: {
+                min: 0,
+                max: 100,
+                tickAmount: 5,
+                show: true,
+                labels: { formatter: (v) => `${Math.round(v)}` }
+            },
             stroke: { width: 2 },
             fill: { opacity: 0.2 },
             markers: { size: 4 },
@@ -1097,6 +1116,10 @@ export class DashboardPage extends Component {
     }
 
     destroyCharts() {
+        if (this.radarChart) {
+            this.radarChart.destroy();
+            this.radarChart = null;
+        }
         if (this.threatChart) {
             this.threatChart.destroy();
             this.threatChart = null;

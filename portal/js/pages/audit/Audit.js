@@ -59,7 +59,18 @@ const getCachedAuditData = (key, ttlMinutes = 30) => {
     return null;
 };
 
-const getActorLabel = (evt) => evt?.performedByDisplay || evt?.performedBy || 'System';
+const getActorLabel = (evt, isSiteAdmin = false) => {
+    const currentUser = auth.getUser();
+    const isCurrentUserSiteAdmin = isSiteAdmin || currentUser?.userType === 'SiteAdmin';
+    const label = evt?.performedByDisplay || evt?.performedBy || 'System';
+    
+    // If current user is not a SiteAdmin and the performer is a SiteAdmin (has @ indicating email)
+    if (!isCurrentUserSiteAdmin && label && label.includes('@')) {
+        // This is likely a SiteAdmin email; show 'SiteAdmin' instead for privacy
+        return 'SiteAdmin';
+    }
+    return label;
+};
 
 const setCachedAuditData = (key, data) => {
     try {
@@ -83,6 +94,7 @@ export function AuditPage() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [isRefreshingInBackground, setIsRefreshingInBackground] = useState(false);
     const scrollObserverRef = useRef(null);
+    const nextPageTokenRef = useRef(null);
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'timeline', 'user-activity', or 'device-activity'
     const [events, setEvents] = useState([]);
     const [uxSummary, setUxSummary] = useState(null);
@@ -97,16 +109,16 @@ export function AuditPage() {
         dateTo: ''
     });
     const [rangeDays, setRangeDays] = useState(7); // Default to 7 days
-    const [page, setPage] = useState(1);
+    const [loadedPages, setLoadedPages] = useState(1);
     const [hasMore, setHasMore] = useState(false);
-    const eventsPerPage = 50;
     const currentOrgId = orgContext.getCurrentOrg()?.orgId;
 
     useEffect(() => {
         loadEvents();
 
         const handler = () => {
-            setPage(1);
+            setLoadedPages(1);
+            nextPageTokenRef.current = null;
             loadEvents();
         };
         const unsubscribe = orgContext.onChange(handler);
@@ -120,30 +132,22 @@ export function AuditPage() {
     
     // Infinite scroll observer (auto-load next page)
     useEffect(() => {
+        if (activeTab !== 'timeline') return;
         const observerTarget = scrollObserverRef.current;
         if (!observerTarget) return;
 
         const observer = new IntersectionObserver(
             entries => {
-                if (entries[0].isIntersecting && !loading && !loadingMore) {
-                    const totalPages = Math.ceil(filteredEvents.length / eventsPerPage);
-                    const currentPage = page;
-                    
-                    if (currentPage < totalPages) {
-                        setLoadingMore(true);
-                        setTimeout(() => {
-                            setPage(currentPage + 1);
-                            setLoadingMore(false);
-                        }, 300);
-                    }
+                if (entries[0].isIntersecting && !loading && !loadingMore && hasMore) {
+                    loadNextPage();
                 }
             },
-            { threshold: 0.1, rootMargin: '100px' }
+            { threshold: 0, rootMargin: '300px 0px' }
         );
 
         observer.observe(observerTarget);
         return () => observer.disconnect();
-    }, [filteredEvents.length]);
+    }, [activeTab, hasMore, loading, loadingMore, currentOrgId, rangeDays, filteredEvents.length]);
 
     useEffect(() => {
         if (activeTab === 'analytics' && analytics) {
@@ -331,13 +335,47 @@ export function AuditPage() {
             .trim();
     };
 
+    const toLocalDayKey = (value) => {
+        const d = value instanceof Date ? value : new Date(value);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    const parseLocalDayKey = (dayKey) => {
+        const [y, m, d] = String(dayKey).split('-').map(Number);
+        return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+    };
+
+    const buildDateRange = (days) => {
+        const dates = [];
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+
+        const start = new Date(end);
+        start.setDate(start.getDate() - (Math.max(1, days) - 1));
+        start.setHours(0, 0, 0, 0);
+
+        const cursor = new Date(start);
+        while (cursor <= end) {
+            dates.push(toLocalDayKey(cursor));
+            cursor.setDate(cursor.getDate() + 1);
+        }
+
+        return { dates, start, end };
+    };
+
     const groupByDayAndType = (events = []) => {
         const map = {};
         const types = new Set();
+        const { dates, start, end } = buildDateRange(rangeDays);
 
         events.forEach(evt => {
             if (!evt.eventType) return;
-            const dayKey = new Date(evt.timestamp).toISOString().split('T')[0];
+            const ts = new Date(evt.timestamp);
+            if (ts < start || ts > end) return;
+            const dayKey = toLocalDayKey(ts);
             const type = getTypeKey(evt);
             types.add(type);
             const perDay = map[dayKey] ?? {};
@@ -345,7 +383,6 @@ export function AuditPage() {
             map[dayKey] = perDay;
         });
 
-        const dates = Object.keys(map).sort();
         const typeList = Array.from(types).sort();
         const palette = [
             'rgba(32, 107, 196, 0.8)',
@@ -371,9 +408,12 @@ export function AuditPage() {
         const map = {};
         const types = new Set();
         const labels = {};
+        const { dates, start, end } = buildDateRange(rangeDays);
 
         events.forEach(evt => {
-            const dayKey = new Date(evt.timestamp).toISOString().split('T')[0];
+            const ts = new Date(evt.timestamp);
+            if (ts < start || ts > end) return;
+            const dayKey = toLocalDayKey(ts);
             const type = keySelector(evt);
             if (!type) return;
             const label = labelSelector(evt) || type;
@@ -384,7 +424,6 @@ export function AuditPage() {
             map[dayKey] = perDay;
         });
 
-        const dates = Object.keys(map).sort();
         const typeList = Array.from(types).sort();
         const palette = [
             'rgba(32, 107, 196, 0.8)',
@@ -422,9 +461,25 @@ export function AuditPage() {
 
     const deriveLifecycleSubType = (evt, category) => {
         const metaSub = evt?.subType || evt?.metadata?.subType || evt?.metadata?.SubType;
-        if (metaSub) return humanize(metaSub);
+        if (metaSub) {
+            const humanized = humanize(metaSub);
+            // Apply proper casing: capitalize first letter, lowercase rest (except acronyms)
+            if (humanized.length > 0) {
+                return humanized.charAt(0).toUpperCase() + humanized.slice(1).toLowerCase();
+            }
+            return humanized;
+        }
 
         const raw = getEventName(evt);
+
+        // Normalize common lifecycle event names to user-friendly legend labels.
+        const lowerRaw = raw.toLowerCase();
+        if (lowerRaw.includes('registered') || lowerRaw.includes('created') || lowerRaw.includes('added')) return 'Created';
+        if (lowerRaw.includes('updated') || lowerRaw.includes('modified') || lowerRaw.includes('changed')) return 'Updated';
+        if (lowerRaw.includes('deleted') || lowerRaw.includes('removed')) return 'Deleted';
+        if (lowerRaw.includes('disabled') || lowerRaw.includes('blocked')) return 'Disabled';
+        if (lowerRaw.includes('enabled') || lowerRaw.includes('unblocked')) return 'Enabled';
+
         if (category && raw.toLowerCase().startsWith(category.toLowerCase())) {
             const remainder = raw.substring(category.length).replace(/^[:\.\-_\s]+/, '');
             return humanize(remainder || 'Event');
@@ -534,7 +589,32 @@ export function AuditPage() {
         return sessionsByUser;
     };
 
-    const computeAnalytics = (allEvents = []) => {
+    const buildUserSessionsFromAccessSummary = (accessSummary) => {
+        const sessions = accessSummary?.sessions || [];
+        if (!Array.isArray(sessions) || sessions.length === 0) {
+            return null;
+        }
+
+        const grouped = {};
+        sessions.forEach(s => {
+            const user = s.actor || 'Unknown';
+            if (!grouped[user]) grouped[user] = [];
+
+            const start = new Date(s.startUtc || s.startTime || s.start);
+            const end = new Date(s.endUtc || s.endTime || s.end);
+            grouped[user].push({
+                user,
+                startTime: start,
+                endTime: end,
+                eventCount: Number(s.eventCount || 0),
+                events: []
+            });
+        });
+
+        return grouped;
+    };
+
+    const computeAnalytics = (allEvents = [], uxSummary = null) => {
         const includesAny = (evt, keys = []) => {
             const combo = `${evt.eventType ?? ''} ${evt.subType ?? ''}`.toLowerCase();
             return keys.some(k => combo.includes(k.toLowerCase()));
@@ -601,12 +681,6 @@ export function AuditPage() {
             }))
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-        // Device lifecycle events: state changes
-        const deviceLifecycleEvents = allEvents
-            .filter(e => includesAny(e, ['device', 'heartbeat', 'license', 'state']))
-            .filter(e => !includesAny(e, ['credit', 'email', 'login', 'report']))
-            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
         const emailEvents = allEvents
             .filter(e => includesAny(e, ['email', 'notification']))
             .map(e => {
@@ -616,11 +690,17 @@ export function AuditPage() {
             });
         const loginEvents = allEvents.filter(e => includesAny(e, ['login', 'session']));
         const lifecycleEventsRaw = allEvents.filter(e => classifyLifecycleCategory(e));
-        const userSessionsRaw = computeUserSessions(allEvents);
+        const deviceLifecycleRaw = lifecycleEventsRaw.filter(e => classifyLifecycleCategory(e) === 'Device');
+        const orgLifecycleRaw = lifecycleEventsRaw.filter(e => classifyLifecycleCategory(e) === 'Org');
+
+        const userSessionsFromApi = buildUserSessionsFromAccessSummary(uxSummary?.access);
+        const userSessionsRaw = userSessionsFromApi || computeUserSessions(allEvents);
 
         const emailNotifications = groupByDayAndType(emailEvents);
         const loginTimeline = groupLoginEvents(loginEvents);
         const lifecycleEvents = groupLifecycleEvents(lifecycleEventsRaw);
+        const deviceLifecycleEvents = groupLifecycleEvents(deviceLifecycleRaw);
+        const orgLifecycleEvents = groupLifecycleEvents(orgLifecycleRaw);
 
         return {
             creditConsumption: { dataPoints: creditDataPoints },
@@ -630,6 +710,8 @@ export function AuditPage() {
             emailNotifications,
             loginTimeline,
             lifecycleEvents,
+            lifecycleDeviceEvents: deviceLifecycleEvents,
+            lifecycleOrgEvents: orgLifecycleEvents,
             userSessions: userSessionsRaw
         };
     };
@@ -637,6 +719,70 @@ export function AuditPage() {
     const loadAnalytics = async () => {
         // Reload analytics data (same as loadEvents for now)
         await loadEvents();
+    };
+
+    const fetchAuditPage = async (orgId, pageToken = null) => {
+        const query = new URLSearchParams({
+            pageSize: '100',
+            days: String(rangeDays),
+            normalize: 'true'
+        });
+
+        if (pageToken) {
+            query.set('pageToken', pageToken);
+        } else {
+            // Request full-range chart summary on first page so analytics charts
+            // show accurate data without needing all timeline pages loaded.
+            query.set('includeUxSummary', 'true');
+        }
+
+        const res = await api.get(`/api/v1/orgs/${orgId}/audit?${query.toString()}`);
+        if (!res.success || !res.data) {
+            throw new Error(res.message || 'Failed to load audit events');
+        }
+
+        return {
+            events: res.data.events || [],
+            continuationToken: res.data.continuationToken || null,
+            uxSummary: res.data.uxSummary || null
+        };
+    };
+
+    const loadNextPage = async () => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId || loading || loadingMore || !hasMore || !nextPageTokenRef.current) {
+            return;
+        }
+
+        try {
+            setLoadingMore(true);
+            const pageData = await fetchAuditPage(currentOrg.orgId, nextPageTokenRef.current);
+            nextPageTokenRef.current = pageData.continuationToken;
+            setHasMore(Boolean(pageData.continuationToken));
+            setLoadedPages(prev => prev + 1);
+
+            setEvents(prevEvents => {
+                const merged = [...prevEvents, ...(pageData.events || [])];
+                const cacheKey = `audit_${currentOrg.orgId}_${rangeDays}`;
+                setCachedAuditData(cacheKey, {
+                    events: merged,
+                    hasMore: Boolean(pageData.continuationToken),
+                    nextPageToken: pageData.continuationToken || null,
+                    loadedPages: loadedPages + 1,
+                    uxSummary: pageData.uxSummary || uxSummary
+                });
+
+                return merged;
+            });
+
+            if (pageData.uxSummary) {
+                setUxSummary(pageData.uxSummary);
+            }
+        } catch (err) {
+            console.warn('[Audit] Failed to load next page:', err);
+        } finally {
+            setLoadingMore(false);
+        }
     };
 
     const loadEvents = async (forceRefresh = false) => {
@@ -660,8 +806,12 @@ export function AuditPage() {
                     setEvents(cached.data.events || []);
                     setUxSummary(cached.data.uxSummary || null);
                     setHasMore(cached.data.hasMore || false);
+                    nextPageTokenRef.current = cached.data.nextPageToken || null;
+                    setLoadedPages(Math.max(1, cached.data.loadedPages || 1));
                     
-                    const analyticsData = computeAnalytics(cached.data.events || []);
+                    // Prefer server chart summary (full-range) over timeline slice for analytics charts.
+                    const chartEventsForAnalytics = cached.data.uxSummary?.events || cached.data.events || [];
+                    const analyticsData = computeAnalytics(chartEventsForAnalytics, cached.data.uxSummary || null);
                     setAnalytics(analyticsData);
                     setLoading(false);
                     setLoadingAnalytics(false);
@@ -677,59 +827,24 @@ export function AuditPage() {
             setLoading(true);
             setLoadingAnalytics(true);
 
-            // Step 3: Fetch fresh data
-            const baseQuery = new URLSearchParams({
-                pageSize: '500',
-                days: String(rangeDays),
-                normalize: 'true'
-            });
+            const pageData = await fetchAuditPage(currentOrg.orgId, null);
+            const firstPageEvents = pageData.events || [];
+            nextPageTokenRef.current = pageData.continuationToken;
 
-            const allEvents = [];
-            let continuationToken = null;
-            let pageFetches = 0;
-            const maxPages = 50; // safety guard
-            let latestUxSummary = null;
+            setEvents(firstPageEvents);
+            setHasMore(Boolean(pageData.continuationToken));
+            setLoadedPages(1);
+            setUxSummary(pageData.uxSummary || null);
 
-            do {
-                const query = new URLSearchParams(baseQuery);
-                if (continuationToken) {
-                    query.set('pageToken', continuationToken);
-                }
-
-                const res = await api.get(`/api/v1/orgs/${currentOrg.orgId}/audit?${query.toString()}`);
-                logger.debug('[Audit] API response:', res);
-
-                if (res.success && res.data) {
-                    const eventsData = res.data.events || [];
-                    logger.debug('[Audit] Events loaded (page):', eventsData.length);
-                    allEvents.push(...eventsData);
-                    if (res.data.uxSummary) {
-                        latestUxSummary = res.data.uxSummary;
-                        setUxSummary(res.data.uxSummary);
-                    }
-                    continuationToken = res.data.continuationToken;
-                    pageFetches += 1;
-
-                    if (!continuationToken || pageFetches >= maxPages) {
-                        break;
-                    }
-                } else {
-                    logger.error('[Audit] API returned error:', res.message);
-                    toast.show(res.message || 'Failed to load audit events', 'error');
-                    break;
-                }
-            } while (true);
-
-            // Cache the response
             setCachedAuditData(cacheKey, {
-                events: allEvents,
-                hasMore: Boolean(continuationToken),
-                uxSummary: latestUxSummary || uxSummary
+                events: firstPageEvents,
+                hasMore: Boolean(pageData.continuationToken),
+                nextPageToken: pageData.continuationToken || null,
+                loadedPages: 1,
+                uxSummary: pageData.uxSummary || null
             });
 
-            setEvents(allEvents);
-            setHasMore(Boolean(continuationToken));
-            const analyticsData = computeAnalytics(allEvents);
+            const analyticsData = computeAnalytics(pageData.uxSummary?.events || firstPageEvents, pageData.uxSummary || null);
             setAnalytics(analyticsData);
         } catch (error) {
             logger.error('[Audit] Error loading events:', error);
@@ -748,54 +863,29 @@ export function AuditPage() {
             // Wait for UI to settle
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            const baseQuery = new URLSearchParams({
-                pageSize: '500',
-                days: String(rangeDays),
-                normalize: 'true'
-            });
+            const pageData = await fetchAuditPage(orgId, null);
+            const firstPageEvents = pageData.events || [];
 
-            const allEvents = [];
-            let continuationToken = null;
-            let pageFetches = 0;
-            const maxPages = 50;
-            let latestUxSummary = null;
+            nextPageTokenRef.current = pageData.continuationToken;
 
-            do {
-                const query = new URLSearchParams(baseQuery);
-                if (continuationToken) {
-                    query.set('pageToken', continuationToken);
-                }
-
-                const res = await api.get(`/api/v1/orgs/${orgId}/audit?${query.toString()}`);
-
-                if (res.success && res.data) {
-                    allEvents.push(...(res.data.events || []));
-                    if (res.data.uxSummary) {
-                        latestUxSummary = res.data.uxSummary;
-                        setUxSummary(res.data.uxSummary);
-                    }
-                    continuationToken = res.data.continuationToken;
-                    pageFetches += 1;
-
-                    if (!continuationToken || pageFetches >= maxPages) {
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            } while (true);
-
-            // Cache fresh data
             setCachedAuditData(cacheKey, {
-                events: allEvents,
-                hasMore: Boolean(continuationToken),
-                uxSummary: latestUxSummary || uxSummary
+                events: firstPageEvents,
+                hasMore: Boolean(pageData.continuationToken),
+                nextPageToken: pageData.continuationToken || null,
+                loadedPages: 1,
+                uxSummary: pageData.uxSummary || uxSummary
             });
 
-            // Silent update
-            setEvents(allEvents);
-            setHasMore(Boolean(continuationToken));
-            const analyticsData = computeAnalytics(allEvents);
+            // Silent update with latest first-page snapshot
+            setEvents(firstPageEvents);
+            setHasMore(Boolean(pageData.continuationToken));
+            setLoadedPages(1);
+            if (pageData.uxSummary) {
+                setUxSummary(pageData.uxSummary);
+            }
+
+            // Prefer server chart summary (full-range) over first-page timeline slice.
+            const analyticsData = computeAnalytics(pageData.uxSummary?.events || firstPageEvents, pageData.uxSummary || null);
             setAnalytics(analyticsData);
             setIsRefreshingInBackground(false);
 
@@ -820,10 +910,31 @@ export function AuditPage() {
             // Defer remaining charts to next frame
             requestAnimationFrame(() => {
                 renderLoginTimelineChart(analyticsData.loginTimeline);
-                renderLifecycleChart(analyticsData.lifecycleEvents);
+                renderLifecycleChart(analyticsData.lifecycleDeviceEvents, 'lifecycleDeviceChart', 'No device lifecycle events available');
+                renderLifecycleChart(analyticsData.lifecycleOrgEvents, 'lifecycleOrgChart', 'No organization lifecycle events available');
                 renderUserActivityChart(analyticsData.userSessions);
             });
         });
+    };
+
+    const renderNoDataCanvas = (canvas, message) => {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) existingChart.destroy();
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        const bodyStyles = getComputedStyle(document.body);
+        const textColor = bodyStyles.getPropertyValue('--tblr-secondary')?.trim() || '#6c757d';
+        ctx.fillStyle = textColor;
+        ctx.font = '14px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+        ctx.restore();
     };
 
     const renderCreditConsumptionChart = (data, daysRange = 7) => {
@@ -836,7 +947,7 @@ export function AuditPage() {
 
         const points = data.dataPoints || [];
         if (points.length === 0) {
-            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No credit consumption data available</p>';
+            renderNoDataCanvas(canvas, 'No credit consumption data available');
             return;
         }
 
@@ -976,7 +1087,7 @@ export function AuditPage() {
         const dates = data.dates || [];
         const series = data.series || [];
         if (dates.length === 0 || series.length === 0) {
-            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No email notification data available</p>';
+            renderNoDataCanvas(canvas, 'No email notification data available');
             return;
         }
 
@@ -1016,7 +1127,7 @@ export function AuditPage() {
         const dates = data.dates || [];
         const series = data.series || [];
         if (dates.length === 0 || series.length === 0) {
-            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No login activity data available</p>';
+            renderNoDataCanvas(canvas, 'No login activity data available');
             return;
         }
 
@@ -1045,8 +1156,8 @@ export function AuditPage() {
         });
     };
 
-    const renderLifecycleChart = (data) => {
-        const canvas = document.getElementById('lifecycleChart');
+    const renderLifecycleChart = (data, canvasId = 'lifecycleChart', noDataMessage = 'No lifecycle event data available') => {
+        const canvas = document.getElementById(canvasId);
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
@@ -1056,7 +1167,7 @@ export function AuditPage() {
         const dates = data.dates || [];
         const series = data.series || [];
         if (dates.length === 0 || series.length === 0) {
-            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No lifecycle event data available</p>';
+            renderNoDataCanvas(canvas, noDataMessage);
             return;
         }
 
@@ -1082,21 +1193,30 @@ export function AuditPage() {
     };
 
     const renderUserActivityChart = (userSessionsData) => {
-        const canvas = document.getElementById('userActivityChart');
-        if (!canvas) return;
+        const chartEl = document.getElementById('userActivityChart');
+        if (!chartEl) return;
 
-        const ctx = canvas.getContext('2d');
-        const existingChart = Chart.getChart(canvas);
-        if (existingChart) existingChart.destroy();
-
-        // Convert sessions to chart data
-        const users = Object.keys(userSessionsData).sort();
-        if (users.length === 0) {
-            canvas.parentElement.innerHTML = '<p class="text-muted text-center p-4">No user activity data available</p>';
+        // Check for ApexCharts availability
+        if (!window.ApexCharts) {
+            chartEl.innerHTML = '<p class="text-muted text-center p-4">ApexCharts library not loaded</p>';
             return;
         }
 
-        const datasets = users.map((user, idx) => {
+        // Destroy existing chart instance if present
+        if (chartEl._apexChart) {
+            chartEl._apexChart.destroy();
+            chartEl._apexChart = null;
+        }
+
+        // Convert sessions to ApexCharts range-bar series
+        const users = Object.keys(userSessionsData).sort();
+        if (users.length === 0) {
+            chartEl.innerHTML = '<p class="text-muted text-center p-4">No user activity data available</p>';
+            return;
+        }
+
+        // Build series data for each user
+        const series = users.map((user, idx) => {
             const sessions = userSessionsData[user];
             const palette = [
                 '#206bc4', '#28a745', '#d63939', '#f59f00', '#17a2b8',
@@ -1105,64 +1225,67 @@ export function AuditPage() {
             const color = palette[idx % palette.length];
 
             return {
-                label: user,
-                data: sessions.map(session => ({
-                    x: [session.startTime.getTime(), session.endTime.getTime()],
-                    y: user,
-                    events: session.eventCount,
-                    tooltip: `${session.eventCount} event${session.eventCount !== 1 ? 's' : ''} (${session.startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}-${session.endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`
-                })),
-                backgroundColor: color,
-                borderColor: color,
-                borderWidth: 1,
-                barThickness: 20
+                name: user,
+                data: sessions.map(session => {
+                    const durationMinutes = Math.round((session.endTime - session.startTime) / (1000 * 60));
+                    return {
+                        x: user,
+                        y: [session.startTime.getTime(), session.endTime.getTime()],
+                        fillColor: color,
+                        duration: durationMinutes,
+                        eventCount: session.eventCount
+                    };
+                })
             };
         });
 
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: users,
-                datasets
+        const options = {
+            chart: {
+                type: 'rangeBar',
+                height: 350,
+                toolbar: { show: true },
+                sparkline: { enabled: false }
             },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            title: () => 'Active Session',
-                            label: (context) => {
-                                const data = context.raw;
-                                return [
-                                    `User: ${context.label}`,
-                                    `Duration: ${new Date(data.x[0]).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} - ${new Date(data.x[1]).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`,
-                                    `Events: ${data.events}`
-                                ];
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        type: 'linear',
-                        position: 'bottom',
-                        title: { display: true, text: 'Time' },
-                        ticks: {
-                            callback: function (value) {
-                                const date = new Date(value);
-                                return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                            }
-                        }
-                    },
-                    y: {
-                        title: { display: true, text: 'User' }
-                    }
+            plotOptions: {
+                bar: {
+                    horizontal: true,
+                    barHeight: '70%'
                 }
+            },
+            xaxis: {
+                type: 'datetime',
+                tickPlacement: 'on'
+            },
+            yaxis: {
+                title: { text: 'Users' }
+            },
+            tooltip: {
+                custom: function ({ series, seriesIndex, dataPointIndex, w }) {
+                    const data = w.config.series[seriesIndex].data[dataPointIndex];
+                    if (!data) return '';
+                    const startTime = new Date(data.y[0]);
+                    const endTime = new Date(data.y[1]);
+                    const startStr = startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const endStr = endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const eventLabel = data.eventCount !== 1 ? 'events' : 'event';
+                    return `
+                        <div class="px-3 py-2">
+                            <strong>${data.x}</strong><br/>
+                            <span class="text-muted">Session: ${startStr}–${endStr}</span><br/>
+                            <span class="text-muted">Duration: ${data.duration}m • ${data.eventCount} ${eventLabel}</span>
+                        </div>
+                    `;
+                }
+            },
+            legend: {
+                position: 'top'
             }
-        });
+        };
+
+        // Create and render chart
+        const chart = new window.ApexCharts(chartEl, { series, ...options });
+        chart.render();
+        chartEl._apexChart = chart;
     };
 
     const applyFilters = () => {
@@ -1202,7 +1325,6 @@ export function AuditPage() {
 
     const handleFilterChange = (key, value) => {
         setFilters({ ...filters, [key]: value });
-        setPage(1);
     };
 
     const getEventIcon = (evt) => {
@@ -1324,8 +1446,7 @@ export function AuditPage() {
             .sort((a, b) => a.label.localeCompare(b.label));
     };
 
-    const paginatedEvents = filteredEvents.slice((page - 1) * eventsPerPage, page * eventsPerPage);
-    const totalPages = Math.ceil(filteredEvents.length / eventsPerPage);
+    const timelineEvents = filteredEvents;
 
     const renderAnalyticsTab = () => {
         return html`
@@ -1396,15 +1517,29 @@ export function AuditPage() {
                         </div>
                     </div>
 
-                    <!-- Device/Org Lifecycle Chart -->
+                    <!-- Device Lifecycle Chart -->
                     <div class="col-lg-6">
                         <div class="card">
                             <div class="card-header">
-                                <h3 class="card-title"><i class="ti ti-timeline me-2"></i>Device & Org Lifecycle</h3>
+                                <h3 class="card-title"><i class="ti ti-device-desktop me-2"></i>Device Lifecycle Events</h3>
                             </div>
                             <div class="card-body">
                                 <div style="height: 300px; position: relative;">
-                                    <canvas id="lifecycleChart"></canvas>
+                                    <canvas id="lifecycleDeviceChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Organization Lifecycle Chart -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="ti ti-building me-2"></i>Organization Lifecycle Events</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="height: 300px; position: relative;">
+                                    <canvas id="lifecycleOrgChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -1417,12 +1552,10 @@ export function AuditPage() {
                     <div class="col-lg-12">
                         <div class="card">
                             <div class="card-header">
-                                <h3 class="card-title"><i class="ti ti-user-check me-2"></i>User Activity Sessions (10-minute groups)</h3>
+                                <h3 class="card-title"><i class="ti ti-user-check me-2"></i>User Activity Sessions (API Access)</h3>
                             </div>
                             <div class="card-body">
-                                <div style="height: 400px; position: relative;">
-                                    <canvas id="userActivityChart"></canvas>
-                                </div>
+                                <div style="height: 400px; position: relative;" id="userActivityChart"></div>
                             </div>
                         </div>
                     </div>
@@ -1450,15 +1583,13 @@ export function AuditPage() {
 
         // Group events by date and type
         const eventsByDateAndType = {};
-        const now = new Date();
-        const cutoffDate = new Date(now);
-        cutoffDate.setDate(cutoffDate.getDate() - rangeDays);
+        const { dates, start, end } = buildDateRange(rangeDays);
 
         events.forEach(event => {
             const eventDate = new Date(event.timestamp);
-            if (eventDate < cutoffDate) return;
+            if (eventDate < start || eventDate > end) return;
 
-            const dateKey = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            const dateKey = toLocalDayKey(eventDate);
             if (!eventsByDateAndType[dateKey]) {
                 eventsByDateAndType[dateKey] = {};
             }
@@ -1466,14 +1597,6 @@ export function AuditPage() {
             const eventType = getTypeKey(event);
             eventsByDateAndType[dateKey][eventType] = (eventsByDateAndType[dateKey][eventType] || 0) + 1;
         });
-
-        // Build complete date range (including gaps)
-        const dates = [];
-        const current = new Date(cutoffDate);
-        while (current <= now) {
-            dates.push(current.toISOString().split('T')[0]);
-            current.setDate(current.getDate() + 1);
-        }
 
         // Get unique event types
         const eventTypes = new Set();
@@ -1496,12 +1619,31 @@ export function AuditPage() {
             'Audit': 'rgba(255, 99, 132, 0.7)'
         };
 
+        const deterministicPalette = [
+            'rgba(32, 107, 196, 0.7)',
+            'rgba(40, 167, 69, 0.7)',
+            'rgba(214, 57, 57, 0.7)',
+            'rgba(245, 159, 0, 0.7)',
+            'rgba(23, 162, 184, 0.7)',
+            'rgba(0, 123, 255, 0.7)',
+            'rgba(111, 66, 193, 0.7)',
+            'rgba(32, 201, 151, 0.7)'
+        ];
+
         const getColor = (type) => {
             // Direct match
             if (colorMap[type]) return colorMap[type];
             // Partial match (e.g., "License:Created" -> "License")
             const base = type.split(':')[0];
-            return colorMap[base] || `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.7)`;
+            if (colorMap[base]) return colorMap[base];
+
+            let hash = 0;
+            for (let i = 0; i < type.length; i++) {
+                hash = ((hash << 5) - hash) + type.charCodeAt(i);
+                hash |= 0;
+            }
+
+            return deterministicPalette[Math.abs(hash) % deterministicPalette.length];
         };
 
         // Build datasets
@@ -1519,7 +1661,7 @@ export function AuditPage() {
             type: 'bar',
             data: {
                 labels: dates.map(d => {
-                    const date = new Date(d + 'T00:00:00Z');
+                    const date = parseLocalDayKey(d);
                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 }),
                 datasets: datasets
@@ -1765,7 +1907,7 @@ export function AuditPage() {
             </div>
 
             <!-- Vertical Timeline -->
-            ${paginatedEvents.length === 0 ? html`
+            ${timelineEvents.length === 0 ? html`
                 <div class="empty">
                     <div class="empty-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 8l0 4l2 2" /><circle cx="12" cy="12" r="9" /></svg>
@@ -1780,7 +1922,7 @@ export function AuditPage() {
             ` : html`
                 <div class="card">
                     <div class="list-group list-group-flush">
-                        ${paginatedEvents.map((event) => {
+                        ${timelineEvents.map((event) => {
                                 const color = getEventColor(event.eventType);
                                 const icon = getEventIcon(event.eventType);
                                 return html`
@@ -1796,10 +1938,10 @@ export function AuditPage() {
                                                 <div>
                                                     <strong>${getTypeLabel(event)}</strong>
                                                     <div class="text-muted small">${event.description || 'No description'}</div>
-                                                    ${getActorLabel(event) && html`
+                                                    ${getActorLabel(event, isSiteAdmin) && html`
                                                         <div class="text-muted small mt-1">
                                                             <i class="ti ti-user me-1"></i>
-                                                            ${getActorLabel(event)}
+                                                            ${getActorLabel(event, isSiteAdmin)}
                                                         </div>
                                                     `}
                                                     ${event.targetId && html`
@@ -1831,61 +1973,26 @@ export function AuditPage() {
                     </div>
                 </div>
 
-                <!-- Pagination -->
-                ${totalPages > 1 && html`
-                    <div class="d-flex justify-content-center mt-4">
-                        <ul class="pagination">
-                            <li class=${"page-item" + (page === 1 ? ' disabled' : '')}>
-                                <button 
-                                    class="page-link"
-                                    onClick=${() => setPage(Math.max(1, page - 1))}
-                                    disabled=${page === 1}
-                                >
-                                    <i class="ti ti-chevron-left"></i>
-                                    Previous
-                                </button>
-                            </li>
-                            ${[...Array(Math.min(10, totalPages))].map((_, i) => {
-                                const pageNum = i + 1;
-                                return html`
-                                    <li class=${"page-item" + (page === pageNum ? ' active' : '')}>
-                                        <button 
-                                            class="page-link"
-                                            onClick=${() => setPage(pageNum)}
-                                        >
-                                            ${pageNum}
-                                        </button>
-                                    </li>
-                                `;
-                            })}
-                            ${totalPages > 10 && page > 5 && html`
-                                <li class="page-item disabled">
-                                    <span class="page-link">...</span>
-                                </li>
-                            `}
-                            <li class=${"page-item" + (page === totalPages ? ' disabled' : '')}>
-                                <button 
-                                    class="page-link"
-                                    onClick=${() => setPage(Math.min(totalPages, page + 1))}
-                                    disabled=${page === totalPages}
-                                >
-                                    Next
-                                    <i class="ti ti-chevron-right"></i>
-                                </button>
-                            </li>
-                        </ul>
+                ${hasMore && !loading ? html`
+                    <div ref=${scrollObserverRef} style="height: 24px; margin-top: 0;"></div>
+                ` : null}
+                ${loadingMore ? html`
+                    <div class="text-center py-3">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        <span class="text-muted">Loading more events...</span>
                     </div>
-                    <!-- Infinite Scroll Sentinel -->
-                    ${page < totalPages && !loading && !loadingMore ? html`
-                        <div ref=${scrollObserverRef} style="height: 1px; margin-top: -30px;"></div>
-                    ` : null}
-                    ${loadingMore ? html`
-                        <div class="text-center py-3">
-                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                            <span class="text-muted">Loading more events...</span>
-                        </div>
-                    ` : null}
-                `}
+                ` : null}
+                ${activeTab === 'timeline' && (loadedPages > 1 || events.length > 5) ? html`
+                    <div class="d-flex justify-content-center mt-3">
+                        <button
+                            class="btn btn-outline-secondary btn-sm"
+                            onClick=${() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                        >
+                            <i class="ti ti-arrow-up me-1"></i>
+                            Go to top
+                        </button>
+                    </div>
+                ` : null}
             `}
         `;
     };
@@ -1911,6 +2018,12 @@ export function AuditPage() {
                         <div class="col">
                             <div class="d-flex align-items-center gap-2">
                                 <h2 class="page-title mb-0">Audit</h2>
+                                ${(loading || loadingAnalytics) && !isRefreshingInBackground ? html`
+                                    <span class="badge bg-azure-lt text-azure d-inline-flex align-items-center gap-1">
+                                        <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
+                                        Loading...
+                                    </span>
+                                ` : ''}
                                 ${isRefreshingInBackground ? html`
                                     <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
                                         <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
@@ -1960,6 +2073,13 @@ export function AuditPage() {
                         </ul>
                     </div>
                 </div>
+
+                ${(loading && activeTab === 'timeline') ? html`
+                    <div class="alert alert-info d-flex align-items-center gap-2 mb-3" role="status" aria-live="polite">
+                        <span class="spinner-border spinner-border-sm"></span>
+                        <span>Loading timeline events...</span>
+                    </div>
+                ` : ''}
 
                 <!-- Tab Content -->
                 ${activeTab === 'analytics' ? renderAnalyticsTab() : renderTimelineTab()}
