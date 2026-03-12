@@ -681,7 +681,6 @@ export function AuditPage() {
             const baseQuery = new URLSearchParams({
                 pageSize: '500',
                 days: String(rangeDays),
-                includeUxSummary: 'true',
                 normalize: 'true'
             });
 
@@ -752,7 +751,6 @@ export function AuditPage() {
             const baseQuery = new URLSearchParams({
                 pageSize: '500',
                 days: String(rangeDays),
-                includeUxSummary: 'true',
                 normalize: 'true'
             });
 

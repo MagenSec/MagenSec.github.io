@@ -136,6 +136,10 @@ export default class UnifiedDashboard extends Component {
             error: null,
             refreshError: null
           });
+
+          // If cached fleet counters are stale/invalid, hydrate from devices API.
+          this.hydrateFleetStatsFromDevices(orgId, cached.data);
+
           await this.loadDashboard({ refresh: true, background: true });
           return;
         }
@@ -154,12 +158,14 @@ export default class UnifiedDashboard extends Component {
         throw new Error(response.message || 'Failed to load dashboard');
       }
 
-      if (response.data) {
-        this.setCachedDashboard(cacheKey, response.data);
+      let normalizedData = response.data;
+      if (normalizedData) {
+        normalizedData = await this.normalizeFleetStats(orgId, normalizedData);
+        this.setCachedDashboard(cacheKey, normalizedData);
       }
 
       this.setState({
-        data: response.data,
+        data: normalizedData,
         loading: false,
         refreshing: false,
         isRefreshingInBackground: false
@@ -188,6 +194,89 @@ export default class UnifiedDashboard extends Component {
         refreshing: false,
         isRefreshingInBackground: false
       });
+    }
+  }
+
+  fleetStatsNeedHydration(data) {
+    const fleet = data?.quickStats?.devices;
+    if (!fleet) return true;
+
+    const total = Number(fleet.totalCount || 0);
+    const active = Number(fleet.activeCount || 0);
+    const offline = Number(fleet.offlineCount || 0);
+
+    return total > 0 && active === 0 && offline === 0;
+  }
+
+  deriveFleetFromDevicesPayload(devicesPayload) {
+    const devices = Array.isArray(devicesPayload?.devices) ? devicesPayload.devices : [];
+    const now = Date.now();
+
+    const total = devices.length;
+    let active = 0;
+    let offline = 0;
+
+    devices.forEach((d) => {
+      const stamp = d?.lastHeartbeat || d?.lastSeen || d?.lastTelemetry || null;
+      if (!stamp) {
+        offline += 1;
+        return;
+      }
+
+      const ts = new Date(stamp).getTime();
+      if (!Number.isFinite(ts)) {
+        offline += 1;
+        return;
+      }
+
+      const ageHours = (now - ts) / (1000 * 60 * 60);
+      if (ageHours <= 24) {
+        active += 1;
+      } else {
+        offline += 1;
+      }
+    });
+
+    return { totalCount: total, activeCount: active, offlineCount: offline };
+  }
+
+  async normalizeFleetStats(orgId, data) {
+    if (!this.fleetStatsNeedHydration(data)) {
+      return data;
+    }
+
+    try {
+      const devicesResponse = await api.getDevices(orgId, { include: 'cached-summary' }, { skipCache: true });
+      const devicesPayload = devicesResponse?.data || devicesResponse;
+      const derived = this.deriveFleetFromDevicesPayload(devicesPayload);
+
+      return {
+        ...data,
+        quickStats: {
+          ...(data.quickStats || {}),
+          devices: {
+            ...((data.quickStats && data.quickStats.devices) || {}),
+            ...derived
+          }
+        }
+      };
+    } catch {
+      return data;
+    }
+  }
+
+  async hydrateFleetStatsFromDevices(orgId, data) {
+    if (!this.fleetStatsNeedHydration(data)) {
+      return;
+    }
+
+    const normalized = await this.normalizeFleetStats(orgId, data);
+    if (normalized !== data) {
+      this.setState({ data: normalized });
+      try {
+        const cacheKey = `unified_dashboard_${orgId}`;
+        this.setCachedDashboard(cacheKey, normalized);
+      } catch (_) {}
     }
   }
 
@@ -307,6 +396,39 @@ export default class UnifiedDashboard extends Component {
     if (offline <= 0) return 'status-green';
     if (offline <= 2) return 'status-yellow';
     return 'status-red';
+  }
+
+  getFleetStats(data) {
+    const stats = data?.quickStats || {};
+    const it = data?.itAdmin || {};
+
+    const rawActive = Number(stats.devices?.activeCount || 0);
+    const rawTotal = Number(stats.devices?.totalCount || 0);
+    const rawOffline = Number(stats.devices?.offlineCount || 0);
+
+    const inventoryTotal = Number(it.inventory?.totalDevices || 0);
+    const health = Array.isArray(it.deviceHealth) ? it.deviceHealth : [];
+
+    const normalize = (v) => String(v || '').toLowerCase();
+    const healthyByStatus = health.filter((d) => {
+      const s = normalize(d?.status);
+      return s === 'active' || s === 'online' || s === 'healthy';
+    }).length;
+    const offlineByStatus = health.filter((d) => normalize(d?.status) === 'offline').length;
+
+    const total = rawTotal > 0
+      ? rawTotal
+      : (inventoryTotal > 0 ? inventoryTotal : health.length);
+
+    const active = rawActive > 0
+      ? rawActive
+      : (healthyByStatus > 0 ? healthyByStatus : 0);
+
+    const offline = rawOffline > 0
+      ? rawOffline
+      : (offlineByStatus > 0 ? offlineByStatus : Math.max(0, total - active));
+
+    return { active, total, offline };
   }
 
   getHeroGradient(score) {
@@ -555,9 +677,10 @@ export default class UnifiedDashboard extends Component {
     const secScore = score.score || 0;
     const compliancePercent = compliance.percent || 0;
     const criticalCount = threats.criticalCveCount || 0;
-    const activeDevices = stats.devices?.activeCount || 0;
-    const totalDevices = stats.devices?.totalCount || 0;
-    const offlineDevices = stats.devices?.offlineCount || 0;
+    const fleet = this.getFleetStats(data);
+    const activeDevices = fleet.active;
+    const totalDevices = fleet.total;
+    const offlineDevices = fleet.offline;
 
     const scoreHex   = secScore >= 80 ? '#16a34a' : secScore >= 60 ? '#2563eb' : secScore >= 40 ? '#d97706' : '#dc2626';
     const compHex    = compliancePercent >= 80 ? '#16a34a' : compliancePercent >= 60 ? '#2563eb' : compliancePercent >= 40 ? '#d97706' : '#dc2626';

@@ -12,7 +12,7 @@ import { logger } from '../../config.js';
 import { LicenseAdjustmentDialog } from '../../components/LicenseAdjustmentDialog.js';
 
 // Settings page utilities (extracted for modularity)
-import { ORG_DURATION_OPTIONS, getDaysLeftInfo } from './utils/CreditService.js';
+import { ORG_DURATION_OPTIONS, getDaysLeftInfo, calculateProjectedExhaustion } from './utils/CreditService.js';
 import { GAUGE_GRADIENT_ID, polarToCartesian, describeArc, getPercentRemaining } from './utils/GaugeUtils.js';
 import { isValidEmail, getRoleBadgeClass, canManageMembers } from './services/TeamService.js';
 import { getLicenseStatusBadgeClass, formatLicenseDisplay } from './services/LicenseService.js';
@@ -690,9 +690,15 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, curre
     const isOwner = currentUserEmail && org.ownerEmail &&
         currentUserEmail.toLowerCase() === org.ownerEmail.toLowerCase();
 
-    const { daysLeft, targetDate } = getDaysLeftInfo(projectedExhaustion);
+    const effectiveProjection = projectedExhaustion
+        ?? ((org.seats > 0 && org.remainingCredits > 0)
+            ? calculateProjectedExhaustion(org, org.seats)
+            : null);
+    const { daysLeft, targetDate } = getDaysLeftInfo(effectiveProjection);
     const projectionLabel = targetDate
-        ? `Projected to expire on ${targetDate.toLocaleDateString()}`
+        ? projectedExhaustion
+            ? `Projected to expire on ${targetDate.toLocaleDateString()}`
+            : `Estimated ${targetDate.toLocaleDateString()} (based on current balance)`
         : 'Projection not available yet';
     const percentRemaining = getPercentRemaining(org);
     const percentDisplay = percentRemaining !== null ? percentRemaining : 0;
