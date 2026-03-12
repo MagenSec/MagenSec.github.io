@@ -89,6 +89,8 @@ export function AuditPage() {
 
     const currentUser = auth.getUser();
     const isSiteAdmin = currentUser?.userType === 'SiteAdmin';
+    const currentOrg = orgContext.getCurrentOrg();
+    const showTimelineTab = isSiteAdmin || currentOrg?.type !== 'Personal';
 
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -154,6 +156,12 @@ export function AuditPage() {
             renderAllCharts(analytics);
         }
     }, [analytics, activeTab]);
+
+    useEffect(() => {
+        if (!showTimelineTab && activeTab === 'timeline') {
+            setActiveTab('analytics');
+        }
+    }, [showTimelineTab, activeTab]);
 
     useEffect(() => {
         applyFilters();
@@ -597,17 +605,24 @@ export function AuditPage() {
 
         const grouped = {};
         sessions.forEach(s => {
-            const user = s.actor || 'Unknown';
-            if (!grouped[user]) grouped[user] = [];
+            // actor is the group key; actorDisplay/actorRole/actorEmail come from the enriched backend.
+            const groupKey = s.actor || 'Unknown';
+            if (!grouped[groupKey]) grouped[groupKey] = [];
+
+            const actorDisplay = s.actorDisplay || groupKey;
+            const actorEmail = s.actorEmail || null;
 
             const start = new Date(s.startUtc || s.startTime || s.start);
-            const end = new Date(s.endUtc || s.endTime || s.end);
-            grouped[user].push({
-                user,
-                startTime: start,
-                endTime: end,
-                eventCount: Number(s.eventCount || 0),
-                events: []
+            const end   = new Date(s.endUtc   || s.endTime  || s.end);
+            grouped[groupKey].push({
+                user:         groupKey,
+                actorDisplay,
+                actorRole:    s.actorRole    || 'Unknown',
+                actorEmail,
+                startTime:    start,
+                endTime:      end,
+                eventCount:   Number(s.eventCount || 0),
+                events:       []
             });
         });
 
@@ -809,8 +824,8 @@ export function AuditPage() {
                     nextPageTokenRef.current = cached.data.nextPageToken || null;
                     setLoadedPages(Math.max(1, cached.data.loadedPages || 1));
                     
-                    // Prefer server chart summary (full-range) over timeline slice for analytics charts.
-                    const chartEventsForAnalytics = cached.data.uxSummary?.events || cached.data.events || [];
+                    // Use timeline events for analytics charts (no duplication—uxSummary contains only sessions).
+                    const chartEventsForAnalytics = cached.data.events || [];
                     const analyticsData = computeAnalytics(chartEventsForAnalytics, cached.data.uxSummary || null);
                     setAnalytics(analyticsData);
                     setLoading(false);
@@ -910,7 +925,6 @@ export function AuditPage() {
             // Defer remaining charts to next frame
             requestAnimationFrame(() => {
                 renderLoginTimelineChart(analyticsData.loginTimeline);
-                renderLifecycleChart(analyticsData.lifecycleDeviceEvents, 'lifecycleDeviceChart', 'No device lifecycle events available');
                 renderLifecycleChart(analyticsData.lifecycleOrgEvents, 'lifecycleOrgChart', 'No organization lifecycle events available');
                 renderUserActivityChart(analyticsData.userSessions);
             });
@@ -1196,94 +1210,146 @@ export function AuditPage() {
         const chartEl = document.getElementById('userActivityChart');
         if (!chartEl) return;
 
-        // Check for ApexCharts availability
         if (!window.ApexCharts) {
             chartEl.innerHTML = '<p class="text-muted text-center p-4">ApexCharts library not loaded</p>';
             return;
         }
 
-        // Destroy existing chart instance if present
         if (chartEl._apexChart) {
             chartEl._apexChart.destroy();
             chartEl._apexChart = null;
         }
 
-        // Convert sessions to ApexCharts range-bar series
-        const users = Object.keys(userSessionsData).sort();
-        if (users.length === 0) {
+        if (!userSessionsData || Object.keys(userSessionsData).length === 0) {
             chartEl.innerHTML = '<p class="text-muted text-center p-4">No user activity data available</p>';
             return;
         }
 
-        // Build series data for each user
-        const series = users.map((user, idx) => {
-            const sessions = userSessionsData[user];
-            const palette = [
-                '#206bc4', '#28a745', '#d63939', '#f59f00', '#17a2b8',
-                '#9c27b0', '#007bff', '#ffc107', '#20c997', '#fd7e14'
-            ];
-            const color = palette[idx % palette.length];
+        const roleColors = {
+            'SiteAdmin': '#9c27b0',
+            'Owner':     '#206bc4',
+            'Co-Admin':  '#f59f00',
+            'Auditor':   '#2fb344',
+            'System':    '#adb5bd',
+            'Guest':     '#fd7e14',
+            'Unknown':   '#868e96'
+        };
 
-            return {
-                name: user,
-                data: sessions.map(session => {
-                    const durationMinutes = Math.round((session.endTime - session.startTime) / (1000 * 60));
-                    return {
-                        x: user,
-                        y: [session.startTime.getTime(), session.endTime.getTime()],
-                        fillColor: color,
-                        duration: durationMinutes,
-                        eventCount: session.eventCount
-                    };
-                })
-            };
+        const roleOrder = ['SiteAdmin', 'Owner', 'Co-Admin', 'Auditor', 'Guest', 'System', 'Unknown'];
+        const roleSeriesMap = {};
+
+        Object.values(userSessionsData).forEach(actorSessions => {
+            if (!actorSessions || actorSessions.length === 0) return;
+
+            const { actorDisplay, actorRole } = actorSessions[0];
+            const role = actorRole || 'Unknown';
+
+            if (!roleSeriesMap[role]) {
+                roleSeriesMap[role] = [];
+            }
+
+            actorSessions.forEach(session => {
+                const startMs = session.startTime.getTime();
+                const endMs = session.endTime.getTime();
+
+                roleSeriesMap[role].push({
+                    x: actorDisplay,
+                    y: [startMs, endMs],
+                    actorEmail: session.actorEmail || null
+                });
+            });
         });
+
+        const series = Object.keys(roleSeriesMap)
+            .sort((a, b) => roleOrder.indexOf(a) - roleOrder.indexOf(b))
+            .map(role => ({
+                name: role,
+                data: roleSeriesMap[role]
+            }));
+
+        const colors = Object.keys(roleSeriesMap)
+            .sort((a, b) => roleOrder.indexOf(a) - roleOrder.indexOf(b))
+            .map(role => roleColors[role] || roleColors.Unknown);
+
+        const uniqueLabels = new Set();
+        series.forEach(s => s.data.forEach(d => uniqueLabels.add(d.x)));
+        const container = chartEl.parentElement;
+        if (container) {
+            container.style.height = `${Math.max(280, uniqueLabels.size * 44 + 90)}px`;
+        }
 
         const options = {
             chart: {
                 type: 'rangeBar',
-                height: 350,
-                toolbar: { show: true },
-                sparkline: { enabled: false }
+                height: '100%',
+                animations: {
+                    enabled: false
+                },
+                toolbar: {
+                    show: true,
+                    tools: {
+                        download: true,
+                        selection: true,
+                        zoom: true,
+                        zoomin: true,
+                        zoomout: true,
+                        pan: true,
+                        reset: true
+                    }
+                },
+                zoom: {
+                    enabled: true,
+                    type: 'x',
+                    autoScaleYaxis: false
+                }
             },
             plotOptions: {
                 bar: {
                     horizontal: true,
-                    barHeight: '70%'
+                    barHeight: '52%',
+                    rangeBarGroupRows: false
                 }
             },
+            stroke: {
+                width: 1,
+                colors: ['#ffffff']
+            },
+            colors,
+            series,
             xaxis: {
                 type: 'datetime',
-                tickPlacement: 'on'
-            },
-            yaxis: {
-                title: { text: 'Users' }
-            },
-            tooltip: {
-                custom: function ({ series, seriesIndex, dataPointIndex, w }) {
-                    const data = w.config.series[seriesIndex].data[dataPointIndex];
-                    if (!data) return '';
-                    const startTime = new Date(data.y[0]);
-                    const endTime = new Date(data.y[1]);
-                    const startStr = startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    const endStr = endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    const eventLabel = data.eventCount !== 1 ? 'events' : 'event';
-                    return `
-                        <div class="px-3 py-2">
-                            <strong>${data.x}</strong><br/>
-                            <span class="text-muted">Session: ${startStr}–${endStr}</span><br/>
-                            <span class="text-muted">Duration: ${data.duration}m • ${data.eventCount} ${eventLabel}</span>
-                        </div>
-                    `;
+                labels: {
+                    datetimeUTC: false
                 }
             },
             legend: {
                 position: 'top'
+            },
+            tooltip: {
+                x: {
+                    formatter: (_val, opts) => {
+                        const point = opts?.w?.config?.series?.[opts.seriesIndex]?.data?.[opts.dataPointIndex];
+                        return point?.actorEmail || point?.x || 'Session';
+                    }
+                },
+                y: {
+                    formatter: (val) => {
+                        if (!Array.isArray(val) || val.length < 2) return '';
+                        const start = new Date(val[0]);
+                        const end = new Date(val[1]);
+                        const startStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const endStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        return `${startStr} - ${endStr}`;
+                    }
+                }
+            },
+            dataLabels: {
+                enabled: false
             }
         };
 
-        // Create and render chart
-        const chart = new window.ApexCharts(chartEl, { series, ...options });
+        chartEl.innerHTML = '';
+        const chart = new ApexCharts(chartEl, options);
         chart.render();
         chartEl._apexChart = chart;
     };
@@ -1517,20 +1583,6 @@ export function AuditPage() {
                         </div>
                     </div>
 
-                    <!-- Device Lifecycle Chart -->
-                    <div class="col-lg-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title"><i class="ti ti-device-desktop me-2"></i>Device Lifecycle Events</h3>
-                            </div>
-                            <div class="card-body">
-                                <div style="height: 300px; position: relative;">
-                                    <canvas id="lifecycleDeviceChart"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Organization Lifecycle Chart -->
                     <div class="col-lg-6">
                         <div class="card">
@@ -1555,7 +1607,13 @@ export function AuditPage() {
                                 <h3 class="card-title"><i class="ti ti-user-check me-2"></i>User Activity Sessions (API Access)</h3>
                             </div>
                             <div class="card-body">
-                                <div style="height: 400px; position: relative;" id="userActivityChart"></div>
+                                <div style="height: 400px; position: relative;">
+                                    <div id="userActivityChart" style="height: 100%; width: 100%;"></div>
+                                </div>
+                                <div class="text-muted small mt-2">
+                                    <i class="ti ti-zoom-in-area me-1"></i>
+                                    Use chart toolbar for zoom and pan.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2059,17 +2117,19 @@ export function AuditPage() {
                                     Analytics
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a 
-                                    class="nav-link ${activeTab === 'timeline' ? 'active' : ''}"
-                                    href="#"
-                                    role="tab"
-                                    onClick=${(e) => { e.preventDefault(); setActiveTab('timeline'); }}
-                                >
-                                    <i class="ti ti-history me-2"></i>
-                                    Timeline
-                                </a>
-                            </li>
+                            ${showTimelineTab ? html`
+                                <li class="nav-item">
+                                    <a 
+                                        class="nav-link ${activeTab === 'timeline' ? 'active' : ''}"
+                                        href="#"
+                                        role="tab"
+                                        onClick=${(e) => { e.preventDefault(); setActiveTab('timeline'); }}
+                                    >
+                                        <i class="ti ti-history me-2"></i>
+                                        Timeline
+                                    </a>
+                                </li>
+                            ` : null}
                         </ul>
                     </div>
                 </div>
@@ -2082,7 +2142,7 @@ export function AuditPage() {
                 ` : ''}
 
                 <!-- Tab Content -->
-                ${activeTab === 'analytics' ? renderAnalyticsTab() : renderTimelineTab()}
+                ${(activeTab === 'timeline' && showTimelineTab) ? renderTimelineTab() : renderAnalyticsTab()}
             </div>
         `;
     } catch (error) {

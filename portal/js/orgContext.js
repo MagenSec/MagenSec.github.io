@@ -327,7 +327,9 @@ class OrgContext {
         if (!org) { banner.style.display = 'none'; return; }
 
         const isDisabled = org.isEnabled === false;
-        const isExpired  = org.remainingCredits === 0;
+        // -1 means the server returned no license data (new org, fallback path, etc.).
+        // Only show "expired" when we know credits existed (totalCredits > 0) and are now exhausted.
+        const isExpired  = org.totalCredits > 0 && org.remainingCredits === 0;
         const totalSeats = org.totalSeats > 0 ? org.totalSeats : 5;
         const isExpiring = !isExpired && org.remainingCredits > 0 && org.remainingCredits <= (totalSeats * 7);
 
