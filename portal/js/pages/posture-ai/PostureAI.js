@@ -342,6 +342,49 @@ export class AIPosturePage extends Component {
             return;
         }
 
+        const toFiniteNumber = (value, fallback = 0) => {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : fallback;
+        };
+
+        const sanitizeSeries = (chartType, series) => {
+            if (!Array.isArray(series)) return [];
+
+            const isRadialLike = chartType === 'pie' || chartType === 'donut' || chartType === 'polarArea' || chartType === 'radialBar';
+            if (isRadialLike) {
+                if (series.length > 0 && typeof series[0] === 'object' && Array.isArray(series[0]?.data)) {
+                    return series[0].data.map((v) => toFiniteNumber(v, 0));
+                }
+                return series.map((v) => toFiniteNumber(v, 0));
+            }
+
+            return series.map((entry) => {
+                if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+                    if (Array.isArray(entry.data)) {
+                        return {
+                            ...entry,
+                            data: entry.data.map((point) => {
+                                if (point && typeof point === 'object' && !Array.isArray(point)) {
+                                    if (Object.prototype.hasOwnProperty.call(point, 'y')) {
+                                        return { ...point, y: toFiniteNumber(point.y, 0) };
+                                    }
+                                    return point;
+                                }
+                                return toFiniteNumber(point, 0);
+                            })
+                        };
+                    }
+                    return entry;
+                }
+
+                if (Array.isArray(entry)) {
+                    return entry.map((v) => toFiniteNumber(v, 0));
+                }
+
+                return toFiniteNumber(entry, 0);
+            });
+        };
+
         try {
             // Find pre > code.language-apex-chart blocks (marked.js output)
             const chartBlocks = document.querySelectorAll('pre code.language-apex-chart');
@@ -377,15 +420,21 @@ export class AIPosturePage extends Component {
                     // Replace pre > code with chart div
                     preParent.replaceWith(chartDiv);
                     
+                    const sanitizedSeries = sanitizeSeries(chartConfig.type, chartConfig.series);
+                    if (!Array.isArray(sanitizedSeries) || sanitizedSeries.length === 0) {
+                        logger.warn('[AI Posture] Skipping chart due to empty sanitized series', { type: chartConfig.type });
+                        return;
+                    }
+
                     // Build ApexCharts options with safe defaults
                     const options = {
                         chart: {
                             type: chartConfig.type,
-                            height: 350,
+                            height: toFiniteNumber(chartConfig.height, 350),
                             toolbar: { show: true },
                             animations: { enabled: true }
                         },
-                        series: Array.isArray(chartConfig.series) ? chartConfig.series : [],
+                        series: sanitizedSeries,
                         labels: chartConfig.labels || [],
                         colors: chartConfig.colors || ['#008FFB', '#00E396', '#FEB019', '#FF4560', '#775DD0'],
                         title: {
@@ -398,12 +447,14 @@ export class AIPosturePage extends Component {
 
                     // Add type-specific options
                     if (chartConfig.type === 'bar') {
-                        options.xaxis = { categories: chartConfig.categories || [] };
+                        const categories = Array.isArray(chartConfig.categories) ? chartConfig.categories : [];
+                        options.xaxis = { categories };
                         options.plotOptions = {
                             bar: { horizontal: false, columnWidth: '55%' }
                         };
                     } else if (chartConfig.type === 'line') {
-                        options.xaxis = { categories: chartConfig.categories || [] };
+                        const categories = Array.isArray(chartConfig.categories) ? chartConfig.categories : [];
+                        options.xaxis = { categories };
                         options.stroke = { curve: 'smooth', width: 3 };
                         if (chartConfig.yaxis) {
                             options.yaxis = chartConfig.yaxis;
@@ -418,9 +469,25 @@ export class AIPosturePage extends Component {
                         }];
                     }
                     
-                    // Render chart
-                    const chart = new ApexCharts(chartDiv, options);
-                    chart.render();
+                    // Render only after the container has measurable size to avoid NaN transforms.
+                    let attempts = 0;
+                    const renderWhenReady = () => {
+                        attempts += 1;
+                        if (!chartDiv.isConnected) {
+                            return;
+                        }
+
+                        const rect = chartDiv.getBoundingClientRect();
+                        if ((rect.width <= 0 || rect.height <= 0) && attempts < 8) {
+                            setTimeout(renderWhenReady, 120);
+                            return;
+                        }
+
+                        const chart = new ApexCharts(chartDiv, options);
+                        chart.render();
+                    };
+
+                    renderWhenReady();
                     
                     logger.debug('[AI Posture] Rendered ApexChart', { 
                         id: chartDiv.id, 

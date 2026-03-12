@@ -113,12 +113,33 @@ export class DashboardPage extends Component {
         const licenseStats = quickStats.license || {};
         const securityScore = payload.securityScore || {};
         const businessOwner = payload.businessOwner || {};
+        const itAdmin = payload.itAdmin || {};
+        const inventorySummary = itAdmin.inventory || {};
+        const deviceHealth = Array.isArray(itAdmin.deviceHealth) ? itAdmin.deviceHealth : [];
         const complianceCard = businessOwner.complianceCard || {};
         const topActions = Array.isArray(businessOwner.topActions) ? businessOwner.topActions : [];
 
-        const totalDevices = Number(deviceStats.totalCount || 0);
-        const activeDevices = Number(deviceStats.activeCount || 0);
-        const offlineDevices = Number(deviceStats.offlineCount || 0);
+        const statusOf = (value) => String(value || '').toLowerCase();
+        const derivedActiveFromHealth = deviceHealth.filter((d) => {
+            const status = statusOf(d?.status);
+            return status === 'active' || status === 'online' || status === 'healthy';
+        }).length;
+
+        const totalDevices = Number(
+            deviceStats.totalCount
+            || inventorySummary.totalDevices
+            || deviceHealth.length
+            || 0
+        );
+        const activeDevices = Number(
+            deviceStats.activeCount
+            || derivedActiveFromHealth
+            || 0
+        );
+        const offlineDevices = Number(
+            deviceStats.offlineCount
+            || Math.max(0, totalDevices - activeDevices)
+        );
         const complianceScore = Math.round(Number(complianceCard.percent ?? securityScore.compliancePercent ?? 0));
         const nonCompliant = Number(complianceCard.gapCount || 0);
         const compliant = Math.max(0, totalDevices - nonCompliant);
@@ -145,6 +166,37 @@ export class DashboardPage extends Component {
         const criticalCves = Number(cveStats.criticalCount || 0);
         const highCves = Number(cveStats.highCount || 0);
         const mediumCves = Math.max(0, totalCves - criticalCves - highCves);
+        const recentDevicesSource =
+            (Array.isArray(payload.aiContext?.recentDevices) && payload.aiContext.recentDevices.length > 0
+                ? payload.aiContext.recentDevices
+                : (Array.isArray(payload.recentDevices) && payload.recentDevices.length > 0
+                    ? payload.recentDevices
+                    : deviceHealth));
+
+        const recentDevices = recentDevicesSource
+            .slice(0, 10)
+            .map((d) => {
+                const threatBase =
+                    (d?.threats ?? d?.threatCount ?? (Number(d?.critical || 0) + Number(d?.high || 0)));
+
+                return {
+                    deviceId: d?.deviceId || d?.id || d?.name || d?.deviceName || d?.hostname || '',
+                    deviceName: d?.deviceName || d?.displayName || d?.friendlyName || d?.name || d?.hostname || d?.deviceId || 'Unknown device',
+                    status: d?.status || ((Number(d?.offlineDays || 0) > 1) ? 'offline' : 'active'),
+                    lastSeen: d?.lastSeen || d?.lastTelemetry || d?.lastHeartbeat || null,
+                    lastTelemetry: d?.lastTelemetry || d?.lastSeen || null,
+                    lastHeartbeat: d?.lastHeartbeat || d?.lastSeen || null,
+                    threats: Number(threatBase || 0)
+                };
+            })
+            .filter((d) => !!(d.deviceId || d.deviceName));
+
+        const vendorCount = Number(
+            appStats.vendorCount
+            || inventorySummary.uniqueAppCount
+            || inventorySummary.vendors
+            || 0
+        );
 
         return {
             securityScore: Number(securityScore.score || 0),
@@ -177,10 +229,10 @@ export class DashboardPage extends Component {
                 total: totalDevices
             },
             alerts: [],
-            recentDevices: [],
+            recentDevices,
             inventory: {
-                totalApps: Number(appStats.trackedCount || 0),
-                vendors: 0
+                totalApps: Number(appStats.trackedCount || inventorySummary.totalApps || 0),
+                vendors: vendorCount
             },
             license: {
                 status: businessOwner?.licenseCard?.status || 'Unknown',
@@ -559,6 +611,12 @@ export class DashboardPage extends Component {
         return Number.isFinite(num) ? num : fallback;
     }
 
+    isChartContainerReady(el) {
+        if (!el || !el.isConnected) return false;
+        const rect = el.getBoundingClientRect();
+        return Number.isFinite(rect.width) && Number.isFinite(rect.height) && rect.width > 0 && rect.height > 0;
+    }
+
     roundPercent(value) {
         if (!Number.isFinite(value)) return 0;
         return Math.round(value * 10) / 10; // keep one decimal for readability
@@ -769,8 +827,15 @@ export class DashboardPage extends Component {
         `;
     }
 
-    renderThreatChart(threats) {
+    renderThreatChart(threats, retryCount = 0) {
         if (!window.ApexCharts || !this.threatChartEl) {
+            return;
+        }
+
+        if (!this.isChartContainerReady(this.threatChartEl)) {
+            if (retryCount < 6) {
+                setTimeout(() => this.renderThreatChart(threats, retryCount + 1), 120);
+            }
             return;
         }
 
@@ -809,8 +874,15 @@ export class DashboardPage extends Component {
         }
     }
 
-    renderComplianceDonut(compliance) {
+    renderComplianceDonut(compliance, retryCount = 0) {
         if (!window.ApexCharts || !this.complianceChartEl) {
+            return;
+        }
+
+        if (!this.isChartContainerReady(this.complianceChartEl)) {
+            if (retryCount < 6) {
+                setTimeout(() => this.renderComplianceDonut(compliance, retryCount + 1), 120);
+            }
             return;
         }
 
@@ -851,8 +923,15 @@ export class DashboardPage extends Component {
         }
     }
 
-    renderCoveragePolar(coverage) {
+    renderCoveragePolar(coverage, retryCount = 0) {
         if (!window.ApexCharts || !this.coverageChartEl) {
+            return;
+        }
+
+        if (!this.isChartContainerReady(this.coverageChartEl)) {
+            if (retryCount < 6) {
+                setTimeout(() => this.renderCoveragePolar(coverage, retryCount + 1), 120);
+            }
             return;
         }
 
@@ -1285,7 +1364,7 @@ export class DashboardPage extends Component {
         `;
     }
 
-    renderPostureSummaryDonuts() {
+    renderPostureSummaryDonuts(retryCount = 0) {
         if (!window.ApexCharts) return;
         
         // Destroy existing charts
@@ -1312,6 +1391,12 @@ export class DashboardPage extends Component {
         if (threatSeries.every(val => !isNaN(val) && isFinite(val))) {
             const threatEl = document.getElementById('posture-threat-donut');
             if (threatEl && threatTotal > 0) {
+                if (!this.isChartContainerReady(threatEl)) {
+                    if (retryCount < 6) {
+                        setTimeout(() => this.renderPostureSummaryDonuts(retryCount + 1), 120);
+                    }
+                    return;
+                }
                 const opts = {
                     chart: { type: 'donut', height: 160 },
                     labels: ['Critical', 'High', 'Medium', 'Low'],
@@ -1338,6 +1423,12 @@ export class DashboardPage extends Component {
         if (compSeries.every(val => !isNaN(val) && isFinite(val))) {
             const compEl = document.getElementById('posture-compliance-donut');
             if (compEl && compTotal > 0) {
+                if (!this.isChartContainerReady(compEl)) {
+                    if (retryCount < 6) {
+                        setTimeout(() => this.renderPostureSummaryDonuts(retryCount + 1), 120);
+                    }
+                    return;
+                }
                 const opts = {
                     chart: { type: 'donut', height: 160 },
                     labels: ['Compliant', 'Non-Compliant', 'Unknown'],

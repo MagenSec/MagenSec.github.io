@@ -159,7 +159,7 @@ export class CompliancePage extends Component {
     return `${Math.floor(mins / 60)}h ago`;
   }
 
-  renderHeader(compliance, score, cachedAt) {
+  renderHeader(compliance, score, cachedAt, openGapCount) {
     const percent = compliance?.percent || 0;
     const color = this.getComplianceColor(percent);
     const auditReady = percent >= 80;
@@ -233,8 +233,8 @@ export class CompliancePage extends Component {
             <div class="card h-100 border-0 shadow-sm">
               <div class="card-body text-center p-3">
                 <div class="text-muted text-uppercase small fw-bold mb-1">Open Gaps</div>
-                <div class="h1 mb-0 text-${(score?.urgentActionCount || 0) > 0 ? 'danger' : 'success'}">
-                  ${score?.urgentActionCount || 0}
+                <div class="h1 mb-0 text-${openGapCount > 0 ? 'danger' : 'success'}">
+                  ${openGapCount}
                 </div>
                 <div class="text-muted small mt-1">Urgent actions</div>
               </div>
@@ -298,7 +298,7 @@ export class CompliancePage extends Component {
     `;
   }
 
-  renderGapList(topActions) {
+  renderGapList(topActions, hasCriticalFindings) {
     const complianceActions = (topActions || []).filter(a =>
       a.urgency === 'critical' || a.urgency === 'high'
     );
@@ -318,8 +318,12 @@ export class CompliancePage extends Component {
                 <div class="empty-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-success" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>
                 </div>
-                <p class="empty-title">No critical compliance gaps</p>
-                <p class="empty-subtitle text-muted">Your organization is in good compliance standing.</p>
+                <p class="empty-title">${hasCriticalFindings ? 'No mapped compliance actions yet' : 'No critical compliance gaps'}</p>
+                <p class="empty-subtitle text-muted">
+                  ${hasCriticalFindings
+                    ? 'Critical findings exist, but no framework-mapped remediation actions are available in this snapshot yet.'
+                    : 'Your organization is in good compliance standing.'}
+                </p>
               </div>
             ` : html`
               <div class="list-group list-group-flush">
@@ -393,16 +397,24 @@ export class CompliancePage extends Component {
     const compliance = bo?.complianceCard || {};
     const score = data?.securityScore || {};
     const topActions = bo?.topActions || [];
+    const criticalFindings = bo?.threatCard?.criticalCount || 0;
+    const hasCriticalFindings = criticalFindings > 0 || /critical/i.test(compliance?.gapDescription || '');
+    const openGapCount = Math.max(
+      score?.urgentActionCount || 0,
+      compliance?.gapCount || 0,
+      topActions.filter(a => a.urgency === 'critical' || a.urgency === 'high').length,
+      criticalFindings
+    );
     const overallPercent = compliance?.percent || 0;
     // Real per-framework scores pre-cooked by OrgInsightsCronTask into complianceCard.frameworkScores
     const frameworkScores = compliance?.frameworkScores || null;
 
     return html`
       <div style="padding-bottom: 80px;">
-        ${this.renderHeader(compliance, score, cachedAt)}
+        ${this.renderHeader(compliance, score, cachedAt, openGapCount)}
         ${this.renderNotice(compliance?.gapDescription)}
         ${this.renderFrameworkGrid(overallPercent, frameworkScores)}
-        ${this.renderGapList(topActions)}
+        ${this.renderGapList(topActions, hasCriticalFindings)}
 
         <div class="container-xl">
           <div class="card border-0 shadow-sm">
