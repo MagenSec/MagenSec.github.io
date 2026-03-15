@@ -154,10 +154,9 @@
             display: none;
         }
 
-        /* AI Analyst Menu Item Highlight */
+        /* Officer MAGI top-level highlight */
         .nav-item-ai-analyst {
-            margin-left: auto; /* Push to right */
-            margin-right: 1rem;
+            margin-right: 0.5rem;
         }
         .nav-item-ai-analyst .nav-link {
             background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
@@ -167,14 +166,30 @@
             font-weight: 500;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             transition: all 0.2s ease-in-out;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
         }
         .nav-item-ai-analyst .nav-link:hover {
             transform: translateY(-1px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             filter: brightness(1.1);
         }
+        .nav-item-ai-analyst .nav-link::after {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 6px;
+            border: 1px solid rgba(167, 139, 250, 0.65);
+            animation: magi-glow 2s ease-in-out infinite;
+            pointer-events: none;
+        }
         .nav-item-ai-analyst .nav-link-icon svg {
             animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes magi-glow {
+            0%, 100% { opacity: 0.45; box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.35); }
+            50% { opacity: 0.95; box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.12); }
         }
         @keyframes pulse-ring {
             0%, 100% { opacity: 1; transform: scale(1); }
@@ -301,8 +316,6 @@
                                     <span class="nav-link-title">Insights</span>
                                 </a>
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="#!/analyst"><i class="ti ti-message-chatbot me-2"></i>Officer MAGI</a>
-                                    <div class="dropdown-divider"></div>
                                     <a class="dropdown-item" href="#!/mission-brief"><i class="ti ti-brain me-2"></i>Mission Brief</a>
                                     <a class="dropdown-item" href="#!/compliance"><i class="ti ti-certificate me-2"></i>Compliance</a>
                                     <a class="dropdown-item" href="#!/reports"><i class="ti ti-chart-bar me-2"></i>Reports</a>
@@ -328,6 +341,16 @@
                         </ul>
 
                         <ul class="navbar-nav ms-auto">
+                            <!-- Officer MAGI (top-level, highlighted) -->
+                            <li class="nav-item nav-item-ai-analyst business-license-only" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link" href="#!/analyst">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Officer MAGI</span>
+                                </a>
+                            </li>
+
                             <!-- Site Admin (hidden unless SiteAdmin) -->
                             <li class="nav-item dropdown site-admin-only" style="display:none">
                                 <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
