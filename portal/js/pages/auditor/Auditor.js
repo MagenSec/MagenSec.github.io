@@ -224,6 +224,140 @@ export class AuditorPage extends Component {
     return { text: 'At Risk', color: 'danger' };
   }
 
+  renderExecutiveSummaryStrip(data, cachedAt) {
+    const compliance = data?.businessOwner?.complianceCard || {};
+    const score = data?.securityScore || {};
+    const risk = data?.businessOwner?.riskSummary || {};
+    const urgent = score?.urgentActionCount || 0;
+    const readiness = this.getReadinessTone(compliance?.percent || 0);
+    const asOf = this.formatCachedAt(cachedAt);
+
+    return html`
+      <div class="container-xl mb-3">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body py-3">
+            <div class="row g-3 align-items-center">
+              <div class="col-lg">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                  <span class="badge bg-${readiness.color} text-white">${readiness.text}</span>
+                  <span class="badge bg-primary-lt text-primary">Security Grade ${score?.grade || '—'}</span>
+                  <span class="badge bg-warning-lt text-warning">${urgent} Urgent Action(s)</span>
+                  <span class="badge bg-info-lt text-info">Risk ${risk?.riskScore || '—'}</span>
+                </div>
+                <div class="text-muted small">
+                  Executive Snapshot: Compliance ${compliance?.percent || 0}% with ${urgent} priority item(s) pending.
+                  ${asOf ? `Last refresh ${asOf}.` : ''}
+                </div>
+              </div>
+              <div class="col-lg-auto d-flex gap-2">
+                <a href="#!/mission-brief" class="btn btn-sm btn-primary">Create Executive Brief</a>
+                <a href="#!/reports" class="btn btn-sm btn-outline-secondary">Open Board Report</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderAuditPhaseStrip(data) {
+    const checklist = buildEvidenceChecklist(data);
+    const done = checklist.filter(i => i.status === 'complete').length;
+    const total = checklist.length || 1;
+    const pct = Math.round((done / total) * 100);
+
+    const phases = [
+      { title: 'Phase 1', name: 'Scope & Inventory', detail: 'Assets, users, and boundaries', href: '#!/devices' },
+      { title: 'Phase 2', name: 'Control Validation', detail: 'Compliance and security controls', href: '#!/compliance' },
+      { title: 'Phase 3', name: 'Evidence & Timeline', detail: 'Command chronology and proofs', href: '#!/audit' },
+      { title: 'Phase 4', name: 'Executive Reporting', detail: 'Findings and recommendations', href: '#!/mission-brief' }
+    ];
+
+    return html`
+      <div class="container-xl mb-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header">
+            <h3 class="card-title">Audit Mission Flow</h3>
+            <div class="card-options">
+              <span class="badge bg-secondary-lt text-muted">${pct}% checklist completion</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              ${phases.map((phase) => html`
+                <div class="col-md-6 col-xl-3">
+                  <a href="${phase.href}" class="card card-link border-0 shadow-sm h-100 text-decoration-none">
+                    <div class="card-body">
+                      <div class="text-muted small text-uppercase fw-bold">${phase.title}</div>
+                      <div class="fw-semibold mb-1">${phase.name}</div>
+                      <div class="text-muted small">${phase.detail}</div>
+                    </div>
+                  </a>
+                </div>
+              `)}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderAIPromptRail() {
+    const prompts = [
+      {
+        title: 'Gap Prioritization',
+        prompt: 'Prioritize top compliance gaps by business impact and remediation effort.',
+        tone: 'warning'
+      },
+      {
+        title: 'Auditor Narrative',
+        prompt: 'Draft a concise auditor narrative summarizing control posture and key risks.',
+        tone: 'primary'
+      },
+      {
+        title: 'Executive Actions',
+        prompt: 'Generate a 30-day executive action plan with owners and milestones.',
+        tone: 'success'
+      }
+    ];
+
+    return html`
+      <div class="container-xl mb-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header">
+            <h3 class="card-title">AI Prompt Deck</h3>
+            <div class="card-options">
+              <a href="#!/analyst" class="btn btn-sm btn-outline-secondary">Open AI Analyst</a>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              ${prompts.map((item) => html`
+                <div class="col-md-4">
+                  <div class="card border border-${item.tone}-lt h-100">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="badge bg-${item.tone} text-white">AI</span>
+                        <div class="fw-semibold">${item.title}</div>
+                      </div>
+                      <p class="text-muted small mb-3">${item.prompt}</p>
+                      <a
+                        href="#!/analyst?prompt=${encodeURIComponent(item.prompt)}"
+                        class="btn btn-sm btn-outline-${item.tone}"
+                      >
+                        Ask This in Analyst
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              `)}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   renderCommandCenter(data, cachedAt) {
     const compliance = data?.businessOwner?.complianceCard || {};
     const score = data?.securityScore || {};
@@ -605,7 +739,10 @@ export class AuditorPage extends Component {
         </div>
 
         ${this.renderCommandCenter(data, cachedAt)}
+        ${this.renderExecutiveSummaryStrip(data, cachedAt)}
+        ${this.renderAuditPhaseStrip(data)}
         ${this.renderActionLanes(data)}
+        ${this.renderAIPromptRail()}
         ${this.renderReadinessComposite(data, cachedAt)}
         ${this.renderEvidenceChecklist(data)}
         ${this.renderRecentEvents()}
