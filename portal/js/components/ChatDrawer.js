@@ -5,7 +5,7 @@
  * without leaving the current page.
  *
  * Props:
- *   contextHint {string} — Optional context hint prepended to queries (e.g. "compliance posture and gaps")
+ *   contextHint {string} — Optional context hint sent as structured chat context (e.g. "compliance posture and gaps")
  *
  * Uses the same POST /api/v1/orgs/{orgId}/ai-analyst/ask endpoint as the home page search bar.
  */
@@ -79,11 +79,13 @@ export class ChatDrawer extends Component {
     const orgId = currentOrg?.orgId || user?.email;
     if (!orgId) return;
 
-    // Build effective question (optionally prefixed with context hint)
     const { contextHint } = this.props;
-    const effectiveQuestion = contextHint
-      ? `[Context: ${contextHint}] ${text}`
-      : text;
+    const routeHash = (window.location.hash || '').split('?')[0] || '';
+    const requestContext = {
+      hint: contextHint || null,
+      route: routeHash || null,
+      source: 'chat-drawer'
+    };
 
     this.setState(s => ({
       messages: [...s.messages, { role: 'user', text }],
@@ -96,7 +98,11 @@ export class ChatDrawer extends Component {
     requestAnimationFrame(() => this.scrollToBottom());
 
     try {
-      const response = await api.askAIAnalyst(orgId, { question: effectiveQuestion, responseMode: 'brief' });
+      const response = await api.askAIAnalyst(orgId, {
+        question: text,
+        responseMode: 'brief',
+        context: requestContext
+      });
       const answer =
         response?.data?.answer ||
         response?.answer ||
@@ -181,6 +187,9 @@ export class ChatDrawer extends Component {
     const { open, prompt, loading, messages } = this.state;
     const { contextHint } = this.props;
     const isPersonalOrg = orgContext.getCurrentOrg()?.type === 'Personal';
+    const fullChatHref = contextHint
+      ? `#!/analyst?ctx=${encodeURIComponent(contextHint)}`
+      : '#!/analyst';
 
     return html`
       <div
@@ -224,7 +233,7 @@ export class ChatDrawer extends Component {
               </button>
             ` : ''}
             <a
-              href="#!/analyst"
+              href=${fullChatHref}
               class=${isPersonalOrg ? 'business-license-only' : ''}
               data-business-tooltip=${isPersonalOrg ? BUSINESS_ONLY_TOOLTIP : ''}
               style="background: none; border: none; cursor: pointer; color: var(--tblr-secondary, #888); padding: 4px 6px; border-radius: 4px; font-size: 0.75rem; text-decoration: none;"

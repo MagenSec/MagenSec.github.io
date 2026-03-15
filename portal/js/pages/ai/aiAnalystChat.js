@@ -44,6 +44,7 @@ export default class AIAnalystChatPage extends Component {
             sending: false,
             error: null,
             conversationId: this.generateConversationId(),
+            pageContext: '',
             proactiveInsights: null,
             insightsLoading: true,
             insightsExpanded: null,
@@ -71,6 +72,11 @@ export default class AIAnalystChatPage extends Component {
         });
 
         this.fetchProactiveInsights();
+
+        const pageContext = this.getContextFromHash();
+        if (pageContext) {
+            this.setState({ pageContext });
+        }
 
         // 1. Try to hydrate from sessionStorage (pre-load from dashboard search — no extra API call)
         const prefill = this.loadPrefill();
@@ -185,7 +191,15 @@ export default class AIAnalystChatPage extends Component {
         const queryIndex = hash.indexOf('?');
         if (queryIndex < 0) return '';
         const params = new URLSearchParams(hash.substring(queryIndex + 1));
-        return (params.get('q') || '').trim();
+        return (params.get('q') || params.get('prompt') || '').trim();
+    }
+
+    getContextFromHash() {
+        const hash = window.location.hash || '';
+        const queryIndex = hash.indexOf('?');
+        if (queryIndex < 0) return '';
+        const params = new URLSearchParams(hash.substring(queryIndex + 1));
+        return (params.get('ctx') || '').trim();
     }
 
     scrollToBottom() {
@@ -222,7 +236,12 @@ export default class AIAnalystChatPage extends Component {
             const response = await api.post(`/api/v1/orgs/${org.orgId}/ai-analyst/ask`, {
                 question,
                 conversationId: this.state.conversationId,
-                includeContext: true
+                includeContext: true,
+                context: {
+                    hint: this.state.pageContext || null,
+                    route: '#!/analyst',
+                    source: 'analyst-page'
+                }
             });
 
             if (response.success && response.data) {
