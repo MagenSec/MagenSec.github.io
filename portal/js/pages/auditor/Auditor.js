@@ -373,10 +373,10 @@ export class AuditorPage extends Component {
             <div class="row g-4 align-items-center">
               <div class="col-lg-8">
                 <div class="text-uppercase small fw-bold mb-2" style="letter-spacing: .08em; opacity: .9;">Auditor Command Center</div>
-                <h2 class="mb-2" style="font-size: 2rem; line-height: 1.15;">Run Evidence Ops, Engage AI, and Publish Executive-Ready Findings</h2>
+                <h2 class="mb-2" style="font-size: 2rem; line-height: 1.15;">Review Evidence, Validate Controls, and Prepare Auditor Findings</h2>
                 <p class="mb-3" style="opacity: .9; max-width: 58ch;">
-                  This console is optimized for external audit flow: assess readiness, validate controls, review command chronology,
-                  and generate stakeholder-grade briefings in one pass.
+                  This workspace is tailored for external auditors: verify control posture, inspect timeline evidence,
+                  ask focused AI questions, and compile defensible observations for stakeholder review.
                 </p>
                 <div class="d-flex flex-wrap gap-2">
                   <a href="#!/analyst" class="btn btn-light">
@@ -414,6 +414,25 @@ export class AuditorPage extends Component {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderAccessGuidance() {
+    return html`
+      <div class="container-xl mb-4">
+        <div class="alert alert-info-lt border-0 d-flex align-items-start gap-2 mb-0" role="alert">
+          <span class="avatar avatar-sm bg-info text-white"><i class="ti ti-info-circle"></i></span>
+          <div class="flex-fill">
+            <div class="fw-semibold">Need to grant Auditor access to another user?</div>
+            <div class="small text-muted">
+              Go to <strong>Settings</strong> -> <strong>General</strong> -> <strong>Team</strong>, then assign the appropriate access.
+            </div>
+          </div>
+          <a href="#!/settings" class="btn btn-sm btn-outline-info" title="Open Settings to manage team access">
+            Open Settings
+          </a>
         </div>
       </div>
     `;
@@ -490,6 +509,9 @@ export class AuditorPage extends Component {
     const pct = compliance?.percent || 0;
     const auditReady = pct >= 80;
     const complianceColor = pct >= 80 ? 'success' : pct >= 60 ? 'warning' : 'danger';
+    const gradeTone = score?.grade
+      ? (score.grade.startsWith('A') ? 'success' : score.grade.startsWith('B') ? 'info' : score.grade.startsWith('C') ? 'warning' : 'danger')
+      : 'secondary';
     const asOf = this.formatCachedAt(cachedAt);
 
     return html`
@@ -522,7 +544,8 @@ export class AuditorPage extends Component {
               </div>
               <div class="col-md-3">
                 <div class="h1 mb-0">
-                  <span class="badge bg-${score?.grade ? (score.grade.startsWith('A') ? 'success' : score.grade.startsWith('B') ? 'info' : score.grade.startsWith('C') ? 'warning' : 'danger') : 'secondary'} fs-3">
+                  <span class="badge bg-${gradeTone}-lt text-${gradeTone} fs-5 d-inline-flex align-items-center gap-1 px-3 py-2">
+                    <i class="ti ti-shield-check"></i>
                     ${score?.grade || '—'}
                   </span>
                 </div>
@@ -739,6 +762,7 @@ export class AuditorPage extends Component {
         </div>
 
         ${this.renderCommandCenter(data, cachedAt)}
+        ${this.renderAccessGuidance()}
         ${this.renderExecutiveSummaryStrip(data, cachedAt)}
         ${this.renderAuditPhaseStrip(data)}
         ${this.renderActionLanes(data)}
