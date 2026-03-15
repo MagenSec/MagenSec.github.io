@@ -198,11 +198,16 @@ export class CompliancePage extends Component {
     try {
       const framework = this.state.selectedFramework === 'all' ? undefined : this.state.selectedFramework;
       const date = toCompactDate(this.state.selectedDate);
-      const response = await api.getLatestAIReport(orgId, {
-        reportKind: REPORT_KIND,
-        framework,
-        date
-      });
+      const response = date
+        ? await api.getAIReportByDate(orgId, date, {
+            reportKind: REPORT_KIND,
+            framework
+          })
+        : await api.getLatestAIReport(orgId, {
+            reportKind: REPORT_KIND,
+            framework,
+            date
+          });
 
       if (response?.success === false) {
         this.setState({ currentReport: null, reportLoading: false, reportError: response.message || null });
@@ -276,7 +281,7 @@ export class CompliancePage extends Component {
               <div class="page-pretitle">Compliance Command</div>
               <h2 class="page-title">Standards, evidence, and report generation</h2>
               <div class="text-muted mt-1">
-                Compliance reports live here. Security posture remains a separate operational view.
+                Generate dated compliance evidence by framework, and track control gaps in one place.
                 ${snapshot.generatedAt ? html`<span class="badge bg-secondary-lt text-muted ms-2">Signals updated ${formatRelativeTimeShort(snapshot.generatedAt)}</span>` : ''}
               </div>
             </div>
@@ -333,7 +338,7 @@ export class CompliancePage extends Component {
         <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #f8fafc 0%, #eef4ff 100%); border: 1px solid rgba(0,84,166,0.08);">
           <div class="card-body p-4">
             <div class="row g-3 align-items-end">
-              <div class="col-12 col-lg-4">
+              <div class="col-12 col-lg-3">
                 <label class="form-label text-uppercase small fw-bold text-muted">Report Date</label>
                 <input
                   type="date"
@@ -355,8 +360,8 @@ export class CompliancePage extends Component {
                 </select>
                 <div class="form-hint">Choose a single standard or generate a combined compliance report.</div>
               </div>
-              <div class="col-12 col-lg-4">
-                <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+              <div class="col-12 col-lg-5">
+                <div class="d-flex flex-wrap gap-2 justify-content-lg-end align-items-center">
                   <button class="btn btn-primary" disabled=${this.state.generatingReport} onClick=${() => this.generateReport()}>
                     ${this.state.generatingReport ? 'Generating…' : 'Generate Compliance Report'}
                   </button>
@@ -364,7 +369,7 @@ export class CompliancePage extends Component {
                     Refresh Signals
                   </button>
                   <a href="#!/mission-brief" class="btn btn-outline-primary">
-                    Security Posture
+                    Open Mission Briefing
                   </a>
                 </div>
               </div>
@@ -372,7 +377,7 @@ export class CompliancePage extends Component {
             <div class="row g-3 mt-2">
               <div class="col-lg-8">
                 <div class="alert alert-info border-0 mb-0">
-                  <strong>Separation of concerns:</strong> this page owns standards alignment and audit evidence. Security posture remains the operational risk report because it blends vulnerabilities, exposure, and device risk beyond audit controls.
+                  <strong>Tip:</strong> Pick a date and framework, then generate a dated evidence report you can share with auditors or leadership.
                 </div>
               </div>
               <div class="col-lg-4">
@@ -434,9 +439,9 @@ export class CompliancePage extends Component {
                       </div>
                     ` : html`
                       <div class="alert alert-secondary border-0 mb-3">
-                        Dedicated compliance signals for ${item.shortName} are not wired yet. The framework remains visible here so audit and control work can adopt it without another page redesign later.
+                        Dedicated compliance signals for ${item.shortName} are not enabled yet.
                       </div>
-                      <div class="small text-muted mt-auto">Planned next step: add standards-specific signal mapping and gap extraction.</div>
+                      <div class="small text-muted mt-auto">You can continue using live frameworks for current evidence generation.</div>
                     `}
                   </div>
                 </div>
@@ -521,9 +526,11 @@ export class CompliancePage extends Component {
             ` : this.state.reportError && !report ? html`
               <div class="empty py-4">
                 <div class="empty-title">No compliance report for this scope yet</div>
-                <div class="empty-subtitle text-muted">Generate a dated compliance report for a single framework or all live standards.</div>
+                <div class="empty-subtitle text-muted">No report exists for ${this.state.selectedDate} (${frameworkLabel}).</div>
                 <div class="empty-action mt-3">
-                  <button class="btn btn-primary" onClick=${() => this.generateReport()}>Generate report now</button>
+                  <button class="btn btn-primary" onClick=${() => this.generateReport()} disabled=${this.state.generatingReport}>
+                    ${this.state.generatingReport ? 'Generating…' : 'Generate report now'}
+                  </button>
                 </div>
               </div>
             ` : report ? html`
@@ -559,9 +566,9 @@ export class CompliancePage extends Component {
         <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #fff8e6 0%, #fff2cc 100%);">
           <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
             <div>
-              <div class="text-uppercase small fw-bold text-warning mb-1">Separate from posture</div>
-              <h3 class="mb-1">Security posture should not be the only compliance report</h3>
-              <div class="text-muted">This page now owns standards alignment and compliance reporting. The posture page remains useful for operational risk, vulnerabilities, and remediation velocity.</div>
+              <div class="text-uppercase small fw-bold text-warning mb-1">Workflow</div>
+              <h3 class="mb-1">Use Compliance for controls, Mission Briefing for risk narrative</h3>
+              <div class="text-muted">Compliance focuses on standards and evidence trails. Mission Briefing packages security, compliance, and inventory into executive-ready reports.</div>
             </div>
             <div class="d-flex gap-2">
               <a href="#!/mission-brief" class="btn btn-outline-primary">Open Mission Briefing</a>

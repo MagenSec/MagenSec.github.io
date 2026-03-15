@@ -12,6 +12,11 @@ function todayUtcInputDate() {
     return new Date().toISOString().slice(0, 10);
 }
 
+function toCompactDate(value) {
+    if (!value) return null;
+    return String(value).replaceAll('-', '');
+}
+
 /**
  * AI-Based Security Posture Page
  * Legacy AI report generation and viewing via /ai/reports endpoints
@@ -60,13 +65,15 @@ export class AIPosturePage extends Component {
         this.setState({ loading: true, error: null, pollingForReport: false, currentReport: null });
 
         try {
-            const params = this.getReportQueryParams();
-            // Try latest persisted report
-            const response = await api.getLatestAIReport(currentOrg.orgId, params);
+            const params = this.getReportLookupParams();
+            const reportDate = toCompactDate(this.state.selectedDate);
+            const response = reportDate
+                ? await api.getAIReportByDate(currentOrg.orgId, reportDate, params)
+                : await api.getLatestAIReport(currentOrg.orgId, this.getReportQueryParams());
             
             // Success - extract report data from unified envelope
             const reportData = response?.data || response;
-            if (reportData?.report) {
+            if (reportData?.report || reportData?.reportId || reportData?.statusMessage || reportData?.enqueuedAt) {
                 // Stop polling if we have a report
                 if (this.pollInterval) {
                     clearInterval(this.pollInterval);
@@ -76,7 +83,7 @@ export class AIPosturePage extends Component {
                     currentReport: reportData, 
                     loading: false, 
                     error: null,
-                    pollingForReport: false
+                    pollingForReport: !reportData?.report && !!(reportData?.statusMessage || reportData?.enqueuedAt)
                 });
                 return;
             }
@@ -144,7 +151,11 @@ export class AIPosturePage extends Component {
             }
 
             try {
-                const response = await api.getLatestAIReport(currentOrg.orgId, this.getReportQueryParams());
+                const reportDate = toCompactDate(this.state.selectedDate);
+                const params = this.getReportLookupParams();
+                const response = reportDate
+                    ? await api.getAIReportByDate(currentOrg.orgId, reportDate, params)
+                    : await api.getLatestAIReport(currentOrg.orgId, this.getReportQueryParams());
                 const reportData = response?.data || response;
                 
                 if (reportData?.report) {
@@ -297,6 +308,18 @@ export class AIPosturePage extends Component {
         const params = {
             reportKind: this.state.selectedReportKind,
             date: this.state.selectedDate,
+        };
+
+        if (this.state.selectedReportKind === COMPLIANCE_REPORT_KIND) {
+            params.framework = this.state.selectedFramework;
+        }
+
+        return params;
+    }
+
+    getReportLookupParams() {
+        const params = {
+            reportKind: this.state.selectedReportKind,
         };
 
         if (this.state.selectedReportKind === COMPLIANCE_REPORT_KIND) {
@@ -555,9 +578,9 @@ export class AIPosturePage extends Component {
 
         if (!currentReport) {
             return html`
-                <div class="text-center text-muted py-5">
-                    <div class="mb-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <div class="empty py-5">
+                    <div class="empty-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="52" height="52" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                             <path d="M14 3v4a1 1 0 0 0 1 1h4" />
                             <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
@@ -566,8 +589,15 @@ export class AIPosturePage extends Component {
                             <line x1="9" y1="17" x2="15" y2="17" />
                         </svg>
                     </div>
-                    <h3>No Report Available</h3>
-                    <p class="text-muted">Generate the selected report scope for the selected UTC day.</p>
+                    <p class="empty-title">No report found for this date and scope</p>
+                    <p class="empty-subtitle text-muted">
+                        Date: ${this.state.selectedDate} · Type: ${this.state.selectedReportKind}${this.state.selectedReportKind === COMPLIANCE_REPORT_KIND ? ` · Framework: ${this.state.selectedFramework}` : ''}
+                    </p>
+                    <div class="empty-action">
+                        <button class="btn btn-primary" onClick=${() => this.generateReport()} disabled=${this.state.generating || this.state.pollingForReport}>
+                            ${this.state.generating || this.state.pollingForReport ? 'Generating…' : 'Generate This Report'}
+                        </button>
+                    </div>
                 </div>
             `;
         }
@@ -647,6 +677,12 @@ export class AIPosturePage extends Component {
         return html`
             <div class="page-header d-print-none mb-3">
                 <div class="container">
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <a href="#!/mission-brief" class="btn btn-sm btn-primary">Mission Briefing</a>
+                        <a href="#!/compliance" class="btn btn-sm btn-outline-primary">Compliance Command</a>
+                        <a href="#!/audit" class="btn btn-sm btn-outline-primary">Audit Trail</a>
+                        <a href="#!/reports" class="btn btn-sm btn-outline-primary">Dispatch Center</a>
+                    </div>
                     <div class="row g-2 align-items-center">
                         <div class="col">
                             <h2 class="page-title">
@@ -722,8 +758,8 @@ export class AIPosturePage extends Component {
                     <div class="alert alert-info d-flex align-items-center mb-4">
                         <span class="spinner-border spinner-border-sm me-3"></span>
                         <div>
-                            <strong>Generating Report...</strong>
-                            <p class="mb-0 small">Please wait while we analyze your security posture. This may take up to 30 seconds.</p>
+                            <strong>Generating Report…</strong>
+                            <p class="mb-0 small">Preparing ${this.state.selectedReportKind} for ${this.state.selectedDate}. Keep this page open; it will load automatically when ready.</p>
                         </div>
                     </div>
                 ` : null}
