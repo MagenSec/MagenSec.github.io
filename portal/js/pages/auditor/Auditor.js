@@ -218,6 +218,137 @@ export class AuditorPage extends Component {
     return `${days}d ago`;
   }
 
+  getReadinessTone(percent) {
+    if (percent >= 80) return { text: 'Deployment Ready', color: 'success' };
+    if (percent >= 60) return { text: 'Needs Hardening', color: 'warning' };
+    return { text: 'At Risk', color: 'danger' };
+  }
+
+  renderCommandCenter(data, cachedAt) {
+    const compliance = data?.businessOwner?.complianceCard || {};
+    const score = data?.securityScore || {};
+    const risk = data?.businessOwner?.riskSummary || {};
+    const pct = compliance?.percent || 0;
+    const readiness = this.getReadinessTone(pct);
+    const asOf = this.formatCachedAt(cachedAt);
+
+    return html`
+      <div class="container-xl mb-4">
+        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #0b3b66 0%, #145da0 45%, #1f7fbf 100%); color: #fff;">
+          <div class="card-body p-4 p-md-5">
+            <div class="row g-4 align-items-center">
+              <div class="col-lg-8">
+                <div class="text-uppercase small fw-bold mb-2" style="letter-spacing: .08em; opacity: .9;">Auditor Command Center</div>
+                <h2 class="mb-2" style="font-size: 2rem; line-height: 1.15;">Run Evidence Ops, Engage AI, and Publish Executive-Ready Findings</h2>
+                <p class="mb-3" style="opacity: .9; max-width: 58ch;">
+                  This console is optimized for external audit flow: assess readiness, validate controls, review command chronology,
+                  and generate stakeholder-grade briefings in one pass.
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                  <a href="#!/analyst" class="btn btn-light">
+                    <i class="ti ti-message-chatbot me-1"></i> Ask AI Analyst
+                  </a>
+                  <a href="#!/mission-brief" class="btn btn-outline-light">
+                    <i class="ti ti-brain me-1"></i> Build Mission Brief
+                  </a>
+                  <a href="#!/reports" class="btn btn-outline-light">
+                    <i class="ti ti-chart-bar me-1"></i> Open Reports
+                  </a>
+                </div>
+              </div>
+
+              <div class="col-lg-4">
+                <div class="card bg-white text-dark border-0 shadow-sm">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <div class="text-muted small">Current Readiness</div>
+                        <div class="h2 mb-0">${pct}%</div>
+                      </div>
+                      <span class="badge bg-${readiness.color} text-white">${readiness.text}</span>
+                    </div>
+                    <div class="progress progress-sm mb-2">
+                      <div class="progress-bar bg-${readiness.color}" style="width: ${pct}%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted small">
+                      <span>Security Grade: ${score?.grade || '—'}</span>
+                      <span>Risk: ${risk?.riskScore || '—'}</span>
+                    </div>
+                    ${asOf ? html`<div class="text-muted small mt-2">Snapshot: ${asOf}</div>` : ''}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderActionLanes(data) {
+    const score = data?.securityScore || {};
+    const compliance = data?.businessOwner?.complianceCard || {};
+    const urgentActions = score?.urgentActionCount || 0;
+
+    return html`
+      <div class="container-xl mb-4">
+        <div class="row g-3">
+          <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <span class="avatar avatar-sm bg-primary text-white"><i class="ti ti-file-search"></i></span>
+                  <div class="fw-semibold">Command Log Review</div>
+                </div>
+                <div class="text-muted small mb-3">Inspect chronological events and user actions before close-out.</div>
+                <a href="#!/audit" class="btn btn-sm btn-outline-primary">Open Command Log</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <span class="avatar avatar-sm bg-orange text-white"><i class="ti ti-certificate"></i></span>
+                  <div class="fw-semibold">Controls Validation</div>
+                </div>
+                <div class="text-muted small mb-3">Compliance posture at ${compliance?.percent || 0}% with framework-level drilldown.</div>
+                <a href="#!/compliance" class="btn btn-sm btn-outline-warning">Review Compliance</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <span class="avatar avatar-sm bg-success text-white"><i class="ti ti-message-chatbot"></i></span>
+                  <div class="fw-semibold">AI Co-Auditor</div>
+                </div>
+                <div class="text-muted small mb-3">Query evidence gaps, summarize issues, and draft executive findings fast.</div>
+                <a href="#!/analyst" class="btn btn-sm btn-outline-success">Engage AI Analyst</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <span class="avatar avatar-sm bg-danger text-white"><i class="ti ti-alert-triangle"></i></span>
+                  <div class="fw-semibold">Priority Risks</div>
+                </div>
+                <div class="text-muted small mb-3">${urgentActions} urgent action(s) currently open and impacting readiness.</div>
+                <a href="#!/security" class="btn btn-sm btn-outline-danger">Triage Security</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   renderReadinessComposite(data, cachedAt) {
     const compliance = data?.businessOwner?.complianceCard || {};
     const score = data?.securityScore || {};
@@ -276,6 +407,12 @@ export class AuditorPage extends Component {
                 ${compliance.gapDescription}
               </div>
             ` : ''}
+
+            <div class="mt-3 d-flex flex-wrap gap-2 justify-content-center">
+              <a href="#!/compliance" class="btn btn-sm btn-outline-${complianceColor}">Validate Controls</a>
+              <a href="#!/mission-brief" class="btn btn-sm btn-outline-primary">Generate Briefing</a>
+              <a href="#!/reports" class="btn btn-sm btn-outline-secondary">Executive Reports</a>
+            </div>
           </div>
         </div>
       </div>
@@ -285,6 +422,8 @@ export class AuditorPage extends Component {
   renderEvidenceChecklist(data) {
     const items = buildEvidenceChecklist(data);
     const completeCount = items.filter(i => i.status === 'complete').length;
+    const partialCount = items.filter(i => i.status === 'partial').length;
+    const missingCount = items.filter(i => i.status === 'missing').length;
     const totalCount = items.length;
 
     return html`
@@ -293,7 +432,20 @@ export class AuditorPage extends Component {
           <div class="card-header">
             <h3 class="card-title">Evidence Checklist</h3>
             <div class="card-options">
-              <span class="badge bg-secondary-lt text-muted">${completeCount}/${totalCount} items complete</span>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-success-lt text-success">${completeCount} complete</span>
+                <span class="badge bg-warning-lt text-warning">${partialCount} partial</span>
+                <span class="badge bg-danger-lt text-danger">${missingCount} missing</span>
+              </div>
+            </div>
+          </div>
+          <div class="card-body pb-2">
+            <div class="d-flex justify-content-between text-muted small mb-1">
+              <span>Checklist completion</span>
+              <span>${completeCount}/${totalCount}</span>
+            </div>
+            <div class="progress progress-sm">
+              <div class="progress-bar bg-success" style="width: ${totalCount > 0 ? (completeCount / totalCount) * 100 : 0}%"></div>
             </div>
           </div>
           <div class="list-group list-group-flush">
@@ -332,9 +484,9 @@ export class AuditorPage extends Component {
       <div class="container-xl mb-4">
         <div class="card border-0 shadow-sm">
           <div class="card-header">
-            <h3 class="card-title">Recent Audit Events</h3>
+            <h3 class="card-title">Recent Command Events</h3>
             <div class="card-options">
-              <a href="#!/audit" class="btn btn-sm btn-outline-secondary">View full log →</a>
+              <a href="#!/audit" class="btn btn-sm btn-outline-secondary">View command log →</a>
             </div>
           </div>
 
@@ -359,7 +511,10 @@ export class AuditorPage extends Component {
                       </span>
                     </div>
                     <div class="col">
-                      <div class="fw-medium small">${event.eventType || 'Event'}</div>
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary-lt text-primary">${event.eventType || 'Event'}</span>
+                        <span class="fw-medium small">${event.entityType || 'Record'}</span>
+                      </div>
                       <div class="text-muted small">${event.description || event.performedBy || '—'}</div>
                     </div>
                     <div class="col-auto text-muted small">${this.formatTimestamp(event.timestamp)}</div>
@@ -380,16 +535,16 @@ export class AuditorPage extends Component {
           <div class="card-body">
             <div class="row align-items-center">
               <div class="col">
-                <h4 class="mb-1">Download Audit Package</h4>
+                <h4 class="mb-1">Evidence Export Pack</h4>
                 <p class="text-muted mb-0">
                   Export a complete audit package including the posture snapshot, compliance evidence,
                   and device inventory for external auditors.
                 </p>
               </div>
               <div class="col-auto">
-                <button class="btn btn-secondary" disabled title="Audit package export — coming soon">
+                <button class="btn btn-secondary" disabled title="Evidence export pack — coming soon">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><polyline points="7 11 12 16 17 11" /><line x1="12" y1="4" x2="12" y2="16" /></svg>
-                  Download Audit Package
+                  Download Evidence Pack
                 </button>
                 <span class="badge bg-secondary-lt text-secondary ms-2">Coming soon</span>
               </div>
@@ -433,7 +588,7 @@ export class AuditorPage extends Component {
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 12l2 2l4 -4" /></svg>
                   Auditor Dashboard
                 </h2>
-                <div class="page-subtitle text-muted">Audit readiness, evidence status, and recent activity</div>
+                <div class="page-subtitle text-muted">High-impact console for auditor workflows, AI analysis, and executive-ready evidence.</div>
               </div>
               <div class="col-auto">
                 <a href="#!/audit" class="btn btn-outline-secondary me-2">
@@ -449,6 +604,8 @@ export class AuditorPage extends Component {
           </div>
         </div>
 
+        ${this.renderCommandCenter(data, cachedAt)}
+        ${this.renderActionLanes(data)}
         ${this.renderReadinessComposite(data, cachedAt)}
         ${this.renderEvidenceChecklist(data)}
         ${this.renderRecentEvents()}
