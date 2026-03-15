@@ -268,19 +268,14 @@
                                 </a>
                             </li>
 
-                            <!-- Dashboards -->
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                            <!-- Security -->
+                            <li class="nav-item">
+                                <a class="nav-link" href="#!/security">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
                                     </span>
-                                    <span class="nav-link-title">Dashboards</span>
+                                    <span class="nav-link-title">Security</span>
                                 </a>
-                                <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="#!/security"><i class="ti ti-shield-check me-2"></i>Security</a>
-                                    <a class="dropdown-item business-license-only" href="#!/compliance" data-business-tooltip="Feature available in Business License only"><i class="ti ti-certificate me-2"></i>Compliance</a>
-                                    <a class="dropdown-item business-license-only" href="#!/auditor" data-business-tooltip="Feature available in Business License only"><i class="ti ti-file-search me-2"></i>Audit</a>
-                                </div>
                             </li>
 
                             <!-- Operations -->
@@ -297,14 +292,21 @@
                                 </div>
                             </li>
 
-                            <!-- Reports -->
-                            <li class="nav-item business-license-only" data-business-tooltip="Feature available in Business License only">
-                                <a class="nav-link" href="#!/reports">
+                            <!-- Insights (business only) -->
+                            <li class="nav-item dropdown business-license-only" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" /><path d="M9.7 17l4.6 0" /></svg>
                                     </span>
-                                    <span class="nav-link-title">Reports</span>
+                                    <span class="nav-link-title">Insights</span>
                                 </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/mission-brief"><i class="ti ti-brain me-2"></i>Mission Brief</a>
+                                    <a class="dropdown-item" href="#!/compliance"><i class="ti ti-certificate me-2"></i>Compliance</a>
+                                    <a class="dropdown-item" href="#!/reports"><i class="ti ti-chart-bar me-2"></i>Reports</a>
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item" href="#!/auditor"><i class="ti ti-file-search me-2"></i>Audit</a>
+                                </div>
                             </li>
 
                             <!-- Settings (dropdown) -->
@@ -355,9 +357,6 @@
                                     </a>
                                     <a class="dropdown-item" href="#!/posture">
                                         <i class="ti ti-shield-check me-2"></i>Security Posture
-                                    </a>
-                                    <a class="dropdown-item" href="#!/mission-brief">
-                                        <i class="ti ti-brain me-2"></i>Mission Briefing
                                     </a>
                                     <a class="dropdown-item" href="#!/vulnerabilities">
                                         <i class="ti ti-bug me-2"></i>Vulnerabilities
