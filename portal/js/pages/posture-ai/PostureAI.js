@@ -125,11 +125,26 @@ export class AIPosturePage extends Component {
             logger.info('[AI Posture] Report generation queued, starting polling...');
             this.startPolling();
         } catch (err) {
-            logger.error('[AI Posture] Auto-generation failed:', err);
-            this.setState({
-                error: err?.message || 'Failed to generate report automatically',
-                pollingForReport: false
-            });
+            logger.error('[AI Posture] Auto-generation request failed:', err);
+            // The server may still be running the generation even if the HTTP request
+            // timed out or the connection dropped (e.g., 504 from Container Apps ingress).
+            // Start polling so the report is picked up when it completes.
+            const likelyStillGenerating =
+                err?.status === 0 ||
+                err?.status === 503 ||
+                err?.status === 504 ||
+                err?.message?.includes('NetworkError') ||
+                err?.message?.includes('Failed to fetch') ||
+                err?.message?.includes('Network error');
+            if (likelyStillGenerating) {
+                logger.info('[AI Posture] Generate request timed out — server may still be working. Starting poll...');
+                this.startPolling();
+            } else {
+                this.setState({
+                    error: err?.message || 'Failed to generate report automatically',
+                    pollingForReport: false
+                });
+            }
         }
     }
 
