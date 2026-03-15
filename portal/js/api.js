@@ -165,7 +165,7 @@ export class ApiClient {
             if (state.attempts >= this.degradedRetryMaxAttempts) {
                 this.degradedRetryState.delete(cacheKey);
 
-                toast.warning('Live security data is delayed. Showing cached snapshot. Please refresh later.');
+                toast.warning('Security signal is delayed. Showing latest cached intelligence. Please refresh later.');
                 window.dispatchEvent(new CustomEvent('api:degraded-alert', {
                     detail: {
                         cacheKey,

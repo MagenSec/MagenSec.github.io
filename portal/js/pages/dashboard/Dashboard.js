@@ -17,6 +17,7 @@ import { orgContext } from '@orgContext';
 import { SavingsCalculator } from '@components/SavingsCalculator.js';
 import { CveDetailsModal } from '@components/CveDetailsModal.js';
 import { SWRHelper } from '@utils/SWRHelper.js';
+import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
 
 // Shared components
 import { StatusBadge, getConnectionStatus, StatusDot } from '@components/shared/StatusBadge.js';
@@ -55,6 +56,7 @@ export class DashboardPage extends Component {
             lastScan: 'Never',
             nextScan: 'Pending',
             generatedAt: null,
+            reportCard: null,
             refreshInterval: null,
             activeTab: 'overview', // New: tab state (overview | analysis | findings)
             postureSnapshot: null,
@@ -74,6 +76,33 @@ export class DashboardPage extends Component {
         this.radarChartEl = null;
         this.savingsChart = null;
         this.savingsChartEl = null;
+    }
+
+    getOfficerNoteDismissKey(orgId) {
+        return `officer_note_security_${orgId}`;
+    }
+
+    isOfficerNoteDismissed(orgId) {
+        if (!orgId) return false;
+        try {
+            return sessionStorage.getItem(this.getOfficerNoteDismissKey(orgId)) === '1';
+        } catch {
+            return false;
+        }
+    }
+
+    dismissOfficerNote() {
+        const user = auth.getUser();
+        const currentOrg = orgContext.getCurrentOrg();
+        const orgId = currentOrg?.orgId || user?.email;
+        if (orgId) {
+            try {
+                sessionStorage.setItem(this.getOfficerNoteDismissKey(orgId), '1');
+            } catch {
+                // Best effort persistence.
+            }
+        }
+        this.setState({ officerNoteDismissed: true });
     }
 
     ensureOrgScopedCache(orgId) {
@@ -156,6 +185,8 @@ export class DashboardPage extends Component {
             title: action.title || '',
             description: action.description || '',
             severity: severityFromUrgency(action.urgency),
+            urgency: action.urgency || '',
+            sla: action.deadlineText || action.sla || '',
             ctaLabel: 'View details',
             ctaHref: action.actionUrl || '#!/posture',
             affectedDevices: Array.isArray(action.affectedDevices) ? action.affectedDevices : [],
@@ -251,6 +282,7 @@ export class DashboardPage extends Component {
                 total: totalDevices
             },
             actions: mappedActions,
+            reportCard: payload.reportCard || null,
             generatedAt: payload.generatedAt || new Date().toISOString()
         };
     }
@@ -352,6 +384,7 @@ export class DashboardPage extends Component {
             licenseInfo,
             coverage,
             actions,
+            reportCard: normalizedDashboard.reportCard || null,
             generatedAt
         };
     }
@@ -372,6 +405,7 @@ export class DashboardPage extends Component {
 
             const orgId = currentOrg?.orgId || user.email;
             this.ensureOrgScopedCache(orgId);
+            const officerNoteDismissed = this.isOfficerNoteDismissed(orgId);
 
             // Step 1: Try cache first (skip if forcing refresh)
             if (!forceRefresh) {
@@ -381,7 +415,8 @@ export class DashboardPage extends Component {
                     this.setState({
                         ...this.buildDashboardState(cached.data),
                         loading: false,
-                        isRefreshingInBackground: true
+                        isRefreshingInBackground: true,
+                        officerNoteDismissed
                     });
                     // Step 2: Background refresh with cached-summary parameter
                     this.loadFreshDashboardData(orgId);
@@ -405,7 +440,8 @@ export class DashboardPage extends Component {
                     ...this.buildDashboardState(dashboard),
                     trendSnapshots,
                     loading: false,
-                    isRefreshingInBackground: false
+                    isRefreshingInBackground: false,
+                    officerNoteDismissed
                 });
                 
                 // Auto-load posture snapshot in background for actions widget
@@ -438,7 +474,8 @@ export class DashboardPage extends Component {
                 this.setState({
                     ...this.buildDashboardState(dashboard),
                     trendSnapshots,
-                    isRefreshingInBackground: false
+                    isRefreshingInBackground: false,
+                    officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
                 });
 
                 this.loadPostureSnapshotInBackground();
@@ -1336,15 +1373,15 @@ export class DashboardPage extends Component {
                 <div class="alert alert-warning">
                     <div class="d-flex align-items-center">
                         <div class="flex-fill">
-                            <h4 class="alert-title">Posture Snapshot Not Available</h4>
-                            <div class="text-secondary">The security posture snapshot hasn't been generated yet. Click the button to generate one now.</div>
+                            <h4 class="alert-title">Situation Report Not Available</h4>
+                            <div class="text-secondary">The security situation report has not been generated yet. Click below to generate one now.</div>
                         </div>
                         <div class="ms-3">
                             <button 
                                 class="btn btn-primary"
                                 onClick=${() => this.forcePostureGeneration()}
                             >
-                                Generate Snapshot
+                                Generate Situation Report
                             </button>
                         </div>
                     </div>
@@ -1367,7 +1404,7 @@ export class DashboardPage extends Component {
                                 <button 
                                     class="btn btn-sm btn-ghost-primary me-2"
                                     onClick=${() => this.forcePostureGeneration()}
-                                    title="Refresh snapshot"
+                                    title="Refresh situation report"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                                     Refresh
@@ -1484,7 +1521,7 @@ export class DashboardPage extends Component {
             return html`
                 <div class="alert alert-info">
                     <h4 class="alert-title">No Findings</h4>
-                    <div class="text-secondary">No security findings available. Snapshot may still be generating.</div>
+                    <div class="text-secondary">No security findings available. Situation report may still be generating.</div>
                 </div>
             `;
         }
@@ -2099,10 +2136,15 @@ export class DashboardPage extends Component {
     renderSecurityOfficerBanner() {
         if (this.state.officerNoteDismissed) return null;
 
-        const { securityScore, securityGrade, threatSummary, actions } = this.state;
+        const { securityScore, securityGrade, threatSummary, actions, reportCard } = this.state;
         const critical = threatSummary?.critical || 0;
         const high     = threatSummary?.high || 0;
         const score    = securityScore || 0;
+
+        const { signalLine, deliveryLine } = buildOfficerNoteStatusCopy({
+            signalUpdatedText: this.state.lastScan || 'recently',
+            reportCard
+        });
 
         // Only show if there's something noteworthy (grade C or below, or any critical/high)
         if (score >= 80 && critical === 0 && high === 0) return null;
@@ -2117,7 +2159,7 @@ export class DashboardPage extends Component {
         // Top action
         const topAction = actions?.[0];
         const topActionText = topAction
-            ? `Top action: ${topAction.title}${topAction.sla ? ` (${topAction.sla})` : ''}`
+            ? `${topAction.title}${topAction.sla ? ` (${topAction.sla})` : ''}`
             : null;
 
         // Situation line
@@ -2182,19 +2224,20 @@ export class DashboardPage extends Component {
                                 ${situationLine}
                             </div>
                             ${topActionText ? html`
-                                <div style="font-size: 12px; color: #374151; margin-bottom: 4px;">
+                                <div style="font-size: 12px; color: #374151; margin-bottom: 4px; overflow-wrap: anywhere; word-break: break-word;">
                                     <strong>Priority:</strong> ${topActionText}
                                 </div>
                             ` : ''}
                             <div style="font-size: 11px; color: #6b7280;">
-                                Score ${score}/100 · Updated ${this.state.lastScan || 'recently'}
+                                Score ${score}/100 · ${signalLine}
+                                <br />${deliveryLine}
                                 · <a href="#!/posture" style="color: ${accentColor}; font-weight: 600;">View full report →</a>
                             </div>
                         </div>
                         <!-- Dismiss -->
                         <button
                             type="button"
-                            onClick=${() => this.setState({ officerNoteDismissed: true })}
+                            onClick=${() => this.dismissOfficerNote()}
                             style="
                                 background: none;
                                 border: none;

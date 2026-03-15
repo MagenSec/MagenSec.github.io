@@ -7,6 +7,7 @@ import { auth } from '@auth';
 import { api } from '@api';
 import { orgContext } from '@orgContext';
 import PersonaNav from './PersonaNav.js';
+import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
 
 const { html, Component } = window;
 const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
@@ -103,6 +104,32 @@ export default class UnifiedDashboard extends Component {
     }
   }
 
+  getOfficerNoteDismissKey(orgId) {
+    return `officer_note_unified_${orgId}`;
+  }
+
+  isOfficerNoteDismissed(orgId) {
+    if (!orgId) return false;
+    try {
+      return sessionStorage.getItem(this.getOfficerNoteDismissKey(orgId)) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  dismissOfficerNote(orgId) {
+    if (!orgId) {
+      this.setState({ officerNoteDismissed: true });
+      return;
+    }
+    try {
+      sessionStorage.setItem(this.getOfficerNoteDismissKey(orgId), '1');
+    } catch (_) {
+      // Best effort persistence.
+    }
+    this.setState({ officerNoteDismissed: true, officerNoteOpen: false });
+  }
+
   async loadDashboard({ refresh, background, skipCache } = {}) {
     try {
       const isBackground = !!background;
@@ -135,7 +162,8 @@ export default class UnifiedDashboard extends Component {
             isRefreshingInBackground: true,
             error: null,
             refreshError: null,
-            personaSheetOpen: prevState.personaSheetOpen || !isBackground
+            personaSheetOpen: prevState.personaSheetOpen || !isBackground,
+            officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
           }));
 
           // If cached fleet counters are stale/invalid, hydrate from devices API.
@@ -171,7 +199,8 @@ export default class UnifiedDashboard extends Component {
         refreshing: false,
         isRefreshingInBackground: false,
         // Auto-open persona sheet on first data load so there's no blank area
-        personaSheetOpen: prevState.personaSheetOpen || !isBackground
+        personaSheetOpen: prevState.personaSheetOpen || !isBackground,
+        officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
       }));
     } catch (err) {
       console.error('Failed to load unified dashboard:', err);
@@ -472,7 +501,7 @@ export default class UnifiedDashboard extends Component {
         <div class="alert alert-info mb-4 border-0 shadow-sm rounded-3">
           <div class="d-flex align-items-center justify-content-center">
             <div class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></div>
-            <div>Refreshing cached snapshot...</div>
+            <div>Refreshing signal intelligence...</div>
           </div>
         </div>
       `;
@@ -481,7 +510,7 @@ export default class UnifiedDashboard extends Component {
     return html`
       <div class="alert alert-warning mb-4 border-0 shadow-sm rounded-3">
         <div class="d-flex align-items-center justify-content-center gap-3">
-          <div>Displaying cached snapshot. ${refreshError}</div>
+          <div>Signal is temporarily delayed. Showing latest cached intelligence. ${refreshError}</div>
           <button class="btn btn-warning btn-sm btn-pill" onClick=${() => this.refreshDashboard()}>Try Again</button>
         </div>
       </div>
@@ -1245,11 +1274,41 @@ export default class UnifiedDashboard extends Component {
     const grade = score.grade || '—';
     const critical = threats.criticalCveCount || 0;
     const high = threats.highCveCount || 0;
+    const reportCard = data.reportCard || {};
+    const reportGeneratedAt = reportCard.generatedAt ? new Date(reportCard.generatedAt) : null;
+
+    const user = auth.getUser();
+    const currentOrg = orgContext.getCurrentOrg();
+    const orgId = currentOrg?.orgId || user?.email;
 
     // Only show when there's something to flag
     if (secScore >= 80 && critical === 0 && high === 0) return null;
 
     const urgentAction = actions.find(a => a.urgency === 'critical' || a.urgency === 'urgent') || actions[0];
+    const urgencyRaw = String(urgentAction?.urgency || '').toLowerCase();
+    let urgencyLabel = (urgentAction?.urgency || 'action').toString().toUpperCase();
+    if ((critical > 0 || high > 0) && (urgencyRaw === '' || urgencyRaw === 'routine' || urgencyRaw === 'low')) {
+      urgencyLabel = critical > 0 ? 'IMMEDIATE' : 'HIGH';
+    }
+
+    const titleRaw = String(urgentAction?.title || '').trim();
+    const actionDeviceMatch = titleRaw.match(/\son\s(\d+)\sdevice(s)?\.?$/i);
+    const actionDeviceCount = actionDeviceMatch ? Number(actionDeviceMatch[1]) : 0;
+    const actionTitle = actionDeviceMatch
+      ? titleRaw.replace(/\son\s\d+\sdevice(s)?\.?$/i, '').trim()
+      : titleRaw;
+
+    const descRaw = String(urgentAction?.description || '').trim();
+    const descDeviceMatch = descRaw.match(/^Affects\s(\d+)\sdevice(s)?\.?$/i);
+    const descDeviceCount = descDeviceMatch ? Number(descDeviceMatch[1]) : 0;
+
+    const shouldHideDescription = !descRaw
+      || (descDeviceCount > 0 && actionDeviceCount > 0 && descDeviceCount === actionDeviceCount);
+
+    const normalizedDescription = shouldHideDescription ? '' : descRaw;
+    const targetDeviceLine = actionDeviceCount > 0
+      ? `Targets ${actionDeviceCount} device${actionDeviceCount === 1 ? '' : 's'}.`
+      : '';
 
     const isGreenGrade = ['A+','A','A-','B+','B','B-'].includes(grade);
     const isAmberGrade = ['C+','C','C-'].includes(grade);
@@ -1278,7 +1337,11 @@ export default class UnifiedDashboard extends Component {
       : html`Security posture is below target threshold.`;
 
     const freshness = this.getFreshnessInfo();
-    const updatedText = freshness ? freshness.ageText : 'No scans yet';
+    const signalUpdatedText = freshness ? freshness.ageText : 'unknown';
+    const { signalLine, deliveryLine } = buildOfficerNoteStatusCopy({
+      signalUpdatedText,
+      reportCard
+    });
 
     const glowAnim = isGreenGrade ? 'gradeGlowGreen' : isAmberGrade ? 'gradeGlowAmber' : 'gradeGlowRed';
 
@@ -1325,7 +1388,18 @@ export default class UnifiedDashboard extends Component {
 
         <!-- Dark glassmorphism collapsed tab -->
         <div
+          role="button"
+          tabIndex="0"
+          aria-expanded=${officerNoteOpen ? 'true' : 'false'}
+          aria-controls="security-officer-note-panel"
+          aria-label="Toggle Security Officer note"
           onClick=${() => this.setState({ officerNoteOpen: !officerNoteOpen })}
+          onKeyDown=${(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              this.setState({ officerNoteOpen: !officerNoteOpen });
+            }
+          }}
           style="
             position: relative;
             display: flex;
@@ -1370,7 +1444,7 @@ export default class UnifiedDashboard extends Component {
 
           <!-- Dismiss X -->
           <button
-            onClick=${(e) => { e.stopPropagation(); this.setState({ officerNoteDismissed: true }); }}
+            onClick=${(e) => { e.stopPropagation(); this.dismissOfficerNote(orgId); }}
             style="
               position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
               background: none; border: none; color: rgba(255,255,255,0.2); cursor: pointer;
@@ -1378,11 +1452,12 @@ export default class UnifiedDashboard extends Component {
               transition: color 0.15s;
             "
             title="Dismiss"
+            aria-label="Dismiss Security Officer note"
           >✕</button>
         </div>
 
         <!-- Expanded body: absolute overlay below tab -->
-        <div style="
+        <div id="security-officer-note-panel" style="
           position: absolute; top: 100%; left: 0; right: 0;
           max-height: ${officerNoteOpen ? '560px' : '0'};
           overflow: hidden;
@@ -1424,8 +1499,14 @@ export default class UnifiedDashboard extends Component {
                 <div style="font-size: 0.88rem; font-weight: 600; color: rgba(255,255,255,0.88); line-height: 1.4; margin-bottom: 6px;">
                   ${situationNode}
                 </div>
-                <div style="font-size: 0.72rem; color: rgba(255,255,255,0.35);">
-                  · Score ${secScore}/100 · Updated ${updatedText}
+                <div style="font-size: 0.72rem; color: rgba(255,255,255,0.35); line-height: 1.4;">
+                  Score ${secScore}/100 · Grade ${grade}
+                </div>
+                <div style="font-size: 0.69rem; color: rgba(255,255,255,0.45); line-height: 1.45; margin-top: 4px;">
+                  ${signalLine}
+                </div>
+                <div style="font-size: 0.69rem; color: rgba(255,255,255,0.45); line-height: 1.45; margin-top: 2px;">
+                  ${deliveryLine}
                 </div>
               </div>
 
@@ -1440,10 +1521,11 @@ export default class UnifiedDashboard extends Component {
                       border: 1px solid rgba(217,119,6,0.25);
                       padding: 1px 6px; border-radius: 4px;
                       text-transform: uppercase; letter-spacing: 0.04em;
-                    ">${urgentAction.urgency || 'action'}</span>
-                    <div style="font-size: 0.83rem; font-weight: 600; color: rgba(255,255,255,0.88);">${urgentAction.title}</div>
+                    ">${urgencyLabel}</span>
+                    <div style="font-size: 0.83rem; font-weight: 600; color: rgba(255,255,255,0.88); overflow-wrap: anywhere; word-break: break-word;">Priority action: ${actionTitle || titleRaw}</div>
                   </div>
-                  ${urgentAction.description ? html`<div style="font-size: 0.75rem; color: rgba(255,255,255,0.5);">${urgentAction.description}</div>` : ''}
+                  ${normalizedDescription ? html`<div style="font-size: 0.75rem; color: rgba(255,255,255,0.5);">${normalizedDescription}</div>` : ''}
+                  ${targetDeviceLine ? html`<div style="font-size: 0.72rem; color: rgba(255,255,255,0.42); margin-top: 2px;">${targetDeviceLine}</div>` : ''}
                   ${urgentAction.deadlineText ? html`<div style="font-size: 0.72rem; color: rgba(255,255,255,0.4); margin-top: 2px;">${urgentAction.deadlineText}</div>` : ''}
                 </div>
               ` : ''}
