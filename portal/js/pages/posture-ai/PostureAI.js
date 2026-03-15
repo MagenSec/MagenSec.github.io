@@ -259,16 +259,37 @@ export class AIPosturePage extends Component {
             // Ensure subsequent reads reflect persisted storage, not stale in-memory GET cache.
             api.clearCache();
 
-            // Poll for the saved report and display when available.
-            this.setState({ generating: false, error: null });
-            this.startPolling();
+            const report = res?.data || res;
+            if (report?.report) {
+                // Server returned the full report synchronously
+                this.setState({ currentReport: report, generating: false, pollingForReport: false, error: null });
+            } else {
+                // Server queued the report (fire-and-forget) — poll /latest for completion
+                logger.info('[AI Posture] Report queued, starting polling...');
+                this.setState({ generating: false, pollingForReport: true, error: null });
+                this.startPolling();
+            }
         } catch (err) {
             logger.error('[AI Posture] Failed to generate report:', err);
-            this.setState({
-                error: err?.message || 'Failed to generate report',
-                generating: false,
-                pollingForReport: false
-            });
+            // CORS failures / infrastructure timeouts -> server may still be generating
+            const likelyStillGenerating =
+                err?.status === 0 ||
+                err?.status === 503 ||
+                err?.status === 504 ||
+                err?.message?.includes('NetworkError') ||
+                err?.message?.includes('Failed to fetch') ||
+                err?.message?.includes('Network error');
+            if (likelyStillGenerating) {
+                logger.info('[AI Posture] Generate request timed out - starting poll...');
+                this.setState({ generating: false, pollingForReport: true, error: null });
+                this.startPolling();
+            } else {
+                this.setState({
+                    error: err?.message || 'Failed to generate report',
+                    generating: false,
+                    pollingForReport: false
+                });
+            }
         }
     }
 
