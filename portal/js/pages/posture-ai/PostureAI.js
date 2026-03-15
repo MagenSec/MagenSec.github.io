@@ -680,7 +680,7 @@ export class AIPosturePage extends Component {
                     <div class="d-flex flex-wrap gap-2 mb-2">
                         <a href="#!/mission-brief" class="btn btn-sm btn-primary">Mission Briefing</a>
                         <a href="#!/compliance" class="btn btn-sm btn-outline-primary">Compliance Command</a>
-                        <a href="#!/audit" class="btn btn-sm btn-outline-primary">Audit Trail</a>
+                        <a href="#!/audit" class="btn btn-sm btn-outline-primary">Command Log</a>
                         <a href="#!/reports" class="btn btn-sm btn-outline-primary">Dispatch Center</a>
                     </div>
                     <div class="row g-2 align-items-center">
