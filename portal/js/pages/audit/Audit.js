@@ -2075,7 +2075,7 @@ export function AuditPage() {
                     <div class="row align-items-center">
                         <div class="col">
                             <div class="d-flex align-items-center gap-2">
-                                <h2 class="page-title mb-0">Audit</h2>
+                                <h2 class="page-title mb-0">Command Log</h2>
                                 ${(loading || loadingAnalytics) && !isRefreshingInBackground ? html`
                                     <span class="badge bg-azure-lt text-azure d-inline-flex align-items-center gap-1">
                                         <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>

@@ -408,7 +408,7 @@ export class AuditorPage extends Component {
         <div class="container-xl d-flex justify-content-center align-items-center" style="min-height: 60vh;">
           <div class="text-center">
             <div class="spinner-border text-primary mb-3" role="status"></div>
-            <div class="text-muted">Loading auditor dashboard...</div>
+            <div class="text-muted">Loading recon brief...</div>
           </div>
         </div>
       `;
@@ -431,14 +431,14 @@ export class AuditorPage extends Component {
               <div class="col">
                 <h2 class="page-title">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 12l2 2l4 -4" /></svg>
-                  Auditor Dashboard
+                  Recon Brief
                 </h2>
-                <div class="page-subtitle text-muted">Audit readiness, evidence status, and recent activity</div>
+                <div class="page-subtitle text-muted">Control readiness, evidence status, and recent activity</div>
               </div>
               <div class="col-auto">
                 <a href="#!/audit" class="btn btn-outline-secondary me-2">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 8v-2a2 2 0 0 1 2 -2h7l3 3v11a2 2 0 0 1 -2 2h-5" /><path d="M7 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M7 14v3l2 1" /></svg>
-                  Full Audit Log
+                  Full Command Log
                 </a>
                 <a href="#!/mission-brief" class="btn btn-primary">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><circle cx="12" cy="12" r="4" /></svg>

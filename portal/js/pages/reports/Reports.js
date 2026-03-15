@@ -33,8 +33,8 @@ const REPORTS = [
   },
   {
     id: 'audit',
-    title: 'Audit Report',
-    description: 'Activity timeline, member actions, device lifecycle events, and system audit log.',
+    title: 'Recon Report',
+    description: 'Activity timeline, member actions, device lifecycle events, and command log insights.',
     href: '#!/audit',
     viewHref: '#!/auditor',
     businessOnly: true,
