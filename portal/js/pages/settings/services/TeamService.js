@@ -38,9 +38,9 @@ export function getRoleDisplayName(role) {
         case 'Owner':
             return 'Owner';
         case 'ReadWrite':
-            return 'Read/Write';
+            return 'Co-Admin';
         case 'ReadOnly':
-            return 'Read-Only';
+            return 'Auditor';
         default:
             return role || 'Unknown';
     }
@@ -84,7 +84,7 @@ export function filterMembers(members, searchQuery) {
 }
 
 /**
- * Sort members by role priority (Owner → ReadWrite → ReadOnly)
+ * Sort members by role priority (Owner -> Co-Admin -> Auditor)
  */
 export function sortMembersByRole(members) {
     const rolePriority = { 'Owner': 0, 'ReadWrite': 1, 'ReadOnly': 2 };

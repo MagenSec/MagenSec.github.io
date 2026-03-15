@@ -1208,8 +1208,8 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                                 value=${teamRole}
                                 onChange=${(e) => setTeamRole(e.target.value)}
                             >
-                                <option value="ReadWrite">ReadWrite</option>
-                                <option value="ReadOnly">ReadOnly</option>
+                                <option value="ReadWrite">Co-Admin</option>
+                                <option value="ReadOnly">Auditor</option>
                             </select>
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
@@ -1224,8 +1224,8 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                         </div>
                     </div>
                     <div class="text-muted small mt-2">
-                        <strong>ReadWrite:</strong> Can manage devices, licenses, and view telemetry.
-                        <strong>ReadOnly:</strong> Can only view telemetry and device list.
+                        <strong>Co-Admin:</strong> Can manage devices, licenses, and view telemetry.
+                        <strong>Auditor:</strong> Can only view telemetry and device list.
                     </div>
                 </div>
             </div>
@@ -1276,8 +1276,8 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                                             onChange=${(e) => onUpdateRole(member.userId, e.target.value)}
                                             style="border: none; font-weight: 500;"
                                         >
-                                            <option value="ReadWrite">ReadWrite</option>
-                                            <option value="ReadOnly">ReadOnly</option>
+                                            <option value="ReadWrite">Co-Admin</option>
+                                            <option value="ReadOnly">Auditor</option>
                                         </select>
                                     </td>
                                     <td class="text-muted">

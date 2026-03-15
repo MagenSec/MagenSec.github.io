@@ -129,6 +129,9 @@ class AccountPage extends Component {
 
         const currentRole = orgContext.currentOrg?.role;
         const roleLabel   = currentRole || user.userType || 'EndUser';
+        const roleDisplay = roleLabel === 'ReadWrite' ? 'Co-Admin'
+                  : roleLabel === 'ReadOnly'  ? 'Auditor'
+                  : roleLabel;
         const roleBadge   = roleLabel === 'SiteAdmin'  ? 'bg-danger text-white'
                           : roleLabel === 'Owner'       ? 'bg-primary text-white'
                           : roleLabel === 'ReadWrite'   ? 'bg-azure text-white'
@@ -172,7 +175,7 @@ class AccountPage extends Component {
                                         </tr>
                                         <tr>
                                             <td class="text-muted">Role</td>
-                                            <td><span class="badge ${roleBadge}">${roleLabel}</span></td>
+                                            <td><span class="badge ${roleBadge}">${roleDisplay}</span></td>
                                         </tr>
                                         <tr>
                                             <td class="text-muted">Org ID</td>
