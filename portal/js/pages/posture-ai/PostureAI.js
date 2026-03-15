@@ -80,6 +80,22 @@ export class AIPosturePage extends Component {
                 return;
             }
             
+            // Transient network errors (e.g. container cold-start, 504 from ingress):
+            // start polling so we pick up the report as soon as the backend is ready.
+            const isTransient =
+                err?.status === 0 ||
+                err?.status === 503 ||
+                err?.status === 504 ||
+                err?.message?.includes('NetworkError') ||
+                err?.message?.includes('Failed to fetch') ||
+                err?.message?.includes('Network error');
+            if (isTransient) {
+                logger.info('[AI Posture] Transient network error on report load — starting poll...');
+                this.setState({ loading: false });
+                this.startPolling();
+                return;
+            }
+
             // Real error - show to user
             logger.error('[AI Posture] Failed to load report:', err);
             const rawMessage = err?.message || 'Failed to load AI reports';
