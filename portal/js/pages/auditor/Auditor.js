@@ -408,7 +408,7 @@ export class AuditorPage extends Component {
         <div class="container-xl d-flex justify-content-center align-items-center" style="min-height: 60vh;">
           <div class="text-center">
             <div class="spinner-border text-primary mb-3" role="status"></div>
-            <div class="text-muted">Loading recon brief...</div>
+            <div class="text-muted">Loading auditor dashboard...</div>
           </div>
         </div>
       `;
@@ -431,9 +431,9 @@ export class AuditorPage extends Component {
               <div class="col">
                 <h2 class="page-title">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 12l2 2l4 -4" /></svg>
-                  Recon Brief
+                  Auditor Dashboard
                 </h2>
-                <div class="page-subtitle text-muted">Control readiness, evidence status, and recent activity</div>
+                <div class="page-subtitle text-muted">Audit readiness, evidence status, and recent activity</div>
               </div>
               <div class="col-auto">
                 <a href="#!/audit" class="btn btn-outline-secondary me-2">

@@ -812,7 +812,7 @@ export default class UnifiedDashboard extends Component {
       business: 'Business Owner',
       it:       'IT Operations',
       security: 'Security',
-      auditor:  'Recon'
+      auditor:  'Auditor'
     };
 
     const PERSONA_CTAs = {
@@ -832,7 +832,7 @@ export default class UnifiedDashboard extends Component {
         { href: '#!/analyst',     label: 'Ask 🛡️MAGI', businessOnly: true }
       ],
       auditor: [
-        { href: '#!/auditor',     label: 'Recon Brief', businessOnly: true },
+        { href: '#!/auditor',     label: 'Auditor Dashboard', businessOnly: true },
         { href: '#!/audit',       label: 'Command Log' },
         { href: '#!/compliance',  label: 'Compliance', businessOnly: true }
       ]
