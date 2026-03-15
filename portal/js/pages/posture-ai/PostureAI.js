@@ -4,6 +4,14 @@ import { orgContext } from '@orgContext';
 
 const { html, Component } = window;
 
+const SECURITY_REPORT_KIND = 'security-posture';
+const COMPLIANCE_REPORT_KIND = 'compliance';
+const INVENTORY_REPORT_KIND = 'inventory';
+
+function todayUtcInputDate() {
+    return new Date().toISOString().slice(0, 10);
+}
+
 /**
  * AI-Based Security Posture Page
  * Legacy AI report generation and viewing via /ai/reports endpoints
@@ -16,6 +24,9 @@ export class AIPosturePage extends Component {
             generating: false,
             error: null,
             currentReport: null,
+            selectedReportKind: SECURITY_REPORT_KIND,
+            selectedDate: todayUtcInputDate(),
+            selectedFramework: 'all',
             selectedTemplate: 'full-posture',
             emailingSending: false,
             showEmailModal: false,
@@ -46,11 +57,12 @@ export class AIPosturePage extends Component {
             return;
         }
 
-        this.setState({ loading: true, error: null });
+        this.setState({ loading: true, error: null, pollingForReport: false, currentReport: null });
 
         try {
+            const params = this.getReportQueryParams();
             // Try latest persisted report
-            const response = await api.getLatestAIReport(currentOrg.orgId);
+            const response = await api.getLatestAIReport(currentOrg.orgId, params);
             
             // Success - extract report data from unified envelope
             const reportData = response?.data || response;
@@ -69,14 +81,22 @@ export class AIPosturePage extends Component {
                 return;
             }
 
-            // No report available - auto-trigger generation and start polling
-            logger.info('[AI Posture] No report found, auto-triggering generation');
-            await this.autoGenerateReport();
+            this.setState({
+                currentReport: null,
+                loading: false,
+                error: null,
+                pollingForReport: false
+            });
         } catch (err) {
             // Check if it's a NOT_FOUND error (no report exists yet - normal state)
             if (err?.response?.error === 'NOT_FOUND' || err?.message?.includes('No report')) {
-                logger.info('[AI Posture] No existing report found, auto-triggering generation');
-                await this.autoGenerateReport();
+                logger.info('[AI Posture] No existing report found for selected kind/date');
+                this.setState({
+                    currentReport: null,
+                    loading: false,
+                    error: null,
+                    pollingForReport: false
+                });
                 return;
             }
             
@@ -109,61 +129,6 @@ export class AIPosturePage extends Component {
         }
     }
 
-    async autoGenerateReport() {
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg || !currentOrg.orgId) return;
-
-        this.setState({ pollingForReport: true, loading: false });
-
-        try {
-            // Trigger report generation
-            logger.info('[AI Posture] Generating report...');
-            const generateResponse = await api.generateAIReport(currentOrg.orgId, {
-                prompt: 'Full security posture analysis',
-                model: 'heuristic',
-                waitSeconds: 30
-            });
-
-            // Check if generate API returned report immediately
-            const generateData = generateResponse?.data || generateResponse;
-            if (generateData?.report) {
-                // Report generated successfully - use it directly
-                logger.info('[AI Posture] Report generated successfully');
-                this.setState({ 
-                    currentReport: generateData, 
-                    pollingForReport: false,
-                    error: null
-                });
-                return;
-            }
-
-            // Generate API timed out or returned without report - start polling /latest
-            logger.info('[AI Posture] Report generation queued, starting polling...');
-            this.startPolling();
-        } catch (err) {
-            logger.error('[AI Posture] Auto-generation request failed:', err);
-            // The server may still be running the generation even if the HTTP request
-            // timed out or the connection dropped (e.g., 504 from Container Apps ingress).
-            // Start polling so the report is picked up when it completes.
-            const likelyStillGenerating =
-                err?.status === 0 ||
-                err?.status === 503 ||
-                err?.status === 504 ||
-                err?.message?.includes('NetworkError') ||
-                err?.message?.includes('Failed to fetch') ||
-                err?.message?.includes('Network error');
-            if (likelyStillGenerating) {
-                logger.info('[AI Posture] Generate request timed out — server may still be working. Starting poll...');
-                this.startPolling();
-            } else {
-                this.setState({
-                    error: err?.message || 'Failed to generate report automatically',
-                    pollingForReport: false
-                });
-            }
-        }
-    }
-
     startPolling() {
         // Clear any existing interval
         if (this.pollInterval) {
@@ -179,7 +144,7 @@ export class AIPosturePage extends Component {
             }
 
             try {
-                const response = await api.getLatestAIReport(currentOrg.orgId);
+                const response = await api.getLatestAIReport(currentOrg.orgId, this.getReportQueryParams());
                 const reportData = response?.data || response;
                 
                 if (reportData?.report) {
@@ -270,28 +235,54 @@ export class AIPosturePage extends Component {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg || !currentOrg.orgId) return;
 
-        this.setState({ generating: true, error: null });
+        this.setState({ generating: true, pollingForReport: true, error: null, currentReport: null });
 
         try {
-            const res = await api.generateAIReport(currentOrg.orgId, {
+            const payload = {
                 prompt: 'Full security posture analysis',
                 model: 'heuristic',
-                waitSeconds: 30
-            });
+                waitSeconds: 30,
+                reportKind: this.state.selectedReportKind,
+                date: this.state.selectedDate,
+            };
+
+            if (this.state.selectedReportKind === COMPLIANCE_REPORT_KIND) {
+                payload.framework = this.state.selectedFramework;
+            }
+
+            const res = await api.generateAIReport(currentOrg.orgId, payload);
 
             if (res?.success === false) {
                 throw new Error(res.message || res.error || 'Report generation failed');
             }
 
-            const report = res?.data || res;
-            this.setState({ currentReport: report, generating: false, error: null });
+            // Ensure subsequent reads reflect persisted storage, not stale in-memory GET cache.
+            api.clearCache();
+
+            // Poll for the saved report and display when available.
+            this.setState({ generating: false, error: null });
+            this.startPolling();
         } catch (err) {
             logger.error('[AI Posture] Failed to generate report:', err);
             this.setState({
                 error: err?.message || 'Failed to generate report',
-                generating: false
+                generating: false,
+                pollingForReport: false
             });
         }
+    }
+
+    getReportQueryParams() {
+        const params = {
+            reportKind: this.state.selectedReportKind,
+            date: this.state.selectedDate,
+        };
+
+        if (this.state.selectedReportKind === COMPLIANCE_REPORT_KIND) {
+            params.framework = this.state.selectedFramework;
+        }
+
+        return params;
     }
 
     renderMarkdownContent(content) {
@@ -555,7 +546,7 @@ export class AIPosturePage extends Component {
                         </svg>
                     </div>
                     <h3>No Report Available</h3>
-                    <p class="text-muted">Generate an AI-powered security posture report for today</p>
+                    <p class="text-muted">Generate the selected report scope for the selected UTC day.</p>
                 </div>
             `;
         }
@@ -570,9 +561,13 @@ export class AIPosturePage extends Component {
             }
         }
 
-        const riskScore = currentReport.riskScore || currentReport.summaryScore || 0;
+        const riskScore = Number(currentReport.riskScore ?? currentReport.summaryScore);
+        const hasRiskScore = Number.isFinite(riskScore);
         const completedAt = currentReport.completedAt || currentReport.generatedAt || currentReport.generatedAtUtc;
         const dateStr = completedAt ? new Date(completedAt).toLocaleString() : 'Just now';
+        const reportKind = currentReport.reportKind || this.state.selectedReportKind;
+        const reportDate = currentReport.reportDate || this.state.selectedDate;
+        const framework = currentReport.framework || this.state.selectedFramework;
 
         return html`
             <div class="p-4 posture-ai-report">
@@ -580,10 +575,15 @@ export class AIPosturePage extends Component {
                     <div class="col-md-6">
                         <div class="card">
                             <div class="card-body">
-                                <h5 class="card-title">Risk Score</h5>
-                                <div class="display-4 ${riskScore > 70 ? 'text-danger' : riskScore > 40 ? 'text-warning' : 'text-success'}">
-                                    ${riskScore.toFixed(1)}
-                                </div>
+                                <h5 class="card-title">Report Summary</h5>
+                                ${hasRiskScore ? html`
+                                    <div class="display-4 ${riskScore > 70 ? 'text-danger' : riskScore > 40 ? 'text-warning' : 'text-success'}">
+                                        ${riskScore.toFixed(1)}
+                                    </div>
+                                ` : html`
+                                    <div class="h2 mb-0">${reportKind}</div>
+                                `}
+                                <div class="text-muted small mt-1">Date: ${reportDate} · Framework: ${framework || 'n/a'}</div>
                                 <div class="text-muted small">Generated: ${dateStr}</div>
                             </div>
                         </div>
@@ -630,18 +630,45 @@ export class AIPosturePage extends Component {
                         <div class="col">
                             <h2 class="page-title">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><circle cx="12" cy="12" r="4" /></svg>
-                                AI Security Posture
+                                Mission Briefing
                             </h2>
                             <div class="page-subtitle">
-                                <span class="text-muted">AI-generated security analysis and recommendations</span>
+                                <span class="text-muted">Command deck for security, compliance, and inventory reports with day-specific evidence</span>
                             </div>
                         </div>
                         <div class="col-auto ms-auto">
+                            <div class="d-flex align-items-end gap-2 mb-2">
+                                <div>
+                                    <label class="form-label small text-muted mb-1">Report Type</label>
+                                    <select class="form-select form-select-sm" value=${this.state.selectedReportKind} onChange=${(e) => this.setState({ selectedReportKind: e.target.value }, () => this.loadReports())}>
+                                        <option value=${SECURITY_REPORT_KIND}>Security Posture</option>
+                                        <option value=${COMPLIANCE_REPORT_KIND}>Compliance</option>
+                                        <option value=${INVENTORY_REPORT_KIND}>Software Inventory</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label small text-muted mb-1">As-of (UTC)</label>
+                                    <input type="date" class="form-control form-control-sm" value=${this.state.selectedDate} onInput=${(e) => this.setState({ selectedDate: e.target.value }, () => this.loadReports())} />
+                                </div>
+                                ${this.state.selectedReportKind === COMPLIANCE_REPORT_KIND ? html`
+                                    <div>
+                                        <label class="form-label small text-muted mb-1">Framework</label>
+                                        <select class="form-select form-select-sm" value=${this.state.selectedFramework} onChange=${(e) => this.setState({ selectedFramework: e.target.value }, () => this.loadReports())}>
+                                            <option value="all">All</option>
+                                            <option value="cis">CIS</option>
+                                            <option value="nist">NIST</option>
+                                            <option value="cert-in">CERT-In</option>
+                                            <option value="iso27001">ISO 27001</option>
+                                        </select>
+                                    </div>
+                                ` : null}
+                            </div>
                             <div class="btn-group">
                                 ${this.state.currentReport ? html`
                                     <button 
                                         class="btn btn-outline-primary"
-                                        disabled=${this.state.emailingSending}
+                                        title=${this.state.selectedReportKind === SECURITY_REPORT_KIND ? 'Email PDF' : 'Email PDF is currently available for Security Posture reports'}
+                                        disabled=${this.state.selectedReportKind !== SECURITY_REPORT_KIND || this.state.emailingSending}
                                         onClick=${() => this.checkLastEmailSent()}
                                     >
                                         ${this.state.emailingSending ? html`
@@ -682,7 +709,7 @@ export class AIPosturePage extends Component {
 
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Today's Security Posture Report</h3>
+                        <h3 class="card-title">Mission Report</h3>
                     </div>
                     <div class="card-body p-0">
                         ${this.renderReportContent()}

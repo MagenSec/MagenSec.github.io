@@ -82,6 +82,7 @@ export class SoftwareInventoryPage extends Component {
             licenses: {},          // keyed by appKey
             loading: true,
             error: null,
+            selectedDate: new Date().toISOString().slice(0, 10),
             activeTab: 'all',      // 'all' | 'atrisk' | 'licenses'
             searchQuery: '',
             sortCol: 'deviceCount',
@@ -133,7 +134,7 @@ export class SoftwareInventoryPage extends Component {
             return;
         }
 
-        const cacheKey = `sw_inventory_${orgId}`;
+        const cacheKey = `sw_inventory_${orgId}_${this.state.selectedDate}`;
 
         // Step 1 — serve from cache immediately (SWR pattern)
         if (!forceRefresh) {
@@ -155,7 +156,7 @@ export class SoftwareInventoryPage extends Component {
         try {
             // Step 2 — parallel fetch both endpoints
             const [invRes, licRes] = await Promise.all([
-                api.getSoftwareInventory(orgId),
+                api.getSoftwareInventory(orgId, { date: this.state.selectedDate }),
                 api.getAppLicenses(orgId),
             ]);
 
@@ -731,10 +732,19 @@ export class SoftwareInventoryPage extends Component {
                                 ` : ''}
                             </div>
                             <div class="page-subtitle mt-1 text-muted">
-                                Installed applications across all managed devices
+                                Auditor evidence baseline for UTC day ${this.state.selectedDate}
                             </div>
                         </div>
                         <div class="col-auto d-flex gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="form-label mb-0 small text-muted">As-of (UTC)</label>
+                                <input
+                                    type="date"
+                                    class="form-control form-control-sm"
+                                    value=${this.state.selectedDate}
+                                    onInput=${(e) => this.setState({ selectedDate: e.target.value }, () => this.loadData(true))}
+                                />
+                            </div>
                             <button class="btn btn-secondary" onClick=${() => this.loadData(true)}>
                                 <${IconRefresh} /> Refresh
                             </button>

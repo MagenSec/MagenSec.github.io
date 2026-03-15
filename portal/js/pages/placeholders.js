@@ -604,11 +604,11 @@ export class ReviewPage extends Component {
   render() {
     const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
     const businessTooltip = 'Feature available in Business License only';
-    const isBusinessOnlyRoute = (route) => route === '#!/analyst' || route === '#!/posture-ai';
+    const isBusinessOnlyRoute = (route) => route === '#!/analyst' || route === '#!/mission-brief' || route === '#!/posture-ai';
     const parkedPages = [
       { name: 'AI Analyst', route: '#!/analyst', description: 'Interactive AI security chat' },
       { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine snapshot view' },
-      { name: 'Posture AI', route: '#!/posture-ai', description: 'AI-generated compliance posture report' },
+      { name: 'Mission Briefing', route: '#!/mission-brief', description: 'Generate and review security/compliance/inventory reports' },
       { name: 'Vulnerabilities', route: '#!/vulnerabilities', description: 'CVE and vulnerability list view' }
     ];
 

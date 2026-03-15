@@ -193,7 +193,19 @@ export function initRouter(renderApp) {
         renderApp({ page: 'posture', ctx });
     });
 
-    // AI-Based Security Posture - Legacy AI Reports (protected)
+    // Mission Briefing - AI reports command page (protected)
+    page('/mission-brief', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        if (guardPersonalRestrictedRoute(ctx, page)) {
+            return;
+        }
+        renderApp({ page: 'mission-brief', ctx });
+    });
+
+    // Backward-compatible alias for old route
     page('/posture-ai', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
@@ -202,7 +214,7 @@ export function initRouter(renderApp) {
         if (guardPersonalRestrictedRoute(ctx, page)) {
             return;
         }
-        renderApp({ page: 'posture-ai', ctx });
+        page.redirect('/mission-brief');
     });
 
     // Compliance (protected)

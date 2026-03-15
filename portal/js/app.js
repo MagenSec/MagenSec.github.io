@@ -124,6 +124,8 @@ function App() {
             return html`<${AnalystPage} />`;
         case 'posture':
             return html`<${PosturePage} />`;
+        case 'mission-brief':
+            return html`<${AIPosturePage} />`;
         case 'posture-ai':
             return html`<${AIPosturePage} />`;
         case 'documentation-hub':

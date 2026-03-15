@@ -10,6 +10,7 @@ export class AssetsPage extends Component {
             assets: [],
             loading: true,
             error: null,
+            selectedDate: new Date().toISOString().slice(0, 10),
             searchTerm: '',
             riskFilter: 'all',
             sortColumn: 'riskScore',
@@ -75,7 +76,7 @@ export class AssetsPage extends Component {
 
             // Step 1: Try cache first (even if stale)
             if (!forceRefresh) {
-                const cacheKey = `assets_${orgId}`;
+                const cacheKey = `assets_${orgId}_${this.state.selectedDate}`;
                 const cached = this.getCachedAssets(cacheKey, 30);
                 if (cached) {
                     console.debug('[Assets] Loading from cache immediately (will refresh in background)...');
@@ -94,7 +95,7 @@ export class AssetsPage extends Component {
             this.setState({ loading: true, error: null });
 
             // Step 3: Fetch fresh data
-            const response = await api.getSoftwareInventory(orgId);
+            const response = await api.getSoftwareInventory(orgId, { date: this.state.selectedDate });
             
             if (response.success) {
                 const rawData = response.data;
@@ -103,7 +104,7 @@ export class AssetsPage extends Component {
                              : [];
                 
                 // Cache the response
-                this.setCachedAssets(`assets_${orgId}`, assets);
+                this.setCachedAssets(`assets_${orgId}_${this.state.selectedDate}`, assets);
                 
                 this.setState({ 
                     assets: assets, 
@@ -135,7 +136,7 @@ export class AssetsPage extends Component {
             // Wait a moment for UI to settle
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            const response = await api.getSoftwareInventory(orgId);
+            const response = await api.getSoftwareInventory(orgId, { date: this.state.selectedDate });
             
             if (response.success) {
                 const rawData = response.data;
@@ -144,7 +145,7 @@ export class AssetsPage extends Component {
                              : [];
                 
                 // Update cache
-                this.setCachedAssets(`assets_${orgId}`, assets);
+                this.setCachedAssets(`assets_${orgId}_${this.state.selectedDate}`, assets);
                 
                 // Silently update UI
                 this.setState(prev => ({
@@ -285,7 +286,18 @@ export class AssetsPage extends Component {
                             ` : ''}
                         </div>
                         <div class="page-subtitle">
-                            <span class="text-muted">Track installed software, versions, and vulnerabilities across devices · ${assets.length} applications</span>
+                            <span class="text-muted">Auditor evidence view for UTC date ${this.state.selectedDate} · ${assets.length} applications</span>
+                        </div>
+                    </div>
+                    <div class="col-auto ms-auto">
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-label mb-0 small text-muted">As-of (UTC)</label>
+                            <input
+                                type="date"
+                                class="form-control form-control-sm"
+                                value=${this.state.selectedDate}
+                                onInput=${(e) => this.setState({ selectedDate: e.target.value }, () => this.loadAssets(true))}
+                            />
                         </div>
                     </div>
                     <div class="col-auto ms-auto">

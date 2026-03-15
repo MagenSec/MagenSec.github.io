@@ -390,6 +390,10 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/dashboard`, params);
     }
 
+    async getLatestComplianceSnapshot(orgId) {
+        return this.get(`/api/v1/orgs/${orgId}/compliance/latest`);
+    }
+
     // === SNAPSHOTS ===
     async getTrendSnapshots(orgId, params = {}) {
         const query = {
@@ -668,11 +672,24 @@ export class ApiClient {
     }
 
     // === ANALYTICS & TRENDS ===
-    async getSoftwareInventory(orgId, deviceId, riskLevel) {
+    async getSoftwareInventory(orgId, deviceId, riskLevel, options = {}) {
+        // Backward-compatible overload: getSoftwareInventory(orgId, { date: 'yyyy-MM-dd' })
+        if (deviceId && typeof deviceId === 'object') {
+            options = deviceId;
+            deviceId = undefined;
+            riskLevel = undefined;
+        }
+
+        if (riskLevel && typeof riskLevel === 'object') {
+            options = riskLevel;
+            riskLevel = undefined;
+        }
+
         let url = `/api/v1/orgs/${orgId}/apps`;
         const params = [];
         if (deviceId) params.push(`deviceId=${encodeURIComponent(deviceId)}`);
         if (riskLevel) params.push(`riskLevel=${encodeURIComponent(riskLevel)}`);
+        if (options?.date) params.push(`date=${encodeURIComponent(options.date)}`);
         if (params.length) url += `?${params.join('&')}`;
         return this.get(url);
     }
@@ -696,7 +713,7 @@ export class ApiClient {
     // - GET /api/v1/orgs/{orgId}/ai-analyst/reports - List reports
     // - GET /api/v1/orgs/{orgId}/ai-analyst/reports/{reportId} - Get report detail
     
-    async generateAIReport(orgId, data) {
+    async generateAIReport(orgId, data = {}) {
         // Use unified AI report generation endpoint
         return this.post(`/api/v1/orgs/${orgId}/ai/reports/generate`, data);
     }
@@ -713,14 +730,14 @@ export class ApiClient {
         return this.getAIReportByDate(orgId, yyyymmdd);
     }
 
-    async getAIReportByDate(orgId, date) {
+    async getAIReportByDate(orgId, date, params = {}) {
         // Fetch AI report by YYYYMMDD date
-        return this.get(`/api/v1/orgs/${orgId}/ai/reports/${date}`);
+        return this.get(`/api/v1/orgs/${orgId}/ai/reports/${date}`, params);
     }
 
-    async getLatestAIReport(orgId) {
+    async getLatestAIReport(orgId, params = {}) {
         // Use dedicated /latest endpoint to get most recent report
-        return this.get(`/api/v1/orgs/${orgId}/ai/reports/latest`);
+        return this.get(`/api/v1/orgs/${orgId}/ai/reports/latest`, params);
     }
 
     async emailAIReportPDF(orgId) {

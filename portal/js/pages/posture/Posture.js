@@ -730,7 +730,7 @@ export class PosturePage extends Component {
                                     <div class="mt-1">${this.state.error}</div>
                                     <div class="mt-2 small">
                                         In the meantime, you can view 
-                                        <a href="#!/posture-ai" class="alert-link">AI Posture Reports</a>
+                                        <a href="#!/mission-brief" class="alert-link">Mission Briefing Reports</a>
                                     </div>
                                 </div>
                             </div>

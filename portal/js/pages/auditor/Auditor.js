@@ -313,7 +313,7 @@ export class AuditorPage extends Component {
                   </div>
                   ${item.id === 'ai-report' ? html`
                     <div class="col-auto">
-                      <a href="#!/posture-ai" class="btn btn-sm btn-outline-primary">Generate →</a>
+                      <a href="#!/mission-brief" class="btn btn-sm btn-outline-primary">Generate →</a>
                     </div>
                   ` : ''}
                 </div>
@@ -440,9 +440,9 @@ export class AuditorPage extends Component {
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 8v-2a2 2 0 0 1 2 -2h7l3 3v11a2 2 0 0 1 -2 2h-5" /><path d="M7 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M7 14v3l2 1" /></svg>
                   Full Audit Log
                 </a>
-                <a href="#!/posture-ai" class="btn btn-primary">
+                <a href="#!/mission-brief" class="btn btn-primary">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><circle cx="12" cy="12" r="4" /></svg>
-                  AI Posture Report
+                  Mission Briefing
                 </a>
               </div>
             </div>
