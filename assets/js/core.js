@@ -28,8 +28,8 @@
 
   /* ── Mobile Menu Toggle ────────────────────────────────────────────── */
   function initMobileMenu() {
-    const burger = document.querySelector('.nav__burger');
-    const menu   = document.querySelector('.nav__mobile-menu');
+    const burger = document.querySelector('.nav__burger') || document.querySelector('.nav__hamburger');
+    const menu   = document.querySelector('.nav__mobile-menu') || document.querySelector('#mobile-nav');
     const body   = document.body;
     if (!burger || !menu) return;
 

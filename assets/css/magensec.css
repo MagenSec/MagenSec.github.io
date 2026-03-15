@@ -727,7 +727,8 @@ h1, h2, h3, h4, h5, h6 { line-height: var(--leading-tight); font-weight: var(--w
 }
 
 /* Hamburger */
-.nav__hamburger {
+.nav__hamburger,
+.nav__burger {
   display: none;
   flex-direction: column;
   gap: 5px;
@@ -736,7 +737,8 @@ h1, h2, h3, h4, h5, h6 { line-height: var(--leading-tight); font-weight: var(--w
   margin-left: auto;
 }
 
-.nav__hamburger span {
+.nav__hamburger span,
+.nav__burger-bar {
   display: block;
   width: 22px;
   height: 2px;
@@ -745,9 +747,12 @@ h1, h2, h3, h4, h5, h6 { line-height: var(--leading-tight); font-weight: var(--w
   transition: transform var(--duration-normal), opacity var(--duration-normal);
 }
 
-.nav__hamburger.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-.nav__hamburger.is-open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
-.nav__hamburger.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+.nav__hamburger.is-open span:nth-child(1),
+.nav__burger.is-open .nav__burger-bar:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav__hamburger.is-open span:nth-child(2),
+.nav__burger.is-open .nav__burger-bar:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.nav__hamburger.is-open span:nth-child(3),
+.nav__burger.is-open .nav__burger-bar:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
 /* Mobile menu */
 .nav__mobile-menu {
@@ -3253,9 +3258,9 @@ h1, h2, h3, h4, h5, h6 { line-height: var(--leading-tight); font-weight: var(--w
   .pricing-card--managed { grid-column: 1 / -1; }
 
   .nav__links { display: none; }
-  .nav__hamburger { display: flex; }
-  .nav__actions .btn { display: none; }
-  .nav__actions .btn:last-child { display: inline-flex; }
+  .nav__hamburger,
+  .nav__burger { display: flex; }
+  .nav__actions { display: none; }
 
   .magi-layout { grid-template-columns: 1fr; }
   .magi-layout > :last-child { display: none; }

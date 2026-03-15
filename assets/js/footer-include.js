@@ -123,7 +123,7 @@
           </div>
           <div class="footer__stack">
             <a href="platform/compliance.html" class="footer__link">Compliance Monitoring</a>
-            <a href="platform/audit.html" class="footer__link">Audit + Time-Travel</a>
+            <a href="platform/audit.html" class="footer__link">Audit + Rewind</a>
             <a href="magi.html" class="footer__link">MAGI AI</a>
           </div>
         </div>
