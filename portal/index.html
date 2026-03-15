@@ -176,6 +176,20 @@
             box-shadow: 0 10px 18px rgba(46, 81, 180, 0.28);
             filter: saturate(1.08);
         }
+        .nav-item-ai-analyst .nav-link.active,
+        .nav-item-ai-analyst.active .nav-link {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 20px rgba(46, 81, 180, 0.34);
+            border-color: rgba(255, 255, 255, 0.52);
+            filter: saturate(1.12) brightness(1.03);
+        }
+        .nav-item-ai-analyst .nav-link.active::after,
+        .nav-item-ai-analyst.active .nav-link::after {
+            opacity: 1;
+            border-color: rgba(224, 231, 255, 0.9);
+            box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.16);
+            animation-duration: 2.8s;
+        }
         .nav-item-ai-analyst .nav-link:focus-visible {
             outline: 2px solid rgba(79, 70, 229, 0.45);
             outline-offset: 2px;
@@ -200,6 +214,11 @@
         [data-bs-theme="dark"] .nav-item-ai-analyst .nav-link {
             box-shadow: 0 8px 16px rgba(31, 41, 55, 0.45);
             border-color: rgba(199, 210, 254, 0.35);
+        }
+        [data-bs-theme="dark"] .nav-item-ai-analyst .nav-link.active,
+        [data-bs-theme="dark"] .nav-item-ai-analyst.active .nav-link {
+            box-shadow: 0 14px 24px rgba(17, 24, 39, 0.62);
+            border-color: rgba(224, 231, 255, 0.55);
         }
         
         /* Sortable table headers */
@@ -453,6 +472,117 @@
                     }
                 }, true);
         }
+
+        function getCurrentRoutePath() {
+            const hash = window.location.hash || '';
+            if (!hash.startsWith('#!/')) {
+                return '/dashboard';
+            }
+
+            // Handle both "#!/route" and "#!/route?query=params".
+            const routeWithQuery = hash.slice(2);
+            const routeWithoutQuery = routeWithQuery.split('?')[0] || '/dashboard';
+            return routeWithoutQuery.startsWith('/') ? routeWithoutQuery : `/${routeWithoutQuery}`;
+        }
+
+        function clearNavbarActiveState() {
+            const navRoot = document.getElementById('navbar-menu');
+            if (!navRoot) return;
+
+            navRoot.querySelectorAll('.nav-link.active, .dropdown-item.active, .nav-item.active').forEach((el) => {
+                el.classList.remove('active');
+            });
+        }
+
+        function markActive(anchor) {
+            if (!anchor) return;
+
+            anchor.classList.add('active');
+            anchor.closest('.nav-item')?.classList.add('active');
+
+            const dropdownMenu = anchor.closest('.dropdown-menu');
+            if (!dropdownMenu) return;
+
+            const dropdownToggle = dropdownMenu.previousElementSibling;
+            if (dropdownToggle?.classList.contains('dropdown-toggle')) {
+                dropdownToggle.classList.add('active');
+                dropdownToggle.closest('.nav-item')?.classList.add('active');
+            }
+        }
+
+        function setNavbarActiveState() {
+            const navRoot = document.getElementById('navbar-menu');
+            if (!navRoot) return;
+
+            const routePath = getCurrentRoutePath();
+            clearNavbarActiveState();
+
+            let targetHref = null;
+
+            if (routePath.startsWith('/security/response') || routePath.startsWith('/response-actions') || routePath.startsWith('/devices')) {
+                targetHref = routePath.startsWith('/devices') ? '#!/devices' : '#!/security/response';
+            } else if (routePath.startsWith('/analyst') || routePath.startsWith('/ai-reports')) {
+                targetHref = '#!/analyst';
+            } else if (
+                routePath.startsWith('/mission-brief') ||
+                routePath.startsWith('/posture-ai') ||
+                routePath.startsWith('/compliance') ||
+                routePath.startsWith('/reports') ||
+                routePath.startsWith('/auditor')
+            ) {
+                if (routePath.startsWith('/mission-brief') || routePath.startsWith('/posture-ai')) {
+                    targetHref = '#!/mission-brief';
+                } else if (routePath.startsWith('/compliance')) {
+                    targetHref = '#!/compliance';
+                } else if (routePath.startsWith('/reports')) {
+                    targetHref = '#!/reports';
+                } else {
+                    targetHref = '#!/auditor';
+                }
+            } else if (
+                routePath.startsWith('/settings') ||
+                routePath.startsWith('/audit') ||
+                routePath.startsWith('/members') ||
+                routePath.startsWith('/licenses')
+            ) {
+                targetHref = routePath.startsWith('/audit') ? '#!/audit' : '#!/settings';
+            } else if (
+                routePath.startsWith('/siteadmin/') ||
+                routePath.startsWith('/review') ||
+                routePath.startsWith('/posture') ||
+                routePath.startsWith('/vulnerabilities')
+            ) {
+                if (routePath.startsWith('/siteadmin/business')) {
+                    targetHref = '#!/siteadmin/business';
+                } else if (routePath.startsWith('/siteadmin/manage')) {
+                    targetHref = '#!/siteadmin/manage';
+                } else if (routePath.startsWith('/siteadmin/activity')) {
+                    targetHref = '#!/siteadmin/activity';
+                } else if (routePath.startsWith('/siteadmin/preview')) {
+                    targetHref = '#!/siteadmin/preview';
+                } else if (routePath.startsWith('/siteadmin/review')) {
+                    targetHref = '#!/siteadmin/review';
+                } else if (routePath.startsWith('/posture')) {
+                    targetHref = '#!/posture';
+                } else if (routePath.startsWith('/vulnerabilities')) {
+                    targetHref = '#!/vulnerabilities';
+                } else {
+                    targetHref = '#!/review';
+                }
+            } else if (routePath.startsWith('/security') || routePath.startsWith('/unified-dashboard')) {
+                targetHref = '#!/security';
+            } else if (routePath === '/' || routePath.startsWith('/dashboard')) {
+                targetHref = '#!/dashboard';
+            }
+
+            if (!targetHref) return;
+
+            const targetAnchor = navRoot.querySelector(`a[href="${targetHref}"]`);
+            markActive(targetAnchor);
+        }
+
+        window.addEventListener('hashchange', setNavbarActiveState);
+        document.addEventListener('DOMContentLoaded', setNavbarActiveState);
     </script>
     
     <!-- Initialize HTM -->
