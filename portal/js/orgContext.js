@@ -249,8 +249,8 @@ class OrgContext {
     }
 
     /**
-     * Whether this org can activate Rewind (time-travel historical access).
-     * Gated by the "Rewind" add-on on the org's license. SiteAdmin always has Rewind.
+     * Whether this org can activate Time Warp (time-travel historical access).
+     * Gated by the "rewind" add-on on the org's license. SiteAdmin always has Time Warp.
      */
     hasRewind() {
         if (this.isSiteAdmin()) return true;
@@ -259,11 +259,11 @@ class OrgContext {
     }
 
     /**
-     * Whether this org can access MAGI historical mode (Rewind + AI analyst combo).
-     * Requires both Rewind access and a non-ReadOnly role (ReadOnly has minimal AI quota).
+     * Whether this org can access MAGI historical mode (Time Warp + AI analyst combo).
+     * Requires both historical access and a non-ReadOnly role (ReadOnly has minimal AI quota).
      */
     hasMagi() {
-        // All orgs with an active license get basic MAGI; historical MAGI requires Rewind.
+        // All orgs with an active license get basic MAGI; historical MAGI requires Time Warp access.
         return !!this.currentOrg;
     }
 

@@ -170,8 +170,8 @@ export default class UnifiedDashboard extends Component {
             officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
           }));
 
-          // If cached fleet counters are stale/invalid, hydrate from devices API.
-          this.hydrateFleetStatsFromDevices(orgId, cached.data);
+          // If cached counters are stale/partial, hydrate from devices + inventory APIs.
+          this.hydrateDashboardStats(orgId, cached.data);
 
           await this.loadDashboard({ background: true, skipCache: true });
           return;
@@ -193,7 +193,7 @@ export default class UnifiedDashboard extends Component {
 
       let normalizedData = response.data;
       if (normalizedData) {
-        normalizedData = await this.normalizeFleetStats(orgId, normalizedData);
+        normalizedData = await this.normalizeDashboardStats(orgId, normalizedData);
         this.setCachedDashboard(cacheKey, normalizedData);
       }
 
@@ -276,37 +276,161 @@ export default class UnifiedDashboard extends Component {
     return { totalCount: total, activeCount: active, offlineCount: offline };
   }
 
-  async normalizeFleetStats(orgId, data) {
-    if (!this.fleetStatsNeedHydration(data)) {
-      return data;
-    }
+  appStatsNeedHydration(data) {
+    const quickApps = data?.quickStats?.apps || {};
+    const tracked = Number(quickApps.trackedCount || 0);
+    const vulnerable = Number(quickApps.vulnerableCount || 0);
+    const itTotalApps = Number(data?.itAdmin?.inventory?.totalApps || 0);
+    const hasAppRisks = Array.isArray(data?.itAdmin?.appRisks) && data.itAdmin.appRisks.length > 0;
 
-    try {
-      const devicesResponse = await api.getDevices(orgId, { include: 'cached-summary' }, { skipCache: true });
-      const devicesPayload = devicesResponse?.data || devicesResponse;
-      const derived = this.deriveFleetFromDevicesPayload(devicesPayload);
-
-      return {
-        ...data,
-        quickStats: {
-          ...(data.quickStats || {}),
-          devices: {
-            ...((data.quickStats && data.quickStats.devices) || {}),
-            ...derived
-          }
-        }
-      };
-    } catch {
-      return data;
-    }
+    return tracked <= 20 || itTotalApps <= 20 || (tracked > 0 && vulnerable === 0) || !hasAppRisks;
   }
 
-  async hydrateFleetStatsFromDevices(orgId, data) {
-    if (!this.fleetStatsNeedHydration(data)) {
+  deriveAppStatsFromInventoryPayload(inventoryPayload) {
+    const apps = Array.isArray(inventoryPayload?.apps) ? inventoryPayload.apps : [];
+    const totalApps = Number(inventoryPayload?.totalApps || apps.length);
+
+    const vulnerableSet = new Set();
+    const criticalSet = new Set();
+    const vendorSet = new Set();
+
+    apps.forEach((app) => {
+      const appName = String(app?.name || '').trim();
+      const vendor = String(app?.vendor || '').trim();
+      const cves = Array.isArray(app?.cves) ? app.cves : [];
+      const cveCount = Number(app?.cveCount || cves.length || 0);
+
+      if (vendor) vendorSet.add(vendor.toLowerCase());
+      if (appName && cveCount > 0) vulnerableSet.add(appName.toLowerCase());
+
+      const hasCritical = cves.some((cve) => String(cve?.severity || '').toLowerCase() === 'critical');
+      if (appName && hasCritical) criticalSet.add(appName.toLowerCase());
+    });
+
+    return {
+      trackedCount: totalApps,
+      vulnerableCount: vulnerableSet.size,
+      criticalAppCount: criticalSet.size,
+      vendorCount: vendorSet.size
+    };
+  }
+
+  buildAppRisksFromInventoryPayload(inventoryPayload, limit = 10) {
+    const apps = Array.isArray(inventoryPayload?.apps) ? inventoryPayload.apps : [];
+
+    const scoreFromRisk = (risk) => {
+      const r = String(risk || '').toLowerCase();
+      if (r === 'critical') return 90;
+      if (r === 'high') return 70;
+      if (r === 'medium') return 45;
+      return 20;
+    };
+
+    return apps
+      .filter((app) => Number(app?.cveCount || 0) > 0)
+      .map((app) => {
+        const cves = Array.isArray(app?.cves) ? app.cves : [];
+        const bySeverity = { critical: 0, high: 0, medium: 0, low: 0 };
+        cves.forEach((cve) => {
+          const s = String(cve?.severity || '').toLowerCase();
+          if (s in bySeverity) bySeverity[s] += 1;
+        });
+
+        return {
+          appName: app?.name || 'Unknown application',
+          appVendor: app?.vendor || null,
+          version: app?.version || null,
+          riskScore: scoreFromRisk(app?.riskScore),
+          riskLevel: String(app?.riskScore || 'low').toLowerCase(),
+          cveSummary: {
+            critical: bySeverity.critical,
+            high: bySeverity.high,
+            medium: bySeverity.medium,
+            low: bySeverity.low,
+            total: Number(app?.cveCount || cves.length || 0)
+          },
+          deviceCount: Number(app?.deviceCount || 0),
+          devices: [],
+          hasUpdate: false,
+          latestVersion: null,
+          kevCount: 0
+        };
+      })
+      .sort((a, b) => {
+        if (b.riskScore !== a.riskScore) return b.riskScore - a.riskScore;
+        return (b.cveSummary?.total || 0) - (a.cveSummary?.total || 0);
+      })
+      .slice(0, limit);
+  }
+
+  async normalizeDashboardStats(orgId, data) {
+    let normalized = data;
+
+    if (this.fleetStatsNeedHydration(normalized)) {
+      try {
+        const devicesResponse = await api.getDevices(orgId, { include: 'cached-summary' }, { skipCache: true });
+        const devicesPayload = devicesResponse?.data || devicesResponse;
+        const derivedFleet = this.deriveFleetFromDevicesPayload(devicesPayload);
+
+        normalized = {
+          ...normalized,
+          quickStats: {
+            ...(normalized.quickStats || {}),
+            devices: {
+              ...((normalized.quickStats && normalized.quickStats.devices) || {}),
+              ...derivedFleet
+            }
+          }
+        };
+      } catch {
+        // Best-effort hydration only.
+      }
+    }
+
+    if (this.appStatsNeedHydration(normalized)) {
+      try {
+        const inventoryResponse = await api.getSoftwareInventory(orgId);
+        const inventoryPayload = inventoryResponse?.data || inventoryResponse;
+        const appStats = this.deriveAppStatsFromInventoryPayload(inventoryPayload);
+        const derivedAppRisks = this.buildAppRisksFromInventoryPayload(inventoryPayload);
+
+        normalized = {
+          ...normalized,
+          quickStats: {
+            ...(normalized.quickStats || {}),
+            apps: {
+              ...((normalized.quickStats && normalized.quickStats.apps) || {}),
+              trackedCount: appStats.trackedCount,
+              vulnerableCount: appStats.vulnerableCount,
+              criticalAppCount: appStats.criticalAppCount
+            }
+          },
+          itAdmin: {
+            ...(normalized.itAdmin || {}),
+            inventory: {
+              ...((normalized.itAdmin && normalized.itAdmin.inventory) || {}),
+              totalApps: appStats.trackedCount,
+              uniqueAppCount: appStats.vendorCount || appStats.trackedCount
+            },
+            appRisks: (Array.isArray(normalized?.itAdmin?.appRisks) && normalized.itAdmin.appRisks.length > 0)
+              ? normalized.itAdmin.appRisks
+              : derivedAppRisks
+          }
+        };
+      } catch {
+        // Best-effort hydration only.
+      }
+    }
+
+    return normalized;
+  }
+
+  async hydrateDashboardStats(orgId, data) {
+    if (!this.fleetStatsNeedHydration(data) && !this.appStatsNeedHydration(data)) {
       return;
     }
 
-    const normalized = await this.normalizeFleetStats(orgId, data);
+    const normalized = await this.normalizeDashboardStats(orgId, data);
     if (normalized !== data) {
       this.setState({ data: normalized });
       try {
@@ -450,7 +574,10 @@ export default class UnifiedDashboard extends Component {
       const s = normalize(d?.status);
       return s === 'active' || s === 'online' || s === 'healthy';
     }).length;
-    const offlineByStatus = health.filter((d) => normalize(d?.status) === 'offline').length;
+    const offlineByStatus = health.filter((d) => {
+      const s = normalize(d?.status);
+      return s === 'offline' || s === 'stale';
+    }).length;
 
     const total = rawTotal > 0
       ? rawTotal
@@ -460,7 +587,9 @@ export default class UnifiedDashboard extends Component {
       ? rawActive
       : (healthyByStatus > 0 ? healthyByStatus : 0);
 
-    const offline = rawOffline > 0
+    // Trust rawOffline from quickStats when quickStats has device data (rawTotal > 0).
+    // Only fall back to deviceHealth-based count when quickStats is absent entirely.
+    const offline = rawTotal > 0
       ? rawOffline
       : (offlineByStatus > 0 ? offlineByStatus : Math.max(0, total - active));
 

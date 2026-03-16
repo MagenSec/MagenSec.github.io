@@ -209,10 +209,17 @@ export class ApiClient {
             ...options.headers
         };
 
-        // Block all state-changing requests while Time Warp is active.
-        // The portal is in Observer Mode — past data is read-only.
+        // Block state-changing requests while Time Warp is active.
+        // Allow read-only analytical POST endpoints that explicitly support temporal snapshots.
         const method = options.method || 'GET';
-        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase()) && rewindContext.isActive()) {
+        const isMutatingMethod = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
+        const isTimeWarpReadOnlyPost =
+            method.toUpperCase() === 'POST'
+            && /\/ai-analyst\/ask(\?|$)/i.test(endpoint)
+            || method.toUpperCase() === 'POST'
+            && /\/ai\/chat-session(\?|$)/i.test(endpoint);
+
+        if (isMutatingMethod && rewindContext.isActive() && !isTimeWarpReadOnlyPost) {
             const dateLabel = rewindContext.getDateLabel?.() || 'a past date';
             window.toast?.show(
                 `⏸ Observer Mode — you are viewing ${dateLabel}. Exit Time Warp to make changes.`,

@@ -1161,7 +1161,7 @@ export class AuditorPage extends Component {
             </div>
             ${rewindContext.isActive() ? html`
               <div class="alert alert-warning-lt border-0 mt-3 mb-0 py-2 small">
-                ⏪ Rewind active — "To date" capped at ${toIsoDate(rewindContext.getDate())}
+                ⏪ Time Warp active — "To date" capped at ${toIsoDate(rewindContext.getDate())}
               </div>
             ` : ''}
           </div>
@@ -1452,7 +1452,7 @@ export class AuditorPage extends Component {
                   <i class="ti ti-history me-1"></i>⏪ ${toIsoDate(rewindDate)}
                 </span>
                 <button class="btn btn-sm btn-ghost-secondary" onClick=${() => rewindContext.deactivate()}>
-                  <i class="ti ti-x me-1"></i>Exit Rewind
+                  <i class="ti ti-x me-1"></i>Exit Time Warp
                 </button>
               ` : html`
                 <span class="badge bg-success-lt text-success">
@@ -1468,7 +1468,7 @@ export class AuditorPage extends Component {
                 <div class="text-muted">
                   <i class="ti ti-calendar-event me-1"></i>
                   Showing report for <strong>${toIsoDate(rewindDate)}</strong>
-                  — use the <strong>⏪ Rewind bar</strong> at the top to change dates.
+                  — use the <strong>⏪ Time Warp bar</strong> at the top to change dates.
                 </div>
                 <button
                   class="btn btn-sm btn-primary ms-auto"
@@ -1513,7 +1513,7 @@ export class AuditorPage extends Component {
                   </div>
                   <h4 class="mb-2" style="color:#fff;">Access reports from any date in the past year</h4>
                   <p class="mb-3" style="opacity:.8; font-size:.9rem;">
-                    <strong>Rewind</strong> lets you step back to any historical snapshot — see exactly what your security posture
+                    <strong>Time Warp</strong> lets you step back to any historical snapshot — see exactly what your security posture
                     looked like on the day of an audit, incident, or compliance review.
                     Every page, every chart, every AI analysis reflects that exact point in time.
                   </p>
@@ -1537,7 +1537,7 @@ export class AuditorPage extends Component {
                   <a href="#!/account" class="btn btn-warning btn-lg fw-semibold px-4">
                     Upgrade to Business
                   </a>
-                  <div class="small mt-2" style="opacity:.6;">Includes Rewind + MAGI + Priority Reports</div>
+                  <div class="small mt-2" style="opacity:.6;">Includes Time Warp + MAGI + Priority Reports</div>
                 </div>
               </div>
             </div>
@@ -1550,7 +1550,7 @@ export class AuditorPage extends Component {
             <span style="font-size:1.5rem;">⏪</span>
             <div>
               <strong>Want to see a report from a specific date?</strong>
-              Use <strong>Rewind</strong> — activate it from the navbar (
+              Use <strong>Time Warp</strong> — activate it from the navbar (
               <i class="ti ti-history"></i>) to travel to any date in the past year.
               Every page, including this one, updates to reflect that snapshot.
             </div>
@@ -1711,7 +1711,7 @@ export class AuditorPage extends Component {
             <p class="empty-title">No report loaded yet</p>
             <p class="empty-subtitle text-muted">
               Click <strong>Load Today's Report</strong> above.
-              ${canRewind && !isRewindActive ? ' Activate Rewind to see any historical date.' : ''}
+              ${canRewind && !isRewindActive ? ' Activate Time Warp to see any historical date.' : ''}
             </p>
           </div>
         ` : ''}
