@@ -1,47 +1,93 @@
-function FAQItem({ question, answer }, html) {
-    const id = `faq-${question.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`;
-    return html`
-        <div class="faq-item" id="${id}">
-            <div class="faq-question" @click=${(e) => toggleFaq(e)}>
-                <span>${question}</span>
-                <span class="faq-arrow">⌄</span>
-            </div>
-            <div class="faq-answer">
-                <p>${answer}</p>
-            </div>
-        </div>
-    `;
-}
-
-function toggleFaq(e) {
-    const question = e.currentTarget;
-    const answer = question.nextElementSibling;
-    question.classList.toggle('active');
-    answer.classList.toggle('open');
-}
-
 export function FAQTab(html) {
     const faqs = [
-        { q: 'Why is my Security Score low if Risk Score is high?', a: 'Security Score counts all vulnerabilities equally, while Risk Score weights by exploitability. You might have many unpatched vulnerabilities that aren\'t actively exploitable in your environment.' },
-        { q: 'How often are devices scanned?', a: 'Devices scan every 1-4 hours depending on your configuration. Initial scan takes 3-5 minutes. Scans are lightweight and run in the background without affecting performance.' },
-        { q: 'Can I exclude devices from scanning?', a: 'Yes. You can mark devices as "non-production" or "monitoring-only" to exclude them from scoring calculations. This is useful for test environments.' },
-        { q: 'What if a device goes offline?', a: 'Devices show as "Offline" after 24 hours without contact. They remain in your inventory. When they come back online, scanning resumes automatically. No data is lost.' },
-        { q: 'How do I improve my Compliance Score?', a: 'Start with your weakest framework function (shown on the Compliance page). Implement the recommended controls. Common first steps: enable MFA, configure logging, implement firewall rules.' },
-        { q: 'Can I benchmark against other organizations?', a: 'Yes (Enterprise plan). You\'ll see how your scores compare to organizations in your industry and size. Use this to set realistic improvement targets.' },
-        { q: 'How do I export reports?', a: 'Navigate to Reports, select your date range, and download PDF or CSV. Executive summaries are also available for sharing with leadership.' },
-        { q: 'What does "Stale" mean for a device?', a: '"Stale" means the device hasn\'t checked in within the last 5 minutes (usually 6-24 hours). The device may be offline, in sleep mode, or experiencing network issues.' },
-        { q: 'Can I set custom alert thresholds?', a: 'Yes. Configure alerts for score drops, new critical vulnerabilities, or compliance failures. Alerts can be sent to email, Slack, or webhooks.' },
-        { q: 'Is my data encrypted?', a: 'Yes. All data in transit is encrypted with TLS 1.3. Data at rest is encrypted with AES-256. See the Security & Privacy section for compliance details.' },
+        {
+            q: 'How do I create a Personal account?',
+            a: 'Install the MagenSec client on your Windows device, choose "Personal" in the license prompt, and sign in with your Google account. Your account and organization are created automatically. You get 7 days free to try the platform. If you have a coupon code (MAGICode), enter it during setup for additional free days.',
+        },
+        {
+            q: 'How do Business and Education accounts get created?',
+            a: 'Business and Education organizations are provisioned by the MagenSec product team. You\u2019ll receive a license key by email. Install the MagenSec client on your devices and enter the license key during setup to onboard them to your organization.',
+        },
+        {
+            q: 'How often are my devices scanned?',
+            a: 'Devices are scanned automatically on a regular interval. The first scan after installation takes about 3\u20135 minutes. Subsequent scans run in the background without affecting device performance.',
+        },
+        {
+            q: 'What\u2019s the difference between the Security Score and the Risk Score?',
+            a: 'The Security Score (shown on the Home dashboard) is an organization-wide measure of your overall posture \u2014 higher is better, with a letter grade A through D. The Risk Score is a per-device measure shown on each device\u2019s detail page \u2014 higher means MORE risk. They\u2019re inverses: a device with Security Score 80 has Risk Score 20.',
+        },
+        {
+            q: 'What does it mean when a device shows as "Degraded" or "Offline"?',
+            a: '"Degraded" means the device\u2019s last heartbeat was between 30 minutes and 24 hours ago \u2014 it may be in sleep mode or experiencing network issues. "Offline" means it hasn\u2019t checked in for over 24 hours. When the device comes back online, scanning resumes automatically.',
+        },
+        {
+            q: 'What are the "Known Exploit" indicators on vulnerabilities?',
+            a: 'These mark vulnerabilities being actively exploited by attackers in the real world, tracked by sources like the CISA Known Exploited Vulnerabilities (KEV) catalog. They should be your highest priority to fix \u2014 they directly impact your device\u2019s Risk Score.',
+        },
+        {
+            q: 'What is EPSS?',
+            a: 'EPSS (Exploit Prediction Scoring System) is a probability score from 0 to 1 that estimates how likely a vulnerability is to be exploited in the next 30 days. Higher EPSS means higher real-world risk. You\u2019ll see it on the device Risks tab next to each CVE.',
+        },
+        {
+            q: 'How do I add more devices?',
+            a: 'Install the MagenSec client on any additional device. For Personal accounts, sign in with the same Google account. For Business/Education, enter your organization\u2019s license key. The device will appear on the Devices page within minutes. Personal plans support up to 5 devices.',
+        },
+        {
+            q: 'What features does Education have over Personal?',
+            a: 'Education adds weekly trend analysis reports, multi-user group management, support for up to 25 devices, and priority support. However, Education is still a Protect-only plan \u2014 it does not include Officer MAGI, Compliance monitoring, Reports, Audit, or Response actions. Those are Business-only features.',
+        },
+        {
+            q: 'What is Officer MAGI?',
+            a: 'Officer MAGI is MagenSec\u2019s AI-powered security analyst, available on the Business plan. You can ask it questions in plain language \u2014 like "What are my most critical vulnerabilities?" or "Which devices need attention?" \u2014 and get answers based on your actual data. It can also be reached via WhatsApp if configured in Settings.',
+        },
+        {
+            q: 'What compliance frameworks are supported?',
+            a: 'Currently CIS Controls v8.1 and NIST CSF 2.0 are live. CERT-In and ISO 27001 are planned for future releases. You can choose your preferred framework in Settings under the Reports tab.',
+        },
+        {
+            q: 'Can I export or download reports?',
+            a: 'Yes (Business plan). Mission Brief generates reports that can be emailed as PDFs. The Auditor Dashboard provides downloadable evidence packages. The Reports hub links to live report data and will include additional downloadable formats in future updates.',
+        },
+        {
+            q: 'What are credits and how do they work?',
+            a: 'Credits represent your usage allowance. You can see your remaining credits, projected days left, and expiration date in Settings under the General tab. Credits are consumed based on your seat count (number of devices). When credits run out, your subscription needs renewal.',
+        },
+        {
+            q: 'Can I add team members?',
+            a: 'Yes (Business plan). Go to Settings \u2192 Team, enter an email address, and assign a role: Co-Admin (can manage devices, licenses, and view telemetry) or Auditor (view-only access). Team members sign in with their own Google account.',
+        },
+        {
+            q: 'What is a license key rotation?',
+            a: 'Rotating a license key generates a new key and invalidates the old one. Devices receive the new key automatically at their next heartbeat. Use this if you suspect a key has been compromised. You can rotate keys in Settings \u2192 Licenses (Business plan).',
+        },
+        {
+            q: 'Is my data secure?',
+            a: 'Yes. All data is encrypted in transit (TLS 1.3) and at rest (AES-256). MagenSec collects only security metadata \u2014 not your personal files, browsing history, or documents. See the Security & Privacy tab for full details.',
+        },
+        {
+            q: 'How do I change my notification settings?',
+            a: 'Go to Settings. The Reports tab lets you toggle daily and weekly reports. Business plans also get the Email Notifications tab with granular controls for device events, license events, security alerts, and more. WhatsApp notifications can be configured there too.',
+        },
     ];
 
     return html`
         <div class="row">
-            <div class="col-md-12">
-                <h3>Frequently Asked Questions</h3>
-                <p>Can't find an answer? Contact our support team at support@magensec.io</p>
+            <div class="col-lg-8">
+                <h3 style="margin-bottom:4px;">Frequently Asked Questions</h3>
+                <p class="text-muted" style="margin-bottom:24px;">Answers to common questions about using MagenSec.</p>
 
-                <div class="faq-list">
-                    ${faqs.map(({ q, a }) => FAQItem({ question: q, answer: a }, html)).join('')}
+                ${faqs.map((faq, i) => html`
+                    <div class="card mb-2" key=${i}>
+                        <div class="card-body" style="padding:14px 18px;">
+                            <h5 class="mb-1" style="font-size:14px;font-weight:600;">${faq.q}</h5>
+                            <p class="mb-0 text-muted" style="font-size:13px;">${faq.a}</p>
+                        </div>
+                    </div>
+                `)}
+
+                <div class="alert alert-info mt-4" style="border-left:4px solid #4299e1;">
+                    <strong>Still have questions?</strong> Contact our support team at <strong>support@magensec.io</strong>.
+                </div>
             </div>
         </div>
     `;

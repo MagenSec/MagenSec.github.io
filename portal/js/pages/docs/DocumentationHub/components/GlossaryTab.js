@@ -1,33 +1,43 @@
-function GlossaryTerm({ term, definition }, html) {
-    return html`
-        <div class="glossary-term">
-            <strong>${term}</strong>
-            <p>${definition}</p>
-        </div>
-    `;
-}
-
 export function GlossaryTab(html) {
     const terms = [
-        { term: 'CVE (Common Vulnerabilities and Exposures)', def: 'A standardized identifier for publicly disclosed vulnerabilities. Example: CVE-2025-1234. Each CVE has a unique record with details about the vulnerability, affected software, and fix availability.' },
-        { term: 'CVSS (Common Vulnerability Scoring System)', def: 'A numerical score (0-10) measuring vulnerability severity. 0-3.9 = Low, 4.0-6.9 = Medium, 7.0-8.9 = High, 9.0-10.0 = Critical. Helps prioritize patching efforts.' },
-        { term: 'CIS (Center for Internet Security)', def: 'Organization that publishes the CIS Critical Controls—18 essential security practices for protecting IT systems. Widely adopted in government and enterprise.' },
-        { term: 'NIST (National Institute of Standards and Technology)', def: 'U.S. government agency that publishes the NIST Cybersecurity Framework. Provides guidance on managing cybersecurity risk.' },
-        { term: 'DISA STIG', def: 'Defense Information Systems Agency Security Technical Implementation Guides. Detailed checklists for securing government IT systems.' },
-        { term: 'ISO 27001', def: 'International standard for information security management. Provides a framework for managing information risks. Required for many compliance programs.' },
-        { term: 'Zero-Day', def: 'A vulnerability unknown to vendors. No patch exists yet. Typically exploited before vendors even know about it. Extremely dangerous.' },
-        { term: 'Exploit', def: 'Code or technique that takes advantage of a vulnerability to compromise a system. An "active exploit" means it\'s being used in real attacks.' },
-        { term: 'Patch', def: 'A software update that fixes a vulnerability. Patches are released by vendors (Microsoft, Adobe, Apple, etc.). Critical patches should be applied immediately.' },
-        { term: 'End-of-Life (EOL)', def: 'When a software version stops receiving security patches. Example: Windows 7 reached EOL in 2020. EOL software is extremely risky.' },
+        { term: 'CVE', definition: 'Common Vulnerabilities and Exposures \u2014 a standardized identifier for a publicly known security vulnerability. Example: CVE-2025-1234. Each CVE has a unique record with severity scoring, affected software, and fix availability.' },
+        { term: 'CVSS', definition: 'Common Vulnerability Scoring System \u2014 a numerical score from 0 to 10 rating vulnerability severity. 9.0\u201310.0 = Critical, 7.0\u20138.9 = High, 4.0\u20136.9 = Medium, 0.1\u20133.9 = Low. Used to prioritize patching.' },
+        { term: 'EPSS', definition: 'Exploit Prediction Scoring System \u2014 a probability score (0 to 1) estimating how likely a vulnerability is to be exploited in the next 30 days. Higher EPSS = higher real-world urgency. Shown on device Risk tabs alongside CVEs.' },
+        { term: 'Known Exploit', definition: 'A vulnerability that is being actively used by attackers in real-world attacks, tracked by the CISA Known Exploited Vulnerabilities (KEV) catalog. Flagged in MagenSec with a "Known Exploit" indicator. Highest priority to fix.' },
+        { term: 'Security Score', definition: 'An organization-wide measure (0\u2013100) of how well-protected your devices are. Higher is better. Comes with a letter grade: A (80+), B (60\u201379), C (40\u201359), D (below 40). Shown on the Home dashboard.' },
+        { term: 'Risk Score', definition: 'A per-device composite measure (0\u2013100) of endpoint risk. Higher means MORE risk. Factors in CVE severity, known exploits, CVE density, risky applications, and telemetry health. Inverse of the device\u2019s Security Score.' },
+        { term: 'Compliance Score', definition: 'How closely your devices align with security frameworks (CIS Controls, NIST CSF). Shown as a percentage at org level on the dashboard, and as a derived score per device.' },
+        { term: 'Posture Score', definition: 'A per-device blended score combining Security Score and Compliance Score equally. Provides a single executive-level measure of device health.' },
+        { term: 'CIS Controls', definition: 'A set of 18 prioritized security best practices published by the Center for Internet Security. MagenSec maps your device configurations against CIS Controls v8.1 to measure compliance.' },
+        { term: 'NIST CSF', definition: 'The NIST Cybersecurity Framework \u2014 guidelines from the National Institute of Standards and Technology for managing cybersecurity risk, organized into functions: Identify, Protect, Detect, Respond, Recover. MagenSec supports NIST CSF 2.0.' },
+        { term: 'Patch', definition: 'A software update released by a vendor (Microsoft, Adobe, etc.) that fixes a vulnerability. Applying patches is the most effective way to improve your Security Score.' },
+        { term: 'End-of-Life (EOL)', definition: 'Software that no longer receives security updates from its vendor. Running EOL software means new vulnerabilities will never be fixed. Increases your device\u2019s Risk Score.' },
+        { term: 'Zero-Day', definition: 'A vulnerability discovered and potentially exploited before the software vendor has released a patch. No fix is immediately available, making it particularly dangerous.' },
+        { term: 'MFA', definition: 'Multi-Factor Authentication \u2014 a login method requiring two or more forms of verification (e.g., password + authenticator app). Blocks the vast majority of credential-based attacks.' },
+        { term: 'Heartbeat', definition: 'A regular check-in from the MagenSec client on your device to the portal. Used to determine device status: Online (recent heartbeat), Degraded (30 min \u2013 24 hrs), or Offline (over 24 hrs).' },
+        { term: 'Telemetry', definition: 'Data collected from your devices about their configuration, installed software, and security status. Used to calculate scores and generate findings. Does not include personal files or browsing data.' },
+        { term: 'Probe', definition: 'A Response action that collects a comprehensive security posture snapshot from a device on demand. Available on Business plans via the Response page.' },
+        { term: 'MAGICode', definition: 'A coupon code that can be entered during Personal plan setup to extend the free trial beyond the standard 7 days.' },
+        { term: 'Protect', definition: 'The baseline MagenSec workflow covering antivirus management, vulnerability scanning, and software inventory. Included in all plans (Personal, Education, Business).' },
+        { term: 'Prove', definition: 'The compliance evidence workflow available on Business plans. Adds compliance monitoring, audit capabilities, and framework alignment (CIS/NIST).' },
+        { term: 'Severity', definition: 'How serious a vulnerability is in terms of potential damage. Rated as Critical (9.0\u201310.0 CVSS), High (7.0\u20138.9), Medium (4.0\u20136.9), or Low (0.1\u20133.9).' },
+        { term: 'Remediation', definition: 'The process of fixing a vulnerability or security issue \u2014 typically by applying a patch, changing a configuration, or removing risky software.' },
     ];
 
     return html`
         <div class="row">
-            <div class="col-md-12">
-                <h3>Security Glossary</h3>
-                <p>Common security terms explained in plain language.</p>
+            <div class="col-lg-8">
+                <h3 style="margin-bottom:4px;">Glossary</h3>
+                <p class="text-muted" style="margin-bottom:24px;">Security terms and MagenSec concepts explained in plain language.</p>
 
-                ${terms.map(({ term, def }) => GlossaryTerm({ term, definition: def }, html)).join('')}
+                ${terms.map((t, i) => html`
+                    <div class="d-flex gap-2 mb-3" key=${i} style="padding-bottom:12px;border-bottom:1px solid var(--tblr-border-color, #eee);">
+                        <div>
+                            <strong style="font-size:14px;">${t.term}</strong>
+                            <p class="mb-0 text-muted" style="font-size:13px;margin-top:2px;">${t.definition}</p>
+                        </div>
+                    </div>
+                `)}
             </div>
         </div>
     `;

@@ -296,6 +296,18 @@ function renderApp(state) {
         currentParams = state.params;
         logger.debug(`[App] Rendering page: ${currentPage} (render #${renderCounter})`);
     }
+
+    // Close mobile hamburger menu on navigation
+    const navbarCollapse = document.getElementById('navbar-menu');
+    if (navbarCollapse && navbarCollapse.classList.contains('show')) {
+        const bsCollapse = bootstrap?.Collapse?.getInstance(navbarCollapse);
+        if (bsCollapse) {
+            bsCollapse.hide();
+        } else {
+            navbarCollapse.classList.remove('show');
+        }
+    }
+
     // Always update authentication UI state
     const isAuthenticated = auth.isAuthenticated();
     // device-hub manages its own auth (device JWT) — suppress portal login overlay
@@ -485,16 +497,8 @@ async function init() {
     // Initialize theme service
     themeService.initialize();
     
-    // Add theme toggle to navbar (if exists)
-    const navbar = document.querySelector('.navbar-nav');
-    if (navbar) {
-        const themeToggle = themeService.createToggleButton();
-        themeToggle.classList.add('nav-link');
-        const li = document.createElement('li');
-        li.className = 'nav-item';
-        li.appendChild(themeToggle);
-        navbar.appendChild(li);
-    }
+    // Theme toggle is now in the top bar (index.html #theme-toggle-btn)
+    // Wired by themeService below — no dynamic injection needed
     
     // Listen for auth changes
     auth.onChange((session) => {
