@@ -5,6 +5,11 @@
  * Last Updated: January 18, 2026
  */
 
+/* Prevent horizontal scroll from offscreen elements */
+html, body {
+  overflow-x: hidden;
+}
+
 /* ========================================
    Tabler Color Variables
    ======================================== */

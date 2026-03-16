@@ -1,4 +1,3 @@
-const { html } = window.htm;
 import { GettingStartedTab } from './components/GettingStartedTab.js';
 import { FAQTab } from './components/FAQTab.js';
 import { GlossaryTab } from './components/GlossaryTab.js';
@@ -6,23 +5,24 @@ import { BestPracticesTab } from './components/BestPracticesTab.js';
 import { SecurityTab } from './components/SecurityTab.js';
 
 export function DocumentationHub() {
+    // Read html at call time — window.html is guaranteed set when Preact renders this component
+    const html = window.html;
     let currentTab = 'getting-started';
 
     function renderTabContent() {
-        const { html: htmlFunc } = window.htm;
         switch (currentTab) {
             case 'getting-started':
-                return GettingStartedTab(htmlFunc);
+                return GettingStartedTab(html);
             case 'best-practices':
-                return BestPracticesTab(htmlFunc);
+                return BestPracticesTab(html);
             case 'faq':
-                return FAQTab(htmlFunc);
+                return FAQTab(html);
             case 'glossary':
-                return GlossaryTab(htmlFunc);
+                return GlossaryTab(html);
             case 'security':
-                return SecurityTab(htmlFunc);
+                return SecurityTab(html);
             default:
-                return htmlFunc`<p>Select a tab to view documentation</p>`;
+                return html`<p>Select a tab to view documentation</p>`;
         }
     }
 
