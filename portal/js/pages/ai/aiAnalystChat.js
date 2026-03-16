@@ -14,6 +14,7 @@
 import { api } from '@api';
 import { orgContext } from '@orgContext';
 import { auth } from '@auth';
+import { rewindContext } from '@rewindContext';
 
 const { html, Component, createRef } = window;
 
@@ -233,10 +234,12 @@ export default class AIAnalystChatPage extends Component {
         }));
 
         try {
+            const asOfDate = rewindContext.isActive() ? rewindContext.getDate() : undefined;
             const response = await api.post(`/api/v1/orgs/${org.orgId}/ai-analyst/ask`, {
                 question,
                 conversationId: this.state.conversationId,
                 includeContext: true,
+                ...(asOfDate ? { asOfDate } : {}),
                 context: {
                     hint: this.state.pageContext || null,
                     route: '#!/analyst',
@@ -605,7 +608,6 @@ export default class AIAnalystChatPage extends Component {
         return html`
             <div class="ai-analyst-chat-page" style="
                 display: flex; flex-direction: column;
-                height: calc(100vh - 120px);
                 max-width: 100%; margin: 0 auto;
                 padding: 0;
             ">

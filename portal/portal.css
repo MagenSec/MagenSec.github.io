@@ -2154,8 +2154,13 @@ body, .antialiased {
   border-width: 1px;
 }
 
+:root {
+    --portal-header-offset: 120px;
+    --timewarp-banner-offset: 0px;
+}
 
-/* -- Rewind / Time Warp � body-level visual treatment --------------------------------------
+
+/* -- Time Warp body-level visual treatment --------------------------------------
    Applied when body.rewind-active class is set by RewindBar.js
    Goal: make it immediately obvious the user is viewing historical data, not live state
 ------------------------------------------------------------------------------------------- */
@@ -2166,7 +2171,11 @@ body.rewind-active .navbar-expand-xl {
     transition: box-shadow 0.25s ease;
 }
 
-/* The Rewind nav-link gets amber highlight when rewind is active */
+body.rewind-active {
+  --timewarp-banner-offset: 40px;
+}
+
+/* The Time Warp nav-link gets amber highlight when historical mode is active */
 body.rewind-active #rewind-nav-item .nav-link {
     color: #f59f00 !important;
     background: rgba(245, 159, 0, 0.15);
@@ -2196,12 +2205,12 @@ body.rewind-active .page-body {
     transition: filter 0.35s ease;
 }
 
-/* Rewind panel: amber top accent */
+/* Time Warp panel: amber top accent */
 #rewind-panel {
     border-top: 3px solid #f59f00 !important;
 }
 
-/* Navbar Rewind link � nav-active state class (added by wireRewindPanel) */
+/* Navbar Time Warp link - nav-active state class (added by wireRewindPanel) */
 #rewind-nav-item.rewind-nav-active .nav-link {
     color: #f59f00 !important;
     font-weight: 800;
@@ -2266,7 +2275,7 @@ body.rewind-active .page-body {
     100% { opacity: 1; transform: translateY(0)     scale(1);    }
 }
 
-/* Rewind button in active state � amber pill */
+/* Time Warp button in active state - amber pill */
 #rewind-trigger[aria-expanded="true"] {
     outline: none;
     box-shadow: 0 0 0 3px rgba(245, 159, 0, 0.35);
