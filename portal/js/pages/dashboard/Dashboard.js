@@ -275,8 +275,15 @@ export class DashboardPage extends Component {
                 seats: Number(licenseStats.seatsTotal || 0),
                 usedSeats: Number(licenseStats.seatsUsed || 0),
                 seatUtilization: Number(businessOwner?.licenseCard?.utilizationPercent || 0),
-                remainingCredits: 0,
-                creditUtilization: 0,
+                daysRemaining: Number(licenseStats.daysRemaining || businessOwner?.licenseCard?.daysRemaining || 0),
+                remainingCredits: Number(
+                    licenseStats.remainingCredits
+                    || businessOwner?.licenseCard?.remainingCredits
+                    || licenseStats.daysRemaining
+                    || businessOwner?.licenseCard?.daysRemaining
+                    || 0
+                ),
+                creditUtilization: Number(licenseStats.creditUtilization || businessOwner?.licenseCard?.creditUtilization || 0),
                 expiryDate: null
             },
             coverage: {

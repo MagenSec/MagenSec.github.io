@@ -64,3 +64,60 @@ export function calculateProjectedExhaustion(org, dailyBurnRate) {
     
     return exhaustionDate.toISOString();
 }
+
+/**
+ * Estimate daily credit burn from historical samples.
+ * Ignores non-decreasing intervals (top-ups/rotations) and obvious outliers.
+ */
+export function estimateDailyBurnRate(history, org = null) {
+    if (!Array.isArray(history) || history.length < 2) return null;
+
+    const points = history
+        .map((h) => {
+            const ts = new Date(h.date || h.timestamp || h.createdAt || '').getTime();
+            const remaining = Number(h.remainingCredits ?? h.creditsRemaining);
+            return { ts, remaining };
+        })
+        .filter((p) => Number.isFinite(p.ts) && Number.isFinite(p.remaining))
+        .sort((a, b) => a.ts - b.ts);
+
+    if (points.length < 2) return null;
+
+    const maxReasonableBurn = Math.max(50, Number(org?.seats || 0) * 5);
+    const rates = [];
+
+    for (let i = 1; i < points.length; i += 1) {
+        const prev = points[i - 1];
+        const curr = points[i];
+        const consumed = prev.remaining - curr.remaining;
+        if (consumed <= 0) continue;
+
+        const daySpan = (curr.ts - prev.ts) / MS_PER_DAY;
+        if (!Number.isFinite(daySpan) || daySpan <= 0) continue;
+
+        const rate = consumed / daySpan;
+        if (!Number.isFinite(rate) || rate <= 0 || rate > maxReasonableBurn) continue;
+        rates.push(rate);
+    }
+
+    if (rates.length === 0) return null;
+
+    // Prefer median for robustness against occasional spikes.
+    rates.sort((a, b) => a - b);
+    const mid = Math.floor(rates.length / 2);
+    return rates.length % 2 === 0
+        ? (rates[mid - 1] + rates[mid]) / 2
+        : rates[mid];
+}
+
+/**
+ * Project exhaustion date using inferred burn rate from history.
+ */
+export function calculateProjectedExhaustionFromHistory(org, history) {
+    if (!org || !Number.isFinite(Number(org.remainingCredits)) || Number(org.remainingCredits) <= 0) {
+        return null;
+    }
+    const burnRate = estimateDailyBurnRate(history, org);
+    if (!burnRate || burnRate <= 0) return null;
+    return calculateProjectedExhaustion(org, burnRate);
+}

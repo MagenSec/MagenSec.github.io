@@ -12,7 +12,12 @@ import { logger } from '../../config.js';
 import { LicenseAdjustmentDialog } from '../../components/LicenseAdjustmentDialog.js';
 
 // Settings page utilities (extracted for modularity)
-import { ORG_DURATION_OPTIONS, getDaysLeftInfo, calculateProjectedExhaustion } from './utils/CreditService.js';
+import {
+    ORG_DURATION_OPTIONS,
+    getDaysLeftInfo,
+    calculateProjectedExhaustion,
+    calculateProjectedExhaustionFromHistory
+} from './utils/CreditService.js';
 import { GAUGE_GRADIENT_ID, polarToCartesian, describeArc, getPercentRemaining } from './utils/GaugeUtils.js';
 import { isValidEmail, getRoleBadgeClass, canManageMembers } from './services/TeamService.js';
 import { getLicenseStatusBadgeClass, formatLicenseDisplay } from './services/LicenseService.js';
@@ -61,16 +66,24 @@ export function SettingsPage() {
     const [transferOwnerEmail, setTransferOwnerEmail] = useState('');
     const [transferringOwnership, setTransferringOwnership] = useState(false);
 
-    // Load data on mount and reload when org changes
+    // Load data on mount, reload when org or Time Warp state changes
     useEffect(() => {
-        const unsubscribe = orgContext.onChange(() => {
+        const unsubscribeOrg = orgContext.onChange(() => {
             setActiveTab('general');
             loadSettings();
         });
-        
+
+        // Re-fetch and re-filter when Time Warp is activated / deactivated
+        const unsubscribeWarp = window.rewindContext?.onChange?.(() => {
+            loadSettings();
+        });
+
         loadSettings();
-        
-        return unsubscribe;
+
+        return () => {
+            unsubscribeOrg?.();
+            unsubscribeWarp?.();
+        };
     }, []);
 
     const loadSettings = async () => {
@@ -78,6 +91,7 @@ export function SettingsPage() {
             setLoading(true);
             const currentOrg = orgContext.getCurrentOrg();
             const currentOrgId = currentOrg?.orgId;
+            let orgForProjection = null;
 
             if (!currentOrgId) {
                 showToast('Please select an organization', 'warning');
@@ -89,11 +103,14 @@ export function SettingsPage() {
             const isAdmin = userType === 'SiteAdmin';
             setIsSiteAdmin(isAdmin);
 
+            const effectiveDate = api.getEffectiveDate?.();
+            const dateQuery = effectiveDate ? { date: effectiveDate } : null;
+
             // ── Batch 1: independent calls (no org-type dependency) ─────────────────
             const [meResult, orgResult, creditResult] = await Promise.allSettled([
                 api.get('/api/v1/users/me'),
-                api.get(`/api/v1/orgs/${currentOrgId}`),
-                api.get(`/api/v1/orgs/${currentOrgId}/credits/history`)
+                api.get(`/api/v1/orgs/${currentOrgId}`, dateQuery),
+                api.get(`/api/v1/orgs/${currentOrgId}/credits/history`, dateQuery)
             ]);
 
             // Process users/me → phone / WhatsApp settings
@@ -106,6 +123,21 @@ export function SettingsPage() {
 
             // Process org details
             let isPersonalType = false;
+            // Pre-compute historical credit balance from history if Time Warp is active,
+            // so we can fold it into the single setOrg call (avoids async batching issues).
+            let historicalCreditBalance = null;
+            if (effectiveDate && creditResult.status === 'fulfilled' && creditResult.value?.data?.history) {
+                const allH = creditResult.value.data.history;
+                const cutoffTs = new Date(`${effectiveDate.slice(0,4)}-${effectiveDate.slice(4,6)}-${effectiveDate.slice(6,8)}T23:59:59Z`).getTime();
+                const filtered = allH.filter(h => {
+                    const ts = new Date(h.date || h.timestamp || h.createdAt || '').getTime();
+                    return Number.isFinite(ts) && ts <= cutoffTs;
+                }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                if (filtered.length > 0) {
+                    historicalCreditBalance = filtered[filtered.length - 1].remainingCredits ?? null;
+                }
+            }
+
             if (orgResult.status === 'fulfilled' && orgResult.value?.success && orgResult.value?.data) {
                 const orgData = orgResult.value.data;
                 logger.info('[Settings] Org API response', { success: true, hasData: true });
@@ -120,11 +152,16 @@ export function SettingsPage() {
                     orgName: orgData.orgName || orgData.name,
                     ownerEmail: orgData.ownerEmail || 'Unknown',
                     totalCredits: orgData.totalCredits ?? 0,
-                    remainingCredits: orgData.remainingCredits ?? 0,
+                    remainingCredits: historicalCreditBalance ?? orgData.remainingCredits ?? 0,
                     seats: orgData.seats ?? orgData.totalSeats ?? null,
                     isDisabled: orgData.isDisabled ?? false,
                     isPersonal: isPersonalType
                 });
+                orgForProjection = {
+                    totalCredits: orgData.totalCredits ?? 0,
+                    remainingCredits: historicalCreditBalance ?? orgData.remainingCredits ?? 0,
+                    seats: orgData.seats ?? orgData.totalSeats ?? null
+                };
                 setIsPersonalOrg(isPersonalType);
             } else {
                 logger.warn('[Settings] Failed to load org details, using context data as fallback');
@@ -136,19 +173,39 @@ export function SettingsPage() {
                         orgName: contextOrg.name,
                         ownerEmail: contextOrg.ownerEmail || 'Unknown',
                         totalCredits: contextOrg.totalCredits ?? 0,
-                        remainingCredits: contextOrg.remainingCredits ?? 0,
+                        remainingCredits: historicalCreditBalance ?? contextOrg.remainingCredits ?? 0,
                         seats: contextOrg.totalSeats ?? null,
                         isDisabled: contextOrg.isDisabled ?? false,
                         isPersonal: isPersonalType
                     });
+                    orgForProjection = {
+                        totalCredits: contextOrg.totalCredits ?? 0,
+                        remainingCredits: historicalCreditBalance ?? contextOrg.remainingCredits ?? 0,
+                        seats: contextOrg.totalSeats ?? null
+                    };
                     setIsPersonalOrg(isPersonalType);
                 }
             }
 
-            // Process credit history
+            // Process credit history — client-side slice to effectiveDate when Time Warp is active
             if (creditResult.status === 'fulfilled' && creditResult.value?.success && creditResult.value?.data) {
-                setCreditHistory(creditResult.value.data.history || []);
-                setProjectedExhaustion(creditResult.value.data.projectedExhaustionDate || null);
+                const allHistory = creditResult.value.data.history || [];
+                const backendProjection = creditResult.value.data.projectedExhaustionDate || null;
+
+                let history = allHistory;
+                if (effectiveDate) {
+                    // Keep only snapshots on or before the warp date (yyyyMMdd → YYYY-MM-DD midnight)
+                    const cutoff = new Date(`${effectiveDate.slice(0,4)}-${effectiveDate.slice(4,6)}-${effectiveDate.slice(6,8)}T23:59:59Z`).getTime();
+                    history = allHistory.filter(h => {
+                        const ts = new Date(h.date || h.timestamp || h.createdAt || '').getTime();
+                        return Number.isFinite(ts) && ts <= cutoff;
+                    });
+                    // orgForProjection already has the corrected credit balance (historicalCreditBalance)
+                }
+
+                const projectedFromHistory = calculateProjectedExhaustionFromHistory(orgForProjection, history);
+                setCreditHistory(history);
+                setProjectedExhaustion(projectedFromHistory || (effectiveDate ? null : backendProjection) || null);
             } else {
                 logger.debug('[Settings] Credit history not available');
                 setCreditHistory([]);
@@ -156,6 +213,11 @@ export function SettingsPage() {
             }
 
             // ── Batch 2: org-type-dependent calls (all in parallel) ─────────────────
+            // Time Warp: compute ISO cutoff string for client-side date filtering
+            const warpCutoffIso = effectiveDate
+                ? new Date(`${effectiveDate.slice(0,4)}-${effectiveDate.slice(4,6)}-${effectiveDate.slice(6,8)}T23:59:59Z`).toISOString()
+                : null;
+
             const canManageEmailPrefs = isAdmin || currentOrg?.role === 'Owner';
             const batch2Calls = [];
             const batch2Keys = [];
@@ -184,9 +246,27 @@ export function SettingsPage() {
                     const val = result.status === 'fulfilled' ? result.value : null;
 
                     if (key === 'licenses') {
-                        setLicenses((val?.success && val?.data) ? val.data : []);
+                        let licenseData = (val?.success && val?.data) ? val.data : [];
+                        // Time Warp: exclude licenses created after the effective date
+                        if (warpCutoffIso) {
+                            licenseData = licenseData.filter(lic => {
+                                const created = lic.createdAt || lic.createdDate;
+                                if (!created) return true; // unknown — keep
+                                return new Date(created).toISOString() <= warpCutoffIso;
+                            });
+                        }
+                        setLicenses(licenseData);
                     } else if (key === 'members') {
-                        setMembers((val?.success && val?.data) ? val.data : []);
+                        let memberData = (val?.success && val?.data) ? val.data : [];
+                        // Time Warp: exclude members added after the effective date
+                        if (warpCutoffIso) {
+                            memberData = memberData.filter(m => {
+                                const added = m.addedAt || m.addedDate;
+                                if (!added) return true;
+                                return new Date(added).toISOString() <= warpCutoffIso;
+                            });
+                        }
+                        setMembers(memberData);
                     } else if (key === 'accounts') {
                         if (val?.success && val?.data) setAccounts(val.data);
                         else { logger.debug('[Settings] Could not load accounts list'); setAccounts([]); }
@@ -620,6 +700,7 @@ export function SettingsPage() {
                             onRotate=${handleRotateLicense}
                             onCopy=${copyToClipboard}
                             isSiteAdmin=${isSiteAdmin}
+                            effectiveDate=${api.getEffectiveDate?.() || null}
                         />`)}
                     ${activeTab === 'team' && (isPersonalOrg
                         ? html`<${BusinessOnlyMessage} 
@@ -644,6 +725,7 @@ export function SettingsPage() {
                             showTeamDropdown=${showTeamDropdown}
                             setShowTeamDropdown=${setShowTeamDropdown}
                             isReadOnly=${orgContext.isReadOnly()}
+                            effectiveDate=${api.getEffectiveDate?.() || null}
                         />`)}
                     ${activeTab === 'notifications' && !isPersonalOrg && html`<${EmailNotificationsTab}
                         orgId=${org?.orgId}
@@ -773,13 +855,13 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, curre
                                 <${SemiCircleGauge} percent=${percentDisplay} />
                                 <div class="text-muted small mt-2">
                                     ${daysLeft !== null && org.totalCredits && org.seats 
-                                        ? `${daysLeft} of ${Math.round(org.totalCredits / org.seats)} days`
+                                        ? `${org.remainingCredits || 0} of ${org.totalCredits || 0} credits`
                                         : '—'}
                                 </div>
                             </div>
                         </div>
                         <div class="mt-4">
-                            <CreditsChart history=${creditHistory} projectedExhaustion=${projectedExhaustion} />
+                            <${CreditsChart} history=${creditHistory} projectedExhaustion=${projectedExhaustion} />
                         </div>
                     </div>
                 </div>
@@ -934,86 +1016,218 @@ function SemiCircleGauge({ percent }) {
 }
 
 function CreditsChart({ history, projectedExhaustion }) {
+    const { useRef, useEffect, useState } = window.preactHooks;
+    const chartRef = useRef(null);
+    const instanceRef = useRef(null);
+    const [chartLibReady, setChartLibReady] = useState(Boolean(window.ApexCharts));
+
+    useEffect(() => {
+        if (window.ApexCharts) {
+            setChartLibReady(true);
+            return undefined;
+        }
+
+        const existingScript = document.querySelector('script[src*="apexcharts"]');
+        if (existingScript) {
+            const onLoad = () => setChartLibReady(true);
+            existingScript.addEventListener('load', onLoad, { once: true });
+            const poll = window.setInterval(() => {
+                if (window.ApexCharts) {
+                    window.clearInterval(poll);
+                    setChartLibReady(true);
+                }
+            }, 200);
+            return () => {
+                existingScript.removeEventListener('load', onLoad);
+                window.clearInterval(poll);
+            };
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/apexcharts@3.45.0/dist/apexcharts.min.js';
+        script.onload = () => setChartLibReady(true);
+        script.onerror = () => console.warn('[CDN] ApexCharts failed to load for Settings credits chart');
+        document.head.appendChild(script);
+        return () => {
+            script.onload = null;
+            script.onerror = null;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!chartRef.current || !chartLibReady || !window.ApexCharts) return;
+
+        // Destroy previous instance if history changes
+        if (instanceRef.current) {
+            instanceRef.current.destroy();
+            instanceRef.current = null;
+        }
+
+        if (!history || history.length === 0) return;
+
+        const points = history
+            .map(h => ({ ts: new Date(h.date || h.timestamp || '').getTime(), y: h.remainingCredits ?? 0, consumed: h.creditsConsumed ?? 0 }))
+            .filter(p => Number.isFinite(p.ts) && Number.isFinite(p.y))
+            .sort((a, b) => a.ts - b.ts);
+
+        if (points.length === 0) return;
+
+        // Classify each point: top-up / rotation (balance went UP), consumption, creation
+        const annotations = [];
+        for (let i = 1; i < points.length; i += 1) {
+            const prev = points[i - 1];
+            const curr = points[i];
+            if (curr.y > prev.y) {
+                // Credit increase — top-up or rotation
+                const delta = curr.y - prev.y;
+                annotations.push({
+                    x: curr.ts,
+                    borderColor: '#2fb344',
+                    strokeDashArray: 4,
+                    label: {
+                        text: `+${delta.toLocaleString()} (top-up / rotation)`,
+                        style: { background: '#2fb344', color: '#fff', fontSize: '10px' },
+                        position: 'top',
+                        offsetY: -4
+                    }
+                });
+            }
+        }
+
+        // Projected exhaustion line
+        if (projectedExhaustion) {
+            const exhaustionTs = new Date(projectedExhaustion).getTime();
+            if (Number.isFinite(exhaustionTs) && exhaustionTs > points[points.length - 1].ts) {
+                annotations.push({
+                    x: exhaustionTs,
+                    borderColor: '#d63939',
+                    strokeDashArray: 5,
+                    label: {
+                        text: `Est. exhaustion ${new Date(projectedExhaustion).toLocaleDateString()}`,
+                        style: { background: '#d63939', color: '#fff', fontSize: '10px' },
+                        position: 'top'
+                    }
+                });
+            }
+        }
+
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const textColor = isDark ? '#adb5bd' : '#626976';
+        const gridColor = isDark ? '#2c3038' : '#e9ecef';
+
+        const options = {
+            chart: {
+                type: 'area',
+                height: 220,
+                sparkline: { enabled: false },
+                toolbar: { show: false },
+                zoom: { enabled: false },
+                animations: { enabled: false },
+                background: 'transparent'
+            },
+            theme: { mode: isDark ? 'dark' : 'light' },
+            series: [{ name: 'Credits Remaining', data: points.map(p => ({ x: p.ts, y: p.y })) }],
+            xaxis: {
+                type: 'datetime',
+                labels: { style: { colors: textColor, fontSize: '10px' }, datetimeUTC: false },
+                axisBorder: { show: false },
+                axisTicks: { show: false }
+            },
+            yaxis: {
+                labels: {
+                    style: { colors: textColor, fontSize: '10px' },
+                    formatter: v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : String(Math.round(v))
+                },
+                min: 0
+            },
+            grid: { borderColor: gridColor, strokeDashArray: 4, padding: { left: 8, right: 8 } },
+            stroke: { curve: 'smooth', width: 2 },
+            fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.02, stops: [0, 90, 100] } },
+            colors: ['#0054a6'],
+            tooltip: {
+                x: { format: 'dd MMM yyyy HH:mm' },
+                y: { formatter: v => `${v.toLocaleString()} credits` }
+            },
+            annotations: { xaxis: annotations },
+            dataLabels: { enabled: false },
+            legend: { show: false }
+        };
+
+        const chart = new window.ApexCharts(chartRef.current, options);
+        chart.render();
+        instanceRef.current = chart;
+
+        // Re-render on theme switch
+        const onTheme = () => {
+            const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            instanceRef.current?.updateOptions({ theme: { mode: dark ? 'dark' : 'light' } });
+        };
+        document.addEventListener('theme-changed', onTheme);
+        return () => {
+            document.removeEventListener('theme-changed', onTheme);
+            instanceRef.current?.destroy();
+            instanceRef.current = null;
+        };
+    }, [history, projectedExhaustion]);
+
     if (!history || history.length === 0) {
-        return html`<div class="text-muted small">No recent credit activity yet.</div>`;
+        return html`<div class="text-muted small py-2">No credit activity recorded yet.</div>`;
     }
-
-    const points = history
-        .map(h => ({
-            x: new Date(h.date).getTime(),
-            y: h.remainingCredits ?? 0,
-            seats: h.seats ?? null
-        }))
-        .filter(p => !isNaN(p.x) && !isNaN(p.y) && p.x !== null && p.y !== null && isFinite(p.x) && isFinite(p.y));
-
-    if (points.length === 0) {
-        return html`<div class="text-muted small">Invalid credit history data.</div>`;
-    }
-
-    const minY = Math.min(...points.map(p => p.y), 0);
-    const maxY = Math.max(...points.map(p => p.y), 1);
-    const minX = Math.min(...points.map(p => p.x));
-    const maxX = Math.max(...points.map(p => p.x));
-
-    const normalize = (val, min, max) => {
-        if (!isFinite(val) || !isFinite(min) || !isFinite(max) || max === min) return 0;
-        const result = (val - min) / (max - min);
-        return isFinite(result) ? result : 0;
-    };
-
-    const width = 340;
-    const height = 120;
-
-    const polyline = points.map(p => {
-        const x = normalize(p.x, minX, maxX) * width;
-        const y = height - (normalize(p.y, minY, maxY) * height);
-        // Ensure coordinates are valid numbers
-        if (!isFinite(x) || !isFinite(y)) return null;
-        return `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10}`;
-    }).filter(p => p !== null).join(' ');
 
     const last = history[history.length - 1];
-    const exhaustionText = projectedExhaustion
-        ? `Projected to expire on ${new Date(projectedExhaustion).toLocaleDateString()}`
-        : 'Projection not available yet';
-
     return html`
         <div>
-            <div class="d-flex justify-content-between align-items-center mb-1">
-                <div class="text-muted small">Credits trend</div>
-                <div class="text-muted small">Remaining: <strong>${last?.remainingCredits ?? 0}</strong></div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="text-muted small fw-medium">Credit balance over time</div>
+                <div class="text-muted small">Current: <strong>${(last?.remainingCredits ?? 0).toLocaleString()}</strong></div>
             </div>
-            <svg width="100%" height="${height}" viewBox=${`0 0 ${width} ${height}`} preserveAspectRatio="none">
-                <polyline
-                    fill="none"
-                    stroke="var(--tblr-primary)"
-                    stroke-width="3"
-                    points=${polyline}
-                    stroke-linejoin="round"
-                    stroke-linecap="round"
-                />
-                <line x1="0" y1="${height - (normalize(0, minY, maxY) * height)}" x2="${width}" y2="${height - (normalize(0, minY, maxY) * height)}" stroke="#dee2e6" stroke-dasharray="4" />
-            </svg>
-            <div class="text-muted small mt-1">${exhaustionText}</div>
+            ${!chartLibReady ? html`<div class="text-muted small py-2">Loading chart…</div>` : ''}
+            <div ref=${chartRef}></div>
         </div>
     `;
 }
 
 // Licenses Tab
-function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
+function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate }) {
     const [visibleKeys, setVisibleKeys] = useState({});
 
     const toggleKey = (id) => {
         setVisibleKeys(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
+    // Build ISO cutoff for restoring pre-warp license states
+    const warpCutoffIso = effectiveDate
+        ? new Date(`${effectiveDate.slice(0,4)}-${effectiveDate.slice(4,6)}-${effectiveDate.slice(6,8)}T23:59:59Z`).toISOString()
+        : null;
+
+    // If a license was rotated after the warp date, show it as it was before rotation
+    const adjustedLicenses = warpCutoffIso
+        ? licenses.map(lic => {
+            if (lic.rotatedAt && new Date(lic.rotatedAt).toISOString() > warpCutoffIso) {
+                return { ...lic, isActive: true, isDisabled: false, status: 'Active', rotatedAt: null };
+            }
+            return lic;
+        })
+        : licenses;
+
     return html`
         <div>
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="card-title mb-0">License Management</h3>
             </div>
+
+            ${warpCutoffIso ? html`
+            <div class="alert alert-warning mb-3" role="alert">
+                <div class="d-flex align-items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.871l-8.106 -13.534a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>
+                    <span><strong>Time Warp active</strong> — showing licenses as of ${
+                        new Date(`${effectiveDate.slice(0,4)}-${effectiveDate.slice(4,6)}-${effectiveDate.slice(6,8)}`).toLocaleDateString()
+                    }. License management is disabled.</span>
+                </div>
+            </div>
+            ` : ''}
             
-            ${(!licenses || licenses.length === 0) ? html`
+            ${(!adjustedLicenses || adjustedLicenses.length === 0) ? html`
                 <div class="empty">
                     <div class="empty-icon">
                         <i class="ti ti-key icon"></i>
@@ -1036,7 +1250,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${licenses.map(license => {
+                            ${adjustedLicenses.map(license => {
                                 const id = license.licenseId || license.rowKey;
                                 const serialKey = license.serialKey || 'N/A';
                                 const isVisible = visibleKeys[id];
@@ -1091,6 +1305,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
                                             ${license.rotatedAt ? new Date(license.rotatedAt).toLocaleDateString() : 'Never'}
                                         </td>
                                         <td>
+                                            ${!warpCutoffIso ? html`
                                             <div class="btn-group">
                                                 <button 
                                                     class="btn btn-sm btn-primary"
@@ -1101,6 +1316,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
                                                     Rotate
                                                 </button>
                                             </div>
+                                            ` : ''}
                                         </td>
                                     </tr>
                                 `;
@@ -1130,7 +1346,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
 }
 
 // Team Tab
-function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpdateRole, teamEmail, setTeamEmail, teamRole, setTeamRole, accounts = [], isValidEmail, setTeamSearch, teamSearch, showTeamDropdown, setShowTeamDropdown, isReadOnly = false }) {
+function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpdateRole, teamEmail, setTeamEmail, teamRole, setTeamRole, accounts = [], isValidEmail, setTeamSearch, teamSearch, showTeamDropdown, setShowTeamDropdown, isReadOnly = false, effectiveDate = null }) {
     const filteredAccounts = (accounts && accounts.length > 0 && teamSearch)
         ? accounts.filter(acc => acc.email?.toLowerCase().includes(teamSearch.toLowerCase()) || acc.name?.toLowerCase().includes(teamSearch.toLowerCase()))
         : (accounts || []);
@@ -1156,13 +1372,27 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
     return html`
         <div>
             <h3 class="card-title mb-3">Team Members</h3>
+
+            <!-- Time Warp notice: editing disabled, list is as-of the warp date -->
+            ${effectiveDate ? html`
+            <div class="alert alert-warning mb-4" role="alert">
+                <div class="d-flex align-items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.871l-8.106 -13.534a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>
+                    <span><strong>Time Warp active</strong> — showing team membership as of ${
+                        new Date(`${effectiveDate.slice(0,4)}-${effectiveDate.slice(4,6)}-${effectiveDate.slice(6,8)}`).toLocaleDateString()
+                    }. Changes are disabled.</span>
+                </div>
+            </div>
+            ` : ''}
             
-            <!-- Add Member Form — hidden for Auditor users -->
-            ${isReadOnly ? html`
+            <!-- Add Member Form — hidden for Auditor users and in Time Warp mode -->
+            ${(isReadOnly || effectiveDate) ? html`
+            ${!effectiveDate ? html`
             <div class="alert alert-info mb-4" role="alert">
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M12 3a4 4 0 0 1 4 4v4h-8v-4a4 4 0 0 1 4 -4z"/></svg>
                 Auditors can view team members but cannot add or remove them.
             </div>
+            ` : ''}
             ` : html`
             <!-- Add Member Form -->
             <div class="card bg-light mb-4">
@@ -1297,7 +1527,7 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                                         ${member.addedAt ? new Date(member.addedAt).toLocaleDateString() : 'N/A'}
                                     </td>
                                     <td>
-                                        ${!isReadOnly ? html`
+                                        ${(!isReadOnly && !effectiveDate) ? html`
                                         <button 
                                             class="btn btn-sm btn-ghost-danger"
                                             onClick=${() => onRemoveMember(member.userId)}
