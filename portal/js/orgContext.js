@@ -137,7 +137,8 @@ class OrgContext {
                 totalSeats: org.totalSeats,
                 isEnabled: org.isEnabled !== false,
                 remainingCredits: org.remainingCredits ?? -1,
-                totalCredits: org.totalCredits ?? -1
+                totalCredits: org.totalCredits ?? -1,
+                addOns: Array.isArray(org.addOns) ? org.addOns : []
             }));
 
             // De-duplicate by orgId to avoid duplicate personal org entries
@@ -236,6 +237,38 @@ class OrgContext {
      */
     getCurrentRole() {
         return this.currentOrg?.role || 'ReadOnly';
+    }
+
+    isReadOnly() {
+        return this.getCurrentRole() === 'ReadOnly';
+    }
+
+    canWrite() {
+        const role = this.getCurrentRole();
+        return role === 'Owner' || role === 'ReadWrite';
+    }
+
+    /**
+     * Whether this org can activate Rewind (time-travel historical access).
+     * Gated by the "Rewind" add-on on the org's license. SiteAdmin always has Rewind.
+     */
+    hasRewind() {
+        if (this.isSiteAdmin()) return true;
+        const addOns = this.currentOrg?.addOns;
+        return Array.isArray(addOns) && addOns.some(a => a.toLowerCase() === 'rewind');
+    }
+
+    /**
+     * Whether this org can access MAGI historical mode (Rewind + AI analyst combo).
+     * Requires both Rewind access and a non-ReadOnly role (ReadOnly has minimal AI quota).
+     */
+    hasMagi() {
+        // All orgs with an active license get basic MAGI; historical MAGI requires Rewind.
+        return !!this.currentOrg;
+    }
+
+    hasHistoricalMagi() {
+        return this.hasRewind() && this.canWrite();
     }
 
     /**

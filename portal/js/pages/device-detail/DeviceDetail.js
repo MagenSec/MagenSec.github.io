@@ -2308,6 +2308,12 @@ export class DeviceDetailPage extends window.Component {
                                                 </a>
                                                 <div class="dropdown-divider"></div>
                                                 <div class="dropdown-header">Response Actions</div>
+                                                ${orgContext.isReadOnly() ? html`
+                                                    <span class="dropdown-item text-muted disabled" style="cursor:default;">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M12 3a4 4 0 0 1 4 4v4h-8v-4a4 4 0 0 1 4 -4z"/></svg>
+                                                        Auditor — no actions
+                                                    </span>
+                                                ` : html`
                                                 <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('TriggerScan'); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
                                                     Trigger Scan
@@ -2337,6 +2343,7 @@ export class DeviceDetailPage extends window.Component {
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 6l3 18h12l3 -18h-18" /><path d="M8 6v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" /></svg>
                                                     Block + Delete Telemetry
                                                 </a>
+                                                `}
                                             </div>
                                         </div>
                                     </div>

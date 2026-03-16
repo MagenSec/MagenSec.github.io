@@ -15,6 +15,7 @@
 
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 
 const { html, Component } = window;
 
@@ -95,17 +96,20 @@ export class SoftwareInventoryPage extends Component {
             saveError: null,
         };
         this._unsubOrg = null;
+        this._rewindUnsub = null;
     }
 
     // ─── lifecycle ───────────────────────────────────────────────────────────
 
     async componentDidMount() {
         this._unsubOrg = orgContext.onChange(() => this.loadData(true));
+        this._rewindUnsub = rewindContext.onChange(() => this.loadData(true));
         await this.loadData();
     }
 
     componentWillUnmount() {
         if (this._unsubOrg) this._unsubOrg();
+        if (this._rewindUnsub) this._rewindUnsub();
     }
 
     // ─── caching helpers ─────────────────────────────────────────────────────
@@ -663,6 +667,7 @@ export class SoftwareInventoryPage extends Component {
                                             ${lic?.updatedAt ? new Date(lic.updatedAt).toLocaleDateString() : '—'}
                                         </td>
                                         <td class="text-end" style="white-space:nowrap">
+                                            ${!orgContext.isReadOnly() ? html`
                                             <button class="btn btn-sm btn-ghost-primary me-1"
                                                     onClick=${() => this._startEdit(app)}>
                                                 ${lic ? 'Edit' : 'Add'}
@@ -671,6 +676,7 @@ export class SoftwareInventoryPage extends Component {
                                                 <button class="btn btn-sm btn-ghost-danger"
                                                         onClick=${() => this._deleteLicense(app)}>✕</button>
                                             ` : ''}
+                                            ` : html`<span class="text-muted small" title="Auditors cannot edit licenses">View only</span>`}
                                         </td>
                                     </tr>`;
                             })}

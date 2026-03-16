@@ -1,6 +1,7 @@
 import { api } from '@api';
 import { logger } from '@config';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 
 const { html, Component } = window;
 
@@ -39,16 +40,19 @@ export class AIPosturePage extends Component {
             pollingForReport: false
         };
         this.orgUnsubscribe = null;
+        this._rewindUnsub = null;
         this.pollInterval = null;
     }
 
     componentDidMount() {
         this.orgUnsubscribe = orgContext.onChange(() => this.loadReports());
+        this._rewindUnsub = rewindContext.onChange(() => { this.stopPolling(); this.loadReports(); });
         this.loadReports();
     }
 
     componentWillUnmount() {
         if (this.orgUnsubscribe) this.orgUnsubscribe();
+        if (this._rewindUnsub) this._rewindUnsub();
         if (this.pollInterval) {
             clearInterval(this.pollInterval);
             this.pollInterval = null;
@@ -137,6 +141,9 @@ export class AIPosturePage extends Component {
     }
 
     startPolling() {
+        // Don't poll for historical (rewind) data
+        if (rewindContext.isActive()) return;
+
         // Clear any existing interval
         if (this.pollInterval) {
             clearInterval(this.pollInterval);

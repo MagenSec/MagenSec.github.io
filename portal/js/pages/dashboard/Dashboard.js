@@ -14,6 +14,7 @@ import { auth } from '@auth';
 import { api } from '@api';
 import { config } from '@config';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 import { SavingsCalculator } from '@components/SavingsCalculator.js';
 import { CveDetailsModal } from '@components/CveDetailsModal.js';
 import { SWRHelper } from '@utils/SWRHelper.js';
@@ -27,7 +28,9 @@ import { getDonutChartConfig, getRadarChartConfig, getScatterChartConfig, render
 import { formatTimestamp, formatRelativeTime, formatNumber, formatPercent, roundPercent, formatDeviceList, groupBy, sortBy, uniqueBy } from '@utils/dataHelpers.js';
 
 const { html, Component } = window;
-const SESSION_DASH_KEY = (orgId) => `dashboard_data_${orgId}`;
+const SESSION_DASH_KEY = (orgId) => rewindContext.isActive()
+    ? `dashboard_data_${orgId}_${rewindContext.getDate()}`
+    : `dashboard_data_${orgId}`;
 
 export class DashboardPage extends Component {
     constructor(props) {
@@ -66,6 +69,7 @@ export class DashboardPage extends Component {
             officerNoteDismissed: false  // Security Officer's Note banner state
         };
         this.orgUnsubscribe = null;
+        this._rewindUnsub = null;
         this.threatChart = null;
         this.threatChartEl = null;
         this.complianceChart = null;
@@ -316,12 +320,14 @@ export class DashboardPage extends Component {
             if (this.scoreSparklineChart) this.scoreSparklineChart.destroy();
             this.loadDashboardData();
         });
+        this._rewindUnsub = rewindContext.onChange(() => this.loadDashboardData());
         this.loadDashboardData();
     }
 
     componentWillUnmount() {
         this._unmounted = true;
         if (this.orgUnsubscribe) this.orgUnsubscribe();
+        if (this._rewindUnsub) this._rewindUnsub();
         if (this.state.refreshInterval) {
             clearInterval(this.state.refreshInterval);
         }
@@ -3423,19 +3429,19 @@ export class DashboardPage extends Component {
         return html`
             <div class="btn-list">
                 ${this.renderDisabledAddDeviceButton('Add device', 'btn btn-white')}
-                <button type="button" class="btn btn-white" onclick=${() => this.queueOrgCommand('ScanAll')}>
+                <button type="button" class="btn btn-white" data-action="scan" onclick=${() => this.queueOrgCommand('ScanAll')}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
                     Scan All
                 </button>
-                <button type="button" class="btn btn-white" onclick=${() => this.queueOrgCommand('CheckUpdates')}>
+                <button type="button" class="btn btn-white" data-action="check-updates" onclick=${() => this.queueOrgCommand('CheckUpdates')}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                     Check Updates
                 </button>
-                <button type="button" class="btn btn-white" onclick=${() => this.queueOrgCommand('RefreshInventory')}>
+                <button type="button" class="btn btn-white" data-action="refresh-inventory" onclick=${() => this.queueOrgCommand('RefreshInventory')}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74" /><path d="M3 4v4h4" /></svg>
                     Refresh Inventory
                 </button>
-                <button type="button" class="btn btn-white" onclick=${() => this.queueOrgCommand('Probe')}>
+                <button type="button" class="btn btn-white" data-action="run-probe" onclick=${() => this.queueOrgCommand('Probe')}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 18.5l-7 -3.5v-6l7 -3.5l7 3.5v6z" /><path d="M12 8v10.5" /><path d="M7 10.5l5 2.5l5 -2.5" /></svg>
                     Run Probe
                 </button>

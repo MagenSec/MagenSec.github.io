@@ -35,6 +35,8 @@
             "@api": "./js/api.js",
             "@config": "./js/config.js",
             "@orgContext": "./js/orgContext.js",
+            "@rewindContext": "./js/rewindContext.js",
+            "@rewindBar": "./js/components/RewindBar.js",
             "@toast": "./js/toast.js",
             "@components/": "./js/components/",
             "@utils/": "./js/utils/"
@@ -262,8 +264,28 @@
                 <div class="navbar-nav flex-fill justify-content-center d-flex align-items-center">
                     <div id="org-switcher-root"></div>
                 </div>
-                <!-- Right: User Menu -->
-                <div class="navbar-nav flex-row order-md-last">
+                <!-- Right: Rewind trigger + User Menu -->
+                <div class="navbar-nav flex-row order-md-last gap-2 align-items-center">
+
+                    <!-- Time Warp button (top-level, beside user avatar) -->
+                    <div class="nav-item site-admin-only" style="display:none" id="rewind-nav-item">
+                        <button id="rewind-trigger"
+                            class="btn btn-sm fw-bold d-flex align-items-center gap-1"
+                            style="border-radius:20px; padding:4px 14px; border:1.5px solid rgba(247,103,7,0.55); background:linear-gradient(135deg,#1c0a00 0%,#3d1800 55%,#1c0a00 100%); color:#f59f00; transition:all 0.25s; font-size:0.8rem; letter-spacing:0.04em;"
+                            title="Time Warp — AI-reconstructed security intelligence at any past epoch"
+                            aria-label="Open Time Warp"
+                            aria-expanded="false">
+                            <span id="rewind-btn-icon" style="display:inline-flex; align-items:center;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" />
+                                </svg>
+                            </span>
+                            <span id="rewind-btn-label">Time Warp</span>
+                        </button>
+                    </div>
+
+                    <!-- User menu -->
                     <div class="nav-item dropdown">
                         <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-expanded="false" role="button">
                             <span class="avatar avatar-sm" id="user-avatar">
@@ -291,7 +313,10 @@
                 </div>
             </div>
         </header>
-        
+
+        <!-- Time Warp bar (above secondary nav, mounted by RewindBar.js when active) -->
+        <div id="rewind-bar-root"></div>
+
         <!-- Horizontal Navigation -->
         <div class="navbar-expand-md">
             <div class="collapse navbar-collapse" id="navbar-menu">
@@ -428,6 +453,16 @@
         <div id="org-status-banner" style="display:none;">
             <div class="container-xl mt-2">
                 <div id="org-status-alert" role="alert"></div>
+            </div>
+        </div>
+
+        <!-- Time Warp panel drawer (fixed-positioned, drops below trigger button) -->
+        <div id="rewind-panel"
+             style="display:none; position:fixed; top:0; right:0; z-index:1090; min-width:320px; max-width:360px;"
+             role="dialog" aria-label="Time Warp date selector">
+            <div id="rewind-panel-inner" class="shadow-lg"
+                 style="border-radius:0 0 12px 12px; border-top:3px solid #f59f00; padding:20px 18px;">
+                <div class="text-center text-muted small py-2">Loading…</div>
             </div>
         </div>
 

@@ -6,6 +6,7 @@
 import { auth } from '@auth';
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 import PersonaNav from './PersonaNav.js';
 import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
 
@@ -40,6 +41,7 @@ export default class UnifiedDashboard extends Component {
     };
     this._sheetDismissHandler = null;
     this._orgChangeUnsub = null;
+    this._rewindUnsub = null;
   }
 
   isPersonalOrg() {
@@ -73,10 +75,12 @@ export default class UnifiedDashboard extends Component {
       } catch (_) {}
       this.loadDashboard();
     });
+    this._rewindUnsub = rewindContext.onChange(() => this.loadDashboard({ skipCache: true }));
   }
 
   componentWillUnmount() {
     if (this._orgChangeUnsub) this._orgChangeUnsub();
+    if (this._rewindUnsub) this._rewindUnsub();
   }
 
   getCachedDashboard(key, ttlMinutes = 30) {

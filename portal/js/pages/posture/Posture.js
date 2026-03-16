@@ -1,6 +1,7 @@
 import { api } from '@api';
 import { logger } from '@config';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 
 const { html, Component } = window;
 
@@ -29,15 +30,18 @@ export class PosturePage extends Component {
             nistGapsLoading: false
         };
         this.orgUnsubscribe = null;
+        this._rewindUnsub = null;
     }
 
     componentDidMount() {
         this.orgUnsubscribe = orgContext.onChange(() => this.loadSnapshot());
+        this._rewindUnsub = rewindContext.onChange(() => this.loadSnapshot());
         this.loadSnapshot();
     }
 
     componentWillUnmount() {
         if (this.orgUnsubscribe) this.orgUnsubscribe();
+        if (this._rewindUnsub) this._rewindUnsub();
     }
 
     getCachedSnapshot(key, ttlMinutes = 30) {

@@ -643,6 +643,7 @@ export function SettingsPage() {
                             teamSearch=${teamSearch}
                             showTeamDropdown=${showTeamDropdown}
                             setShowTeamDropdown=${setShowTeamDropdown}
+                            isReadOnly=${orgContext.isReadOnly()}
                         />`)}
                     ${activeTab === 'notifications' && !isPersonalOrg && html`<${EmailNotificationsTab}
                         orgId=${org?.orgId}
@@ -1091,6 +1092,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
                                             <div class="btn-group">
                                                 <button 
                                                     class="btn btn-sm btn-primary"
+                                                    data-action="rotate-license"
                                                     onClick=${() => onRotate(id)}
                                                     disabled=${!license.isActive}
                                                 >
@@ -1126,7 +1128,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin }) {
 }
 
 // Team Tab
-function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpdateRole, teamEmail, setTeamEmail, teamRole, setTeamRole, accounts = [], isValidEmail, setTeamSearch, teamSearch, showTeamDropdown, setShowTeamDropdown }) {
+function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpdateRole, teamEmail, setTeamEmail, teamRole, setTeamRole, accounts = [], isValidEmail, setTeamSearch, teamSearch, showTeamDropdown, setShowTeamDropdown, isReadOnly = false }) {
     const filteredAccounts = (accounts && accounts.length > 0 && teamSearch)
         ? accounts.filter(acc => acc.email?.toLowerCase().includes(teamSearch.toLowerCase()) || acc.name?.toLowerCase().includes(teamSearch.toLowerCase()))
         : (accounts || []);
@@ -1153,6 +1155,13 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
         <div>
             <h3 class="card-title mb-3">Team Members</h3>
             
+            <!-- Add Member Form — hidden for Auditor users -->
+            ${isReadOnly ? html`
+            <div class="alert alert-info mb-4" role="alert">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M12 3a4 4 0 0 1 4 4v4h-8v-4a4 4 0 0 1 4 -4z"/></svg>
+                Auditors can view team members but cannot add or remove them.
+            </div>
+            ` : html`
             <!-- Add Member Form -->
             <div class="card bg-light mb-4">
                 <div class="card-body">
@@ -1229,6 +1238,7 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                     </div>
                 </div>
             </div>
+            `}
 
             <!-- Members List -->
             ${(!members || members.length === 0) ? html`
@@ -1285,6 +1295,7 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                                         ${member.addedAt ? new Date(member.addedAt).toLocaleDateString() : 'N/A'}
                                     </td>
                                     <td>
+                                        ${!isReadOnly ? html`
                                         <button 
                                             class="btn btn-sm btn-ghost-danger"
                                             onClick=${() => onRemoveMember(member.userId)}
@@ -1292,6 +1303,7 @@ function TeamTab({ members, orgId, onReload, onAddMember, onRemoveMember, onUpda
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
                                         </button>
+                                        ` : ''}
                                     </td>
                                 </tr>
                             `)}

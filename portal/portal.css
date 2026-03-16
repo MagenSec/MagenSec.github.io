@@ -2153,3 +2153,163 @@ body, .antialiased {
 [data-bs-theme="dark"] .alert-info {
   border-width: 1px;
 }
+
+
+/* -- Rewind / Time Warp � body-level visual treatment --------------------------------------
+   Applied when body.rewind-active class is set by RewindBar.js
+   Goal: make it immediately obvious the user is viewing historical data, not live state
+------------------------------------------------------------------------------------------- */
+
+/* Amber bottom-stroke on the top navbar */
+body.rewind-active .navbar-expand-xl {
+    box-shadow: 0 3px 0 0 #f59f00 !important;
+    transition: box-shadow 0.25s ease;
+}
+
+/* The Rewind nav-link gets amber highlight when rewind is active */
+body.rewind-active #rewind-nav-item .nav-link {
+    color: #f59f00 !important;
+    background: rgba(245, 159, 0, 0.15);
+    border-radius: 6px;
+    font-weight: 700;
+}
+
+/* Inset amber border ring around the entire viewport � signals "you are in the past" */
+body.rewind-active::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    border: 3px solid rgba(245, 159, 0, 0.55);
+    pointer-events: none;
+    z-index: 9998;
+    animation: rewindRingPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes rewindRingPulse {
+    0%, 100% { border-color: rgba(245, 159, 0, 0.45); }
+    50%       { border-color: rgba(245, 159, 0, 0.85); }
+}
+
+/* Subtle warm tint on page content to reinforce "historical" mode */
+body.rewind-active .page-body {
+    filter: sepia(5%) saturate(0.93) brightness(0.97);
+    transition: filter 0.35s ease;
+}
+
+/* Rewind panel: amber top accent */
+#rewind-panel {
+    border-top: 3px solid #f59f00 !important;
+}
+
+/* Navbar Rewind link � nav-active state class (added by wireRewindPanel) */
+#rewind-nav-item.rewind-nav-active .nav-link {
+    color: #f59f00 !important;
+    font-weight: 800;
+}
+
+/* -- Time Warp button: always-on dark-fire appearance ----------------------- */
+#rewind-trigger {
+    background: linear-gradient(135deg, #1a0a00 0%, #3d1a00 50%, #1a0a00 100%) !important;
+    border: 1.5px solid rgba(247,103,7,0.6) !important;
+    color: #f59f00 !important;
+    box-shadow: 0 0 8px rgba(247,103,7,0.35), inset 0 1px 0 rgba(255,180,0,0.15) !important;
+    transition: box-shadow 0.25s, border-color 0.25s !important;
+}
+#rewind-trigger:hover:not([data-active="true"]) {
+    border-color: rgba(247,103,7,0.9) !important;
+    box-shadow: 0 0 14px rgba(247,103,7,0.55), inset 0 1px 0 rgba(255,180,0,0.2) !important;
+}
+
+/* -- Time Warp button animations -------------------------------------------- */
+
+/* Idle fire-glow: pulsing amber/orange halo when Time Warp is NOT engaged */
+#rewind-trigger:not([data-active="true"]) {
+    animation: twIdleGlow 3.5s ease-in-out infinite !important;
+}
+
+@keyframes twIdleGlow {
+    0%, 100% {
+        box-shadow: 0 0 6px rgba(247,103,7,0.40), inset 0 1px 0 rgba(255,180,0,0.1);
+        border-color: rgba(247,103,7,0.5);
+    }
+    40% {
+        box-shadow: 0 0 14px rgba(247,103,7,0.70),
+                    0 0 24px rgba(245,159,0,0.40),
+                    inset 0 1px 0 rgba(255,200,0,0.25);
+        border-color: rgba(247,103,7,0.95);
+        color: #ffb347 !important;
+    }
+    70% {
+        box-shadow: 0 0 9px rgba(247,103,7,0.50),
+                    0 0 14px rgba(245,159,0,0.25);
+        border-color: rgba(247,103,7,0.65);
+    }
+}
+
+@keyframes rewindBtnPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(245, 159, 0, 0.45); }
+    50%       { box-shadow: 0 0 20px rgba(245, 159, 0, 0.80), 0 0 6px rgba(245, 159, 0, 0.55) inset; }
+}
+
+@keyframes rewindIconSpin {
+    0%   { opacity: 1;   transform: scale(1)    translateY(0);    filter: drop-shadow(0 0 0px #f59f00); }
+    15%  { opacity: 0.4; transform: scale(1.25) translateY(-2px); filter: drop-shadow(0 0 6px #f59f00); }
+    30%  { opacity: 1;   transform: scale(0.9)  translateY(1px);  filter: drop-shadow(0 0 3px #f59f00); }
+    50%  { opacity: 1;   transform: scale(1.1)  translateY(-1px); filter: drop-shadow(0 0 8px #fff8e1); }
+    70%  { opacity: 0.6; transform: scale(1)    translateY(0);    filter: drop-shadow(0 0 4px #f59f00); }
+    100% { opacity: 1;   transform: scale(1)    translateY(0);    filter: drop-shadow(0 0 0px #f59f00); }
+}
+
+/* Panel drop-in animation */
+@keyframes rewindPanelDrop {
+    0%   { opacity: 0; transform: translateY(-10px) scale(0.97); }
+    100% { opacity: 1; transform: translateY(0)     scale(1);    }
+}
+
+/* Rewind button in active state � amber pill */
+#rewind-trigger[aria-expanded="true"] {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(245, 159, 0, 0.35);
+}
+
+/* Navbar amber stripe � active */
+body.rewind-active .navbar-expand-xl,
+body.rewind-active .navbar-expand-md {
+    border-bottom: 2px solid #f59f00;
+    box-shadow: 0 2px 14px rgba(245, 159, 0, 0.25);
+}
+
+/* --- Time Warp: Observer Mode block mutating UI during time travel --- */
+body.rewind-active [data-rewind-block],
+body.rewind-active .rewind-blocked {
+    opacity: 0.35 !important;
+    pointer-events: none !important;
+    filter: grayscale(55%) !important;
+    cursor: not-allowed !important;
+}
+
+/* Warp-flash: brief visual effect when stepping earlier/later */
+@keyframes twWarpFlash {
+    0%   { opacity: 1; filter: brightness(1) saturate(1); }
+    6%   { opacity: 0.4; filter: brightness(2.2) saturate(0) sepia(0.8) hue-rotate(-15deg); }
+    16%  { opacity: 0.8; filter: brightness(1.3) saturate(0.4) sepia(0.2); }
+    30%  { opacity: 1; filter: brightness(1) saturate(1); }
+    100% { opacity: 1; filter: brightness(1) saturate(1); }
+}
+body.rewind-travelling .page-body {
+    animation: twWarpFlash 0.5s ease-out forwards !important;
+}
+
+/* Extra: also block specific known-mutating button patterns during Time Warp */
+body.rewind-active button[data-action],
+body.rewind-active .btn-action,
+body.rewind-active [id*="scan-btn"],
+body.rewind-active [id*="add-device"],
+body.rewind-active [id*="rotate-license"],
+body.rewind-active [id*="fire-btn"],
+body.rewind-active .response-fire-btn {
+    opacity: 0.35 !important;
+    pointer-events: none !important;
+    filter: grayscale(55%) !important;
+    cursor: not-allowed !important;
+}

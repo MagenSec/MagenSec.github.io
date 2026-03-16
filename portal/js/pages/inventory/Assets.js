@@ -1,5 +1,6 @@
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 
 const { html, Component } = window;
 
@@ -21,10 +22,12 @@ export class AssetsPage extends Component {
 
     async componentDidMount() {
         this.unsubscribeOrg = orgContext.onChange(() => this.loadAssets());
+        this._rewindUnsub = rewindContext.onChange(() => this.loadAssets());
         await this.loadAssets();
     }
 
     componentWillUnmount() {
+        if (this._rewindUnsub) this._rewindUnsub();
         if (this.unsubscribeOrg) {
             this.unsubscribeOrg();
         }

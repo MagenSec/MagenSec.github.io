@@ -12,6 +12,7 @@
 import { auth } from '@auth';
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 
 const { html, Component } = window;
 
@@ -26,15 +27,18 @@ export class VulnerabilitiesPage extends Component {
             isRefreshingInBackground: false
         };
         this.orgUnsubscribe = null;
+        this._rewindUnsub = null;
     }
 
     componentDidMount() {
         this.orgUnsubscribe = orgContext.onChange(() => this.loadVulnerabilities());
+        this._rewindUnsub = rewindContext.onChange(() => this.loadVulnerabilities());
         this.loadVulnerabilities();
     }
 
     componentWillUnmount() {
         if (this.orgUnsubscribe) this.orgUnsubscribe();
+        if (this._rewindUnsub) this._rewindUnsub();
     }
 
     /**

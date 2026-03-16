@@ -6,6 +6,7 @@
 import { auth } from './auth.js';
 import { config, logger } from './config.js';
 import toast from './toast.js';
+import { rewindContext } from './rewindContext.js';
 
 /**
  * Normalize API response to handle both camelCase and PascalCase
@@ -208,14 +209,26 @@ export class ApiClient {
             ...options.headers
         };
 
+        // Block all state-changing requests while Time Warp is active.
+        // The portal is in Observer Mode — past data is read-only.
+        const method = options.method || 'GET';
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase()) && rewindContext.isActive()) {
+            const dateLabel = rewindContext.getDateLabel?.() || 'a past date';
+            window.toast?.show(
+                `⏸ Observer Mode — you are viewing ${dateLabel}. Exit Time Warp to make changes.`,
+                'warning',
+                4500
+            );
+            return Promise.reject(new Error('TIME_WARP_READ_ONLY'));
+        }
+
         // Add auth token if available
         const token = auth.getToken();
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // Add CSRF token for state-changing requests
-        const method = options.method || 'GET';
+        // Add CSRF token for state-changing requests (reuses `method` declared above)
         if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase())) {
             const csrfToken = this.getCsrfToken();
             if (csrfToken) {
@@ -338,7 +351,10 @@ export class ApiClient {
                 logger.debug(`[API] Cache hit: ${url}`);
 
                 if (!options.skipDegradedHandling && this.isDegradedSnapshotResponse(cached.data)) {
-                    this.scheduleDegradedRecovery(cacheKey, url);
+                    // Don't schedule recovery probes for historical (rewind) requests
+                    if (!rewindContext.isActive()) {
+                        this.scheduleDegradedRecovery(cacheKey, url);
+                    }
                 }
 
                 return cached.data;
@@ -351,7 +367,10 @@ export class ApiClient {
         this.cache.set(cacheKey, { data, timestamp: Date.now() });
 
         if (!options.skipDegradedHandling && this.isDegradedSnapshotResponse(data)) {
-            this.scheduleDegradedRecovery(cacheKey, url);
+            // Don't schedule recovery probes for historical (rewind) requests
+            if (!rewindContext.isActive()) {
+                this.scheduleDegradedRecovery(cacheKey, url);
+            }
         }
         
         return data;
@@ -385,13 +404,26 @@ export class ApiClient {
         });
     }
 
+    // === DATE HELPERS ===
+
+    /**
+     * Returns the effective date string to use for API calls.
+     * When rewind mode is active, returns the rewind date (yyyyMMdd).
+     * Otherwise returns null (live data).
+     */
+    getEffectiveDate() {
+        return rewindContext.getDate();
+    }
+
     // === DASHBOARD ===
     async getUnifiedDashboard(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/dashboard`, params);
+        const date = this.getEffectiveDate();
+        return this.get(`/api/v1/orgs/${orgId}/dashboard`, date ? { ...params, date } : params);
     }
 
     async getLatestComplianceSnapshot(orgId) {
-        return this.get(`/api/v1/orgs/${orgId}/compliance/latest`);
+        const date = this.getEffectiveDate();
+        return this.get(`/api/v1/orgs/${orgId}/compliance/latest`, date ? { date } : null);
     }
 
     // === SNAPSHOTS ===
@@ -407,14 +439,58 @@ export class ApiClient {
         return this.post('/api/v1/admin/cron/trigger', { taskId });
     }
 
+    // === DELTA ===
+    /**
+     * Security posture delta between two dates.
+     * @param {string} orgId
+     * @param {string} from - yyyyMMdd
+     * @param {string} to   - yyyyMMdd (defaults to today)
+     */
+    async getOrgDelta(orgId, from, to) {
+        const today = rewindContext.toDateKey(new Date());
+        return this.get(`/api/v1/orgs/${orgId}/delta`, { from, to: to || today }, { skipCache: true });
+    }
+
+    /**
+     * Export audit evidence pack as a ZIP file (browser download).
+     * Uses the bearer token from localStorage; triggers a file download.
+     * @param {string} orgId
+     * @param {string?} date - yyyyMMdd, optional — defaults to today on server
+     */
+    async exportAuditEvidence(orgId, date) {
+        const token = localStorage.getItem('auth_token') || '';
+        const qs = date ? `?date=${date}` : '';
+        const res = await fetch(`/api/v1/orgs/${orgId}/audit/export${qs}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => null);
+            throw new Error(body?.message || `Export failed (${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const today = new Date();
+        const label = date || rewindContext.toDateKey(today);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `audit-evidence-${orgId}-${label}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     // === POSTURE ENGINE ===
     async getPostureSnapshot(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/posture`, params, { skipCache: params?.force });
+        const date = this.getEffectiveDate();
+        const merged = date ? { ...params, date } : params;
+        return this.get(`/api/v1/orgs/${orgId}/posture`, merged, { skipCache: merged?.force });
     }
 
     // === DEVICES ===
     async getDevices(orgId, params = null, options = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/devices`, params, options);
+        const date = this.getEffectiveDate();
+        const merged = date ? { ...(params || {}), date } : params;
+        return this.get(`/api/v1/orgs/${orgId}/devices`, merged, options);
     }
 
     async getDeviceSessions(orgId, deviceId, params = null, options = {}) {
@@ -652,7 +728,8 @@ export class ApiClient {
 
     // === VULNERABILITIES ===
     async getVulnerabilities(orgId, params) {
-        return this.get(`/api/v1/orgs/${orgId}/vulnerabilities`, params);
+        const date = this.getEffectiveDate();
+        return this.get(`/api/v1/orgs/${orgId}/vulnerabilities`, date ? { ...(params || {}), date } : params);
     }
 
     // === ORG INSIGHTS (CVE Details, Threat Analysis, etc.) ===

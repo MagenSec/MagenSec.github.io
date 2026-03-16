@@ -6,6 +6,7 @@
 import { api } from '@api';
 import { auth } from '@auth';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 import ChatDrawer from '../../components/ChatDrawer.js';
 
 const { html, Component } = window;
@@ -143,15 +144,18 @@ export class CompliancePage extends Component {
       currentReport: null
     };
     this.orgUnsubscribe = null;
+    this._rewindUnsub = null;
   }
 
   componentDidMount() {
     this.orgUnsubscribe = orgContext.onChange(() => this.loadPage());
+    this._rewindUnsub = rewindContext.onChange(() => this.loadPage());
     this.loadPage();
   }
 
   componentWillUnmount() {
     if (this.orgUnsubscribe) this.orgUnsubscribe();
+    if (this._rewindUnsub) this._rewindUnsub();
   }
 
   getOrgId() {

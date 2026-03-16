@@ -13,6 +13,7 @@
 import { api } from '@api';
 import { auth } from '@auth';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 import { CveDetailsModal } from '@components/CveDetailsModal.js';
 import { DeviceQuickViewModal } from '@components/DeviceQuickViewModal.js';
 import { AppDevicesModal } from '@components/AppDevicesModal.js';
@@ -98,10 +99,12 @@ export class ChatDrawer extends Component {
     requestAnimationFrame(() => this.scrollToBottom());
 
     try {
+      const asOfDate = rewindContext.isActive() ? rewindContext.getDate() : undefined;
       const response = await api.askAIAnalyst(orgId, {
         question: text,
         responseMode: 'brief',
-        context: requestContext
+        context: requestContext,
+        ...(asOfDate ? { asOfDate } : {})
       });
       const answer =
         response?.data?.answer ||
@@ -220,7 +223,8 @@ export class ChatDrawer extends Component {
           <div style="display: flex; align-items: center; gap: 8px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="#6366f1" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
             <span style="font-weight: 600; font-size: 0.9rem;">🛡️MAGI (AI Security Officer)</span>
-            ${contextHint ? html`<span style="font-size: 0.75rem; color: var(--tblr-secondary, #666); background: var(--tblr-bg-surface-secondary, #f8f9fa); padding: 2px 8px; border-radius: 999px;">${contextHint}</span>` : ''}
+            ${rewindContext.isActive() ? html`<span style="font-size: 0.7rem; font-weight:600; color:#92400e; background:#fef3c7; padding: 2px 8px; border-radius: 999px; border: 1px solid #f59e0b;" title="Answering from ${rewindContext.getDate()} snapshot">⏪ ${rewindContext.getDate()}</span>` : ''}
+            ${contextHint && !rewindContext.isActive() ? html`<span style="font-size: 0.75rem; color: var(--tblr-secondary, #666); background: var(--tblr-bg-surface-secondary, #f8f9fa); padding: 2px 8px; border-radius: 999px;">${contextHint}</span>` : ''}
           </div>
           <div style="display: flex; gap: 4px;">
             ${messages.length > 0 ? html`
