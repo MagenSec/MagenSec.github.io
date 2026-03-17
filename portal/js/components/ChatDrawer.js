@@ -304,6 +304,7 @@ export class ChatDrawer extends Component {
               ref=${(el) => { this.inputRef = el; }}
               type="text"
               class="form-control form-control-sm"
+              aria-label="Ask a question"
               placeholder="Ask a question…"
               value=${prompt}
               onInput=${this.handleInput}

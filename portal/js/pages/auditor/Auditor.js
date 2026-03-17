@@ -1123,6 +1123,7 @@ export class AuditorPage extends Component {
                 <input
                   type="date"
                   class="form-control"
+                  aria-label="Delta comparison from date"
                   value=${deltaFrom}
                   max=${deltaTo || maxDate}
                   onInput=${(e) => this.setState({ deltaFrom: e.target.value })}
@@ -1134,6 +1135,7 @@ export class AuditorPage extends Component {
                 <input
                   type="date"
                   class="form-control"
+                  aria-label="Delta comparison to date"
                   value=${deltaTo}
                   min=${deltaFrom}
                   max=${maxDate}

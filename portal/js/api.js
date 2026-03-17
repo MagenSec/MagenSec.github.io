@@ -218,8 +218,14 @@ export class ApiClient {
             && /\/ai-analyst\/ask(\?|$)/i.test(endpoint)
             || method.toUpperCase() === 'POST'
             && /\/ai\/chat-session(\?|$)/i.test(endpoint);
+        const isTimeWarpBoundedPost =
+            method.toUpperCase() === 'POST'
+            && /\/ai\/reports\/generate(\?|$)/i.test(endpoint);
+        const isTimeWarpBoundedSideEffectPost =
+            method.toUpperCase() === 'POST'
+            && /\/ai\/reports\/email-pdf(\?|$)/i.test(endpoint);
 
-        if (isMutatingMethod && rewindContext.isActive() && !isTimeWarpReadOnlyPost) {
+        if (isMutatingMethod && rewindContext.isActive() && !isTimeWarpReadOnlyPost && !isTimeWarpBoundedPost && !isTimeWarpBoundedSideEffectPost) {
             const dateLabel = rewindContext.getDateLabel?.() || 'a past date';
             window.toast?.show(
                 `⏸ Observer Mode — you are viewing ${dateLabel}. Exit Time Warp to make changes.`,
@@ -233,6 +239,13 @@ export class ApiClient {
         const token = auth.getToken();
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Send effective date as request guardrail for read paths.
+        // Query filters may still be applied by endpoints, but cannot exceed this upper bound.
+        const effectiveDate = this.getEffectiveDate();
+        if (effectiveDate) {
+            headers['X-Effective-Date'] = effectiveDate;
         }
 
         // Add CSRF token for state-changing requests (reuses `method` declared above)
@@ -327,8 +340,15 @@ export class ApiClient {
             // Normalize response to handle both camelCase and PascalCase
             return normalizeResponse(data);
         } catch (error) {
-            // Log full error details (respects logger production settings)
-            logger.error(`[API] ${endpoint} failed:`, error);
+            const apiErrorCode = error?.response?.error || error?.response?.Error;
+            const isExpectedAiReportMiss = apiErrorCode === 'NOT_FOUND' && /\/ai\/reports(\/|\?|$)/i.test(endpoint);
+
+            if (isExpectedAiReportMiss) {
+                logger.info(`[API] ${endpoint} returned no report for the requested date/context`);
+            } else {
+                // Log full error details (respects logger production settings)
+                logger.error(`[API] ${endpoint} failed:`, error);
+            }
             
             // For network errors, throw user-friendly message (preserve original in debug)
             if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -346,7 +366,10 @@ export class ApiClient {
     async get(endpoint, params = null, options = {}) {
         let url = endpoint;
         if (params) {
-            const queryString = new URLSearchParams(params).toString();
+            const sanitizedParams = Object.fromEntries(
+                Object.entries(params).filter(([, value]) => value !== undefined && value !== null)
+            );
+            const queryString = new URLSearchParams(sanitizedParams).toString();
             url = `${endpoint}?${queryString}`;
         }
 
@@ -831,12 +854,9 @@ export class ApiClient {
 
     async getAuditLogs(orgId, params = {}) {
         // Get audit logs with optional filtering
-        const queryParams = new URLSearchParams();
-        if (params.eventType) queryParams.append('eventType', params.eventType);
-        if (params.subType) queryParams.append('subType', params.subType);
-        if (params.limit) queryParams.append('limit', params.limit);
-        const qs = queryParams.toString() ? `?${queryParams.toString()}` : '';
-        return this.get(`/api/v1/orgs/${orgId}/audit${qs}`);
+        const date = this.getEffectiveDate();
+        const merged = date ? { ...params, date } : params;
+        return this.get(`/api/v1/orgs/${orgId}/audit`, merged);
     }
 
     async getReportPreview(orgId, refresh = false) {

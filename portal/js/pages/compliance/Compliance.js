@@ -7,6 +7,7 @@ import { api } from '@api';
 import { auth } from '@auth';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
+import { getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 import ChatDrawer from '../../components/ChatDrawer.js';
 
 const { html, Component } = window;
@@ -336,6 +337,7 @@ export class CompliancePage extends Component {
 
   renderCommandDeck() {
     const snapshotDate = this.state.snapshot?.generatedAt;
+    const maxSelectableDate = getEffectiveMaxInputDate();
 
     return html`
       <div class="container-xl mb-4">
@@ -347,7 +349,9 @@ export class CompliancePage extends Component {
                 <input
                   type="date"
                   class="form-control"
+                  aria-label="Compliance report date"
                   value=${this.state.selectedDate}
+                  max=${maxSelectableDate}
                   onInput=${(e) => this.setState({ selectedDate: e.target.value }, () => this.loadLatestReport())}
                 />
                 <div class="form-hint">Reports resolve to signals and telemetry from this UTC day.</div>
@@ -356,6 +360,7 @@ export class CompliancePage extends Component {
                 <label class="form-label text-uppercase small fw-bold text-muted">Framework Scope</label>
                 <select
                   class="form-select"
+                  aria-label="Compliance framework scope"
                   value=${this.state.selectedFramework}
                   onChange=${(e) => this.setState({ selectedFramework: e.target.value }, () => this.loadLatestReport())}
                 >

@@ -249,11 +249,14 @@ export function SettingsPage() {
                         let licenseData = (val?.success && val?.data) ? val.data : [];
                         // Time Warp: exclude licenses created after the effective date
                         if (warpCutoffIso) {
-                            licenseData = licenseData.filter(lic => {
+                            const filteredByDate = licenseData.filter(lic => {
                                 const created = lic.createdAt || lic.createdDate;
                                 if (!created) return true; // unknown — keep
                                 return new Date(created).toISOString() <= warpCutoffIso;
                             });
+                            // If strict temporal filter removes every license, keep nearest known licenses
+                            // so the user still sees org license context in Observer mode.
+                            licenseData = filteredByDate.length > 0 ? filteredByDate : licenseData;
                         }
                         setLicenses(licenseData);
                     } else if (key === 'members') {

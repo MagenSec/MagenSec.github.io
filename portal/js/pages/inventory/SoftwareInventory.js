@@ -16,6 +16,7 @@
 import { api } from '@api';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
+import { clampInputDateToEffectiveMax, getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 
 const { html, Component } = window;
 
@@ -83,7 +84,7 @@ export class SoftwareInventoryPage extends Component {
             licenses: {},          // keyed by appKey
             loading: true,
             error: null,
-            selectedDate: new Date().toISOString().slice(0, 10),
+            selectedDate: getEffectiveMaxInputDate(),
             activeTab: 'all',      // 'all' | 'atrisk' | 'licenses'
             searchQuery: '',
             sortCol: 'deviceCount',
@@ -103,7 +104,7 @@ export class SoftwareInventoryPage extends Component {
 
     async componentDidMount() {
         this._unsubOrg = orgContext.onChange(() => this.loadData(true));
-        this._rewindUnsub = rewindContext.onChange(() => this.loadData(true));
+        this._rewindUnsub = rewindContext.onChange(() => this.setState({ selectedDate: clampInputDateToEffectiveMax(this.state.selectedDate) }, () => this.loadData(true)));
         await this.loadData();
     }
 
@@ -715,6 +716,7 @@ export class SoftwareInventoryPage extends Component {
         }
 
         const kpis = this._kpis();
+        const maxSelectableDate = getEffectiveMaxInputDate();
 
         const TABS = [
             { id: 'all',      label: `All Software`,  badge: kpis.total,    badgeCls: 'bg-blue text-white' },
@@ -748,6 +750,7 @@ export class SoftwareInventoryPage extends Component {
                                     type="date"
                                     class="form-control form-control-sm"
                                     value=${this.state.selectedDate}
+                                    max=${maxSelectableDate}
                                     onInput=${(e) => this.setState({ selectedDate: e.target.value }, () => this.loadData(true))}
                                 />
                             </div>

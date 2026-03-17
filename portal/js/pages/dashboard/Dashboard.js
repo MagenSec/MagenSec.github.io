@@ -214,10 +214,20 @@ export class DashboardPage extends Component {
                 const threatBase =
                     (d?.threats ?? d?.threatCount ?? (Number(d?.critical || 0) + Number(d?.high || 0)));
 
+                const rawStatus = String(d?.status || '').toLowerCase();
+                const normalizedStatus = (rawStatus === 'active' || rawStatus === 'online') ? 'online'
+                    : (rawStatus === 'offline' || rawStatus === 'stale') ? 'offline'
+                    : (rawStatus === 'blocked' || rawStatus === 'error' || rawStatus === 'disabled') ? 'error'
+                    : (rawStatus === 'unknown' || rawStatus === '') ? 'unknown'
+                    : rawStatus;
+                const derivedStatus = normalizedStatus !== 'unknown'
+                    ? normalizedStatus
+                    : ((Number(d?.offlineDays || 0) > 1) ? 'offline' : 'online');
+
                 return {
                     deviceId: d?.deviceId || d?.id || d?.name || d?.deviceName || d?.hostname || '',
                     deviceName: d?.deviceName || d?.displayName || d?.friendlyName || d?.name || d?.hostname || d?.deviceId || 'Unknown device',
-                    status: d?.status || ((Number(d?.offlineDays || 0) > 1) ? 'offline' : 'active'),
+                    status: derivedStatus,
                     lastSeen: d?.lastSeen || d?.lastTelemetry || d?.lastHeartbeat || null,
                     lastTelemetry: d?.lastTelemetry || d?.lastSeen || null,
                     lastHeartbeat: d?.lastHeartbeat || d?.lastSeen || null,
@@ -327,7 +337,7 @@ export class DashboardPage extends Component {
             if (this.scoreSparklineChart) this.scoreSparklineChart.destroy();
             this.loadDashboardData();
         });
-        this._rewindUnsub = rewindContext.onChange(() => this.loadDashboardData());
+        this._rewindUnsub = rewindContext.onChange(() => this.loadDashboardData(true));
         this.loadDashboardData();
     }
 

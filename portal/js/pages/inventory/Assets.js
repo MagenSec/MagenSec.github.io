@@ -1,6 +1,7 @@
 import { api } from '@api';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
+import { clampInputDateToEffectiveMax, getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 
 const { html, Component } = window;
 
@@ -11,7 +12,7 @@ export class AssetsPage extends Component {
             assets: [],
             loading: true,
             error: null,
-            selectedDate: new Date().toISOString().slice(0, 10),
+            selectedDate: getEffectiveMaxInputDate(),
             searchTerm: '',
             riskFilter: 'all',
             sortColumn: 'riskScore',
@@ -22,7 +23,7 @@ export class AssetsPage extends Component {
 
     async componentDidMount() {
         this.unsubscribeOrg = orgContext.onChange(() => this.loadAssets());
-        this._rewindUnsub = rewindContext.onChange(() => this.loadAssets());
+        this._rewindUnsub = rewindContext.onChange(() => this.setState({ selectedDate: clampInputDateToEffectiveMax(this.state.selectedDate) }, () => this.loadAssets()));
         await this.loadAssets();
     }
 
@@ -195,6 +196,7 @@ export class AssetsPage extends Component {
 
     render() {
         const { assets, loading, error, searchTerm, riskFilter, sortColumn, sortDirection } = this.state;
+        const maxSelectableDate = getEffectiveMaxInputDate();
 
         let filteredAssets = assets.filter(asset => {
             const matchesSearch = !searchTerm || 
@@ -298,7 +300,9 @@ export class AssetsPage extends Component {
                             <input
                                 type="date"
                                 class="form-control form-control-sm"
+                                aria-label="Inventory as-of date"
                                 value=${this.state.selectedDate}
+                                max=${maxSelectableDate}
                                 onInput=${(e) => this.setState({ selectedDate: e.target.value }, () => this.loadAssets(true))}
                             />
                         </div>
@@ -319,6 +323,7 @@ export class AssetsPage extends Component {
                                     <input 
                                         type="text" 
                                         class="form-control" 
+                                        aria-label="Search applications"
                                         placeholder="Search applications..." 
                                         value=${searchTerm}
                                         onInput=${(e) => this.setState({ searchTerm: e.target.value })}
@@ -328,7 +333,7 @@ export class AssetsPage extends Component {
                                     </span>
                                 </div>
                             </div>
-                            <select class="form-select" value=${riskFilter} onChange=${(e) => this.setState({ riskFilter: e.target.value })}>
+                            <select class="form-select" aria-label="Application risk filter" value=${riskFilter} onChange=${(e) => this.setState({ riskFilter: e.target.value })}>
                                 <option value="all">All Risks</option>
                                 <option value="critical">Critical</option>
                                 <option value="high">High</option>

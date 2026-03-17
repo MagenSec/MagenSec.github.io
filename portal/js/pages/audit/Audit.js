@@ -7,6 +7,7 @@ import { orgContext } from '@orgContext';
 import { auth } from '@auth';
 import toast from '@toast';
 import { logger } from '@config';
+import { getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 import { 
     getBaseType, 
     getEventName, 
@@ -114,6 +115,7 @@ export function AuditPage() {
     const [loadedPages, setLoadedPages] = useState(1);
     const [hasMore, setHasMore] = useState(false);
     const currentOrgId = orgContext.getCurrentOrg()?.orgId;
+    const maxSelectableDate = getEffectiveMaxInputDate();
 
     useEffect(() => {
         loadEvents();
@@ -121,13 +123,21 @@ export function AuditPage() {
         const handler = () => {
             setLoadedPages(1);
             nextPageTokenRef.current = null;
-            loadEvents();
+            loadEvents(true);
         };
         const unsubscribe = orgContext.onChange(handler);
         window.addEventListener('orgChanged', handler);
 
+        // Re-fetch when Time Warp activates / deactivates
+        const unsubscribeWarp = window.rewindContext?.onChange?.(() => {
+            setLoadedPages(1);
+            nextPageTokenRef.current = null;
+            loadEvents(true);
+        });
+
         return () => {
             unsubscribe?.();
+            unsubscribeWarp?.();
             window.removeEventListener('orgChanged', handler);
         };
     }, [currentOrgId, rangeDays]);
@@ -737,17 +747,22 @@ export function AuditPage() {
     };
 
     const fetchAuditPage = async (orgId, pageToken = null) => {
+        const warpDate = window.rewindContext?.getDate?.() || null;
         const query = new URLSearchParams({
             pageSize: '100',
             days: String(rangeDays),
             normalize: 'true'
         });
 
+        // When Time Warp is active, pass the historical end-date so the backend returns
+        // events from (warpDate − rangeDays) through warpDate instead of from today.
+        if (warpDate) {
+            query.set('date', warpDate);
+        }
+
         if (pageToken) {
             query.set('pageToken', pageToken);
         } else {
-            // Request full-range chart summary on first page so analytics charts
-            // show accurate data without needing all timeline pages loaded.
             query.set('includeUxSummary', 'true');
         }
 
@@ -811,7 +826,10 @@ export function AuditPage() {
                 return;
             }
 
-            const cacheKey = `audit_${currentOrg.orgId}_${rangeDays}`;
+            const _warpDate = window.rewindContext?.getDate?.() || null;
+            const cacheKey = _warpDate
+                ? `audit_${currentOrg.orgId}_${rangeDays}_warp_${_warpDate}`
+                : `audit_${currentOrg.orgId}_${rangeDays}`;
 
             // Step 1: Try cache first (unless force refresh)
             if (!forceRefresh) {
@@ -1926,6 +1944,7 @@ export function AuditPage() {
                             <input 
                                 type="text"
                                 class="form-control"
+                                aria-label="Search audit events"
                                 placeholder="Search description, user, target..."
                                 value=${filters.search}
                                 onInput=${(e) => handleFilterChange('search', e.target.value)}
@@ -1936,7 +1955,9 @@ export function AuditPage() {
                             <input 
                                 type="date"
                                 class="form-control"
+                                aria-label="Audit filter from date"
                                 value=${filters.dateFrom}
+                                max=${filters.dateTo || maxSelectableDate}
                                 onChange=${(e) => handleFilterChange('dateFrom', e.target.value)}
                             />
                         </div>
@@ -1945,7 +1966,9 @@ export function AuditPage() {
                             <input 
                                 type="date"
                                 class="form-control"
+                                aria-label="Audit filter to date"
                                 value=${filters.dateTo}
+                                max=${maxSelectableDate}
                                 onChange=${(e) => handleFilterChange('dateTo', e.target.value)}
                             />
                         </div>

@@ -3113,14 +3113,14 @@ class DevicesPage extends window.Component {
                                             </div>
                                             <div class="row g-2 mt-2">
                                                 <div class="col-6">
-                                                    <select class="form-select form-select-sm" value=${this.state.deviceFilters.connection} onChange=${(e) => this.setDeviceFilter('connection', e.target.value)}>
+                                                    <select class="form-select form-select-sm" aria-label="Device connection filter" value=${this.state.deviceFilters.connection} onChange=${(e) => this.setDeviceFilter('connection', e.target.value)}>
                                                         <option value="all">All Connections</option>
                                                         <option value="online">Online</option>
                                                         <option value="offline">Offline</option>
                                                     </select>
                                                 </div>
                                                 <div class="col-6">
-                                                    <select class="form-select form-select-sm" value=${this.state.deviceFilters.spec} onChange=${(e) => this.setDeviceFilter('spec', e.target.value)}>
+                                                    <select class="form-select form-select-sm" aria-label="Device architecture filter" value=${this.state.deviceFilters.spec} onChange=${(e) => this.setDeviceFilter('spec', e.target.value)}>
                                                         <option value="all">Any Architecture</option>
                                                         <option value="x64">x64</option>
                                                         <option value="arm64">ARM64</option>

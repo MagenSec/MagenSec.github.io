@@ -99,6 +99,34 @@ export function getConnectionStatus(device) {
 }
 
 function deriveStatusFromDeviceFields(device) {
+    const explicitStatus = String(device?.status || '').toLowerCase();
+    if (explicitStatus === 'online' || explicitStatus === 'active') {
+        return {
+            status: 'Online',
+            color: 'bg-success-lt text-success',
+            icon: '✓',
+            tooltip: 'Device is online and reporting telemetry normally.'
+        };
+    }
+
+    if (explicitStatus === 'offline' || explicitStatus === 'stale') {
+        return {
+            status: 'Offline',
+            color: 'bg-warning-lt text-warning',
+            icon: '⊗',
+            tooltip: 'Device is offline based on latest status telemetry.'
+        };
+    }
+
+    if (explicitStatus === 'error' || explicitStatus === 'blocked' || explicitStatus === 'disabled') {
+        return {
+            status: 'Error',
+            color: 'bg-danger-lt text-danger',
+            icon: '⚠️',
+            tooltip: 'Device is disabled or blocked.'
+        };
+    }
+
     const state = String(device?.state || device?.deviceState || '').toUpperCase();
     const isEnabled = device?.isEnabled !== false;
     const lastHeartbeat = device?.lastHeartbeat || device?.lastSeen;

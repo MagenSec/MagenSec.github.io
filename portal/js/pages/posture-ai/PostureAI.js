@@ -2,6 +2,7 @@ import { api } from '@api';
 import { logger } from '@config';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
+import { compactDateToInputDate, getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 
 const { html, Component } = window;
 
@@ -17,6 +18,8 @@ function toCompactDate(value) {
     if (!value) return null;
     return String(value).replaceAll('-', '');
 }
+
+const rewindDateToInputDate = (rewindDate) => compactDateToInputDate(rewindDate, todayUtcInputDate());
 
 /**
  * AI-Based Security Posture Page
@@ -46,7 +49,22 @@ export class AIPosturePage extends Component {
 
     componentDidMount() {
         this.orgUnsubscribe = orgContext.onChange(() => this.loadReports());
-        this._rewindUnsub = rewindContext.onChange(() => { this.stopPolling(); this.loadReports(); });
+        this._rewindUnsub = rewindContext.onChange(() => {
+            this.stopPolling();
+            const rewindDate = rewindContext.getDate();
+            if (rewindDate) {
+                this.setState({ selectedDate: rewindDateToInputDate(rewindDate) }, () => this.loadReports());
+            } else {
+                this.loadReports();
+            }
+        });
+
+        if (rewindContext.isActive()) {
+            const rewindDate = rewindContext.getDate();
+            if (rewindDate) {
+                this.setState({ selectedDate: rewindDateToInputDate(rewindDate) });
+            }
+        }
         this.loadReports();
     }
 
@@ -69,11 +87,14 @@ export class AIPosturePage extends Component {
         this.setState({ loading: true, error: null, pollingForReport: false, currentReport: null });
 
         try {
-            const params = this.getReportLookupParams();
-            const reportDate = toCompactDate(this.state.selectedDate);
+            const effectiveSelectedDate = rewindContext.isActive()
+                ? rewindDateToInputDate(rewindContext.getDate())
+                : this.state.selectedDate;
+            const params = this.getReportLookupParams(effectiveSelectedDate);
+            const reportDate = toCompactDate(effectiveSelectedDate);
             const response = reportDate
                 ? await api.getAIReportByDate(currentOrg.orgId, reportDate, params)
-                : await api.getLatestAIReport(currentOrg.orgId, this.getReportQueryParams());
+                : await api.getLatestAIReport(currentOrg.orgId, this.getReportQueryParams(effectiveSelectedDate));
             
             // Success - extract report data from unified envelope
             const reportData = response?.data || response;
@@ -311,10 +332,10 @@ export class AIPosturePage extends Component {
         }
     }
 
-    getReportQueryParams() {
+    getReportQueryParams(selectedDate = this.state.selectedDate) {
         const params = {
             reportKind: this.state.selectedReportKind,
-            date: this.state.selectedDate,
+            date: selectedDate,
         };
 
         if (this.state.selectedReportKind === COMPLIANCE_REPORT_KIND) {
@@ -324,9 +345,10 @@ export class AIPosturePage extends Component {
         return params;
     }
 
-    getReportLookupParams() {
+    getReportLookupParams(selectedDate = this.state.selectedDate) {
         const params = {
             reportKind: this.state.selectedReportKind,
+            date: selectedDate,
         };
 
         if (this.state.selectedReportKind === COMPLIANCE_REPORT_KIND) {
@@ -661,6 +683,12 @@ export class AIPosturePage extends Component {
     }
 
     render() {
+        const isWarpActive = rewindContext.isActive();
+        const warpSelectedDate = isWarpActive
+            ? rewindDateToInputDate(rewindContext.getDate())
+            : this.state.selectedDate;
+        const maxSelectableDate = getEffectiveMaxInputDate();
+
         if (this.state.loading) {
             return html`
                 <div class="d-flex justify-content-center align-items-center" style="min-height: 50vh;">
@@ -704,7 +732,7 @@ export class AIPosturePage extends Component {
                             <div class="d-flex align-items-end gap-2 mb-2">
                                 <div>
                                     <label class="form-label small text-muted mb-1">Report Type</label>
-                                    <select class="form-select form-select-sm" value=${this.state.selectedReportKind} onChange=${(e) => this.setState({ selectedReportKind: e.target.value }, () => this.loadReports())}>
+                                    <select class="form-select form-select-sm" aria-label="Report type" value=${this.state.selectedReportKind} onChange=${(e) => this.setState({ selectedReportKind: e.target.value }, () => this.loadReports())}>
                                         <option value=${SECURITY_REPORT_KIND}>Security Posture</option>
                                         <option value=${COMPLIANCE_REPORT_KIND}>Compliance</option>
                                         <option value=${INVENTORY_REPORT_KIND}>Software Inventory</option>
@@ -712,12 +740,20 @@ export class AIPosturePage extends Component {
                                 </div>
                                 <div>
                                     <label class="form-label small text-muted mb-1">As-of (UTC)</label>
-                                    <input type="date" class="form-control form-control-sm" value=${this.state.selectedDate} onInput=${(e) => this.setState({ selectedDate: e.target.value }, () => this.loadReports())} />
+                                    <input
+                                        type="date"
+                                        class="form-control form-control-sm"
+                                        aria-label="Report as-of date"
+                                        value=${warpSelectedDate}
+                                        max=${maxSelectableDate}
+                                        disabled=${isWarpActive}
+                                        onInput=${(e) => this.setState({ selectedDate: e.target.value }, () => this.loadReports())}
+                                    />
                                 </div>
                                 ${this.state.selectedReportKind === COMPLIANCE_REPORT_KIND ? html`
                                     <div>
                                         <label class="form-label small text-muted mb-1">Framework</label>
-                                        <select class="form-select form-select-sm" value=${this.state.selectedFramework} onChange=${(e) => this.setState({ selectedFramework: e.target.value }, () => this.loadReports())}>
+                                        <select class="form-select form-select-sm" aria-label="Compliance framework" value=${this.state.selectedFramework} onChange=${(e) => this.setState({ selectedFramework: e.target.value }, () => this.loadReports())}>
                                             <option value="all">All</option>
                                             <option value="cis">CIS</option>
                                             <option value="nist">NIST</option>

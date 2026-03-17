@@ -154,7 +154,10 @@ export default class UnifiedDashboard extends Component {
         return;
       }
 
-      const cacheKey = `unified_dashboard_${orgId}`;
+      const warpDate = rewindContext.getDate?.() || null;
+      const cacheKey = warpDate
+        ? `unified_dashboard_${orgId}_warp_${warpDate}`
+        : `unified_dashboard_${orgId}`;
 
       if (!isRefresh && !skipCache) {
         const cached = this.getCachedDashboard(cacheKey, 30);
@@ -178,14 +181,16 @@ export default class UnifiedDashboard extends Component {
         }
       }
 
-      let url = `/api/v1/orgs/${orgId}/dashboard?format=unified`;
-      if (isRefresh) {
-        url += '&refresh=true';
+      const params = { format: 'unified' };
+      if (warpDate) {
+        params.date = warpDate;
+      } else if (isRefresh) {
+        params.refresh = 'true';
       } else {
-        url += '&include=cached-summary';
+        params['include'] = 'cached-summary';
       }
 
-      const response = await api.get(url);
+      const response = await api.getUnifiedDashboard(orgId, params);
 
       if (!response.success) {
         throw new Error(response.message || 'Failed to load dashboard');
@@ -706,6 +711,7 @@ export default class UnifiedDashboard extends Component {
                 </span>
                 <input
                   type="text"
+                  aria-label="Ask security assistant"
                   placeholder="Ask about threats, compliance, or any device..."
                   value=${this.state.aiPrompt}
                   onInput=${this.handleAiPromptChange}

@@ -110,8 +110,8 @@ export class VulnerabilitiesPage extends Component {
         }
 
         try {
-            // Step 3: Fetch fresh data
-            const response = await api.get(`/api/v1/orgs/${orgId}/vulnerabilities?include=cached-summary`);
+            // Step 3: Fetch fresh data (with Time Warp date if active)
+            const response = await api.getVulnerabilities(orgId, { 'include': 'cached-summary' });
 
             if (response.success) {
                 const data = {
