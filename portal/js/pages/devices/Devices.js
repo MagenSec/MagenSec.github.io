@@ -86,6 +86,7 @@ class DevicesPage extends window.Component {
 
         this.tableRiskCharts = new Map();
         this.tableRiskEls = new Map();
+        this.summaryRefreshInFlight = false;
     }
 
     componentDidMount() {
@@ -1219,6 +1220,7 @@ class DevicesPage extends window.Component {
                 this.setState({ 
                     devices: [], 
                     loading: false,
+                    isRefreshingInBackground: false,
                     error: 'No organization selected'
                 });
                 return;
@@ -1230,7 +1232,7 @@ class DevicesPage extends window.Component {
                 const cachedSummaries = this.getCachedSummaries(currentOrg.orgId) || {};
                 if (cached) {
                     console.log('[DevicesPage] ⚡ Loading from cache immediately...');
-                    this.setState({ devices: cached, loading: false, error: null, deviceSummaries: cachedSummaries, isRefreshingInBackground: true });
+                    this.setState({ devices: cached, loading: false, error: null, deviceSummaries: cachedSummaries, isRefreshingInBackground: false });
                     // Continue to background refresh (don't return)
                 }
             }
@@ -1239,8 +1241,8 @@ class DevicesPage extends window.Component {
             if (!this.state.devices || this.state.devices.length === 0) {
                 this.setState({ loading: true, error: null });
             } else {
-                // Already showing cached data, just indicate background refresh
-                this.setState({ isRefreshingInBackground: true });
+                // Already showing cached data; keep existing view stable while refreshing in the background
+                this.setState({ isRefreshingInBackground: false });
             }
 
             // Step 1: Fast load with cached-summary (< 12s instead of 35s)
@@ -1328,6 +1330,7 @@ class DevicesPage extends window.Component {
                 return {
                     devices,
                     loading: false,
+                    isRefreshingInBackground: false,
                     deviceSummaries: { ...prev.deviceSummaries, ...cachedSummaries, ...summariesFromApi },
                     selectedDevice: updatedSelected || prev.selectedDevice
                 };
@@ -1338,8 +1341,14 @@ class DevicesPage extends window.Component {
             
             // Step 3: Background fetch with summary (don't wait, enrich silently)
             // Skip if forced refresh (already have fresh data) and no cache (nothing to update)
-            if (!forceRefresh || hasCache) {
+            const shouldRefreshSummariesInBackground = !forceRefresh || hasCache;
+            if (shouldRefreshSummariesInBackground) {
+                if (!forceRefresh) {
+                    this.setState({ isRefreshingInBackground: true });
+                }
                 this.loadSummariesInBackground(currentOrg.orgId, devices);
+            } else {
+                this.setState({ isRefreshingInBackground: false });
             }
             
             // Background: Load known exploits and enrich risk scores
@@ -1350,11 +1359,16 @@ class DevicesPage extends window.Component {
             }
         } catch (error) {
             console.error('[DevicesPage] Error loading devices:', error);
-            this.setState({ error: error.message, loading: false });
+            this.setState({ error: error.message, loading: false, isRefreshingInBackground: false });
         }
     }
 
     async loadSummariesInBackground(orgId, devices) {
+        if (this.summaryRefreshInFlight) {
+            return;
+        }
+
+        this.summaryRefreshInFlight = true;
         try {
             console.log('[DevicesPage] 🔄 Background fetch: loading fresh summaries...');
             
@@ -1362,7 +1376,10 @@ class DevicesPage extends window.Component {
             await new Promise(resolve => setTimeout(resolve, 500));
             
             // Fetch fresh summaries (skip cached, get real-time data)
-            const response = await api.getDevices(orgId, { include: 'summary' }, { skipCache: true });
+            const response = await Promise.race([
+                api.getDevices(orgId, { include: 'summary' }, { skipCache: true }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Background summary fetch timed out')), 3000))
+            ]);
             
             if (!response.success || !response.data?.devices) {
                 console.warn('[DevicesPage] Background summary fetch failed');
@@ -1396,6 +1413,9 @@ class DevicesPage extends window.Component {
             console.log(`[DevicesPage] ✅ Background fetch complete: ${Object.keys(freshSummaries).length} summaries cached`);
         } catch (err) {
             console.warn('[DevicesPage] Background summary fetch error:', err);
+        } finally {
+            this.summaryRefreshInFlight = false;
+            this.setState({ isRefreshingInBackground: false });
         }
     }
 
