@@ -20,10 +20,18 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
     const [selectedTaskId, setSelectedTaskId] = useState(null);
     const [triggeringCron, setTriggeringCron] = useState(false);
     const [cronResult, setCronResult] = useState(null);
+
+    // Extended params — only visible / sent when task is "Org Data Cook"
+    const [cookMode,      setCookMode]      = useState('BuildMissing');
+    const [cookOrgId,     setCookOrgId]     = useState('');
+    const [cookStartDate, setCookStartDate] = useState('');
+    const [cookEndDate,   setCookEndDate]   = useState('');
     
     const [resetOrgId, setResetOrgId] = useState('');
     const [resettingRemediation, setResettingRemediation] = useState(false);
     const [resetResult, setResetResult] = useState(null);
+
+    const isOrgDataCook = selectedTaskId === 'Org Data Cook';
 
     // Load available cron tasks on mount
     useEffect(() => {
@@ -55,15 +63,24 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
     const handleTriggerCron = async () => {
         if (!selectedTaskId) return;
 
+        const modeLabel = isOrgDataCook ? ` [${cookMode}${cookOrgId ? ` / ${cookOrgId}` : ''}]` : '';
         const confirmed = window.confirm(
-            `Trigger cron task "${selectedTaskId}" now?\n\nThis executes immediately and may perform background writes.`
+            `Trigger cron task "${selectedTaskId}"${modeLabel} now?\n\nThis executes immediately and may perform background writes.`
         );
         if (!confirmed) return;
         
         setTriggeringCron(true);
         setCronResult(null);
         try {
-            const result = await onTriggerCron(selectedTaskId);
+            // Build extended params only for "Org Data Cook"
+            const params = isOrgDataCook ? {
+                mode:      cookMode      || undefined,
+                orgId:     cookOrgId     || undefined,
+                startDate: cookStartDate || undefined,
+                endDate:   cookEndDate   || undefined,
+            } : {};
+
+            const result = await window.api.adminTriggerCron(selectedTaskId, params);
             if (result.success) {
                 setCronResult({ success: true, taskId: selectedTaskId, data: result.data });
             } else {
@@ -176,6 +193,83 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                                 </div>
                             </div>
 
+                            <!-- Org Data Cook — Extended Params Panel -->
+                            ${isOrgDataCook && html`
+                                <div class="card border-info mb-3">
+                                    <div class="card-header bg-info-lt">
+                                        <h4 class="card-title mb-0 text-info">
+                                            <i class="ti ti-adjustments-horizontal me-2"></i>
+                                            Org Data Cook Parameters
+                                        </h4>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-bold">Mode</label>
+                                                <select
+                                                    class="form-select"
+                                                    value=${cookMode}
+                                                    onChange=${e => setCookMode(e.target.value)}
+                                                    disabled=${triggeringCron}
+                                                >
+                                                    <option value="BuildMissing">Build Missing (recommended — fills gaps only)</option>
+                                                    <option value="BuildAll">Build All (re-generates every date in range)</option>
+                                                    <option value="ClearAll">Clear All (deletes snapshots for range)</option>
+                                                    <option value="ClearAndBuildAll">Clear and Build All (full reset)</option>
+                                                </select>
+                                                <div class="form-text">
+                                                    BuildMissing skips dates already in blob. ClearAndBuildAll wipes then rebuilds.
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-bold">Org ID <span class="text-muted fw-normal">(optional)</span></label>
+                                                <input
+                                                    type="text"
+                                                    class="form-control font-monospace"
+                                                    placeholder="Leave empty for all orgs"
+                                                    value=${cookOrgId}
+                                                    onInput=${e => setCookOrgId(e.target.value.trim())}
+                                                    disabled=${triggeringCron}
+                                                    maxlength="32"
+                                                />
+                                                <div class="form-text">
+                                                    Scopes the run to a single org. Blank = all active orgs.
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-bold">Date Range <span class="text-muted fw-normal">(optional)</span></label>
+                                                <div class="d-flex gap-2 align-items-center">
+                                                    <input
+                                                        type="date"
+                                                        class="form-control"
+                                                        value=${cookStartDate}
+                                                        onChange=${e => setCookStartDate(e.target.value)}
+                                                        disabled=${triggeringCron}
+                                                        title="Start date (inclusive)"
+                                                    />
+                                                    <span class="text-muted">–</span>
+                                                    <input
+                                                        type="date"
+                                                        class="form-control"
+                                                        value=${cookEndDate}
+                                                        onChange=${e => setCookEndDate(e.target.value)}
+                                                        disabled=${triggeringCron}
+                                                        title="End date (inclusive, max T-1)"
+                                                    />
+                                                </div>
+                                                <div class="form-text">
+                                                    Blank = default window (T-450 → T-1). Today (T-0) is always excluded.
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            `}
+
                             <!-- Selected Task Details & Trigger -->
                             ${(() => {
                                 const task = cronTasks.find(t => t.taskId === selectedTaskId);
@@ -197,6 +291,15 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                                                     <div>
                                                         <strong>Schedule:</strong> Runs every <strong>${task.frequencyHours}</strong> hour${task.frequencyHours > 1 ? 's' : ''}
                                                     </div>
+                                                    ${isOrgDataCook && (cookOrgId || cookStartDate || cookEndDate) && html`
+                                                        <div class="mt-2 pt-2 border-top">
+                                                            <strong>With params:</strong>
+                                                            ${' '}Mode: <code>${cookMode}</code>
+                                                            ${cookOrgId && html`${' '}· Org: <code>${cookOrgId}</code>`}
+                                                            ${cookStartDate && html`${' '}· From: <code>${cookStartDate}</code>`}
+                                                            ${cookEndDate   && html`${' '}· To: <code>${cookEndDate}</code>`}
+                                                        </div>
+                                                    `}
                                                 </div>
                                             </div>
                                             <button 

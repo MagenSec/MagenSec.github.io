@@ -1825,7 +1825,7 @@ export class AuditorPage extends Component {
           ${this.renderReportsLibrary()}
         ` : ''}
 
-        <${ChatDrawer} contextHint="audit readiness and compliance evidence" />
+        <${ChatDrawer} contextHint="audit readiness and compliance evidence" persona="auditor" />
       </div>
     `;
   }

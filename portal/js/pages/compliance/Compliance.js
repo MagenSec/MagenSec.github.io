@@ -620,7 +620,7 @@ export class CompliancePage extends Component {
         ${this.renderGapBoard(topGaps)}
         ${this.renderReportPanel()}
         ${this.renderSeparationCard()}
-        <${ChatDrawer} contextHint="compliance posture, framework gaps, and audit evidence" />
+        <${ChatDrawer} contextHint="compliance posture, framework gaps, and audit evidence" persona="compliance_officer" />
       </div>
     `;
   }

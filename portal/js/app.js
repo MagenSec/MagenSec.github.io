@@ -144,7 +144,7 @@ function App() {
                     <${DashboardPage} />
                     ${orgContext.getCurrentOrg()?.type === 'Personal'
                         ? null
-                        : html`<${ChatDrawer} contextHint="security threats and vulnerabilities" />`}
+                        : html`<${ChatDrawer} contextHint="security threats and vulnerabilities" persona="secops" />`}
                 </div>
             `;
         case 'devices':
@@ -171,13 +171,41 @@ function App() {
         case 'device-hub':
             return html`<${ClientDevicePage} />`;
         case 'inventory':
-            return html`<${AssetsPage} />`;
+            return html`
+                <div>
+                    <${AssetsPage} />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="device inventory, asset management" persona="it_admin" />`
+                        : null}
+                </div>
+            `;
         case 'apps':
-            return html`<${SoftwareInventoryPage} />`;
+            return html`
+                <div>
+                    <${SoftwareInventoryPage} />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="software inventory and application vulnerabilities" persona="it_admin" />`
+                        : null}
+                </div>
+            `;
         case 'vulnerabilities':
-            return html`<${Vulnerabilities} />`;
+            return html`
+                <div>
+                    <${Vulnerabilities} />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="CVE vulnerabilities, risk prioritization, and remediation" persona="threat_hunter" />`
+                        : null}
+                </div>
+            `;
         case 'cves':
-            return html`<${CVEDetails} cveId=${ currentParams?.cveId ?? currentCtx?.params?.cveId } />`;
+            return html`
+                <div>
+                    <${CVEDetails} cveId=${ currentParams?.cveId ?? currentCtx?.params?.cveId } />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="CVE threat intelligence and remediation guidance" persona="threat_hunter" />`
+                        : null}
+                </div>
+            `;
         case 'siteadmin/business':
             return html`<${BusinessPage} />`;
         case 'siteadmin/manage':
@@ -191,17 +219,23 @@ function App() {
         case 'auditor':
             return html`<${AuditorPage} />`;
         case 'reports':
-            return html`<${ReportsPage} />`;
-        case 'review':
-            return html`<${ReviewPage} />`;
-        case 'siteadmin/review':
-            return html`<${ClientDevicePage} />`;
-        case 'account':
-            return html`<${AccountPage} />`;
-        case 'settings':
-            return html`<${SettingsPage} />`;
+            return html`
+                <div>
+                    <${ReportsPage} />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="security reports, delivery status, and report content" persona="ciso" />`
+                        : null}
+                </div>
+            `;
         case 'audit':
-            return html`<${AuditPage} />`;
+            return html`
+                <div>
+                    <${AuditPage} />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="audit trail, remediation velocity, and patch compliance" persona="auditor" />`
+                        : null}
+                </div>
+            `;
         default:
             return html`<${LoginPage} />`;
     }

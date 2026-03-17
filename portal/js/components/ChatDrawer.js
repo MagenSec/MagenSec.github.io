@@ -6,6 +6,11 @@
  *
  * Props:
  *   contextHint {string} — Optional context hint sent as structured chat context (e.g. "compliance posture and gaps")
+ *   persona     {string} — Optional persona key that selects Officer MAGI's behavioral mode.
+ *                          Allowed values: ciso, it_admin, auditor, threat_hunter,
+ *                          compliance_officer, business_owner, cyber_insurance, secops.
+ *                          When set the AI's system prompt, context selection, and framing
+ *                          automatically match the caller's role. Omit for general-purpose mode.
  *
  * Uses the same POST /api/v1/orgs/{orgId}/ai-analyst/ask endpoint as the home page search bar.
  */
@@ -100,10 +105,12 @@ export class ChatDrawer extends Component {
 
     try {
       const asOfDate = rewindContext.isActive() ? rewindContext.getDate() : undefined;
+      const { persona } = this.props;
       const response = await api.askAIAnalyst(orgId, {
         question: text,
         responseMode: 'brief',
         context: requestContext,
+        ...(persona ? { persona } : {}),
         ...(asOfDate ? { asOfDate } : {})
       });
       const answer =

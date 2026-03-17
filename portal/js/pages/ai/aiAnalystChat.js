@@ -46,6 +46,7 @@ export default class AIAnalystChatPage extends Component {
             error: null,
             conversationId: this.generateConversationId(),
             pageContext: '',
+            persona: '',
             proactiveInsights: null,
             insightsLoading: true,
             insightsExpanded: null,
@@ -77,6 +78,11 @@ export default class AIAnalystChatPage extends Component {
         const pageContext = this.getContextFromHash();
         if (pageContext) {
             this.setState({ pageContext });
+        }
+
+        const persona = this.getPersonaFromHash();
+        if (persona) {
+            this.setState({ persona });
         }
 
         // 1. Try to hydrate from sessionStorage (pre-load from dashboard search — no extra API call)
@@ -203,6 +209,17 @@ export default class AIAnalystChatPage extends Component {
         return (params.get('ctx') || '').trim();
     }
 
+    getPersonaFromHash() {
+        const VALID_PERSONAS = new Set(['ciso', 'it_admin', 'auditor', 'threat_hunter',
+            'compliance_officer', 'business_owner', 'cyber_insurance', 'secops']);
+        const hash = window.location.hash || '';
+        const queryIndex = hash.indexOf('?');
+        if (queryIndex < 0) return '';
+        const params = new URLSearchParams(hash.substring(queryIndex + 1));
+        const p = (params.get('persona') || '').trim().toLowerCase();
+        return VALID_PERSONAS.has(p) ? p : '';
+    }
+
     scrollToBottom() {
         if (this.chatEndRef.current) {
             this.chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -235,10 +252,12 @@ export default class AIAnalystChatPage extends Component {
 
         try {
             const asOfDate = rewindContext.isActive() ? rewindContext.getDate() : undefined;
+            const { persona } = this.state;
             const response = await api.post(`/api/v1/orgs/${org.orgId}/ai-analyst/ask`, {
                 question,
                 conversationId: this.state.conversationId,
                 includeContext: true,
+                ...(persona ? { persona } : {}),
                 ...(asOfDate ? { asOfDate } : {}),
                 context: {
                     hint: this.state.pageContext || null,

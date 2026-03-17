@@ -469,6 +469,10 @@ export class ApiClient {
         return this.post('/api/v1/admin/cron/trigger', { taskId });
     }
 
+    async adminTriggerCron(taskId, params = {}) {
+        return this.post('/api/v1/admin/cron/trigger', { taskId, ...params });
+    }
+
     // === DELTA ===
     /**
      * Security posture delta between two dates.
