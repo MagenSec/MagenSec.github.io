@@ -61,13 +61,13 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
     useEffect(() => {
         const query = parseHashQuery();
         const eventId = query.get('eventId');
-        const partitionKey = query.get('partitionKey');
-        const rowKey = query.get('rowKey');
+        const date = query.get('date') || query.get('partitionKey');
+        const eventKey = query.get('eventKey') || query.get('rowKey');
 
         if (eventId) {
             setHighlightedEventId(eventId);
-            setHighlightedPartitionKey(partitionKey);
-            setHighlightedRowKey(rowKey);
+            setHighlightedPartitionKey(date);
+            setHighlightedRowKey(eventKey);
             setFilterJob('CronExecution');
         }
 
@@ -85,8 +85,8 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
             try {
                 setLoadingSelectedAuditEvent(true);
                 const response = await api.adminGetAuditEvent(highlightedEventId, {
-                    partitionKey: highlightedPartitionKey,
-                    rowKey: highlightedRowKey
+                    date: highlightedPartitionKey,
+                    eventKey: highlightedRowKey
                 });
 
                 if (disposed) {

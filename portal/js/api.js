@@ -759,10 +759,10 @@ export class ApiClient {
         return this.post('/api/v1/admin/cron/trigger', payload);
     }
 
-    async adminGetAuditEvent(eventId, { partitionKey, rowKey } = {}) {
+    async adminGetAuditEvent(eventId, { date, eventKey } = {}) {
         const query = new URLSearchParams();
-        if (partitionKey) query.set('partitionKey', partitionKey);
-        if (rowKey) query.set('rowKey', rowKey);
+        if (date) query.set('date', date);
+        if (eventKey) query.set('eventKey', eventKey);
         const suffix = query.toString() ? `?${query.toString()}` : '';
         return this.get(`/api/v1/admin/audit/events/${encodeURIComponent(eventId)}${suffix}`);
     }

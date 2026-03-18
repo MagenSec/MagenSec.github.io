@@ -92,8 +92,8 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
         const query = new URLSearchParams();
         query.set('tab', 'cron-jobs');
         query.set('eventId', resultData.auditEventId);
-        if (resultData.auditPartitionKey) query.set('partitionKey', resultData.auditPartitionKey);
-        if (resultData.auditRowKey) query.set('rowKey', resultData.auditRowKey);
+        if (resultData.auditPartitionKey) query.set('date', resultData.auditPartitionKey);
+        if (resultData.auditRowKey) query.set('eventKey', resultData.auditRowKey);
         return `#!/siteadmin/activity?${query.toString()}`;
     };
 
@@ -101,8 +101,8 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
         const query = new URLSearchParams();
         query.set('tab', 'cron-jobs');
         if (options.eventId) query.set('eventId', options.eventId);
-        if (options.partitionKey) query.set('partitionKey', options.partitionKey);
-        if (options.rowKey) query.set('rowKey', options.rowKey);
+        if (options.date) query.set('date', options.date);
+        if (options.eventKey) query.set('eventKey', options.eventKey);
         window.location.hash = `#!/siteadmin/activity?${query.toString()}`;
     };
 
@@ -431,13 +431,13 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
         const auditEventId = initialData?.auditEventId;
         if (!auditEventId) return;
 
-        const partitionKey = initialData.auditPartitionKey;
-        const rowKey = initialData.auditRowKey;
+        const date = initialData.auditPartitionKey;
+        const eventKey = initialData.auditRowKey;
         const intervalMs = (initialData.pollIntervalSeconds || 5) * 1000;
 
         const poll = async () => {
             try {
-                const response = await window.api.adminGetAuditEvent(auditEventId, { partitionKey, rowKey });
+                const response = await window.api.adminGetAuditEvent(auditEventId, { date, eventKey });
                 if (!response?.success || !response?.data) {
                     pollTimersRef.current[groupId] = window.setTimeout(poll, intervalMs);
                     return;
