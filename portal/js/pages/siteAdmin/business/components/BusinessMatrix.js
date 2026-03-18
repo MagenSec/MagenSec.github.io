@@ -10,7 +10,7 @@ export function BusinessMatrixPage() {
     const [metrics, setMetrics] = useState(null);
     const [error, setError] = useState(null);
     const [expandedOrgs, setExpandedOrgs] = useState(new Set());
-    const billingCurrencyCode = 'USD'; // Billing is always USD; not returned by snapshot API
+    const billingCurrencyCode = metrics?.platformSummary?.billingCurrencyCode || 'USD';
     const [displayCurrencyCode, setDisplayCurrencyCode] = useState(localStorage.getItem('businessMatrixCurrency') || 'USD');
     const [kpiWindowDays, setKpiWindowDays] = useState(7);
     const [serviceCostDays, setServiceCostDays] = useState(30); // 7, 30, or 90 days
@@ -201,7 +201,7 @@ export function BusinessMatrixPage() {
                 totalDevices: snapshot.totalDevices,
                 activeDevices: snapshot.activeDevices,
                 actualMonthlyAzureCost: mtdCost,
-                billingCurrencyCode: 'USD',
+                billingCurrencyCode: snapshot.billingCurrencyCode || 'USD',
                 trends,
             },
 

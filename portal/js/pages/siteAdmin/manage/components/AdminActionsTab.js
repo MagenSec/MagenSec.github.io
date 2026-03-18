@@ -80,7 +80,9 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 endDate:   cookEndDate   || undefined,
             } : {};
 
-            const result = await window.api.adminTriggerCron(selectedTaskId, params);
+            const result = typeof onTriggerCron === 'function'
+                ? await onTriggerCron(selectedTaskId, params)
+                : await window.api.adminTriggerCron(selectedTaskId, params);
             if (result.success) {
                 setCronResult({ success: true, taskId: selectedTaskId, data: result.data });
             } else {

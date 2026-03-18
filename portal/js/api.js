@@ -469,10 +469,6 @@ export class ApiClient {
         return this.post('/api/v1/admin/cron/trigger', { taskId });
     }
 
-    async adminTriggerCron(taskId, params = {}) {
-        return this.post('/api/v1/admin/cron/trigger', { taskId, ...params });
-    }
-
     // === DELTA ===
     /**
      * Security posture delta between two dates.
@@ -752,8 +748,8 @@ export class ApiClient {
         return this.get('/api/v1/admin/cron/available-tasks');
     }
 
-    async adminTriggerCron(taskId) {
-        return this.post('/api/v1/admin/cron/trigger', { taskId });
+    async adminTriggerCron(taskId, params = {}) {
+        return this.post('/api/v1/admin/cron/trigger', { taskId, ...params });
     }
 
     async adminResetRemediation(orgId, resetApps = true, resetCves = true) {

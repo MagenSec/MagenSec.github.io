@@ -310,9 +310,9 @@ export class ManagePage extends Component {
     }
 
     // Admin Actions Callbacks
-    handleTriggerCron = async (taskId) => {
+    handleTriggerCron = async (taskId, params = {}) => {
         try {
-            const response = await window.api.adminTriggerCron(taskId);
+            const response = await window.api.adminTriggerCron(taskId, params);
             
             if (!response?.success) {
                 window.toast?.show?.(response?.message || `Failed to trigger ${taskId}`, 'error');
