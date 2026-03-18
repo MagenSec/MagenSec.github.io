@@ -1358,6 +1358,8 @@ export default class UnifiedDashboard extends Component {
                 </div>
               ` : ''}
 
+              ${this.renderCyberHygiene(data)}
+
               <!-- Row 3: CTA buttons -->
               <div style="padding: 12px 16px 4px; display: flex; gap: 8px; flex-wrap: wrap;">
                 ${ctaList.map((cta, i) => html`
@@ -1397,6 +1399,59 @@ export default class UnifiedDashboard extends Component {
             </div>
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  renderCyberHygiene(data) {
+    const ch = data?.cyberHygiene;
+    if (!ch || !ch.score) return '';
+
+    const gradeColor = ch.grade === 'A' ? '#16a34a'
+      : ch.grade === 'B' ? '#10b981'
+      : ch.grade === 'C' ? '#d97706'
+      : ch.grade === 'D' ? '#f97316'
+      : '#dc2626';
+
+    const tierColor = ch.insuranceTier?.startsWith('Insurance') ? '#16a34a'
+      : ch.insuranceTier?.startsWith('Conditional') ? '#d97706'
+      : '#dc2626';
+
+    const pillars = [
+      { label: 'Security',     value: ch.security,    weight: '40%' },
+      { label: 'Compliance',   value: ch.compliance,  weight: '25%' },
+      { label: 'Audit',        value: ch.audit,       weight: '20%' },
+      { label: 'Risk Posture', value: ch.riskPosture, weight: '15%' },
+    ];
+    const barColor = v => v >= 80 ? '#16a34a' : v >= 60 ? '#d97706' : '#dc2626';
+    const barPct   = v => `${Math.max(2, Math.min(100, Math.round(v || 0)))}%`;
+
+    return html`
+      <div style="padding: 12px 16px 0;">
+        <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tblr-secondary, #999); margin-bottom: 8px;">Cyber Hygiene</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <div style="display:flex; align-items:baseline; gap:6px;">
+            <span style="font-size:2rem; font-weight:800; line-height:1; color:${gradeColor}">${Math.round(ch.score)}</span>
+            <span style="font-size:0.78rem; color:var(--tblr-secondary,#888)">/100</span>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+            <span style="font-size:0.78rem; font-weight:800; color:${gradeColor}; background:${gradeColor}18; border:1px solid ${gradeColor}33; border-radius:6px; padding:2px 10px;">Grade ${ch.grade}</span>
+            <span style="font-size:0.7rem; font-weight:600; color:${tierColor}; background:${tierColor}18; border:1px solid ${tierColor}33; border-radius:13px; padding:2px 9px;">${ch.insuranceTier}</span>
+          </div>
+        </div>
+        ${pillars.map(p => html`
+          <div style="margin-bottom:7px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+              <span style="font-size:0.67rem; font-weight:600; color:var(--tblr-body-color,#333); text-transform:uppercase; letter-spacing:0.04em;">
+                ${p.label}<span style="font-weight:400; opacity:0.5; margin-left:3px;">(${p.weight})</span>
+              </span>
+              <span style="font-size:0.72rem; font-weight:700; color:${barColor(p.value)}">${Math.round(p.value || 0)}</span>
+            </div>
+            <div style="height:5px; background:var(--tblr-border-color,#e6e7e9); border-radius:4px; overflow:hidden;">
+              <div style="height:100%; width:${barPct(p.value)}; background:${barColor(p.value)}; border-radius:4px;"></div>
+            </div>
+          </div>
+        `)}
       </div>
     `;
   }
