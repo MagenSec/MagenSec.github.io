@@ -744,12 +744,27 @@ export class ApiClient {
     }
 
     // === ADMIN - CRON MANAGEMENT ===
+    async adminGetCronCatalog() {
+        return this.get('/api/v1/admin/cron/catalog');
+    }
+
     async adminGetAvailableCronTasks() {
         return this.get('/api/v1/admin/cron/available-tasks');
     }
 
-    async adminTriggerCron(taskId, params = {}) {
-        return this.post('/api/v1/admin/cron/trigger', { taskId, ...params });
+    async adminTriggerCron(taskOrRequest, params = {}) {
+        const payload = typeof taskOrRequest === 'string'
+            ? { taskId: taskOrRequest, ...params }
+            : { ...(taskOrRequest || {}) };
+        return this.post('/api/v1/admin/cron/trigger', payload);
+    }
+
+    async adminGetAuditEvent(eventId, { partitionKey, rowKey } = {}) {
+        const query = new URLSearchParams();
+        if (partitionKey) query.set('partitionKey', partitionKey);
+        if (rowKey) query.set('rowKey', rowKey);
+        const suffix = query.toString() ? `?${query.toString()}` : '';
+        return this.get(`/api/v1/admin/audit/events/${encodeURIComponent(eventId)}${suffix}`);
     }
 
     async adminResetRemediation(orgId, resetApps = true, resetCves = true) {

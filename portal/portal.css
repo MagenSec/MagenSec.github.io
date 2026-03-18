@@ -403,6 +403,190 @@ pre.json-metadata {
 }
 
 /* ========================================
+   Site Admin Cron Catalog Visual Refresh
+   ======================================== */
+
+.admin-actions-surface .cron-catalog-shell {
+  border: 1px solid rgba(0, 84, 166, 0.2);
+  box-shadow: 0 14px 34px rgba(15, 41, 74, 0.08);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(0, 84, 166, 0.08), transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(47, 179, 68, 0.08), transparent 50%),
+    var(--card-bg);
+}
+
+.cron-group-card {
+  border: 1px solid var(--group-border, rgba(0, 84, 166, 0.22));
+  box-shadow: 0 10px 24px rgba(15, 41, 74, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  overflow: hidden;
+}
+
+.cron-group-card::before {
+  content: '';
+  display: block;
+  height: 4px;
+  background: linear-gradient(90deg, var(--group-accent, var(--tblr-blue)), var(--group-accent-soft, #71a9d8));
+}
+
+.cron-group-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(15, 41, 74, 0.14);
+  border-color: var(--group-accent, var(--tblr-blue));
+}
+
+.cron-group-card-header {
+  background: linear-gradient(135deg, var(--group-header-bg, rgba(0, 84, 166, 0.1)), transparent 70%);
+  border-bottom: 1px solid var(--group-border, rgba(0, 84, 166, 0.22));
+}
+
+.cron-group-card .card-title i {
+  color: var(--group-accent, var(--tblr-blue));
+}
+
+.cron-group-count-badge {
+  background: var(--group-pill-bg, rgba(0, 84, 166, 0.1)) !important;
+  color: var(--group-pill-color, #0f4d8a) !important;
+  border: 1px solid var(--group-border, rgba(0, 84, 166, 0.22));
+}
+
+.cron-group-org-data {
+  --group-accent: #c12b2b;
+  --group-accent-soft: #ef9a9a;
+  --group-border: rgba(193, 43, 43, 0.34);
+  --group-header-bg: rgba(193, 43, 43, 0.12);
+  --group-pill-bg: rgba(193, 43, 43, 0.14);
+  --group-pill-color: #9f1f1f;
+}
+
+.cron-group-business {
+  --group-accent: #9f1f1f;
+  --group-accent-soft: #e78686;
+  --group-border: rgba(159, 31, 31, 0.34);
+  --group-header-bg: rgba(159, 31, 31, 0.12);
+  --group-pill-bg: rgba(159, 31, 31, 0.14);
+  --group-pill-color: #7f1818;
+}
+
+.cron-group-operations {
+  --group-accent: #c87400;
+  --group-accent-soft: #f3c98a;
+  --group-border: rgba(200, 116, 0, 0.34);
+  --group-header-bg: rgba(200, 116, 0, 0.12);
+  --group-pill-bg: rgba(200, 116, 0, 0.14);
+  --group-pill-color: #9a5a00;
+}
+
+.cron-group-intel {
+  --group-accent: #e28a00;
+  --group-accent-soft: #ffd89b;
+  --group-border: rgba(226, 138, 0, 0.34);
+  --group-header-bg: rgba(226, 138, 0, 0.12);
+  --group-pill-bg: rgba(226, 138, 0, 0.14);
+  --group-pill-color: #aa6800;
+}
+
+.cron-group-maintenance {
+  --group-accent: #0b63b6;
+  --group-accent-soft: #87bae8;
+  --group-border: rgba(11, 99, 182, 0.34);
+  --group-header-bg: rgba(11, 99, 182, 0.12);
+  --group-pill-bg: rgba(11, 99, 182, 0.14);
+  --group-pill-color: #084a88;
+}
+
+.cron-group-custom {
+  --group-accent: #6b7280;
+  --group-accent-soft: #b6beca;
+  --group-border: rgba(107, 114, 128, 0.34);
+  --group-header-bg: rgba(107, 114, 128, 0.12);
+  --group-pill-bg: rgba(107, 114, 128, 0.14);
+  --group-pill-color: #505866;
+}
+
+.cron-group-custom .card-title,
+.cron-group-custom .text-muted {
+  color: #606977 !important;
+}
+
+.cron-history-panel {
+  background: rgba(15, 94, 168, 0.04);
+  border: 1px solid rgba(15, 94, 168, 0.12);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+}
+
+.cron-trend-chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(26px, 1fr));
+  align-items: end;
+  gap: 0.35rem;
+  min-height: 72px;
+}
+
+.cron-trend-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.2rem;
+}
+
+.cron-trend-bar {
+  width: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 5px;
+  overflow: hidden;
+  background: rgba(100, 116, 139, 0.18);
+}
+
+.cron-trend-segment {
+  width: 100%;
+}
+
+.cron-trend-success {
+  background: linear-gradient(180deg, #34d399, #0f9d58);
+}
+
+.cron-trend-failed {
+  background: linear-gradient(180deg, #f87171, #dc2626);
+}
+
+.cron-trend-label {
+  font-size: 0.65rem;
+  color: var(--tblr-muted);
+  white-space: nowrap;
+}
+
+[data-bs-theme="dark"] .admin-actions-surface .cron-catalog-shell {
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.36);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(96, 165, 250, 0.16), transparent 42%),
+    radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.16), transparent 48%),
+    var(--card-bg);
+}
+
+[data-bs-theme="dark"] .cron-group-card {
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.32);
+}
+
+[data-bs-theme="dark"] .cron-group-card:hover {
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.46);
+}
+
+[data-bs-theme="dark"] .cron-group-count-badge {
+  background: var(--group-pill-bg, rgba(0, 84, 166, 0.26)) !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .cron-history-panel {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(147, 197, 253, 0.24);
+}
+
+/* ========================================
    Card Enhancements
    ======================================== */
 

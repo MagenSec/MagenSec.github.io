@@ -14,9 +14,45 @@ const { useState } = window.preactHooks;
 export class ActivityPage extends Component {
     constructor(props) {
         super(props);
+        const initialTab = this.resolveTabFromHash();
         this.state = {
-            activeTab: 'user-activity' // 'user-activity', 'device-activity', 'ai-reports', 'cron'
+            activeTab: initialTab // 'user-activity', 'device-activity', 'ai-reports', 'cron'
         };
+    }
+
+    componentDidMount() {
+        this._hashListener = () => {
+            const nextTab = this.resolveTabFromHash();
+            if (nextTab !== this.state.activeTab) {
+                this.setState({ activeTab: nextTab });
+            }
+        };
+        window.addEventListener('hashchange', this._hashListener);
+    }
+
+    componentWillUnmount() {
+        if (this._hashListener) {
+            window.removeEventListener('hashchange', this._hashListener);
+        }
+    }
+
+    resolveTabFromHash() {
+        try {
+            const hash = window.location.hash || '';
+            const queryIndex = hash.indexOf('?');
+            if (queryIndex < 0) return 'user-activity';
+
+            const query = new URLSearchParams(hash.substring(queryIndex + 1));
+            const tab = String(query.get('tab') || '').toLowerCase();
+
+            if (tab === 'cron' || tab === 'cron-jobs') return 'cron';
+            if (tab === 'device-activity') return 'device-activity';
+            if (tab === 'ai-reports') return 'ai-reports';
+            if (tab === 'user-activity') return 'user-activity';
+            return 'user-activity';
+        } catch {
+            return 'user-activity';
+        }
     }
 
     render() {

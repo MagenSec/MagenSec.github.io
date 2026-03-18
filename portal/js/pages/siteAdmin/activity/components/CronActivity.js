@@ -24,6 +24,21 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
     const [expandedEvents, setExpandedEvents] = useState(new Set());
     const [cronStatus, setCronStatus] = useState(propCronStatus || null);
     const [loadingCronStatus, setLoadingCronStatus] = useState(false);
+    const [highlightedEventId, setHighlightedEventId] = useState(null);
+    const [highlightedPartitionKey, setHighlightedPartitionKey] = useState(null);
+    const [highlightedRowKey, setHighlightedRowKey] = useState(null);
+    const [selectedAuditEvent, setSelectedAuditEvent] = useState(null);
+    const [loadingSelectedAuditEvent, setLoadingSelectedAuditEvent] = useState(false);
+
+    const parseHashQuery = () => {
+        const hash = window.location.hash || '';
+        const queryIndex = hash.indexOf('?');
+        if (queryIndex < 0) {
+            return new URLSearchParams();
+        }
+
+        return new URLSearchParams(hash.substring(queryIndex + 1));
+    };
 
     // Infinite scroll observer
     useEffect(() => {
@@ -44,8 +59,88 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
     }, [hasMore, loading, loadingMore]);
 
     useEffect(() => {
+        const query = parseHashQuery();
+        const eventId = query.get('eventId');
+        const partitionKey = query.get('partitionKey');
+        const rowKey = query.get('rowKey');
+
+        if (eventId) {
+            setHighlightedEventId(eventId);
+            setHighlightedPartitionKey(partitionKey);
+            setHighlightedRowKey(rowKey);
+            setFilterJob('CronExecution');
+        }
+
         loadCronStatus();
     }, []);
+
+    useEffect(() => {
+        if (!highlightedEventId) {
+            setSelectedAuditEvent(null);
+            return;
+        }
+
+        let disposed = false;
+        const loadSelectedAuditEvent = async () => {
+            try {
+                setLoadingSelectedAuditEvent(true);
+                const response = await api.adminGetAuditEvent(highlightedEventId, {
+                    partitionKey: highlightedPartitionKey,
+                    rowKey: highlightedRowKey
+                });
+
+                if (disposed) {
+                    return;
+                }
+
+                if (response?.success && response?.data) {
+                    setSelectedAuditEvent(response.data);
+                } else {
+                    setSelectedAuditEvent(null);
+                }
+            } catch (err) {
+                logger.error('[Cron Activity] Error loading selected audit event:', err);
+                if (!disposed) {
+                    setSelectedAuditEvent(null);
+                }
+            } finally {
+                if (!disposed) {
+                    setLoadingSelectedAuditEvent(false);
+                }
+            }
+        };
+
+        loadSelectedAuditEvent();
+        return () => {
+            disposed = true;
+        };
+    }, [highlightedEventId, highlightedPartitionKey, highlightedRowKey]);
+
+    useEffect(() => {
+        if (!highlightedEventId || !Array.isArray(events) || events.length === 0) {
+            return;
+        }
+
+        const matched = events.find(e => e.eventId === highlightedEventId);
+        if (!matched) {
+            return;
+        }
+
+        setExpandedEvents((prev) => {
+            if (prev.has(highlightedEventId)) {
+                return prev;
+            }
+
+            const next = new Set(prev);
+            next.add(highlightedEventId);
+            return next;
+        });
+
+        window.setTimeout(() => {
+            const row = document.getElementById(`cron-event-${highlightedEventId}`);
+            row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+    }, [events, highlightedEventId]);
 
     useEffect(() => {
         loadCronEvents(true);
@@ -188,8 +283,10 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         const hasDiagnostics = diagnostics && typeof diagnostics === 'object';
         const diagnosticsEntries = hasDiagnostics ? Object.entries(diagnostics) : [];
         
+        const isHighlighted = highlightedEventId && highlightedEventId === e.eventId;
+
         return html`
-            <tr class="cursor-pointer" onClick=${() => {
+            <tr id=${`cron-event-${e.eventId}`} class="cursor-pointer ${isHighlighted ? 'table-warning' : ''}" onClick=${() => {
                 const newSet = new Set(expandedEvents);
                 if (isExpanded) newSet.delete(e.eventId);
                 else newSet.add(e.eventId);
@@ -325,15 +422,87 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         return true;
     });
 
+    const dailyTrend = (() => {
+        const safeDays = Math.max(1, Number(rangeDays || 7));
+        const now = new Date();
+        const buckets = new Map();
+
+        for (let i = safeDays - 1; i >= 0; i--) {
+            const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+            const key = day.toISOString().slice(0, 10);
+            buckets.set(key, {
+                key,
+                label: day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                success: 0,
+                failed: 0,
+                manual: 0,
+                scheduled: 0
+            });
+        }
+
+        for (const evt of filteredEvents) {
+            if (String(evt?.eventType || '').toUpperCase() !== 'CRONRUN') continue;
+            const ts = evt?.timestamp ? new Date(evt.timestamp) : null;
+            if (!ts || Number.isNaN(ts.getTime())) continue;
+
+            const key = new Date(Date.UTC(ts.getUTCFullYear(), ts.getUTCMonth(), ts.getUTCDate())).toISOString().slice(0, 10);
+            const bucket = buckets.get(key);
+            if (!bucket) continue;
+
+            const status = String(evt?.metadata?.status || evt?.metadata?.Status || evt?.status || '').toLowerCase();
+            const isSuccess = !status || status === 'completed' || status === 'success';
+            if (isSuccess) bucket.success += 1;
+            else bucket.failed += 1;
+
+            const isManual = String(evt?.subType || '').toLowerCase().includes('manual');
+            if (isManual) bucket.manual += 1;
+            else bucket.scheduled += 1;
+        }
+
+        const points = Array.from(buckets.values());
+        const max = Math.max(1, ...points.map((p) => p.success + p.failed));
+        const totals = points.reduce((acc, p) => {
+            acc.success += p.success;
+            acc.failed += p.failed;
+            acc.manual += p.manual;
+            acc.scheduled += p.scheduled;
+            return acc;
+        }, { success: 0, failed: 0, manual: 0, scheduled: 0 });
+
+        return { points, max, totals };
+    })();
+
     function getTaskLiveState(task) {
         const taskRuns = events
             .filter(e => e.eventType === 'CRONRUN' && (e.metadata?.taskId || e.metadata?.TaskId) === task.taskId)
             .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 
         const latestRun = taskRuns[0] || null;
-        const runStatus = latestRun?.metadata?.status || latestRun?.metadata?.Status || null;
+        const runStatus = latestRun?.metadata?.status || latestRun?.metadata?.Status || latestRun?.status || null;
 
-        if (!latestRun || runStatus !== 'Running') {
+        if (!latestRun) {
+            return {
+                key: task.isOverdue ? 'overdue' : 'scheduled',
+                label: task.isOverdue ? 'Overdue' : 'On Schedule',
+                badgeClass: task.isOverdue ? 'bg-danger text-white' : 'bg-success text-white',
+                icon: task.isOverdue ? 'ti-alert-circle' : 'ti-check',
+                progressPercent: null,
+                ageMinutes: null
+            };
+        }
+
+        if (runStatus === 'Queued') {
+            return {
+                key: 'queued',
+                label: 'Queued',
+                badgeClass: 'bg-info text-white',
+                icon: 'ti-clock-hour-4',
+                progressPercent: null,
+                ageMinutes: null
+            };
+        }
+
+        if (runStatus !== 'Running') {
             return {
                 key: task.isOverdue ? 'overdue' : 'scheduled',
                 label: task.isOverdue ? 'Overdue' : 'On Schedule',
@@ -411,14 +580,22 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                 <div class="row g-3 mb-3">
                     ${(() => {
                         const totalEvents = events.length;
-                        const successCount = events.filter(e => 
-                            (e.eventType === 'CRONRUN' && (!e.metadata?.status || e.metadata?.status === 'Completed' || e.metadata?.Status === 'Completed')) ||
-                            (e.eventType === 'SECURITY_REPORT' && ((e.subType || '').toLowerCase().includes('failed')) === false)
-                        ).length;
-                        const failureCount = events.filter(e => 
-                            (e.eventType === 'CRONRUN' && (e.metadata?.status || e.metadata?.Status) && (e.metadata?.status || e.metadata?.Status) !== 'Completed') ||
-                            (e.eventType === 'SECURITY_REPORT' && e.subType === 'SecurityReportFailed')
-                        ).length;
+                        const successCount = events.filter(e => {
+                            if (e.eventType === 'CRONRUN') {
+                                const status = (e.metadata?.status || e.metadata?.Status || e.status || '').toLowerCase();
+                                return status === '' || status === 'completed';
+                            }
+
+                            return e.eventType === 'SECURITY_REPORT' && ((e.subType || '').toLowerCase().includes('failed')) === false;
+                        }).length;
+                        const failureCount = events.filter(e => {
+                            if (e.eventType === 'CRONRUN') {
+                                const status = (e.metadata?.status || e.metadata?.Status || e.status || '').toLowerCase();
+                                return ['failed', 'exception', 'rejected'].includes(status);
+                            }
+
+                            return e.eventType === 'SECURITY_REPORT' && e.subType === 'SecurityReportFailed';
+                        }).length;
                         const successRate = totalEvents > 0 ? ((successCount / totalEvents) * 100).toFixed(1) : 0;
                         const lastEvent = events[0];
                         const lastEventTime = lastEvent?.timestamp ? new Date(lastEvent.timestamp).toLocaleString() : 'N/A';
@@ -479,6 +656,39 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                 </div>
             `}
 
+            ${filteredEvents.length > 0 && html`
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">Execution Trend</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            <span class="badge bg-success text-white">${dailyTrend.totals.success} success</span>
+                            <span class="badge bg-danger text-white">${dailyTrend.totals.failed} failed</span>
+                            <span class="badge bg-primary text-white">${dailyTrend.totals.manual} manual</span>
+                            <span class="badge bg-secondary text-white">${dailyTrend.totals.scheduled} scheduled</span>
+                        </div>
+                        <div class="cron-trend-chart" role="img" aria-label="Daily cron execution trend">
+                            ${dailyTrend.points.map((point) => {
+                                const successHeight = Math.max(2, Math.round((point.success / dailyTrend.max) * 48));
+                                const failedHeight = Math.max(point.failed > 0 ? 2 : 0, Math.round((point.failed / dailyTrend.max) * 48));
+                                const totalHeight = Math.min(56, successHeight + failedHeight);
+                                return html`
+                                    <div class="cron-trend-day" title=${`${point.label}: ${point.success} success, ${point.failed} failed, ${point.manual} manual, ${point.scheduled} scheduled`}>
+                                        <div class="cron-trend-bar" style=${`height:${Math.max(2, totalHeight)}px`}>
+                                            ${point.failed > 0 && html`<div class="cron-trend-segment cron-trend-failed" style=${`height:${failedHeight}px`}></div>`}
+                                            ${point.success > 0 && html`<div class="cron-trend-segment cron-trend-success" style=${`height:${successHeight}px`}></div>`}
+                                        </div>
+                                        <div class="cron-trend-label">${point.label}</div>
+                                    </div>
+                                `;
+                            })}
+                        </div>
+                        <div class="small text-muted mt-2">Green = success, red = failed</div>
+                    </div>
+                </div>
+            `}
+
             <div class="mb-3">
                 <h4>Activity Details & Filters</h4>
                 <p class="text-muted small">
@@ -486,6 +696,90 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                     This page shows execution history, email deliveries, and errors.
                 </p>
             </div>
+
+            ${highlightedEventId && html`
+                <div class="card mb-3 border-primary">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">
+                            <i class="ti ti-list-details me-2"></i>
+                            Manual Job Detail
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        ${loadingSelectedAuditEvent ? html`
+                            <div class="text-muted small">
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                Loading selected audit event...
+                            </div>
+                        ` : selectedAuditEvent ? html`
+                            ${(() => {
+                                const meta = selectedAuditEvent.metadata || {};
+                                const status = selectedAuditEvent.status || meta.status || 'Queued';
+                                const taskId = selectedAuditEvent.targetType || meta.taskId || 'Unknown';
+                                const scopeKey = selectedAuditEvent.targetId || meta.scopeKey || '-';
+                                const durationSeconds = meta.durationSeconds;
+                                const progressPercent = meta.progressPercent ?? meta.progress?.percent;
+                                const statusClass = (() => {
+                                    const n = String(status || '').toLowerCase();
+                                    if (n === 'completed') return 'bg-success text-white';
+                                    if (n === 'failed' || n === 'exception' || n === 'rejected') return 'bg-danger text-white';
+                                    if (n === 'running') return 'bg-primary text-white';
+                                    return 'bg-info text-white';
+                                })();
+
+                                return html`
+                                    <div class="d-flex flex-wrap gap-2 mb-3">
+                                        <span class="badge ${statusClass}">${status}</span>
+                                        <span class="badge bg-secondary text-white">${taskId}</span>
+                                        <span class="badge bg-dark text-white">${scopeKey}</span>
+                                    </div>
+                                    <div class="row g-3 small">
+                                        <div class="col-md-6">
+                                            <div class="text-muted">Audit Event ID</div>
+                                            <div class="fw-semibold font-monospace">${selectedAuditEvent.eventId}</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="text-muted">Requested By</div>
+                                            <div class="fw-semibold">${selectedAuditEvent.performedBy || 'system'}</div>
+                                        </div>
+                                        ${selectedAuditEvent.timestamp && html`
+                                            <div class="col-md-6">
+                                                <div class="text-muted">Created At</div>
+                                                <div class="fw-semibold">${new Date(selectedAuditEvent.timestamp).toLocaleString()}</div>
+                                            </div>
+                                        `}
+                                        ${selectedAuditEvent.completedAt && html`
+                                            <div class="col-md-6">
+                                                <div class="text-muted">Completed At</div>
+                                                <div class="fw-semibold">${new Date(selectedAuditEvent.completedAt).toLocaleString()}</div>
+                                            </div>
+                                        `}
+                                        ${progressPercent != null && html`
+                                            <div class="col-md-6">
+                                                <div class="text-muted">Progress</div>
+                                                <div class="fw-semibold">${progressPercent}%</div>
+                                            </div>
+                                        `}
+                                        ${durationSeconds != null && html`
+                                            <div class="col-md-6">
+                                                <div class="text-muted">Duration</div>
+                                                <div class="fw-semibold">${Number(durationSeconds).toFixed(2)}s</div>
+                                            </div>
+                                        `}
+                                    </div>
+                                    ${meta.error && html`
+                                        <div class="alert alert-danger mt-3 mb-0">
+                                            <strong>Error:</strong> ${meta.error}
+                                        </div>
+                                    `}
+                                `;
+                            })()}
+                        ` : html`
+                            <div class="text-muted small">Selected audit event was not found. It may be outside the loaded retention window.</div>
+                        `}
+                    </div>
+                </div>
+            `}
 
             <!-- Filters -->
             <div class="card mb-3">
@@ -523,6 +817,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                             <label class="form-label">Time Range</label>
                             <select class="form-select" value=${rangeDays} onChange=${(e) => setRangeDays(parseInt(e.target.value, 10))}>
                                 <option value="7">Last 7 days</option>
+                                <option value="15">Last 15 days</option>
                                 <option value="30">Last 30 days</option>
                                 <option value="90">Last 90 days</option>
                             </select>
@@ -539,6 +834,15 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                     </div>
                 </div>
             </div>
+
+            ${cronStatus?.currentStatus?.warnings?.length > 0 && html`
+                <div class="alert alert-warning mb-3" role="alert">
+                    <div class="fw-semibold mb-2">Operational Warnings</div>
+                    ${cronStatus.currentStatus.warnings.map(warning => html`
+                        <div class="small mb-1">${warning.message}</div>
+                    `)}
+                </div>
+            `}
 
             <!-- Scheduled Tasks -->
             ${cronStatus && cronStatus.tasks && cronStatus.tasks.length > 0 && html`

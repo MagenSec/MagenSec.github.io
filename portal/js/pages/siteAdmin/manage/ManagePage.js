@@ -310,26 +310,29 @@ export class ManagePage extends Component {
     }
 
     // Admin Actions Callbacks
-    handleTriggerCron = async (taskId, params = {}) => {
+    handleTriggerCron = async (taskOrRequest, params = {}) => {
         try {
-            const response = await window.api.adminTriggerCron(taskId, params);
-            
+            const request = typeof taskOrRequest === 'string'
+                ? { taskId: taskOrRequest, ...params }
+                : { ...(taskOrRequest || {}) };
+            const label = request.jobId || request.taskId || 'Cron job';
+
+            const response = await window.api.adminTriggerCron(request);
+
             if (!response?.success) {
-                window.toast?.show?.(response?.message || `Failed to trigger ${taskId}`, 'error');
+                window.toast?.show?.(response?.message || `Failed to queue ${label}`, 'error');
                 return { success: false, message: response?.message };
             }
 
-            window.toast?.show?.(`${taskId} triggered successfully`, 'success');
-            return { 
-                success: true, 
-                data: {
-                    itemsProcessed: response?.data?.itemsProcessed,
-                    duration: response?.data?.durationMs ? `${response.data.durationMs}ms` : 'N/A'
-                }
+            const queuedStatus = response?.data?.status || 'Queued';
+            window.toast?.show?.(`${label} accepted with status ${queuedStatus}`, 'success');
+            return {
+                success: true,
+                data: response?.data || null
             };
         } catch (error) {
             console.error('[ManagePage] handleTriggerCron failed', error);
-            window.toast?.show?.(error?.message || `Failed to trigger ${taskId}`, 'error');
+            window.toast?.show?.(error?.message || 'Failed to queue cron job', 'error');
             return { success: false, message: error?.message };
         }
     }
