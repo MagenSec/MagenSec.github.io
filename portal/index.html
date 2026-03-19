@@ -250,22 +250,22 @@
     <div class="page">
         <!-- Navbar -->
         <header class="navbar navbar-expand-md navbar-light d-print-none">
-            <div class="container-xl">
+            <div class="container-xl navbar-top-grid">
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-label="Toggle navigation menu">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-                    <a href="#!/dashboard">
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3 navbar-top-left">
+                    <span class="navbar-brand-static d-inline-flex align-items-center" role="text" aria-label="MagenSec">
                         <img src="../assets/green_shield_64.ico" alt="MagenSec" height="24" class="me-2">
-                        MagenSec
-                    </a>
+                        <span class="magensec-brand-magen">Magen</span><span class="magensec-brand-sec">Sec</span>
+                    </span>
                 </h1>
                 <!-- Center: Org Switcher -->
-                <div class="navbar-nav flex-fill justify-content-center d-flex align-items-center">
+                <div class="navbar-nav flex-fill justify-content-center d-flex align-items-center navbar-top-center">
                     <div id="org-switcher-root"></div>
                 </div>
                 <!-- Right: Theme toggle, Site Admin, Rewind trigger, User Menu -->
-                <div class="navbar-nav flex-row order-md-last gap-2 align-items-center">
+                <div class="navbar-nav flex-row order-md-last gap-2 align-items-center navbar-top-right">
 
                     <!-- Theme toggle (icon button) -->
                     <div class="nav-item d-flex align-items-center" id="theme-toggle-nav">
@@ -319,7 +319,7 @@
 
                     <!-- User menu -->
                     <div class="nav-item dropdown">
-                        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-expanded="false" role="button">
+                        <a href="#" id="user-menu-trigger" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-expanded="false" role="button">
                             <span class="avatar avatar-sm" id="user-avatar">
                                 <img id="user-avatar-img" alt="User" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:50%;" />
                                 <span id="user-avatar-fallback" class="avatar-initials" style="display:none;"></span>

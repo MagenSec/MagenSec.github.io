@@ -58,6 +58,36 @@ let currentPage = 'login';
 let currentCtx = null;
 let currentParams = null;
 
+function closeOpenTopDropdowns() {
+    const toggles = document.querySelectorAll('.navbar [data-bs-toggle="dropdown"]');
+    toggles.forEach((toggle) => {
+        toggle.setAttribute('aria-expanded', 'false');
+        if (typeof bootstrap !== 'undefined') {
+            const instance = bootstrap.Dropdown.getInstance(toggle);
+            if (instance) {
+                instance.hide();
+                return;
+            }
+        }
+        const parent = toggle.closest('.dropdown');
+        if (!parent) return;
+        parent.querySelector('.dropdown-menu')?.classList.remove('show');
+    });
+
+    // SearchableOrgSwitcher is a custom dropdown (not Bootstrap-driven).
+    // Toggle it closed so route transitions never leave the panel open.
+    const openOrgPanel = document.querySelector('.navbar .org-switcher-panel.show');
+    if (openOrgPanel) {
+        const orgTrigger = openOrgPanel.closest('.dropdown')?.querySelector('button[aria-haspopup="listbox"]');
+        if (orgTrigger) {
+            orgTrigger.click();
+        }
+    }
+
+    document.body.classList.remove('navbar-dropdown-open');
+    document.body.classList.remove('org-switcher-open');
+}
+
 /**
  * applyRewindUiGuards — called whenever rewind state changes.
  * Adds/removes `rewind-blocked` on mutating action buttons so CSS
@@ -227,6 +257,10 @@ function App() {
                         : null}
                 </div>
             `;
+        case 'settings':
+            return html`<${SettingsPage} />`;
+        case 'account':
+            return html`<${AccountPage} />`;
         case 'audit':
             return html`
                 <div>
@@ -236,6 +270,8 @@ function App() {
                         : null}
                 </div>
             `;
+        case 'siteadmin/review':
+            return html`<${ReviewPage} />`;
         default:
             return html`<${LoginPage} />`;
     }
@@ -341,6 +377,9 @@ function renderApp(state) {
             navbarCollapse.classList.remove('show');
         }
     }
+
+    // Ensure nav dropdowns do not remain visually stuck open across route transitions.
+    closeOpenTopDropdowns();
 
     // Always update authentication UI state
     const isAuthenticated = auth.isAuthenticated();
@@ -581,6 +620,22 @@ async function init() {
         e.stopPropagation();
         window.toast?.show('Feature available in Business License only', 'warning', 3000);
     }, true);
+
+    // Track open/close state of top navigation dropdowns for contextual layout shifts.
+    document.addEventListener('shown.bs.dropdown', (e) => {
+        const inNavbar = e.target?.closest?.('.navbar');
+        if (inNavbar) {
+            document.body.classList.add('navbar-dropdown-open');
+        }
+    });
+    document.addEventListener('hidden.bs.dropdown', (e) => {
+        const inNavbar = e.target?.closest?.('.navbar');
+        if (!inNavbar) return;
+        const anyOpen = document.querySelector('.navbar .dropdown-menu.show');
+        if (!anyOpen) {
+            document.body.classList.remove('navbar-dropdown-open');
+        }
+    });
     
     logger.info('[App] Ready');
 }
@@ -777,9 +832,9 @@ function wireRewindPanel() {
             btn.style.color       = '#f59f00';
             btn.style.borderColor = 'rgba(247,103,7,0.55)';
             btn.style.boxShadow   = '';
-            btn.style.animation   = '';
+            btn.style.animation   = 'twIdleGlow 3.5s ease-in-out infinite';
             btn.removeAttribute('data-active');
-            if (icon)  icon.style.animation  = '';
+            if (icon)  icon.style.animation  = 'rewindFlameFlicker 1.8s ease-in-out infinite';
             if (label) label.textContent = 'Time Warp';
         }
 

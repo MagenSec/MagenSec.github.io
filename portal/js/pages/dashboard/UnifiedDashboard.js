@@ -36,6 +36,7 @@ export default class UnifiedDashboard extends Component {
       aiAnswer: null,
       aiLoading: false,
       aiError: null,
+      cyberHygieneCollapsed: true,
       officerNoteOpen: false,
       officerNoteDismissed: false
     };
@@ -260,7 +261,7 @@ export default class UnifiedDashboard extends Component {
     const active = Number(fleet.activeCount || 0);
     const offline = Number(fleet.offlineCount || 0);
 
-    return total > 0 && active === 0 && offline === 0;
+    return total > 0 && active === 0;
   }
 
   deriveFleetFromDevicesPayload(devicesPayload) {
@@ -587,11 +588,16 @@ export default class UnifiedDashboard extends Component {
 
     const inventoryTotal = Number(it.inventory?.totalDevices || 0);
     const health = Array.isArray(it.deviceHealth) ? it.deviceHealth : [];
+    const devices = Array.isArray(it.devices) ? it.devices : [];
 
     const normalize = (v) => String(v || '').toLowerCase();
     const healthyByStatus = health.filter((d) => {
       const s = normalize(d?.status);
       return s === 'active' || s === 'online' || s === 'healthy';
+    }).length;
+    const onlineByStatus = health.filter((d) => {
+      const s = normalize(d?.status);
+      return s === 'online' || s === 'healthy';
     }).length;
     const offlineByStatus = health.filter((d) => {
       const s = normalize(d?.status);
@@ -600,19 +606,25 @@ export default class UnifiedDashboard extends Component {
 
     const total = rawTotal > 0
       ? rawTotal
-      : (inventoryTotal > 0 ? inventoryTotal : health.length);
+      : (inventoryTotal > 0 ? inventoryTotal : (health.length || devices.length));
 
-    const active = rawActive > 0
-      ? rawActive
-      : (healthyByStatus > 0 ? healthyByStatus : 0);
+    // Prefer explicit online status when available; quickStats active may include stale devices.
+    const hasHealthRows = health.length > 0;
+    const online = hasHealthRows
+      ? Math.max(0, Math.min(total, onlineByStatus))
+      : (rawActive > 0 ? rawActive : (healthyByStatus > 0 ? healthyByStatus : 0));
+
+    const active = online;
 
     // Trust rawOffline from quickStats when quickStats has device data (rawTotal > 0).
     // Only fall back to deviceHealth-based count when quickStats is absent entirely.
-    const offline = rawTotal > 0
-      ? rawOffline
-      : (offlineByStatus > 0 ? offlineByStatus : Math.max(0, total - active));
+    const offline = hasHealthRows
+      ? Math.max(0, total - online)
+      : (rawTotal > 0
+        ? Math.max(rawOffline, total - online)
+        : (offlineByStatus > 0 ? offlineByStatus : Math.max(0, total - online)));
 
-    return { active, total, offline };
+    return { active, online, total, offline };
   }
 
   getHeroGradient(score) {
@@ -715,6 +727,13 @@ export default class UnifiedDashboard extends Component {
     const { data, aiLoading, aiAnswer, aiError, refreshing } = this.state;
     const secScore = typeof data?.securityScore?.score === 'number' ? data.securityScore.score : 0;
     const freshness = this.getFreshnessInfo();
+    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
+    const aiPlaceholder = isSmallScreen
+      ? 'Ask threats, compliance, or devices...'
+      : 'Ask about threats, compliance, or any device...';
+    const aiButtonLabel = aiLoading ? 'Thinking...' : (isSmallScreen ? 'Ask' : 'Ask MAGI');
+    const quickPillStyle = 'font-size: var(--db-pill-font-size); color: var(--db-pill-text); text-decoration: none; padding: var(--db-pill-padding); background: var(--db-pill-bg); border-radius: var(--db-pill-radius); border: 1px solid var(--db-pill-border); box-shadow: var(--db-pill-shadow); font-weight: var(--db-pill-weight);';
+    const refreshPillStyle = 'font-size: var(--db-pill-font-size); color: var(--db-pill-text); background: var(--db-pill-bg); border: 1px solid var(--db-pill-border); border-radius: var(--db-pill-radius); padding: var(--db-pill-padding); cursor: pointer; box-shadow: var(--db-pill-shadow); font-weight: var(--db-pill-weight);';
 
     return html`
       <div style="
@@ -725,7 +744,7 @@ export default class UnifiedDashboard extends Component {
         margin-left: -50vw;
         margin-right: -50vw;
         background: var(--tblr-body-bg, #f4f6fa);
-        padding: 40px 16px 44px;
+        padding: 12px 16px 20px;
         overflow: hidden;
       ">
         <!-- Decorative glow orbs -->
@@ -733,14 +752,6 @@ export default class UnifiedDashboard extends Component {
         <div style="position: absolute; bottom: -60px; left: -40px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(139,92,246,0.05) 0%, transparent 65%); pointer-events: none;"></div>
 
         <div style="max-width: 960px; margin: 0 auto; position: relative;">
-
-          <!-- Title -->
-          <div style="text-align: center; margin-bottom: 28px;">
-            <h1 style="font-size: 2.6rem; font-weight: 800; letter-spacing: -1.5px; margin: 0 0 6px; line-height: 1.1;">
-              <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Magen</span><span style="color: var(--db-hero-title-color);">Sec</span>
-            </h1>
-            <div style="color: var(--db-faint-text); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500;">Security Intelligence Platform</div>
-          </div>
 
           <!-- Cyber Hygiene (AI-derived) -->
           ${this.renderCyberHygieneLanding(data, true)}
@@ -768,7 +779,7 @@ export default class UnifiedDashboard extends Component {
                 <input
                   type="text"
                   aria-label="Ask security assistant"
-                  placeholder="Ask about threats, compliance, or any device..."
+                  placeholder=${aiPlaceholder}
                   value=${this.state.aiPrompt}
                   onInput=${this.handleAiPromptChange}
                   disabled=${aiLoading}
@@ -778,8 +789,8 @@ export default class UnifiedDashboard extends Component {
                     border: none;
                     outline: none;
                     color: var(--db-input-color);
-                    font-size: 0.9rem;
-                    padding: 13px 8px;
+                    font-size: ${isSmallScreen ? '0.84rem' : '0.9rem'};
+                    padding: ${isSmallScreen ? '11px 6px' : '13px 8px'};
                     min-width: 0;
                   "
                 />
@@ -791,10 +802,10 @@ export default class UnifiedDashboard extends Component {
                     background: linear-gradient(135deg, #6366f1, #8b5cf6);
                     border: none;
                     color: #fff;
-                    padding: 0 20px;
-                    height: 36px;
+                    padding: ${isSmallScreen ? '0 14px' : '0 20px'};
+                    height: ${isSmallScreen ? '34px' : '36px'};
                     font-weight: 600;
-                    font-size: 0.82rem;
+                    font-size: ${isSmallScreen ? '0.78rem' : '0.82rem'};
                     border-radius: 40px;
                     margin: 4px;
                     cursor: ${aiLoading ? 'default' : 'pointer'};
@@ -802,7 +813,7 @@ export default class UnifiedDashboard extends Component {
                     transition: opacity 0.15s;
                     white-space: nowrap;
                   "
-                >${aiLoading ? 'Thinking…' : 'Ask 🛡️MAGI'}</button>
+                >${aiButtonLabel}</button>
               </div>
             </form>
 
@@ -861,22 +872,22 @@ export default class UnifiedDashboard extends Component {
           <!-- Quick nav + freshness -->
           <div style="text-align: center;">
             <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;">
-              <a href="#!/security" style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);">Security</a>
+              <a href="#!/security" class="db-quick-pill" style=${quickPillStyle}>Security</a>
               <a
                 href="#!/compliance"
-                class=${this.getBusinessOnlyMeta('#!/compliance').className}
+                class=${`db-quick-pill ${this.getBusinessOnlyMeta('#!/compliance').className}`}
                 title=${this.getBusinessOnlyMeta('#!/compliance').title}
                 data-business-tooltip=${this.getBusinessOnlyMeta('#!/compliance').dataTooltip}
-                style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);"
+                style=${quickPillStyle}
               >Compliance</a>
               <a
                 href="#!/reports"
-                class=${this.getBusinessOnlyMeta('#!/reports').className}
+                class=${`db-quick-pill ${this.getBusinessOnlyMeta('#!/reports').className}`}
                 title=${this.getBusinessOnlyMeta('#!/reports').title}
                 data-business-tooltip=${this.getBusinessOnlyMeta('#!/reports').dataTooltip}
-                style="font-size: 0.72rem; color: var(--db-muted-text); text-decoration: none; padding: 3px 10px; background: var(--db-pill-bg); border-radius: 20px; border: 1px solid var(--db-pill-border);"
+                style=${quickPillStyle}
               >Reports</a>
-              <button onClick=${() => this.refreshDashboard()} style="font-size: 0.72rem; color: var(--db-muted-text); background: var(--db-pill-bg); border: 1px solid var(--db-pill-border); border-radius: 20px; padding: 3px 10px; cursor: pointer;">
+              <button class="db-quick-pill db-quick-pill-btn" onClick=${() => this.refreshDashboard()} style=${refreshPillStyle}>
                 ${refreshing ? 'Refreshing…' : '↻ Refresh'}
               </button>
               ${freshness ? html`
@@ -1458,6 +1469,7 @@ export default class UnifiedDashboard extends Component {
   }
 
   renderCyberHygieneLanding(data, embedded = false) {
+    const { cyberHygieneCollapsed } = this.state;
     const ch = this.getCyberHygieneData(data);
     if (!ch) return '';
 
@@ -1492,85 +1504,180 @@ export default class UnifiedDashboard extends Component {
       .map((p) => ({ ...p, delta: Math.abs((p.value || 0) - displayScore) }))
       .sort((a, b) => b.delta - a.delta)[0];
 
-    const wrapperStyle = embedded
-      ? 'max-width: 860px; margin: 0 auto 16px;'
-      : 'margin-top: -16px; margin-bottom: 12px;';
-
     const threats = data?.securityPro?.threatIntel || {};
     const fleet = this.getFleetStats(data);
+    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
+    const isCollapsedDesktop = cyberHygieneCollapsed && !isSmallScreen;
+    const wrapperStyle = embedded
+      ? `max-width: ${isCollapsedDesktop ? '500px' : '800px'}; margin: 0 auto 8px;`
+      : 'margin-top: -16px; margin-bottom: 8px;';
+    const headerTitleStyle = isCollapsedDesktop
+      ? 'color:var(--tblr-body-color,#111827); font-weight:800; font-size:1.2rem; line-height:1.14; letter-spacing:0.01em;'
+      : 'color:var(--tblr-body-color,#111827); font-weight:800; font-size:1.14rem; line-height:1.08; letter-spacing:0.01em;';
+    const headerTileWidth = isSmallScreen ? 0 : 122;
+    const headerTileHeight = isSmallScreen ? 42 : 46;
+    const headerLabelSize = isSmallScreen ? '0.46rem' : '0.5rem';
+    const headerValueSize = isSmallScreen ? '0.84rem' : '0.95rem';
+
+    const gradeBg = displayGrade === 'A' || displayGrade === 'B'
+      ? '#e8f9ef'
+      : displayGrade === 'C' || displayGrade === 'D'
+        ? '#fff4e5'
+        : '#ffe9e9';
+    const insuranceBg = ch.insuranceTier?.startsWith('Insurance')
+      ? '#e8f9ef'
+      : ch.insuranceTier?.startsWith('Conditional')
+        ? '#fff4e5'
+        : '#ffe9e9';
+
+    const metricTileStyle = (bgColor, borderColor) => `
+      flex:${isSmallScreen ? '1 1 calc(50% - 6px)' : '0 0 auto'};
+      min-width:${headerTileWidth}px;
+      height:${headerTileHeight}px;
+      border-radius:10px;
+      padding:${isSmallScreen ? '4px 7px' : '5px 8px'};
+      background:${bgColor};
+      color:#0f172a;
+      border:1px solid ${borderColor};
+      display:grid;
+      grid-template-columns:20px 1fr;
+      column-gap:7px;
+      align-items:center;
+    `;
 
     return html`
+      <style>
+        @keyframes cyberExpandBounce {
+          0%, 100% { transform: translateY(0); }
+          35% { transform: translateY(-2px); }
+          70% { transform: translateY(1px); }
+        }
+      </style>
       <div class="container-xl" style=${wrapperStyle}>
-        <div class="card" style="border: 1px solid var(--tblr-border-color, #e6e7e9); border-left: 4px solid ${gradeColor}; border-radius: 12px; overflow: hidden;">
-          <div class="card-header" style="display:block; background: var(--tblr-bg-surface-secondary, #f8fafc); border-bottom: 1px solid var(--tblr-border-color, #e6e7e9);">
-            <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-2">
-              <h3 class="card-title mb-0">Cyber Hygiene</h3>
-              <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary text-white" style="padding:7px 13px; font-size:0.74rem; letter-spacing:0.02em;">
-                  <span class="d-inline-flex align-items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h3"/></svg>
-                    <span>AI Score ${displayScore}/100</span>
-                  </span>
-                </span>
-                <span class="badge" style="background:${gradeColor};color:#fff; padding:7px 13px; font-size:0.74rem; letter-spacing:0.02em;">
-                  <span class="d-inline-flex align-items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/></svg>
-                    <span>Shield Grade ${displayGrade}</span>
-                  </span>
-                </span>
-                <span class="badge" style="background:${tierColor};color:#fff; padding:7px 13px; font-size:0.74rem; letter-spacing:0.02em;">
-                  <span class="d-inline-flex align-items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 12l3 3l6 -6"/><path d="M12 21a9 9 0 0 0 0 -18a9 9 0 0 0 0 18"/></svg>
-                    <span>Insurance ${ch.insuranceTier}</span>
-                  </span>
-                </span>
+        <div class="card" style="position:relative; border: 1px solid var(--tblr-border-color, #e6e7e9); border-left: 4px solid ${gradeColor}; border-radius: 12px; overflow: visible;">
+          <div
+            class="card-header"
+            role="button"
+            tabIndex="${cyberHygieneCollapsed ? '0' : '-1'}"
+            aria-label=${cyberHygieneCollapsed ? 'Expand Cyber Hygiene' : 'Collapse Cyber Hygiene'}
+            onClick=${(e) => {
+              if (e.target?.closest('button,a,input,textarea,select')) return;
+              this.setState({ cyberHygieneCollapsed: !cyberHygieneCollapsed });
+            }}
+            onKeyDown=${(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.setState({ cyberHygieneCollapsed: !cyberHygieneCollapsed });
+              }
+            }}
+            style="display:block; position:relative; background: var(--tblr-bg-surface-secondary, #f8fafc); border-bottom: ${cyberHygieneCollapsed ? 'none' : '1px solid var(--tblr-border-color, #e6e7e9)'}; cursor:pointer; padding:12px 16px;"
+          >
+            <div class=${isCollapsedDesktop
+              ? 'd-flex flex-column align-items-center justify-content-center w-100 gap-2'
+              : 'd-flex align-items-center justify-content-between w-100 flex-wrap gap-1'}>
+              <div class=${isCollapsedDesktop ? 'd-flex flex-column gap-1 align-items-center' : 'd-flex flex-column gap-1'}>
+                <h3 class="card-title mb-0 d-flex align-items-center gap-1">
+                  <span style=${headerTitleStyle}>⚡MAGI LENS Cyber Hygiene</span>
+                  <button
+                    title="Business signal: a single confidence view across security posture, compliance gaps, audit readiness, and cyber-insurance eligibility."
+                    aria-label="About the MAGI signal"
+                    style="display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(100,116,139,0.34); background:rgba(255,255,255,0.78); color:var(--tblr-secondary,#6b7280); cursor:help; box-shadow:0 1px 2px rgba(15,23,42,0.08);"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/><path d="M12 3a9 9 0 1 0 9 9a9 9 0 0 0 -9 -9"/></svg>
+                  </button>
+                </h3>
+              </div>
+              <div
+                class=${isCollapsedDesktop
+                  ? 'd-flex align-items-stretch justify-content-center gap-1 flex-wrap w-100'
+                  : 'd-flex align-items-stretch gap-1 justify-content-end ms-auto'}
+                style=${isCollapsedDesktop
+                  ? 'white-space:nowrap;'
+                  : `white-space:${isSmallScreen ? 'normal' : 'nowrap'}; flex-wrap:${isSmallScreen ? 'wrap' : 'nowrap'}; ${isSmallScreen ? 'width:100%; margin-top:2px;' : ''}`}
+              >
+                <div style=${metricTileStyle('#e8f0ff', '#bed3ff')}>
+                  <span style="font-size:1.08rem; line-height:1; grid-row:1 / span 2; display:flex; align-items:center; justify-content:center;">🧠</span>
+                  <div style="font-size:${headerLabelSize}; text-transform:uppercase; letter-spacing:0.08em; opacity:0.92; font-weight:700; line-height:1.05;">MAGI Score</div>
+                  <div style="font-size:${headerValueSize}; font-weight:800; line-height:1.05; color:#1d4ed8;">${displayScore}/100</div>
+                </div>
+                <div style=${metricTileStyle(gradeBg, `${gradeColor}55`)}>
+                  <span style="font-size:1.08rem; line-height:1; grid-row:1 / span 2; display:flex; align-items:center; justify-content:center;">🏅</span>
+                  <div style="font-size:${headerLabelSize}; text-transform:uppercase; letter-spacing:0.08em; opacity:0.92; font-weight:700; line-height:1.05;">Grade</div>
+                  <div style="font-size:${headerValueSize}; font-weight:800; line-height:1.05; color:${gradeColor};">${displayGrade}</div>
+                </div>
+                <div style=${metricTileStyle(insuranceBg, `${tierColor}55`)}>
+                  <span style="font-size:1.08rem; line-height:1; grid-row:1 / span 2; display:flex; align-items:center; justify-content:center;">🛡️</span>
+                  <div style="font-size:${headerLabelSize}; text-transform:uppercase; letter-spacing:0.08em; opacity:0.92; font-weight:700; line-height:1.05;">Insurance</div>
+                  <div style="font-size:${headerValueSize}; font-weight:800; line-height:1.05; color:${tierColor};">${ch.insuranceTier}</div>
+                </div>
+                ${isCollapsedDesktop ? '' : html`
+                  <button
+                    onClick=${(e) => { e.stopPropagation(); this.setState({ cyberHygieneCollapsed: !cyberHygieneCollapsed }); }}
+                    title=${cyberHygieneCollapsed ? 'Expand Cyber Hygiene' : 'Collapse Cyber Hygiene'}
+                    aria-label=${cyberHygieneCollapsed ? 'Expand Cyber Hygiene' : 'Collapse Cyber Hygiene'}
+                    style="display:inline-flex; align-items:center; justify-content:center; width:${isSmallScreen ? '42px' : '34px'}; min-width:${isSmallScreen ? '42px' : '34px'}; height:${isSmallScreen ? '42px' : '34px'}; border-radius:10px; border:1px solid rgba(14,165,233,0.35); background:rgba(14,165,233,0.14); color:#0369a1; cursor:pointer; margin-left:2px; flex:${isSmallScreen ? '0 0 42px' : '0 0 auto'};"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" fill="none" style="transition:transform 0.2s ease; transform:rotate(${cyberHygieneCollapsed ? '0' : '180'}deg); ${cyberHygieneCollapsed ? 'animation: cyberExpandBounce 1.2s ease-in-out infinite;' : ''}"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                `}
               </div>
             </div>
-            <div class="mt-3 p-3" style="display:block; width:100%; font-size:0.82rem; line-height:1.45; color:var(--tblr-secondary,#6b7280); border-radius:10px; background:var(--tblr-bg-surface, #ffffff); border:1px solid var(--tblr-border-color-translucent, #e6e7e9);">
-              <strong style="color:var(--tblr-body-color, #1f2937); font-weight:700;">MAGI Business Signal:</strong>
-              <span> decision-ready confidence for business owners, turning live risk into a clear posture story across security, compliance, audit, and cyber-insurance readiness.</span>
-            </div>
+            ${isCollapsedDesktop ? html`
+              <button
+                onClick=${(e) => { e.stopPropagation(); this.setState({ cyberHygieneCollapsed: !cyberHygieneCollapsed }); }}
+                title="Expand Cyber Hygiene"
+                aria-label="Expand Cyber Hygiene"
+                style="position:absolute; top:10px; right:14px; display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:10px; border:1px solid rgba(14,165,233,0.35); background:rgba(14,165,233,0.14); color:#0369a1; cursor:pointer;"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" fill="none" style="animation: cyberExpandBounce 1.2s ease-in-out infinite;"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            ` : ''}
           </div>
-          <div class="card-body">
-            <div class="row g-3 align-items-center">
+          ${!cyberHygieneCollapsed ? html`
+          <div class="card-body" style="padding:12px 16px 12px;">
+            <div class="row g-2 align-items-start">
               <div class="col-lg-5">
-                <div style="height: 280px;" ref=${(el) => { this.cyberChartRef = el; }}></div>
+                <div style="height: 204px;" ref=${(el) => { this.cyberChartRef = el; }}></div>
               </div>
-              <div class="col-lg-7">
+              <div class="col-lg-7" style="display:flex; flex-direction:column; justify-content:center;">
                 <div class="row g-2">
-                  ${pillars.map(p => html`
+                  ${pillars.map((p) => {
+                    const isWeakest = topGap && topGap.label === p.label;
+                    return html`
                     <div class="col-sm-6">
-                      <div style="border:1px solid var(--tblr-border-color-translucent, #e6e7e9); border-radius:10px; padding:10px 12px; background: var(--tblr-bg-surface-secondary, #fafbfc);">
+                      <div style="position:relative; overflow:hidden; border:1px solid var(--tblr-border-color-translucent, #e6e7e9); border-radius:10px; padding:8px 10px; background: var(--tblr-bg-surface-secondary, #fafbfc);">
+                        ${isWeakest ? html`
+                          <span
+                            title="Weakest pillar. Improving this card first raises the overall Cyber Hygiene score fastest."
+                            style="position:absolute; top:8px; right:-20px; transform:rotate(24deg); background:linear-gradient(135deg,#f59f00,#ef4444); color:#fff; font-size:0.58rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; padding:2px 24px; box-shadow:0 2px 6px rgba(15,23,42,0.2);"
+                          >Weakest</span>
+                        ` : ''}
                         <div class="d-flex justify-content-between align-items-center mb-1">
                           <span style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--tblr-secondary, #6b7280); font-weight:700;">${p.label}</span>
-                          <span style="font-size:0.72rem; color:var(--tblr-secondary, #6b7280);">Pillar</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
-                          <span style="font-size:1.2rem; font-weight:800; color:${barColor(p.value)};">${Math.round(p.value || 0)}</span>
+                          <span style="font-size:1.15rem; font-weight:800; color:${barColor(p.value)}; line-height:1;">${Math.round(p.value || 0)}</span>
                           <span style="font-size:0.72rem; color:var(--tblr-secondary, #6b7280);">${p.value >= 80 ? 'Strong' : p.value >= 60 ? 'Watch' : 'Needs attention'}</span>
                         </div>
-                        <div style="height:5px; background:var(--tblr-border-color-translucent, #e6e7e9); border-radius:999px; overflow:hidden; margin-top:8px;">
+                        <div style="height:5px; background:var(--tblr-border-color-translucent, #e6e7e9); border-radius:999px; overflow:hidden; margin-top:6px;">
                           <div style="height:100%; width:${Math.max(2, Math.min(100, Math.round(p.value || 0)))}%; background:${barColor(p.value)};"></div>
                         </div>
                       </div>
                     </div>
-                  `)}
+                    `;
+                  })}
                 </div>
-                ${topGap ? html`
-                  <div class="mt-3 p-2" style="border-radius:10px; border:1px dashed var(--tblr-border-color, #d1d5db); color:var(--tblr-secondary, #6b7280); font-size:0.78rem;">
-                    Current weakest pillar: <strong style="color:var(--tblr-body-color, #111827);">${topGap.label}</strong>. Improving this area will raise overall posture fastest.
-                  </div>
-                ` : ''}
 
-                <div class="mt-2 d-flex flex-wrap gap-2">
+                <div style="margin-top:6px;" class="d-flex flex-wrap gap-2">
                   <span class="badge bg-danger-lt text-danger">Critical ${Number(threats.criticalCveCount || 0)}</span>
                   <span class="badge bg-warning-lt text-warning">High ${Number(threats.highCveCount || 0)}</span>
-                  <span class="badge bg-info-lt text-info">Fleet ${fleet.active}/${fleet.total}</span>
+                  <span class="badge bg-info-lt text-info">Online ${fleet.online}/${fleet.total}</span>
                   <span class="badge bg-secondary-lt text-secondary">Offline ${fleet.offline}</span>
                 </div>
               </div>
             </div>
           </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -1609,7 +1716,7 @@ export default class UnifiedDashboard extends Component {
     const options = {
       chart: {
         type: 'radialBar',
-        height: 280,
+        height: 204,
         toolbar: { show: false },
         background: 'transparent'
       },
@@ -1647,7 +1754,7 @@ export default class UnifiedDashboard extends Component {
             },
             total: {
               show: true,
-              label: 'AI Score',
+              label: 'MAGI Score',
               color: theme === 'dark' ? '#94a3b8' : '#6b7280',
               fontSize: '11px',
               formatter: () => `${derivedScore}`
@@ -1673,9 +1780,10 @@ export default class UnifiedDashboard extends Component {
     this._cyberSeriesSignature = seriesSignature;
   }
 
-  renderSecurityOfficerDrawer() {
+  renderSecurityOfficerDrawer(options = {}) {
     const { data, officerNoteOpen, officerNoteDismissed } = this.state;
     if (!data || officerNoteDismissed) return null;
+    const embeddedInCard = options.embeddedInCard === true;
 
     const score = data.securityScore || {};
     const threats = data.securityPro?.threatIntel || {};
@@ -1726,6 +1834,9 @@ export default class UnifiedDashboard extends Component {
     const gradeColor = isGreenGrade ? '#16a34a' : isAmberGrade ? '#d97706' : '#dc2626';
     const borderColor = isGreenGrade ? 'rgba(22,163,74,0.4)' : isAmberGrade ? 'rgba(217,119,6,0.4)' : 'rgba(239,68,68,0.5)';
     const bgColor = isGreenGrade ? 'rgba(22,163,74,0.08)' : isAmberGrade ? 'rgba(217,119,6,0.08)' : 'rgba(239,68,68,0.06)';
+    const noteAccent = embeddedInCard ? gradeColor : '#ef4444';
+    const noteBorderColor = embeddedInCard ? borderColor : 'rgba(239,68,68,0.62)';
+    const noteBgColor = embeddedInCard ? bgColor : 'linear-gradient(135deg, rgba(24,10,14,0.96), rgba(36,12,17,0.94))';
 
     let situationText = '';
     if (critical > 0 && high > 0) {
@@ -1740,11 +1851,11 @@ export default class UnifiedDashboard extends Component {
 
     // Styled version with severity color dots for display only
     const situationNode = (critical > 0 && high > 0)
-      ? html`<span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> · <span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high</strong> vulnerabilities require immediate remediation.`
+      ? html`Immediate Attention: <span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> · <span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high</strong> vulnerabilities.`
       : (critical > 0)
-      ? html`<span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> CVE${critical !== 1 ? 's' : ''} require immediate attention.`
+      ? html`Immediate Attention: <span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> vulnerabilities.`
       : (high > 0)
-      ? html`<span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high-severity</strong> CVE${high !== 1 ? 's' : ''} detected across your fleet.`
+      ? html`Immediate Attention: <span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high</strong> vulnerabilities.`
       : html`Security posture is below target threshold.`;
 
     const freshness = this.getFreshnessInfo();
@@ -1755,6 +1866,10 @@ export default class UnifiedDashboard extends Component {
     });
 
     const glowAnim = isGreenGrade ? 'gradeGlowGreen' : isAmberGrade ? 'gradeGlowAmber' : 'gradeGlowRed';
+    const panelMaxHeight = embeddedInCard ? '72vh' : '560px';
+    const panelPositionStyle = embeddedInCard
+      ? 'position:absolute; top:calc(100% + 8px); left:0; right:auto; width:min(420px, calc(100vw - 48px));'
+      : 'position:absolute; top:100%; left:0; right:0; width:100%;';
 
     return html`
       <style>
@@ -1774,6 +1889,11 @@ export default class UnifiedDashboard extends Component {
           0%, 100% { box-shadow: 0 0 24px rgba(22,163,74,0.13), 0 0 48px rgba(22,163,74,0.06), inset 0 0 12px rgba(22,163,74,0.05); }
           50%      { box-shadow: 0 0 36px rgba(22,163,74,0.22), 0 0 64px rgba(22,163,74,0.10), inset 0 0 16px rgba(22,163,74,0.08); }
         }
+        @keyframes noteBounceHint {
+          0%, 100% { transform: translateY(0); }
+          35% { transform: translateY(-2px); }
+          70% { transform: translateY(1px); }
+        }
       </style>
 
       <div>
@@ -1789,13 +1909,15 @@ export default class UnifiedDashboard extends Component {
             backdrop-filter: blur(2px);
             -webkit-backdrop-filter: blur(2px);
             transition: opacity 0.3s ease;
-            opacity: ${officerNoteOpen ? '1' : '0'};
-            pointer-events: ${officerNoteOpen ? 'all' : 'none'};
+            opacity: ${(embeddedInCard && officerNoteOpen) ? '1' : '0'};
+            pointer-events: ${(embeddedInCard && officerNoteOpen) ? 'all' : 'none'};
           "
         ></div>
 
-        <!-- In-flow relative wrapper -->
-        <div style="position: relative; z-index: 200; max-width: 640px; margin: 0 auto;">
+        <!-- Embedded card overlay wrapper -->
+        <div class=${embeddedInCard ? '' : 'security-officer-top-note'} style="${embeddedInCard
+          ? 'position:relative; z-index:220; width:fit-content; margin:0;'
+          : 'position:relative; z-index:' + (officerNoteOpen ? '950' : '5') + '; width:min(390px, calc(100vw - 40px)); margin:0 auto 8px;'}">
 
         <!-- Collapsed tab styled to match bottom persona lenses -->
         <div
@@ -1815,34 +1937,39 @@ export default class UnifiedDashboard extends Component {
             position: relative;
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: ${embeddedInCard ? 'flex-start' : 'center'};
             gap: 10px;
-            padding: 10px 40px;
+            padding: ${embeddedInCard ? '8px 34px 8px 12px' : '8px 44px 8px 44px'};
+            width: ${embeddedInCard ? 'fit-content' : '100%'};
             cursor: pointer;
             user-select: none;
-            background: ${bgColor};
-            border: 1px solid ${borderColor};
-            border-top: 2px solid ${gradeColor};
+            background: ${noteBgColor};
+            border: 1px solid ${noteBorderColor};
+            border-top: 2px solid ${noteAccent};
             border-radius: ${officerNoteOpen ? '14px 14px 0 0' : '14px'};
             transition: border-radius 0.3s ease;
-            box-shadow: 0 6px 18px rgba(15,23,42,0.08);
+            box-shadow: ${embeddedInCard ? '0 6px 18px rgba(15,23,42,0.08)' : '0 0 0 1px rgba(239,68,68,0.25), 0 0 16px rgba(239,68,68,0.24), 0 6px 18px rgba(15,23,42,0.18)'};
           "
         >
           <!-- Shield icon -->
-          <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="${gradeColor}" fill="none" style="flex-shrink: 0; opacity: 0.8;">
+          <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="${noteAccent}" fill="none" style="${embeddedInCard ? 'flex-shrink:0; opacity:0.8;' : 'position:absolute; left:14px; top:50%; transform:translateY(-50%); opacity:0.9;'}">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/>
             <path d="M9 12l2 2l4-4"/>
           </svg>
 
           <!-- Title text -->
-          <span style="font-size: 0.68rem; font-weight: 700; color: var(--tblr-body-color, #1f2937); letter-spacing: 0.12em; text-transform: uppercase;">Security Officer's Note</span>
+          ${embeddedInCard ? html`
+            <span style="font-size: 0.62rem; font-weight: 700; color: var(--tblr-body-color, #1f2937); letter-spacing: 0.12em; text-transform: uppercase;">Officer Note</span>
+          ` : html`
+            <span style="font-size: 0.67rem; font-weight: 800; color: #fecaca; letter-spacing: 0.12em; text-transform: uppercase; text-align:center; width:100%; text-shadow:0 0 12px rgba(239,68,68,0.35);">Security Officer's Note</span>
+          `}
 
           <!-- Chevron -->
           <svg
             width="13" height="13" viewBox="0 0 24 24" stroke-width="2.5"
             stroke="var(--tblr-secondary, #6b7280)" fill="none"
-            style="transition: transform 0.3s ease; transform: rotate(${officerNoteOpen ? '180' : '0'}deg);"
+            style="position:${embeddedInCard ? 'static' : 'absolute'}; right:${embeddedInCard ? 'auto' : '34px'}; top:${embeddedInCard ? 'auto' : '50%'}; transition: transform 0.3s ease; transform:${embeddedInCard ? 'rotate(' + (officerNoteOpen ? '180' : '0') + 'deg)' : 'translateY(-50%) rotate(' + (officerNoteOpen ? '180' : '0') + 'deg)'}; ${embeddedInCard && !officerNoteOpen ? 'animation: noteBounceHint 1.2s ease-in-out infinite;' : ''}"
           >
             <polyline points="6 9 12 15 18 9"/>
           </svg>
@@ -1863,11 +1990,11 @@ export default class UnifiedDashboard extends Component {
 
         <!-- Expanded body: absolute overlay below tab -->
         <div id="security-officer-note-panel" style="
-          position: absolute; top: 100%; left: 0; right: 0;
-          max-height: ${officerNoteOpen ? '560px' : '0'};
-          overflow: hidden;
+          ${panelPositionStyle}
+          max-height: ${officerNoteOpen ? panelMaxHeight : '0'};
+          overflow: ${officerNoteOpen ? 'auto' : 'hidden'};
           transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-          z-index: 200;
+          z-index: ${embeddedInCard ? '200' : (officerNoteOpen ? '951' : '1')};
         ">
           <div style="
             background: linear-gradient(180deg, rgba(15,15,25,0.97), rgba(20,18,30,0.97));
@@ -1885,7 +2012,7 @@ export default class UnifiedDashboard extends Component {
             <div style="padding: 0;">
 
               <!-- Grade box — centered -->
-              <div style="display: flex; justify-content: center; padding: 16px 16px 10px;">
+              <div style="display: flex; justify-content: center; padding: ${embeddedInCard ? '16px 16px 10px' : '10px 12px 6px'};">
                 <div style="
                   width: 80px; height: 80px; border-radius: 14px; flex-shrink: 0;
                   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1900,7 +2027,7 @@ export default class UnifiedDashboard extends Component {
               </div>
 
               <!-- Situation text — centered -->
-              <div style="text-align: center; padding: 0 16px 6px;">
+              <div style="text-align: center; padding: ${embeddedInCard ? '0 16px 6px' : '0 12px 4px'};">
                 <div style="font-size: 0.88rem; font-weight: 600; color: rgba(255,255,255,0.88); line-height: 1.4; margin-bottom: 6px;">
                   ${situationNode}
                 </div>
@@ -1911,7 +2038,7 @@ export default class UnifiedDashboard extends Component {
 
               <!-- Urgent action card (full width) -->
               ${urgentAction ? html`
-                <div style="margin: 10px 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px 12px; text-align: center;">
+                <div style="margin: ${embeddedInCard ? '10px 16px' : '8px 12px'}; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: ${embeddedInCard ? '10px 12px' : '8px 10px'}; text-align: center;">
                   <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap;">
                     <span style="
                       flex-shrink: 0;
@@ -1930,7 +2057,7 @@ export default class UnifiedDashboard extends Component {
               ` : ''}
 
               <!-- Footer links — centered -->
-              <div style="display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 8px 16px 14px;">
+              <div style="display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: ${embeddedInCard ? '8px 16px 14px' : '6px 12px 10px'};">
                 <a href="#!/security" style="font-size: 0.76rem; font-weight: 600; color: ${gradeColor}; text-decoration: none;">Full Security Report →</a>
                 <button
                   onClick=${() => {

@@ -11,6 +11,38 @@ export default class PersonaNav extends Component {
     const { activePersona, onPersonaChange, sheetOpen } = this.props;
 
     const { html } = window;
+    const isDark = (document.documentElement.getAttribute('data-bs-theme') || 'light').toLowerCase() === 'dark';
+
+    const LENS_VISUALS = {
+      business: {
+        surfaceLight: 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(244,247,255,0.94) 100%)',
+        surfaceDark: 'linear-gradient(180deg, rgba(43,51,89,0.9) 0%, rgba(27,34,66,0.84) 100%)',
+        borderLight: 'rgba(79,70,229,0.54)',
+        borderDark: 'rgba(129,140,248,0.62)',
+        glowDark: 'rgba(99,102,241,0.28)'
+      },
+      it: {
+        surfaceLight: 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(244,250,255,0.94) 100%)',
+        surfaceDark: 'linear-gradient(180deg, rgba(27,52,89,0.9) 0%, rgba(19,40,73,0.84) 100%)',
+        borderLight: 'rgba(29,78,216,0.52)',
+        borderDark: 'rgba(96,165,250,0.6)',
+        glowDark: 'rgba(59,130,246,0.24)'
+      },
+      security: {
+        surfaceLight: 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,248,248,0.94) 100%)',
+        surfaceDark: 'linear-gradient(180deg, rgba(69,34,52,0.9) 0%, rgba(54,27,43,0.84) 100%)',
+        borderLight: 'rgba(220,38,38,0.52)',
+        borderDark: 'rgba(248,113,113,0.62)',
+        glowDark: 'rgba(244,63,94,0.24)'
+      },
+      auditor: {
+        surfaceLight: 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(245,255,253,0.94) 100%)',
+        surfaceDark: 'linear-gradient(180deg, rgba(24,70,76,0.9) 0%, rgba(19,54,60,0.84) 100%)',
+        borderLight: 'rgba(15,118,110,0.52)',
+        borderDark: 'rgba(45,212,191,0.58)',
+        glowDark: 'rgba(20,184,166,0.22)'
+      }
+    };
 
     const PERSONA_GRADIENTS = {
       business: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
@@ -61,10 +93,16 @@ export default class PersonaNav extends Component {
         left: 0;
         right: 0;
         z-index: 1030;
-        background: var(--tblr-bg-surface, #fff);
-        border-top: 2px solid var(--tblr-border-color, #e6e7e9);
+        background: ${isDark
+          ? 'linear-gradient(180deg, rgba(7,16,34,0.98) 0%, rgba(5,12,27,0.98) 100%)'
+          : 'var(--tblr-bg-surface, #fff)'};
+        border-top: 2px solid ${isDark
+          ? 'rgba(83, 99, 130, 0.52)'
+          : 'var(--tblr-border-color, #e6e7e9)'};
         padding: 5px 0 6px;
-        box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+        box-shadow: ${isDark
+          ? '0 -14px 34px rgba(1, 8, 22, 0.72), inset 0 1px 0 rgba(148,163,184,0.16)'
+          : '0 -8px 24px rgba(15, 23, 42, 0.08)'};
       ">
         <div class="container" style="max-width: 960px;">
           <div style="position: relative; display: flex; align-items: stretch; gap: 6px;">
@@ -87,6 +125,17 @@ export default class PersonaNav extends Component {
             ${lenses.map((lens, idx) => html`
               ${(() => {
                 const isActive = hasActiveSelection && activePersona === lens.key;
+                const palette = LENS_VISUALS[lens.key] || LENS_VISUALS.business;
+                const inactiveSurface = isDark
+                  ? palette.surfaceDark
+                  : palette.surfaceLight;
+                const inactiveBorder = isDark ? palette.borderDark : palette.borderLight;
+                const inactiveText = isDark
+                  ? 'rgba(226,232,240,0.94)'
+                  : 'rgba(31,41,55,0.9)';
+                const inactiveShadow = isDark
+                  ? `inset 0 0 0 1px ${inactiveBorder}, 0 8px 16px rgba(2,6,23,0.34), 0 0 0 1px ${palette.glowDark}`
+                  : `inset 0 0 0 1px ${inactiveBorder}, 0 4px 10px rgba(15,23,42,0.08)`;
                 return html`
               <button
                 type="button"
@@ -101,18 +150,30 @@ export default class PersonaNav extends Component {
                   align-items: center;
                   justify-content: center;
                   gap: 2px;
-                  background: ${isActive ? 'transparent' : lens.surface};
-                  border: none;
-                  border-top: 2px solid ${isActive ? 'transparent' : lens.border};
+                  background: ${isActive ? 'transparent' : inactiveSurface};
+                  border: 1px solid ${isActive ? 'transparent' : inactiveBorder};
                   cursor: pointer;
                   padding: 7px 4px 5px;
                   border-radius: 10px;
-                  transition: color 0.2s;
-                  color: ${isActive ? '#fff' : 'var(--tblr-secondary, #9ca3af)'};
+                  transition: color 0.2s, box-shadow 0.2s, transform 0.2s;
+                  color: ${isActive ? '#fff' : inactiveText};
+                  box-shadow: ${isActive ? 'none' : inactiveShadow};
                 "
+                onMouseEnter=${(e) => {
+                  if (isActive) return;
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = isDark
+                    ? `inset 0 0 0 1px ${inactiveBorder}, 0 12px 20px rgba(2,6,23,0.44), 0 0 0 1px ${palette.glowDark}`
+                    : `inset 0 0 0 1px ${inactiveBorder}, 0 10px 18px rgba(15,23,42,0.12)`;
+                }}
+                onMouseLeave=${(e) => {
+                  if (isActive) return;
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.boxShadow = inactiveShadow;
+                }}
               >
                 ${lens.icon}
-                <span style="font-size: 0.68rem; font-weight: ${isActive ? '600' : '400'}; letter-spacing: 0.01em; white-space: nowrap;">
+                <span style="font-size: 0.68rem; font-weight: ${isActive ? '700' : (isDark ? '500' : '400')}; letter-spacing: 0.01em; white-space: nowrap; text-shadow:${isDark && !isActive ? '0 1px 0 rgba(2,6,23,0.5)' : 'none'};">
                   ${lens.label}
                 </span>
               </button>

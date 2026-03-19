@@ -69,12 +69,24 @@ export class SearchableOrgSwitcher extends Component {
             this.setState({ currentOrg: orgContext.getCurrentOrg(), availableOrgs: orgs });
         });
         document.addEventListener('click', this._onOutside);
+        this._syncNavbarDropdownClass(this.state.isOpen);
+    }
+
+    componentDidUpdate(_prevProps, prevState) {
+        if (prevState.isOpen !== this.state.isOpen) {
+            this._syncNavbarDropdownClass(this.state.isOpen);
+        }
     }
 
     componentWillUnmount() {
         if (this.unsubscribe) this.unsubscribe();
         document.removeEventListener('click', this._onOutside);
+        this._syncNavbarDropdownClass(false);
     }
+
+    _syncNavbarDropdownClass = (isOpen) => {
+        document.body.classList.toggle('org-switcher-open', !!isOpen);
+    };
 
     _onOutside = (e) => {
         if (this.dropdownRef && !this.dropdownRef.contains(e.target)) {

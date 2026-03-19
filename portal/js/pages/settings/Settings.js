@@ -15,8 +15,7 @@ import { LicenseAdjustmentDialog } from '../../components/LicenseAdjustmentDialo
 import {
     ORG_DURATION_OPTIONS,
     getDaysLeftInfo,
-    calculateProjectedExhaustion,
-    calculateProjectedExhaustionFromHistory
+    calculateProjectedExhaustion
 } from './utils/CreditService.js';
 import { GAUGE_GRADIENT_ID, polarToCartesian, describeArc, getPercentRemaining } from './utils/GaugeUtils.js';
 import { isValidEmail, getRoleBadgeClass, canManageMembers } from './services/TeamService.js';
@@ -47,7 +46,6 @@ export function SettingsPage() {
     const [accounts, setAccounts] = useState([]);
 
     const [adjustingLicense, setAdjustingLicense] = useState(null);
-    const [creditHistory, setCreditHistory] = useState([]);
     const [projectedExhaustion, setProjectedExhaustion] = useState(null);
     const [sendingTestEmail, setSendingTestEmail] = useState(false);
     const [emailPreferences, setEmailPreferences] = useState(null);
@@ -107,10 +105,9 @@ export function SettingsPage() {
             const dateQuery = effectiveDate ? { date: effectiveDate } : null;
 
             // ── Batch 1: independent calls (no org-type dependency) ─────────────────
-            const [meResult, orgResult, creditResult] = await Promise.allSettled([
+            const [meResult, orgResult] = await Promise.allSettled([
                 api.get('/api/v1/users/me'),
-                api.get(`/api/v1/orgs/${currentOrgId}`, dateQuery),
-                api.get(`/api/v1/orgs/${currentOrgId}/credits/history`, dateQuery)
+                api.get(`/api/v1/orgs/${currentOrgId}`, dateQuery)
             ]);
 
             // Process users/me → phone / WhatsApp settings
@@ -123,21 +120,6 @@ export function SettingsPage() {
 
             // Process org details
             let isPersonalType = false;
-            // Pre-compute historical credit balance from history if Time Warp is active,
-            // so we can fold it into the single setOrg call (avoids async batching issues).
-            let historicalCreditBalance = null;
-            if (effectiveDate && creditResult.status === 'fulfilled' && creditResult.value?.data?.history) {
-                const allH = creditResult.value.data.history;
-                const cutoffTs = new Date(`${effectiveDate.slice(0,4)}-${effectiveDate.slice(4,6)}-${effectiveDate.slice(6,8)}T23:59:59Z`).getTime();
-                const filtered = allH.filter(h => {
-                    const ts = new Date(h.date || h.timestamp || h.createdAt || '').getTime();
-                    return Number.isFinite(ts) && ts <= cutoffTs;
-                }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                if (filtered.length > 0) {
-                    historicalCreditBalance = filtered[filtered.length - 1].remainingCredits ?? null;
-                }
-            }
-
             if (orgResult.status === 'fulfilled' && orgResult.value?.success && orgResult.value?.data) {
                 const orgData = orgResult.value.data;
                 logger.info('[Settings] Org API response', { success: true, hasData: true });
@@ -152,14 +134,14 @@ export function SettingsPage() {
                     orgName: orgData.orgName || orgData.name,
                     ownerEmail: orgData.ownerEmail || 'Unknown',
                     totalCredits: orgData.totalCredits ?? 0,
-                    remainingCredits: historicalCreditBalance ?? orgData.remainingCredits ?? 0,
+                    remainingCredits: orgData.remainingCredits ?? 0,
                     seats: orgData.seats ?? orgData.totalSeats ?? null,
                     isDisabled: orgData.isDisabled ?? false,
                     isPersonal: isPersonalType
                 });
                 orgForProjection = {
                     totalCredits: orgData.totalCredits ?? 0,
-                    remainingCredits: historicalCreditBalance ?? orgData.remainingCredits ?? 0,
+                    remainingCredits: orgData.remainingCredits ?? 0,
                     seats: orgData.seats ?? orgData.totalSeats ?? null
                 };
                 setIsPersonalOrg(isPersonalType);
@@ -173,44 +155,25 @@ export function SettingsPage() {
                         orgName: contextOrg.name,
                         ownerEmail: contextOrg.ownerEmail || 'Unknown',
                         totalCredits: contextOrg.totalCredits ?? 0,
-                        remainingCredits: historicalCreditBalance ?? contextOrg.remainingCredits ?? 0,
+                        remainingCredits: contextOrg.remainingCredits ?? 0,
                         seats: contextOrg.totalSeats ?? null,
                         isDisabled: contextOrg.isDisabled ?? false,
                         isPersonal: isPersonalType
                     });
                     orgForProjection = {
                         totalCredits: contextOrg.totalCredits ?? 0,
-                        remainingCredits: historicalCreditBalance ?? contextOrg.remainingCredits ?? 0,
+                        remainingCredits: contextOrg.remainingCredits ?? 0,
                         seats: contextOrg.totalSeats ?? null
                     };
                     setIsPersonalOrg(isPersonalType);
                 }
             }
 
-            // Process credit history — client-side slice to effectiveDate when Time Warp is active
-            if (creditResult.status === 'fulfilled' && creditResult.value?.success && creditResult.value?.data) {
-                const allHistory = creditResult.value.data.history || [];
-                const backendProjection = creditResult.value.data.projectedExhaustionDate || null;
-
-                let history = allHistory;
-                if (effectiveDate) {
-                    // Keep only snapshots on or before the warp date (yyyyMMdd → YYYY-MM-DD midnight)
-                    const cutoff = new Date(`${effectiveDate.slice(0,4)}-${effectiveDate.slice(4,6)}-${effectiveDate.slice(6,8)}T23:59:59Z`).getTime();
-                    history = allHistory.filter(h => {
-                        const ts = new Date(h.date || h.timestamp || h.createdAt || '').getTime();
-                        return Number.isFinite(ts) && ts <= cutoff;
-                    });
-                    // orgForProjection already has the corrected credit balance (historicalCreditBalance)
-                }
-
-                const projectedFromHistory = calculateProjectedExhaustionFromHistory(orgForProjection, history);
-                setCreditHistory(history);
-                setProjectedExhaustion(projectedFromHistory || (effectiveDate ? null : backendProjection) || null);
-            } else {
-                logger.debug('[Settings] Credit history not available');
-                setCreditHistory([]);
-                setProjectedExhaustion(null);
-            }
+            const projectedFromBalance = calculateProjectedExhaustion(
+                orgForProjection,
+                orgForProjection?.seats ?? 0
+            );
+            setProjectedExhaustion(projectedFromBalance || null);
 
             // ── Batch 2: org-type-dependent calls (all in parallel) ─────────────────
             // Time Warp: compute ISO cutoff string for client-side date filtering
@@ -685,7 +648,6 @@ export function SettingsPage() {
                     ${activeTab === 'general' && html`<${GeneralTab}
                         org=${org}
                         isPersonal=${isPersonalOrg}
-                        creditHistory=${creditHistory}
                         projectedExhaustion=${projectedExhaustion}
                         currentUserEmail=${auth.getUser()?.email}
                         transferOwnerEmail=${transferOwnerEmail}
@@ -770,7 +732,7 @@ export function SettingsPage() {
 }
 
 // General Tab - Org info and credits
-function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, currentUserEmail, transferOwnerEmail, setTransferOwnerEmail, transferringOwnership, onTransferOwnership }) {
+function GeneralTab({ org, isPersonal, projectedExhaustion, currentUserEmail, transferOwnerEmail, setTransferOwnerEmail, transferringOwnership, onTransferOwnership }) {
     if (!org) return html`<div class="text-muted">No organization data</div>`;
 
     const isOwner = currentUserEmail && org.ownerEmail &&
@@ -781,13 +743,44 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, curre
             ? calculateProjectedExhaustion(org, org.seats)
             : null);
     const { daysLeft, targetDate } = getDaysLeftInfo(effectiveProjection);
+    const formattedTargetDate = targetDate
+        ? new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        }).format(targetDate)
+        : null;
     const projectionLabel = targetDate
         ? projectedExhaustion
-            ? `Projected to expire on ${targetDate.toLocaleDateString()}`
-            : `Estimated ${targetDate.toLocaleDateString()} (based on current balance)`
+            ? `Projected to expire on ${formattedTargetDate}`
+            : `Estimated ${formattedTargetDate} (based on current balance)`
         : 'Projection not available yet';
+    const daysColor = daysLeft === null
+        ? 'var(--tblr-secondary, #6b7280)'
+        : daysLeft <= 14
+            ? 'var(--tblr-red, #d63939)'
+            : daysLeft <= 45
+                ? 'var(--tblr-orange, #f76707)'
+                : 'var(--tblr-body-color, #111827)';
+    const projectionColor = daysLeft === null
+        ? 'var(--tblr-secondary, #6b7280)'
+        : daysLeft <= 14
+            ? 'var(--tblr-red, #d63939)'
+            : daysLeft <= 45
+                ? 'var(--tblr-orange, #f76707)'
+                : 'var(--tblr-secondary, #6b7280)';
+    const daysBadgeBg = daysLeft === null
+        ? 'var(--tblr-bg-surface-secondary, #f3f4f6)'
+        : daysLeft <= 14
+            ? 'rgba(214,57,57,0.14)'
+            : daysLeft <= 45
+                ? 'rgba(247,103,7,0.14)'
+                : 'var(--tblr-bg-surface-secondary, #f3f4f6)';
     const percentRemaining = getPercentRemaining(org);
     const percentDisplay = percentRemaining !== null ? percentRemaining : 0;
+    const segmentedDays = daysLeft !== null
+        ? String(daysLeft)
+        : '—';
     const statusClass = org.isDisabled
         ? 'badge bg-light text-danger border border-danger'
         : 'badge bg-light text-success border border-success';
@@ -796,7 +789,7 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, curre
     return html`
         <div class="row">
             <div class="col-md-6">
-                <div class="card bg-light">
+                <div class="card">
                     <div class="card-body">
                         <h3 class="card-title mb-3">
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M12 8h.01" /><path d="M11 12h1v4h1" /></svg>
@@ -845,14 +838,19 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, curre
                 </div>
             </div>
             <div class="col-md-6">
-                <h3 class="card-title mb-3">Days Remaining</h3>
-                <div class="card bg-light">
+                <div class="card">
                     <div class="card-body">
+                        <h3 class="card-title mb-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 8v4l2 2"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>
+                            Days Remaining
+                        </h3>
                         <div class="d-flex flex-column flex-sm-row align-items-center gap-4">
                             <div class="flex-fill">
                                 <div class="text-muted small mb-1">Projected days left</div>
-                                <div class="display-4 fw-bold mb-1">${daysLeft !== null ? daysLeft : '—'}</div>
-                                <div class="text-muted small">${projectionLabel}</div>
+                                <div class="fw-bold mb-1" style=${`color:${daysColor}; font-size:2.8rem; line-height:1;`}>
+                                    <span style=${`display:inline-block; padding:7px 16px; border-radius:22px; background:${daysBadgeBg}; letter-spacing:0; font-family:Segoe UI Variable, Segoe UI, Inter, system-ui, sans-serif; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;`}>${segmentedDays}</span>
+                                </div>
+                                <div class="small" style=${`color:${projectionColor}; font-weight:${daysLeft !== null && daysLeft <= 45 ? '600' : '500'};`}>${projectionLabel}</div>
                             </div>
                             <div class="d-flex flex-column align-items-center">
                                 <${SemiCircleGauge} percent=${percentDisplay} />
@@ -862,9 +860,6 @@ function GeneralTab({ org, isPersonal, creditHistory, projectedExhaustion, curre
                                         : '—'}
                                 </div>
                             </div>
-                        </div>
-                        <div class="mt-4">
-                            <${CreditsChart} history=${creditHistory} projectedExhaustion=${projectedExhaustion} />
                         </div>
                     </div>
                 </div>
@@ -1011,181 +1006,9 @@ function SemiCircleGauge({ percent }) {
             
             <!-- Center label -->
             <div class="position-absolute" style="top: 70px; left: 50%; transform: translateX(-50%); text-align: center;">
-                <div class="fs-3 fw-bold text-dark">${displayPercent}</div>
-                <div class="text-muted small">remaining</div>
+                <div style="font-size: 2rem; font-weight: 800; color: var(--tblr-body-color, #111827); line-height: 1;">${displayPercent}</div>
+                <div style="font-size: 0.9rem; font-weight: 600; color: var(--tblr-secondary, #6b7280); margin-top: 2px;">remaining</div>
             </div>
-        </div>
-    `;
-}
-
-function CreditsChart({ history, projectedExhaustion }) {
-    const { useRef, useEffect, useState } = window.preactHooks;
-    const chartRef = useRef(null);
-    const instanceRef = useRef(null);
-    const [chartLibReady, setChartLibReady] = useState(Boolean(window.ApexCharts));
-
-    useEffect(() => {
-        if (window.ApexCharts) {
-            setChartLibReady(true);
-            return undefined;
-        }
-
-        const existingScript = document.querySelector('script[src*="apexcharts"]');
-        if (existingScript) {
-            const onLoad = () => setChartLibReady(true);
-            existingScript.addEventListener('load', onLoad, { once: true });
-            const poll = window.setInterval(() => {
-                if (window.ApexCharts) {
-                    window.clearInterval(poll);
-                    setChartLibReady(true);
-                }
-            }, 200);
-            return () => {
-                existingScript.removeEventListener('load', onLoad);
-                window.clearInterval(poll);
-            };
-        }
-
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/apexcharts@3.45.0/dist/apexcharts.min.js';
-        script.onload = () => setChartLibReady(true);
-        script.onerror = () => console.warn('[CDN] ApexCharts failed to load for Settings credits chart');
-        document.head.appendChild(script);
-        return () => {
-            script.onload = null;
-            script.onerror = null;
-        };
-    }, []);
-
-    useEffect(() => {
-        if (!chartRef.current || !chartLibReady || !window.ApexCharts) return;
-
-        // Destroy previous instance if history changes
-        if (instanceRef.current) {
-            instanceRef.current.destroy();
-            instanceRef.current = null;
-        }
-
-        if (!history || history.length === 0) return;
-
-        const points = history
-            .map(h => ({ ts: new Date(h.date || h.timestamp || '').getTime(), y: h.remainingCredits ?? 0, consumed: h.creditsConsumed ?? 0 }))
-            .filter(p => Number.isFinite(p.ts) && Number.isFinite(p.y))
-            .sort((a, b) => a.ts - b.ts);
-
-        if (points.length === 0) return;
-
-        // Classify each point: top-up / rotation (balance went UP), consumption, creation
-        const annotations = [];
-        for (let i = 1; i < points.length; i += 1) {
-            const prev = points[i - 1];
-            const curr = points[i];
-            if (curr.y > prev.y) {
-                // Credit increase — top-up or rotation
-                const delta = curr.y - prev.y;
-                annotations.push({
-                    x: curr.ts,
-                    borderColor: '#2fb344',
-                    strokeDashArray: 4,
-                    label: {
-                        text: `+${delta.toLocaleString()} (top-up / rotation)`,
-                        style: { background: '#2fb344', color: '#fff', fontSize: '10px' },
-                        position: 'top',
-                        offsetY: -4
-                    }
-                });
-            }
-        }
-
-        // Projected exhaustion line
-        if (projectedExhaustion) {
-            const exhaustionTs = new Date(projectedExhaustion).getTime();
-            if (Number.isFinite(exhaustionTs) && exhaustionTs > points[points.length - 1].ts) {
-                annotations.push({
-                    x: exhaustionTs,
-                    borderColor: '#d63939',
-                    strokeDashArray: 5,
-                    label: {
-                        text: `Est. exhaustion ${new Date(projectedExhaustion).toLocaleDateString()}`,
-                        style: { background: '#d63939', color: '#fff', fontSize: '10px' },
-                        position: 'top'
-                    }
-                });
-            }
-        }
-
-        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-        const textColor = isDark ? '#adb5bd' : '#626976';
-        const gridColor = isDark ? '#2c3038' : '#e9ecef';
-
-        const options = {
-            chart: {
-                type: 'area',
-                height: 220,
-                sparkline: { enabled: false },
-                toolbar: { show: false },
-                zoom: { enabled: false },
-                animations: { enabled: false },
-                background: 'transparent'
-            },
-            theme: { mode: isDark ? 'dark' : 'light' },
-            series: [{ name: 'Credits Remaining', data: points.map(p => ({ x: p.ts, y: p.y })) }],
-            xaxis: {
-                type: 'datetime',
-                labels: { style: { colors: textColor, fontSize: '10px' }, datetimeUTC: false },
-                axisBorder: { show: false },
-                axisTicks: { show: false }
-            },
-            yaxis: {
-                labels: {
-                    style: { colors: textColor, fontSize: '10px' },
-                    formatter: v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : String(Math.round(v))
-                },
-                min: 0
-            },
-            grid: { borderColor: gridColor, strokeDashArray: 4, padding: { left: 8, right: 8 } },
-            stroke: { curve: 'smooth', width: 2 },
-            fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.02, stops: [0, 90, 100] } },
-            colors: ['#0054a6'],
-            tooltip: {
-                x: { format: 'dd MMM yyyy HH:mm' },
-                y: { formatter: v => `${v.toLocaleString()} credits` }
-            },
-            annotations: { xaxis: annotations },
-            dataLabels: { enabled: false },
-            legend: { show: false }
-        };
-
-        const chart = new window.ApexCharts(chartRef.current, options);
-        chart.render();
-        instanceRef.current = chart;
-
-        // Re-render on theme switch
-        const onTheme = () => {
-            const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-            instanceRef.current?.updateOptions({ theme: { mode: dark ? 'dark' : 'light' } });
-        };
-        document.addEventListener('theme-changed', onTheme);
-        return () => {
-            document.removeEventListener('theme-changed', onTheme);
-            instanceRef.current?.destroy();
-            instanceRef.current = null;
-        };
-    }, [history, projectedExhaustion]);
-
-    if (!history || history.length === 0) {
-        return html`<div class="text-muted small py-2">No credit activity recorded yet.</div>`;
-    }
-
-    const last = history[history.length - 1];
-    return html`
-        <div>
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="text-muted small fw-medium">Credit balance over time</div>
-                <div class="text-muted small">Current: <strong>${(last?.remainingCredits ?? 0).toLocaleString()}</strong></div>
-            </div>
-            ${!chartLibReady ? html`<div class="text-muted small py-2">Loading chart…</div>` : ''}
-            <div ref=${chartRef}></div>
         </div>
     `;
 }
