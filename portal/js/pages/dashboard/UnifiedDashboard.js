@@ -39,6 +39,10 @@ export default class UnifiedDashboard extends Component {
       officerNoteOpen: false,
       officerNoteDismissed: false
     };
+    this.cyberChartRef = null;
+    this._cyberChart = null;
+    this._cyberTheme = null;
+    this._cyberSeriesSignature = null;
     this._sheetDismissHandler = null;
     this._orgChangeUnsub = null;
     this._rewindUnsub = null;
@@ -81,6 +85,16 @@ export default class UnifiedDashboard extends Component {
   componentWillUnmount() {
     if (this._orgChangeUnsub) this._orgChangeUnsub();
     if (this._rewindUnsub) this._rewindUnsub();
+    if (this._cyberChart) {
+      this._cyberChart.destroy();
+      this._cyberChart = null;
+    }
+    this._cyberTheme = null;
+    this._cyberSeriesSignature = null;
+  }
+
+  componentDidUpdate() {
+    this.renderCyberHygieneChart();
   }
 
   getCachedDashboard(key, ttlMinutes = 30) {
@@ -169,7 +183,7 @@ export default class UnifiedDashboard extends Component {
             isRefreshingInBackground: true,
             error: null,
             refreshError: null,
-            personaSheetOpen: prevState.personaSheetOpen || !isBackground,
+            personaSheetOpen: false,
             officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
           }));
 
@@ -207,8 +221,8 @@ export default class UnifiedDashboard extends Component {
         loading: false,
         refreshing: false,
         isRefreshingInBackground: false,
-        // Auto-open persona sheet on first data load so there's no blank area
-        personaSheetOpen: prevState.personaSheetOpen || !isBackground,
+        // Keep drawer collapsed by default; user can open intentionally.
+        personaSheetOpen: false,
         officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
       }));
     } catch (err) {
@@ -618,6 +632,48 @@ export default class UnifiedDashboard extends Component {
     return map[persona] || map.business;
   }
 
+  getCyberHygieneData(data) {
+    const raw = data?.cyberHygiene;
+    const derivedSecurity = Number(data?.securityScore?.score || 0);
+    const derivedCompliance = Number(data?.businessOwner?.complianceCard?.percent || 0);
+    const gapCount = Number(data?.businessOwner?.complianceCard?.gapCount || 0);
+    const riskScoreRaw = Number(data?.businessOwner?.riskSummary?.riskScore || 50);
+    const derivedAudit = Math.max(0, Math.min(100, 88 - (gapCount * 8)));
+    const derivedRiskPosture = Math.max(0, Math.min(100, 100 - (riskScoreRaw * 1.8)));
+
+    const preferSignal = (rawValue, derivedValue) => {
+      const rawNum = Number(rawValue);
+      if (Number.isFinite(rawNum) && rawNum > 0) return rawNum;
+      return Number.isFinite(derivedValue) ? derivedValue : 0;
+    };
+
+    const security = preferSignal(raw?.security, derivedSecurity);
+    const compliance = preferSignal(raw?.compliance, derivedCompliance);
+    const audit = preferSignal(raw?.audit, derivedAudit);
+    const riskPosture = preferSignal(raw?.riskPosture, derivedRiskPosture);
+
+    const weighted = (security * 0.4) + (compliance * 0.25) + (audit * 0.2) + (riskPosture * 0.15);
+    const computedScore = Math.round(weighted);
+    const rawScore = Number(raw?.score || 0);
+    const score = rawScore > 0 ? rawScore : computedScore;
+    const grade = rawScore > 0
+      ? (raw?.grade || (score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F'))
+      : (score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F');
+    const insuranceTier = rawScore > 0
+      ? (raw?.insuranceTier || (score >= 80 ? 'Insurance Ready' : score >= 65 ? 'Conditional Approval' : 'High Risk'))
+      : (score >= 80 ? 'Insurance Ready' : score >= 65 ? 'Conditional Approval' : 'High Risk');
+
+    return {
+      score,
+      grade,
+      insuranceTier,
+      security,
+      compliance,
+      audit,
+      riskPosture
+    };
+  }
+
   renderRefreshBanner() {
     const { refreshing, refreshError, data, isRefreshingInBackground } = this.state;
     if (!refreshing && !refreshError && !isRefreshingInBackground) return null;
@@ -686,8 +742,8 @@ export default class UnifiedDashboard extends Component {
             <div style="color: var(--db-faint-text); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500;">Security Intelligence Platform</div>
           </div>
 
-          <!-- Glassmorphism KR Tiles -->
-          ${this.renderConfidenceTiles()}
+          <!-- Cyber Hygiene (AI-derived) -->
+          ${this.renderCyberHygieneLanding(data, true)}
 
           <!-- AI Search bar -->
           <div style="max-width: 680px; margin: 0 auto 12px;">
@@ -698,11 +754,11 @@ export default class UnifiedDashboard extends Component {
                 background: var(--db-glass-bg);
                 backdrop-filter: blur(16px) saturate(180%);
                 -webkit-backdrop-filter: blur(16px) saturate(180%);
-                border: 1px solid var(--db-glass-border);
+                border: 1.5px solid rgba(99, 102, 241, 0.35);
                 border-radius: 50px;
                 overflow: hidden;
                 transition: border-color 0.2s;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+                box-shadow: 0 6px 22px rgba(99,102,241,0.14), 0 1px 3px rgba(0,0,0,0.06);
               ">
                 <span style="display: flex; align-items: center; padding: 0 10px 0 20px; color: var(--db-faintest-text); flex-shrink: 0;">
                   ${aiLoading
@@ -1358,8 +1414,6 @@ export default class UnifiedDashboard extends Component {
                 </div>
               ` : ''}
 
-              ${this.renderCyberHygiene(data)}
-
               <!-- Row 3: CTA buttons -->
               <div style="padding: 12px 16px 4px; display: flex; gap: 8px; flex-wrap: wrap;">
                 ${ctaList.map((cta, i) => html`
@@ -1403,14 +1457,24 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
-  renderCyberHygiene(data) {
-    const ch = data?.cyberHygiene;
-    if (!ch || !ch.score) return '';
+  renderCyberHygieneLanding(data, embedded = false) {
+    const ch = this.getCyberHygieneData(data);
+    if (!ch) return '';
 
-    const gradeColor = ch.grade === 'A' ? '#16a34a'
-      : ch.grade === 'B' ? '#10b981'
-      : ch.grade === 'C' ? '#d97706'
-      : ch.grade === 'D' ? '#f97316'
+    const securityVal = Number(ch.security || 0);
+    const complianceVal = Number(ch.compliance || 0);
+    const auditVal = Number(ch.audit || 0);
+    const riskVal = Number(ch.riskPosture || 0);
+    const computedDisplayScore = Math.round((securityVal * 0.4) + (complianceVal * 0.25) + (auditVal * 0.2) + (riskVal * 0.15));
+    const displayScore = Number(ch.score) > 0 ? Number(ch.score) : computedDisplayScore;
+    const displayGrade = Number(ch.score) > 0
+      ? (ch.grade || (displayScore >= 90 ? 'A' : displayScore >= 80 ? 'B' : displayScore >= 70 ? 'C' : displayScore >= 60 ? 'D' : 'F'))
+      : (displayScore >= 90 ? 'A' : displayScore >= 80 ? 'B' : displayScore >= 70 ? 'C' : displayScore >= 60 ? 'D' : 'F');
+
+    const gradeColor = displayGrade === 'A' ? '#16a34a'
+      : displayGrade === 'B' ? '#10b981'
+      : displayGrade === 'C' ? '#d97706'
+      : displayGrade === 'D' ? '#f97316'
       : '#dc2626';
 
     const tierColor = ch.insuranceTier?.startsWith('Insurance') ? '#16a34a'
@@ -1418,42 +1482,195 @@ export default class UnifiedDashboard extends Component {
       : '#dc2626';
 
     const pillars = [
-      { label: 'Security',     value: ch.security,    weight: '40%' },
-      { label: 'Compliance',   value: ch.compliance,  weight: '25%' },
-      { label: 'Audit',        value: ch.audit,       weight: '20%' },
-      { label: 'Risk Posture', value: ch.riskPosture, weight: '15%' },
+      { label: 'Security',     value: ch.security },
+      { label: 'Compliance',   value: ch.compliance },
+      { label: 'Audit',        value: ch.audit },
+      { label: 'Risk Posture', value: ch.riskPosture },
     ];
     const barColor = v => v >= 80 ? '#16a34a' : v >= 60 ? '#d97706' : '#dc2626';
-    const barPct   = v => `${Math.max(2, Math.min(100, Math.round(v || 0)))}%`;
+    const topGap = pillars
+      .map((p) => ({ ...p, delta: Math.abs((p.value || 0) - displayScore) }))
+      .sort((a, b) => b.delta - a.delta)[0];
+
+    const wrapperStyle = embedded
+      ? 'max-width: 860px; margin: 0 auto 16px;'
+      : 'margin-top: -16px; margin-bottom: 12px;';
+
+    const threats = data?.securityPro?.threatIntel || {};
+    const fleet = this.getFleetStats(data);
 
     return html`
-      <div style="padding: 12px 16px 0;">
-        <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tblr-secondary, #999); margin-bottom: 8px;">Cyber Hygiene</div>
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-          <div style="display:flex; align-items:baseline; gap:6px;">
-            <span style="font-size:2rem; font-weight:800; line-height:1; color:${gradeColor}">${Math.round(ch.score)}</span>
-            <span style="font-size:0.78rem; color:var(--tblr-secondary,#888)">/100</span>
+      <div class="container-xl" style=${wrapperStyle}>
+        <div class="card" style="border: 1px solid var(--tblr-border-color, #e6e7e9); border-left: 4px solid ${gradeColor}; border-radius: 12px; overflow: hidden;">
+          <div class="card-header" style="display:block; background: var(--tblr-bg-surface-secondary, #f8fafc); border-bottom: 1px solid var(--tblr-border-color, #e6e7e9);">
+            <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-2">
+              <h3 class="card-title mb-0">Cyber Hygiene</h3>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white" style="padding:7px 13px; font-size:0.74rem; letter-spacing:0.02em;">
+                  <span class="d-inline-flex align-items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h3"/></svg>
+                    <span>AI Score ${displayScore}/100</span>
+                  </span>
+                </span>
+                <span class="badge" style="background:${gradeColor};color:#fff; padding:7px 13px; font-size:0.74rem; letter-spacing:0.02em;">
+                  <span class="d-inline-flex align-items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"/></svg>
+                    <span>Shield Grade ${displayGrade}</span>
+                  </span>
+                </span>
+                <span class="badge" style="background:${tierColor};color:#fff; padding:7px 13px; font-size:0.74rem; letter-spacing:0.02em;">
+                  <span class="d-inline-flex align-items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 12l3 3l6 -6"/><path d="M12 21a9 9 0 0 0 0 -18a9 9 0 0 0 0 18"/></svg>
+                    <span>Insurance ${ch.insuranceTier}</span>
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div class="mt-3 p-3" style="display:block; width:100%; font-size:0.82rem; line-height:1.45; color:var(--tblr-secondary,#6b7280); border-radius:10px; background:var(--tblr-bg-surface, #ffffff); border:1px solid var(--tblr-border-color-translucent, #e6e7e9);">
+              <strong style="color:var(--tblr-body-color, #1f2937); font-weight:700;">MAGI Business Signal:</strong>
+              <span> decision-ready confidence for business owners, turning live risk into a clear posture story across security, compliance, audit, and cyber-insurance readiness.</span>
+            </div>
           </div>
-          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
-            <span style="font-size:0.78rem; font-weight:800; color:${gradeColor}; background:${gradeColor}18; border:1px solid ${gradeColor}33; border-radius:6px; padding:2px 10px;">Grade ${ch.grade}</span>
-            <span style="font-size:0.7rem; font-weight:600; color:${tierColor}; background:${tierColor}18; border:1px solid ${tierColor}33; border-radius:13px; padding:2px 9px;">${ch.insuranceTier}</span>
+          <div class="card-body">
+            <div class="row g-3 align-items-center">
+              <div class="col-lg-5">
+                <div style="height: 280px;" ref=${(el) => { this.cyberChartRef = el; }}></div>
+              </div>
+              <div class="col-lg-7">
+                <div class="row g-2">
+                  ${pillars.map(p => html`
+                    <div class="col-sm-6">
+                      <div style="border:1px solid var(--tblr-border-color-translucent, #e6e7e9); border-radius:10px; padding:10px 12px; background: var(--tblr-bg-surface-secondary, #fafbfc);">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <span style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--tblr-secondary, #6b7280); font-weight:700;">${p.label}</span>
+                          <span style="font-size:0.72rem; color:var(--tblr-secondary, #6b7280);">Pillar</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                          <span style="font-size:1.2rem; font-weight:800; color:${barColor(p.value)};">${Math.round(p.value || 0)}</span>
+                          <span style="font-size:0.72rem; color:var(--tblr-secondary, #6b7280);">${p.value >= 80 ? 'Strong' : p.value >= 60 ? 'Watch' : 'Needs attention'}</span>
+                        </div>
+                        <div style="height:5px; background:var(--tblr-border-color-translucent, #e6e7e9); border-radius:999px; overflow:hidden; margin-top:8px;">
+                          <div style="height:100%; width:${Math.max(2, Math.min(100, Math.round(p.value || 0)))}%; background:${barColor(p.value)};"></div>
+                        </div>
+                      </div>
+                    </div>
+                  `)}
+                </div>
+                ${topGap ? html`
+                  <div class="mt-3 p-2" style="border-radius:10px; border:1px dashed var(--tblr-border-color, #d1d5db); color:var(--tblr-secondary, #6b7280); font-size:0.78rem;">
+                    Current weakest pillar: <strong style="color:var(--tblr-body-color, #111827);">${topGap.label}</strong>. Improving this area will raise overall posture fastest.
+                  </div>
+                ` : ''}
+
+                <div class="mt-2 d-flex flex-wrap gap-2">
+                  <span class="badge bg-danger-lt text-danger">Critical ${Number(threats.criticalCveCount || 0)}</span>
+                  <span class="badge bg-warning-lt text-warning">High ${Number(threats.highCveCount || 0)}</span>
+                  <span class="badge bg-info-lt text-info">Fleet ${fleet.active}/${fleet.total}</span>
+                  <span class="badge bg-secondary-lt text-secondary">Offline ${fleet.offline}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        ${pillars.map(p => html`
-          <div style="margin-bottom:7px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
-              <span style="font-size:0.67rem; font-weight:600; color:var(--tblr-body-color,#333); text-transform:uppercase; letter-spacing:0.04em;">
-                ${p.label}<span style="font-weight:400; opacity:0.5; margin-left:3px;">(${p.weight})</span>
-              </span>
-              <span style="font-size:0.72rem; font-weight:700; color:${barColor(p.value)}">${Math.round(p.value || 0)}</span>
-            </div>
-            <div style="height:5px; background:var(--tblr-border-color,#e6e7e9); border-radius:4px; overflow:hidden;">
-              <div style="height:100%; width:${barPct(p.value)}; background:${barColor(p.value)}; border-radius:4px;"></div>
-            </div>
-          </div>
-        `)}
       </div>
     `;
+  }
+
+  renderCyberHygieneChart() {
+    const ch = this.getCyberHygieneData(this.state?.data);
+    if (!this.cyberChartRef || !window.ApexCharts || !ch) {
+      if (this._cyberChart) {
+        this._cyberChart.destroy();
+        this._cyberChart = null;
+      }
+      return;
+    }
+
+    const theme = (document.documentElement.getAttribute('data-bs-theme') || 'light').toLowerCase();
+    const labels = ['Security', 'Compliance', 'Audit', 'Risk Posture'];
+    const series = [
+      Math.round(ch.security || 0),
+      Math.round(ch.compliance || 0),
+      Math.round(ch.audit || 0),
+      Math.round(ch.riskPosture || 0)
+    ];
+    const derivedScore = Math.round((series[0] * 0.4) + (series[1] * 0.25) + (series[2] * 0.2) + (series[3] * 0.15));
+    const seriesSignature = `${theme}:${series.join('|')}:${derivedScore}`;
+
+    if (this._cyberChart && this._cyberTheme === theme && this._cyberSeriesSignature === seriesSignature) {
+      return;
+    }
+
+    if (this._cyberChart) {
+      this._cyberChart.destroy();
+      this._cyberChart = null;
+    }
+
+    const options = {
+      chart: {
+        type: 'radialBar',
+        height: 280,
+        toolbar: { show: false },
+        background: 'transparent'
+      },
+      series,
+      labels,
+      legend: {
+        position: 'bottom',
+        fontSize: '12px',
+        labels: {
+          colors: theme === 'dark' ? '#cbd5e1' : '#4b5563'
+        }
+      },
+      plotOptions: {
+        radialBar: {
+          startAngle: -135,
+          endAngle: 225,
+          hollow: {
+            size: '34%'
+          },
+          track: {
+            background: theme === 'dark' ? 'rgba(148,163,184,0.2)' : 'rgba(100,116,139,0.16)',
+            strokeWidth: '100%',
+            margin: 4
+          },
+          dataLabels: {
+            name: {
+              fontSize: '11px',
+              color: theme === 'dark' ? '#94a3b8' : '#6b7280'
+            },
+            value: {
+              fontSize: '13px',
+              fontWeight: 700,
+              color: theme === 'dark' ? '#e5e7eb' : '#111827',
+              formatter: (v) => `${Math.round(v)}`
+            },
+            total: {
+              show: true,
+              label: 'AI Score',
+              color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+              fontSize: '11px',
+              formatter: () => `${derivedScore}`
+            }
+          }
+        }
+      },
+      stroke: {
+        lineCap: 'round'
+      },
+      colors: ['#3b82f6', '#14b8a6', '#f59f00', '#ef4444'],
+      tooltip: {
+        y: {
+          formatter: (val) => `${Math.round(val)} / 100`
+        }
+      },
+      theme: { mode: theme }
+    };
+
+    this._cyberChart = new window.ApexCharts(this.cyberChartRef, options);
+    this._cyberChart.render();
+    this._cyberTheme = theme;
+    this._cyberSeriesSignature = seriesSignature;
   }
 
   renderSecurityOfficerDrawer() {
@@ -1532,7 +1749,7 @@ export default class UnifiedDashboard extends Component {
 
     const freshness = this.getFreshnessInfo();
     const signalUpdatedText = freshness ? freshness.ageText : 'unknown';
-    const { signalLine, deliveryLine } = buildOfficerNoteStatusCopy({
+    const { signalLine } = buildOfficerNoteStatusCopy({
       signalUpdatedText,
       reportCard
     });
@@ -1580,7 +1797,7 @@ export default class UnifiedDashboard extends Component {
         <!-- In-flow relative wrapper -->
         <div style="position: relative; z-index: 200; max-width: 640px; margin: 0 auto;">
 
-        <!-- Dark glassmorphism collapsed tab -->
+        <!-- Collapsed tab styled to match bottom persona lenses -->
         <div
           role="button"
           tabIndex="0"
@@ -1603,17 +1820,14 @@ export default class UnifiedDashboard extends Component {
             padding: 10px 40px;
             cursor: pointer;
             user-select: none;
-            background: rgba(15,15,25,0.95);
-            backdrop-filter: blur(16px) saturate(160%);
-            -webkit-backdrop-filter: blur(16px) saturate(160%);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: ${bgColor};
+            border: 1px solid ${borderColor};
+            border-top: 2px solid ${gradeColor};
             border-radius: ${officerNoteOpen ? '14px 14px 0 0' : '14px'};
             transition: border-radius 0.3s ease;
+            box-shadow: 0 6px 18px rgba(15,23,42,0.08);
           "
         >
-          <!-- Decorative slash -->
-          <span style="color: ${gradeColor}; opacity: 0.35; font-weight: 300; font-size: 1.1rem; line-height: 1;">/</span>
-
           <!-- Shield icon -->
           <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="${gradeColor}" fill="none" style="flex-shrink: 0; opacity: 0.8;">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -1622,26 +1836,23 @@ export default class UnifiedDashboard extends Component {
           </svg>
 
           <!-- Title text -->
-          <span style="font-size: 0.68rem; font-weight: 700; color: rgba(255,255,255,0.55); letter-spacing: 0.12em; text-transform: uppercase;">Security Officer's Note</span>
+          <span style="font-size: 0.68rem; font-weight: 700; color: var(--tblr-body-color, #1f2937); letter-spacing: 0.12em; text-transform: uppercase;">Security Officer's Note</span>
 
           <!-- Chevron -->
           <svg
             width="13" height="13" viewBox="0 0 24 24" stroke-width="2.5"
-            stroke="rgba(255,255,255,0.35)" fill="none"
+            stroke="var(--tblr-secondary, #6b7280)" fill="none"
             style="transition: transform 0.3s ease; transform: rotate(${officerNoteOpen ? '180' : '0'}deg);"
           >
             <polyline points="6 9 12 15 18 9"/>
           </svg>
-
-          <!-- Decorative backslash -->
-          <span style="color: ${gradeColor}; opacity: 0.35; font-weight: 300; font-size: 1.1rem; line-height: 1;">\\</span>
 
           <!-- Dismiss X -->
           <button
             onClick=${(e) => { e.stopPropagation(); this.dismissOfficerNote(orgId); }}
             style="
               position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-              background: none; border: none; color: rgba(255,255,255,0.2); cursor: pointer;
+              background: none; border: none; color: var(--tblr-secondary, #6b7280); cursor: pointer;
               font-size: 0.85rem; line-height: 1; padding: 2px 4px;
               transition: color 0.15s;
             "
@@ -1694,13 +1905,7 @@ export default class UnifiedDashboard extends Component {
                   ${situationNode}
                 </div>
                 <div style="font-size: 0.72rem; color: rgba(255,255,255,0.35); line-height: 1.4;">
-                  Score ${secScore}/100 · Grade ${grade}
-                </div>
-                <div style="font-size: 0.69rem; color: rgba(255,255,255,0.45); line-height: 1.45; margin-top: 4px;">
                   ${signalLine}
-                </div>
-                <div style="font-size: 0.69rem; color: rgba(255,255,255,0.45); line-height: 1.45; margin-top: 2px;">
-                  ${deliveryLine}
                 </div>
               </div>
 
@@ -1716,7 +1921,7 @@ export default class UnifiedDashboard extends Component {
                       padding: 1px 6px; border-radius: 4px;
                       text-transform: uppercase; letter-spacing: 0.04em;
                     ">${urgencyLabel}</span>
-                    <div style="font-size: 0.83rem; font-weight: 600; color: rgba(255,255,255,0.88); overflow-wrap: anywhere; word-break: break-word;">Priority action: ${actionTitle || titleRaw}</div>
+                    <div style="font-size: 0.83rem; font-weight: 600; color: rgba(255,255,255,0.88); overflow-wrap: anywhere; word-break: break-word;">${actionTitle || titleRaw}</div>
                   </div>
                   ${normalizedDescription ? html`<div style="font-size: 0.75rem; color: rgba(255,255,255,0.5);">${normalizedDescription}</div>` : ''}
                   ${targetDeviceLine ? html`<div style="font-size: 0.72rem; color: rgba(255,255,255,0.42); margin-top: 2px;">${targetDeviceLine}</div>` : ''}
@@ -1805,7 +2010,11 @@ export default class UnifiedDashboard extends Component {
         ${this.renderSecurityOfficerDrawer()}
         ${this.renderRefreshBanner()}
         ${this.renderSearchHeader()}
-        <${PersonaNav} activePersona=${this.state.activePersona} onPersonaChange=${this.handlePersonaChange} />
+        <${PersonaNav}
+          activePersona=${this.state.activePersona}
+          sheetOpen=${this.state.personaSheetOpen}
+          onPersonaChange=${this.handlePersonaChange}
+        />
         ${this.renderPersonaSheet()}
       </div>
     `;

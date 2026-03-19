@@ -47,7 +47,7 @@ export function buildOfficerNoteStatusCopy({ signalUpdatedText, reportCard }) {
 
   const reportText = generatedAt
     ? `Situation Report generated: ${formatRelativeTimeShort(generatedAt)}`
-    : 'Situation Report not generated in last 48 hrs';
+    : 'Situation Report status awaiting latest generation signal';
 
   const emailText = emailSentAt
     ? `sent ${formatRelativeTimeShort(emailSentAt)}${emailRecipientCount > 0 ? ` to ${emailRecipientCount} recipient${emailRecipientCount === 1 ? '' : 's'}` : ''}`
