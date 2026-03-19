@@ -7,6 +7,7 @@ import { OrganizationsTab } from './components/OrganizationsTab.js';
 import { AccountsTab } from './components/AccountsTab.js';
 import { AdminActionsTab } from './components/AdminActionsTab.js';
 import { MagiCodesTab } from './components/MagiCodesTab.js';
+import { InvoiceManagementTab } from './components/InvoiceManagementTab.js';
 
 const { html, Component } = window;
 const { useState, useEffect } = window.preactHooks;
@@ -446,6 +447,16 @@ export class ManagePage extends Component {
                     </li>
                     <li class="nav-item">
                         <a
+                            class="nav-link ${activeTab === 'invoices' ? 'active' : ''}"
+                            href="#"
+                            onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'invoices' }); }}
+                        >
+                            <i class="ti ti-file-invoice me-2"></i>
+                            Invoices
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a
                             class="nav-link ${activeTab === 'admin-actions' ? 'active' : ''}"
                             href="#"
                             onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'admin-actions' }); }}
@@ -488,6 +499,7 @@ export class ManagePage extends Component {
                         onDeleteAccount=${this.deleteAccount}
                     />`}
                     ${activeTab === 'magi-codes' && html`<${MagiCodesTab} />`}
+                    ${activeTab === 'invoices' && html`<${InvoiceManagementTab} />`}
                     ${activeTab === 'admin-actions' && html`<${AdminActionsTab}
                         orgs=${orgs}
                         onTriggerCron=${this.handleTriggerCron}

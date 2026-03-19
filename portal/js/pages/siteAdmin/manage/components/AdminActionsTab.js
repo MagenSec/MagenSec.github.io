@@ -55,6 +55,9 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
     const [resettingRemediation, setResettingRemediation] = useState(false);
     const [resetResult, setResetResult] = useState(null);
     const [showResetRemediation, setShowResetRemediation] = useState(false);
+    const [expandedGroups, setExpandedGroups] = useState({});
+
+    const toggleGroup = (groupId) => setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
 
     useEffect(() => {
         loadCatalog();
@@ -753,21 +756,30 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
         const taskStatus = job.taskId ? taskStatusMap[job.taskId] : null;
 
         return html`
-            <div class="col-12 col-xl-6">
-                <div class=${`card h-100 cron-group-card cron-group-${group.groupId}`}>
+            <div class="col-md-6">
+                <div class=${`card cron-group-card cron-group-${group.groupId}`}>
                     <div class="card-header cron-group-card-header">
                         <div class="d-flex align-items-start w-100">
                             <div class="flex-grow-1">
                                 <h3 class="card-title mb-1">
-                                    <i class="ti ${GROUP_ICONS[group.groupId] || 'ti-box'} me-2"></i>
+                                    <i class=${`ti ${GROUP_ICONS[group.groupId] || 'ti-box'} me-2`}></i>
                                     ${group.title}
                                 </h3>
                                 <div class="text-muted small">${group.description}</div>
                             </div>
-                            <span class="badge cron-group-count-badge">${group.jobs.length} job${group.jobs.length === 1 ? '' : 's'}</span>
+                            <div class="d-flex align-items-center gap-2 ms-2 flex-shrink-0">
+                                <span class="badge cron-group-count-badge">${group.jobs.length} job${group.jobs.length === 1 ? '' : 's'}</span>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-icon btn-ghost-secondary"
+                                    onClick=${() => toggleGroup(group.groupId)}
+                                    aria-label=${expandedGroups[group.groupId] ? 'Collapse' : 'Expand'}>
+                                    <i class=${`ti ${expandedGroups[group.groupId] ? 'ti-chevron-up' : 'ti-chevron-down'}`}></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="card-body">
+                    ${expandedGroups[group.groupId] && html`<div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Job</label>
@@ -862,7 +874,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
 
                         ${renderResult(group.groupId)}
                         ${renderHistory(group, job)}
-                    </div>
+                    </div>`}
                 </div>
             </div>
         `;

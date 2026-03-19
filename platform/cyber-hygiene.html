@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cyber Hygiene Score — AI-Powered Security Posture Indicator | MagenSec</title>
+<meta name="description" content="MagenSec's Cyber Hygiene Score is an AI-powered indicator computed by MAGI Security Officer across four security dimensions — giving you one number that tells the full story of your organisation's security posture.">
+<link rel="canonical" href="https://magensec.gigabits.co.in/platform/cyber-hygiene.html">
+<link rel="icon" type="image/x-icon" href="../assets/black_shield_64.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/css/magensec.css">
+<script>if (window.location.protocol !== 'file:') document.documentElement.classList.add('js-ready');</script>
+<noscript><style>[data-reveal]{opacity:1!important;transform:none!important}</style></noscript>
+<style>
+.hygiene-formula {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+}
+.hygiene-pillar {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  position: relative;
+  overflow: hidden;
+}
+.hygiene-pillar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+.hygiene-pillar--security::before  { background: var(--color-danger, #ef4444); }
+.hygiene-pillar--compliance::before { background: var(--color-warning, #f59f00); }
+.hygiene-pillar--audit::before      { background: var(--color-primary, #3b82f6); }
+.hygiene-pillar--posture::before    { background: var(--color-success, #22c55e); }
+.hygiene-pillar__weight {
+  font-size: var(--text-3xl, 2rem);
+  font-weight: var(--weight-extrabold, 800);
+  line-height: 1;
+  margin-bottom: var(--space-2);
+}
+.hygiene-pillar--security  .hygiene-pillar__weight { color: var(--color-danger, #ef4444); }
+.hygiene-pillar--compliance .hygiene-pillar__weight { color: var(--color-warning, #f59f00); }
+.hygiene-pillar--audit      .hygiene-pillar__weight { color: var(--color-primary, #3b82f6); }
+.hygiene-pillar--posture    .hygiene-pillar__weight { color: var(--color-success, #22c55e); }
+.hygiene-pillar__label {
+  font-weight: var(--weight-semibold, 600);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+.hygiene-pillar__desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed, 1.625);
+}
+.grade-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-6);
+}
+.grade-table th, .grade-table td {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}
+.grade-table th {
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-medium);
+  background: var(--color-surface-2);
+}
+.grade-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-full, 9999px);
+  font-weight: var(--weight-bold, 700);
+  font-size: var(--text-sm);
+}
+.grade-badge--a { background: rgba(34,197,94,.15); color: #16a34a; }
+.grade-badge--b { background: rgba(59,130,246,.15); color: #2563eb; }
+.grade-badge--c { background: rgba(245,159,0,.15); color: #b45309; }
+.grade-badge--d { background: rgba(239,68,68,.15); color: #dc2626; }
+.grade-badge--f { background: rgba(107,114,128,.15); color: #6b7280; }
+.insurance-badge {
+  display: inline-block;
+  padding: .2rem .65rem;
+  border-radius: var(--radius-full, 9999px);
+  font-size: .78rem;
+  font-weight: var(--weight-semibold, 600);
+}
+.insurance-badge--preferred   { background: rgba(34,197,94,.12); color: #15803d; border: 1px solid rgba(34,197,94,.3); }
+.insurance-badge--standard    { background: rgba(59,130,246,.12); color: #1d4ed8; border: 1px solid rgba(59,130,246,.3); }
+.insurance-badge--conditional { background: rgba(245,159,0,.12); color: #92400e; border: 1px solid rgba(245,159,0,.3); }
+.insurance-badge--at-risk     { background: rgba(239,68,68,.12); color: #b91c1c; border: 1px solid rgba(239,68,68,.3); }
+.improve-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin-top: var(--space-8);
+}
+.improve-card {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+}
+.improve-card__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-3);
+}
+.improve-card__icon--red    { background: rgba(239,68,68,.12); color: #dc2626; }
+.improve-card__icon--yellow { background: rgba(245,159,0,.12); color: #b45309; }
+.improve-card__icon--blue   { background: rgba(59,130,246,.12); color: #2563eb; }
+.improve-card__icon--green  { background: rgba(34,197,94,.12); color: #15803d; }
+.improve-card h4 { font-size: var(--text-base); font-weight: var(--weight-semibold); margin-bottom: var(--space-2); }
+.improve-card p { font-size: var(--text-sm); color: var(--color-text-secondary); line-height: var(--leading-relaxed); }
+@media (max-width: 900px) {
+  .hygiene-formula { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .improve-grid    { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .hygiene-formula { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body data-nav-active="none">
+<!-- NAVIGATION -->
+<header class="nav" id="nav">
+<div class="nav__inner container">
+<a href="../index.html" class="nav__logo" aria-label="MagenSec Home">
+<img src="../assets/black_shield_256x256.png" alt="" width="32" height="32" loading="eager">
+<span class="nav__brand">Magen<span class="nav__brand-sec">Sec</span></span>
+</a>
+<nav class="nav__links" aria-label="Main navigation">
+<a href="../index.html" class="nav__link">Home</a>
+<a href="../what-we-cover.html" class="nav__link">Platform</a>
+<a href="../magi.html" class="nav__link nav__link--magi">MAGI AI</a>
+<a href="../editions.html" class="nav__link">Pricing</a>
+<a href="../install.html" class="nav__link">Install</a>
+<a href="../about.html" class="nav__link">About</a>
+</nav>
+<div class="nav__actions">
+<div class="nav__dropdown" role="group">
+<button class="btn-ghost btn--sm nav__dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download </button>
+<div class="nav__dropdown-menu" role="menu">
+<div class="nav__dropdown-header">MagenSec for Windows</div>
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="nav__dropdown-item" role="menuitem" target="_blank" rel="nofollow noopener"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 5.5 12 3l9 2.5v13L12 21 3 18.5V5.5Z"/><path d="M12 3v18"/><path d="M3 9.5 12 12l9-2.5"/></svg>Download on Microsoft Store</a>
+<a href="../install.html#enterprise-deploy" class="nav__dropdown-item" role="menuitem"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Manual &amp; CLI install</a>
+</div>
+</div>
+<a href="../portal/" class="btn-primary btn--sm">Sign In <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+</div>
+<button class="nav__hamburger" id="nav-burger" aria-controls="mobile-nav" aria-expanded="false" aria-label="Open menu"><span></span><span></span><span></span></button>
+</div>
+<div class="nav__mobile-menu" id="mobile-nav" role="dialog" aria-modal="true">
+<nav>
+<a href="../index.html" class="nav__mobile-link">Home</a>
+<a href="../what-we-cover.html" class="nav__mobile-link">Platform</a>
+<a href="../magi.html" class="nav__mobile-link nav__mobile-link--accent">MAGI AI</a>
+<a href="../editions.html" class="nav__mobile-link">Pricing</a>
+<a href="../install.html" class="nav__mobile-link">Install</a>
+<a href="../about.html" class="nav__mobile-link">About</a>
+</nav>
+<div class="nav__mobile-divider"></div>
+<div style="padding:1rem 1.5rem;display:flex;flex-direction:column;gap:.75rem">
+<a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn-ghost btn--full" target="_blank" rel="nofollow noopener">Get it on Microsoft Store</a>
+<a href="../install.html#enterprise-deploy" class="btn-ghost btn--full">Manual &amp; CLI Install</a>
+<a href="../portal/" class="btn-primary btn--full">Sign In to Portal</a>
+</div>
+</div>
+</header>
+
+<!-- HERO -->
+<section class="feature-hero">
+<div class="container">
+<p class="breadcrumb"><a href="../what-we-cover.html">&larr; Back to Platform</a></p>
+<div class="feature-hero__eyebrow">
+<span class="badge-feature">Cyber Hygiene Score</span>
+</div>
+<h1 class="feature-hero__title">Your whole security posture,<br><span class="text-gradient">read by an AI Security Officer.</span></h1>
+<p class="feature-hero__desc">The Cyber Hygiene Score is MagenSec's core indicator — an AI-powered 0–100 signal assessed daily by MAGI, your on-call Security Officer. It looks across four dimensions of your environment — threat exposure, compliance alignment, how fast you remediate, and how well your fleet is covered — and synthesises them into a single number that is transparent, actionable, and ready for an insurance conversation.</p>
+<div class="hero__cta-group">
+<a href="../install.html" class="btn-primary">Start Free Trial</a>
+<a href="../editions.html" class="btn-secondary">View Plans</a>
+</div>
+<div class="feature-hero__stats">
+<div class="fh-stat">
+<span class="fh-stat__value">AI-assessed</span>
+<span class="fh-stat__label">Computed daily by MAGI Security Officer</span>
+</div>
+<div class="fh-stat">
+<span class="fh-stat__value">A–F grade</span>
+<span class="fh-stat__label">Instantly readable for any audience</span>
+</div>
+<div class="fh-stat">
+<span class="fh-stat__value">Daily</span>
+<span class="fh-stat__label">Refreshed automatically, with trend tracking</span>
+</div>
+</div>
+</div>
+</section>
+
+<!-- WHY ONE NUMBER MATTERS -->
+<section class="section" id="why-one-number">
+<div class="container">
+<div class="section__header text-center">
+<h2>Why a single score beats a dashboard of charts</h2>
+<p class="section__sub">When there are too many metrics, the critical ones get buried. A composite score forces ruthless prioritisation — it goes down when you add devices without patching them, and up when you actually remediate.</p>
+</div>
+<div class="threat-reality-grid">
+<div class="threat-stat-card" data-reveal>
+<span class="threat-stat-card__value">43%</span>
+<p>of SMBs that suffered a breach had no clear view of their overall security posture before the incident</p>
+</div>
+<div class="threat-stat-card" data-reveal>
+<span class="threat-stat-card__value">3×</span>
+<p>higher cyber insurance premium loading when an insurer cannot see documented vulnerability management</p>
+</div>
+<div class="threat-stat-card" data-reveal>
+<span class="threat-stat-card__value">Grade B</span>
+<p>is the threshold most carriers use for standard-rate cyber insurance qualification</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- THE FOUR DIMENSIONS -->
+<section class="section section--alt" id="dimensions">
+<div class="container">
+<div class="section__header text-center">
+<h2>Four dimensions. One AI-powered judgement.</h2>
+<p class="section__sub">MAGI assesses your organisation continuously across four security dimensions. Each dimension is a distinct lens on your environment — together they form the complete picture that the Cyber Hygiene Score represents.</p>
+</div>
+<div class="hygiene-formula">
+<div class="hygiene-pillar hygiene-pillar--security" data-reveal>
+<div class="hygiene-pillar__weight">🛡️</div>
+<div class="hygiene-pillar__label">Threat Exposure</div>
+<div class="hygiene-pillar__desc">How many vulnerabilities are present, how severe they are, and how long they have been unaddressed. MAGI weighs not just severity but real-world exploitability — a CISA KEV-listed vulnerability in active exploitation is treated fundamentally differently from a theoretical one.</div>
+</div>
+<div class="hygiene-pillar hygiene-pillar--compliance" data-reveal>
+<div class="hygiene-pillar__weight">📐</div>
+<div class="hygiene-pillar__label">Compliance Alignment</div>
+<div class="hygiene-pillar__desc">How closely your controls and configurations align with CIS and NIST security frameworks. MAGI understands that an org closing gaps steadily is in a fundamentally better position than one with a frozen, large gap list — progress matters, not just the current state.</div>
+</div>
+<div class="hygiene-pillar hygiene-pillar--audit" data-reveal>
+<div class="hygiene-pillar__weight">⏱️</div>
+<div class="hygiene-pillar__label">Remediation Velocity</div>
+<div class="hygiene-pillar__desc">How quickly your team acts on identified vulnerabilities. Based on real patching history across your devices. Organisations that remediate in days rather than months show a fundamentally different risk profile to insurers and MAGI reflects this distinction clearly.</div>
+</div>
+<div class="hygiene-pillar hygiene-pillar--posture" data-reveal>
+<div class="hygiene-pillar__weight">📡</div>
+<div class="hygiene-pillar__label">Fleet Coverage</div>
+<div class="hygiene-pillar__desc">Whether all enrolled devices are actively reporting telemetry. A device that has stopped reporting is a potential blind spot — MAGI cannot see threats on devices that have gone dark, and the score reflects that gap in coverage honestly.</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- WHAT MAKES IT AI-POWERED -->
+<section class="section" id="why-ai">
+<div class="container">
+<div class="section__header text-center">
+<h2>What makes this score different from a formula</h2>
+<p class="section__sub">Many security tools compute a static score from a fixed formula. The Cyber Hygiene Score is different — MAGI acts as an active participant, not just a calculator.</p>
+</div>
+<div class="mini-feature-grid">
+<div class="mini-feature-card" data-reveal>
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+<h4>Context awareness</h4>
+<p>MAGI understands the difference between a hospital network and a software startup. The same gap count in different industries carries different weight — MAGI adjusts accordingly.</p>
+</div>
+<div class="mini-feature-card" data-reveal>
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+<h4>Trend intelligence</h4>
+<p>A score of 72 that was 60 last month is a fundamentally different signal than 72 that was 84. MAGI tracks trajectory and explains what changed and why — static formulas cannot do this.</p>
+</div>
+<div class="mini-feature-card" data-reveal>
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+<h4>Narrative explanation</h4>
+<p>Every score comes with MAGI's plain-language explanation of what drove it. You always know why your score is what it is and exactly what would change it — no black box.</p>
+</div>
+<div class="mini-feature-card" data-reveal>
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/><path d="M14 2v6h6"/></svg>
+<h4>Insurance-ready framing</h4>
+<p>MAGI translates your score into the readiness language insurers actually use — not just a number, but a defensible narrative about your controls programme and its direction of travel.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- GRADES & INSURANCE TIERS -->
+<section class="section section--alt" id="grades">
+<div class="container">
+<div class="section__header text-center">
+<h2>Grades and cyber insurance readiness tiers</h2>
+<p class="section__sub">The letter grade makes your score instantly readable by anyone — from the security team to the board to your insurer. Each grade maps directly to MAGI's assessed insurance readiness tier.</p>
+</div>
+<div style="max-width:700px;margin:0 auto">
+<table class="grade-table" aria-label="Grade brackets and insurance tiers">
+<thead>
+<tr>
+<th>Grade</th>
+<th>Score range</th>
+<th>Insurance tier</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="grade-badge grade-badge--a">A</span></td>
+<td>90–100</td>
+<td><span class="insurance-badge insurance-badge--preferred">Preferred</span></td>
+<td>Consistently patched, low gap density, fast MTTR. Strongest candidacy for preferred-rate cyber insurance.</td>
+</tr>
+<tr>
+<td><span class="grade-badge grade-badge--b">B</span></td>
+<td>80–89</td>
+<td><span class="insurance-badge insurance-badge--standard">Standard</span></td>
+<td>Good hygiene with minor gaps. Qualifies for standard cyber insurance without supplementary questionnaires in most cases.</td>
+</tr>
+<tr>
+<td><span class="grade-badge grade-badge--c">C</span></td>
+<td>70–79</td>
+<td><span class="insurance-badge insurance-badge--conditional">Conditional</span></td>
+<td>Moderate risk. Insurers may require a remediation plan or impose coverage exclusions. MAGI AI provides specific uplift guidance.</td>
+</tr>
+<tr>
+<td><span class="grade-badge grade-badge--d">D</span></td>
+<td>60–69</td>
+<td><span class="insurance-badge insurance-badge--at-risk">At Risk</span></td>
+<td>Elevated risk profile. Coverage may be declined or priced significantly above market rate. Immediate remediation focus recommended.</td>
+</tr>
+<tr>
+<td><span class="grade-badge grade-badge--f">F</span></td>
+<td>0–59</td>
+<td><span class="insurance-badge insurance-badge--at-risk">At Risk</span></td>
+<td>Critical gaps across multiple pillars. MagenSec will generate a prioritised action plan — the score will improve as you work through it.</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+
+<!-- HOW TO IMPROVE YOUR SCORE -->
+<section class="section section--alt" id="improve">
+<div class="container">
+<div class="section__header text-center">
+<h2>How to move your score</h2>
+<p class="section__sub">Ask MAGI to identify which of the four dimensions is dragging your score down most, and it will produce a prioritised action plan specific to your environment. In general, these are the highest-leverage moves.</p>
+</div>
+<div class="improve-grid">
+<div class="improve-card" data-reveal>
+<div class="improve-card__icon improve-card__icon--red">
+<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+</div>
+<h4>Address CISA KEV-listed vulnerabilities first</h4>
+<p>Vulnerabilities with confirmed active exploitation carry the most weight in MAGI's threat assessment. Patching a KEV-listed app moves your Threat Exposure dimension immediately and meaningfully.</p>
+</div>
+<div class="improve-card" data-reveal>
+<div class="improve-card__icon improve-card__icon--yellow">
+<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+</div>
+<h4>Close high-priority CIS and NIST gaps</h4>
+<p>Compliance Alignment improves non-linearly as gaps close. MAGI will show you which controls give the highest compliance lift per unit of effort — focus there rather than the longest list.</p>
+</div>
+<div class="improve-card" data-reveal>
+<div class="improve-card__icon improve-card__icon--blue">
+<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+</div>
+<h4>Establish a remediation SLA</h4>
+<p>Remediation Velocity is one of the most differentiating signals in MAGI's assessment. Organisations that remediate consistently within two weeks look substantially different to insurers than those addressing findings sporadically over months.</p>
+</div>
+<div class="improve-card" data-reveal>
+<div class="improve-card__icon improve-card__icon--green">
+<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+</div>
+<h4>Keep all enrolled devices reporting</h4>
+<p>A device that has stopped reporting is a monitoring blind spot MAGI cannot see past. Fleet Coverage degrades when devices go silent — keeping 100% of your enrolled devices actively checking in removes this uncertainty entirely.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- HOW MAGI DRIVES THE SCORE -->
+<section class="section" id="magi-integration">
+<div class="container">
+<div class="section__header text-center">
+<h2>MAGI isn’t just reading the score — MAGI is computing it</h2>
+<p class="section__sub">The Cyber Hygiene Score isn’t produced by a static equation running in the background. It’s MAGI’s daily assessment of your organisation’s security posture — the same assessment you’d get if you asked a senior security officer to review everything overnight.</p>
+</div>
+<div class="mini-feature-grid">
+<div class="mini-feature-card" data-reveal>
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+<h4>Daily Security Brief</h4>
+<p>MAGI opens every daily brief with your Hygiene Score, explains what changed since yesterday’s assessment, and names the top actions that would move the score.</p>
+</div>
+<div class="mini-feature-card" data-reveal>
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+<h4>Insurance Readiness Report</h4>
+<p>MAGI translates your four dimension scores into the exact framing cyber insurance carriers use — with a narrative explanation of your controls programme, not just a number.</p>
+</div>
+<div class="mini-feature-card" data-reveal>
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+<h4>Trend Narrative</h4>
+<p>Score history is tracked daily. MAGI detects downward trends early and explains causal factors in plain language: “Score dropped 4 points: 2 Critical CVEs have been open more than 30 days without a patch.”</p>
+</div>
+<div class="mini-feature-card" data-reveal>
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+<h4>Ask MAGI for a target plan</h4>
+<p>Ask “what would get us to Grade B?” and MAGI will produce the specific steps — ordered by score impact, not just severity — so your team can work on what actually moves the needle.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- CTA -->
+<section class="section cta-section">
+<div class="container text-center">
+<h2>See your Cyber Hygiene Score in minutes</h2>
+<p class="section__sub">Install MagenSec, enroll your first device, and your Hygiene Score is calculated automatically from the first scan. No configuration. No manual assessments. No waiting.</p>
+<div class="hero__cta-group">
+<a href="../install.html" class="btn-primary">Install MagenSec Free</a>
+<a href="../editions.html" class="btn-secondary">Compare Plans</a>
+</div>
+</div>
+</section>
+
+<!-- FOOTER -->
+<div id="site-footer" data-footer-src="../footer.html"></div>
+<script src="../assets/js/core.js" defer></script>
+<script src="../assets/js/animations.js" defer></script>
+<script src="../assets/js/footer-include.js" defer></script>
+</body>
+</html>

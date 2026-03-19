@@ -604,6 +604,19 @@ export class ApiClient {
         return this.get('/api/v1/admin/accounts', params);
     }
 
+    // === ADMIN - PAYMENTS / INVOICES ===
+    async adminListPendingPayments() {
+        return this.get('/api/v1/admin/payments/pending');
+    }
+
+    async adminApprovePayment(orgId, paymentId, data) {
+        return this.post(`/api/v1/admin/payments/${encodeURIComponent(orgId)}/${encodeURIComponent(paymentId)}/approve`, data);
+    }
+
+    async adminRejectPayment(orgId, paymentId, data) {
+        return this.post(`/api/v1/admin/payments/${encodeURIComponent(orgId)}/${encodeURIComponent(paymentId)}/reject`, data);
+    }
+
     // === ADMIN - MAGICODES ===
     async adminListMagiCodes(params = {}) {
         return this.get('/api/v1/admin/magi-codes', params);
