@@ -10,9 +10,6 @@ import { logger } from '@config';
 const { html } = window;
 const { useState, useEffect, useRef } = window.preactHooks;
 
-// Chart.js instance for device timeline
-let deviceTimelineChart = null;
-
 export function DeviceActivityPage() {
     logger.debug('[Device Activity] Component rendering...');
     
@@ -23,15 +20,44 @@ export function DeviceActivityPage() {
     const [filters, setFilters] = useState({
         deviceId: 'all',
         statusFilter: 'all', // all, success, error
+        responseTimeMin: 'all', // all, 500, 1000, 2000, 2500, 5000
         search: ''
     });
     const scrollObserverRef = useRef(null);
+    const chartRef = useRef(null);
+    const [topSlowCollapsed, setTopSlowCollapsed] = useState(true);
+    const [topSlowSort, setTopSlowSort] = useState({ column: 'p95', direction: 'desc' });
 
     // Extract deviceId from endpoint path
     function extractDeviceId(targetId) {
         // Path format: /api/v1/devices/{deviceId}/heartbeat
         const match = targetId?.match(/\/devices\/([a-f0-9-]+)\//);
         return match ? match[1] : 'N/A';
+    }
+
+    function scrollToTop(evt) {
+        const source = evt?.currentTarget || null;
+        const candidates = [
+            source?.closest('.page-body'),
+            source?.closest('.page-wrapper'),
+            document.querySelector('.page-body'),
+            document.querySelector('.page-wrapper'),
+            document.scrollingElement,
+            document.documentElement,
+            document.body
+        ].filter(Boolean);
+
+        const seen = new Set();
+        candidates.forEach((node) => {
+            if (!node || seen.has(node)) return;
+            seen.add(node);
+            if (typeof node.scrollTo === 'function') {
+                node.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                node.scrollTop = 0;
+            }
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     const [rangeDays, setRangeDays] = useState(7);
     const [page, setPage] = useState(1);
@@ -74,7 +100,7 @@ export function DeviceActivityPage() {
             unsubscribe?.();
             window.removeEventListener('orgChanged', handler);
         };
-    }, [currentOrgId, rangeDays]);
+    }, [currentOrgId, rangeDays, filters.responseTimeMin]);
 
     // Filter events when filters change
     useEffect(() => {
@@ -84,15 +110,15 @@ export function DeviceActivityPage() {
     // Render device timeline chart when filteredEvents or device filter changes (Chart.js)
     useEffect(() => {
         logger.debug('[Device Activity] Chart useEffect triggered, filteredEvents.length:', filteredEvents.length, 'timestamp:', Date.now());
-        
-        // Destroy existing chart first
-        if (deviceTimelineChart) {
+
+        // Destroy existing chart tracked by this component
+        if (chartRef.current) {
             try {
-                deviceTimelineChart.destroy();
-                deviceTimelineChart = null;
-                logger.debug('[Device Activity] Previous chart destroyed');
+                chartRef.current.destroy();
+                chartRef.current = null;
+                logger.debug('[Device Activity] Previous chart (component ref) destroyed');
             } catch (err) {
-                logger.error('[Device Activity] Error destroying chart:', err);
+                logger.error('[Device Activity] Error destroying previous chart ref:', err);
             }
         }
         
@@ -107,6 +133,17 @@ export function DeviceActivityPage() {
             if (!canvas) {
                 logger.error('[Device Activity] Canvas element not found!');
                 return;
+            }
+
+            // Defensive cleanup for any orphaned chart attached to this canvas
+            try {
+                const existingCanvasChart = window.Chart.getChart(canvas);
+                if (existingCanvasChart) {
+                    existingCanvasChart.destroy();
+                    logger.debug('[Device Activity] Orphaned canvas chart destroyed before render');
+                }
+            } catch (err) {
+                logger.error('[Device Activity] Error destroying orphaned canvas chart:', err);
             }
 
             // Sort events by timestamp
@@ -141,7 +178,7 @@ export function DeviceActivityPage() {
             logger.debug('[Device Activity] Data points prepared:', dataPoints.length);
 
             try {
-                deviceTimelineChart = new Chart(canvas, {
+                chartRef.current = new Chart(canvas, {
                     type: 'scatter',
                     data: {
                         datasets: [{
@@ -198,16 +235,34 @@ export function DeviceActivityPage() {
         });
 
         return () => {
-            if (deviceTimelineChart) {
+            if (chartRef.current) {
                 try {
-                    deviceTimelineChart.destroy();
-                    deviceTimelineChart = null;
+                    chartRef.current.destroy();
+                    chartRef.current = null;
                 } catch (err) {
                     logger.error('[Device Activity] Error in cleanup:', err);
                 }
             }
         }
     }, [filteredEvents, filters.deviceId, filteredEvents.length]);
+
+    const getEventMetadata = (evt) => {
+        if (!evt?.metadata) return {};
+        if (typeof evt.metadata === 'string') {
+            try {
+                return JSON.parse(evt.metadata);
+            } catch {
+                return {};
+            }
+        }
+        return typeof evt.metadata === 'object' ? evt.metadata : {};
+    };
+
+    const getEventDuration = (evt) => {
+        const metadata = getEventMetadata(evt);
+        const duration = parseInt(metadata.DurationMs || metadata.durationMs || metadata.elapsedMs || '0', 10);
+        return Number.isNaN(duration) ? 0 : duration;
+    };
 
     async function loadMore() {
         if (!hasMore || loadingMore || !continuationToken) return;
@@ -224,6 +279,10 @@ export function DeviceActivityPage() {
                 days: rangeDays.toString(),
                 continuationToken: continuationToken
             });
+
+            if (filters.responseTimeMin !== 'all') {
+                query.set('minDurationMs', filters.responseTimeMin);
+            }
 
             const res = await api.get(`/api/v1/admin/audit?${query.toString()}`);
 
@@ -258,6 +317,10 @@ export function DeviceActivityPage() {
                 pageSize: eventsPerPage.toString(),
                 days: rangeDays.toString()
             });
+
+            if (filters.responseTimeMin !== 'all') {
+                query.set('minDurationMs', filters.responseTimeMin);
+            }
 
             const res = await api.get(`/api/v1/admin/audit?${query.toString()}`);
             logger.debug('[Device Activity] API response:', res);
@@ -296,11 +359,22 @@ export function DeviceActivityPage() {
         // Status filter (based on metadata success or statusCode)
         if (filters.statusFilter !== 'all') {
             filtered = filtered.filter(e => {
-                const metadata = e.metadata || {};
+                const metadata = getEventMetadata(e);
                 const statusCode = parseInt(metadata.StatusCode || '0');
                 const isSuccess = statusCode >= 200 && statusCode < 300;
                 return filters.statusFilter === 'success' ? isSuccess : !isSuccess;
             });
+        }
+
+        // Response time filter
+        if (filters.responseTimeMin !== 'all') {
+            const minDuration = parseInt(filters.responseTimeMin, 10);
+            if (!Number.isNaN(minDuration)) {
+                filtered = filtered.filter(e => {
+                    const duration = getEventDuration(e);
+                    return !Number.isNaN(duration) && duration >= minDuration;
+                });
+            }
         }
 
         // Search filter (searches description, deviceId, targetId)
@@ -309,7 +383,7 @@ export function DeviceActivityPage() {
             filtered = filtered.filter(e =>
                 e.description?.toLowerCase().includes(searchLower) ||
                 e.targetId?.toLowerCase().includes(searchLower) ||
-                e.metadata?.DeviceId?.toLowerCase().includes(searchLower)
+                getEventMetadata(e)?.DeviceId?.toLowerCase().includes(searchLower)
             );
         }
 
@@ -434,7 +508,58 @@ export function DeviceActivityPage() {
     }
 
     const pageSize = 50;
-    
+    const fleetResponseDurations = events.map(getEventDuration).filter(d => d > 0).sort((a, b) => a - b);
+    const fleetP50Duration = fleetResponseDurations.length > 0
+        ? fleetResponseDurations[Math.floor((fleetResponseDurations.length - 1) * 0.50)]
+        : 0;
+    const fleetP95Duration = fleetResponseDurations.length > 0
+        ? fleetResponseDurations[Math.floor((fleetResponseDurations.length - 1) * 0.95)]
+        : 0;
+
+    // Compute per-device statistics for Top Slow Devices table
+    const deviceStatsMap = {};
+    filteredEvents.forEach(evt => {
+        const deviceId = extractDeviceId(evt.targetId);
+        if (!deviceId || deviceId === 'Unknown') return;
+        const duration = getEventDuration(evt);
+        const metadata = getEventMetadata(evt);
+        const statusCode = parseInt(metadata.StatusCode || '200');
+        const isError = statusCode >= 400;
+        if (!deviceStatsMap[deviceId]) {
+            deviceStatsMap[deviceId] = { deviceId, count: 0, totalDuration: 0, durations: [], errorCount: 0 };
+        }
+        const ds = deviceStatsMap[deviceId];
+        ds.count++;
+        ds.totalDuration += duration;
+        if (duration > 0) ds.durations.push(duration);
+        if (isError) ds.errorCount++;
+    });
+    const topSlowDevices = Object.values(deviceStatsMap).map(d => {
+        const sorted = [...d.durations].sort((a, b) => a - b);
+        const p50 = sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.50)] : 0;
+        const p95 = sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.95)] : 0;
+        const avg = d.count > 0 ? Math.round(d.totalDuration / d.count) : 0;
+        return { ...d, avg, p50, p95 };
+    }).sort((a, b) => b.p95 - a.p95).slice(0, 10);
+
+    const sortedTopSlowDevices = [...topSlowDevices].sort((a, b) => {
+        const av = a[topSlowSort.column] ?? 0;
+        const bv = b[topSlowSort.column] ?? 0;
+        return topSlowSort.direction === 'asc' ? av - bv : bv - av;
+    });
+    const profileMax = sortedTopSlowDevices.length > 0
+        ? Math.max(...sortedTopSlowDevices.map(d => Math.max(d.p50, d.avg, d.p95)), 1)
+        : 1;
+
+    function sortTopSlowBy(column) {
+        setTopSlowSort((prev) => {
+            if (prev.column === column) {
+                return { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { column, direction: 'desc' };
+        });
+    }
+
     // Get unique device IDs
     const uniqueDeviceIds = [...new Set(events.map(e => extractDeviceId(e.targetId)).filter(id => id !== 'N/A'))].sort();
 
@@ -460,7 +585,7 @@ export function DeviceActivityPage() {
             <div class="card mb-3">
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label class="form-label">Time Range</label>
                             <select class="form-select" value=${rangeDays} onChange=${(e) => setRangeDays(Number(e.target.value))}>
                                 <option value="1">Last 24 hours</option>
@@ -484,7 +609,18 @@ export function DeviceActivityPage() {
                                 <option value="error">Error (4xx, 5xx)</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
+                            <label class="form-label">Response Time</label>
+                            <select class="form-select" value=${filters.responseTimeMin} onChange=${(e) => setFilters({...filters, responseTimeMin: e.target.value})}>
+                                <option value="all">All</option>
+                                <option value="500">≥ 500ms</option>
+                                <option value="1000">≥ 1000ms</option>
+                                <option value="2000">≥ 2000ms</option>
+                                <option value="2500">≥ 2500ms</option>
+                                <option value="5000">≥ 5000ms</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
                             <label class="form-label">Search</label>
                             <input type="text" class="form-control" placeholder="Search..." value=${filters.search} 
                                    onChange=${(e) => setFilters({...filters, search: e.target.value})} />
@@ -534,15 +670,23 @@ export function DeviceActivityPage() {
                         <div class="card">
                             <div class="card-body">
                                 <div class="d-flex align-items-center">
-                                    <div class="subheader">Avg Response</div>
+                                    <div class="subheader">Response Time</div>
                                 </div>
                                 <div class="h1 mb-0">
                                     ${filteredEvents.length > 0 ? Math.round(filteredEvents.reduce((sum, e) => {
-                                        const meta = typeof e.metadata === 'string' ? JSON.parse(e.metadata || '{}') : e.metadata || {};
-                                        return sum + parseInt(meta.DurationMs || '0');
+                                        return sum + getEventDuration(e);
                                     }, 0) / filteredEvents.length) : 0}ms
                                 </div>
-                                <div class="text-muted mt-2">Response time</div>
+                                <div class="text-muted mt-2">
+                                    <span class="badge bg-primary text-white me-1">Fleet p50 ${fleetP50Duration}ms</span>
+                                    <i
+                                        class="ti ti-info-circle text-muted"
+                                        title="Average shown above is calculated from the currently filtered events."
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="top"
+                                        aria-label="Average is based on current filters"
+                                    ></i>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -565,6 +709,115 @@ export function DeviceActivityPage() {
                     </div>
                 </div>
                 
+                <!-- Top Slow Devices Table (only meaningful when viewing all devices) -->
+                ${filters.deviceId === 'all' && topSlowDevices.length > 1 ? html`
+                    <div class="card mb-3">
+                        <div class="card-header" style="cursor:pointer;" onClick=${() => setTopSlowCollapsed(!topSlowCollapsed)}>
+                            <h3 class="card-title">
+                                <i class="ti ti-trending-up me-2 text-danger"></i>
+                                Top Slow Devices
+                            </h3>
+                            <div class="card-options">
+                                <span class="badge bg-orange text-white me-1">Fleet p95 ${fleetP95Duration}ms</span>
+                                <span class="badge bg-danger text-white me-2">Worst p95 ${sortedTopSlowDevices[0].p95}ms</span>
+                                <span class="text-muted small me-2">Top ${sortedTopSlowDevices.length} · Click to ${topSlowCollapsed ? 'expand' : 'collapse'}</span>
+                                <i class="ti ti-chevron-${topSlowCollapsed ? 'down' : 'up'}"></i>
+                            </div>
+                        </div>
+                        ${!topSlowCollapsed ? html`
+                            <div class="table-responsive">
+                                <table class="table table-vcenter card-table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Device ID</th>
+                                            <th class="text-center" style="cursor:pointer;" onClick=${() => sortTopSlowBy('count')}>
+                                                Events
+                                                ${topSlowSort.column === 'count' ? html`<i class="ti ti-${topSlowSort.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                            </th>
+                                            <th class="text-center" style="cursor:pointer;" onClick=${() => sortTopSlowBy('avg')}>
+                                                Avg
+                                                ${topSlowSort.column === 'avg' ? html`<i class="ti ti-${topSlowSort.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                            </th>
+                                            <th class="text-center" style="cursor:pointer;" onClick=${() => sortTopSlowBy('p50')}>
+                                                p50
+                                                ${topSlowSort.column === 'p50' ? html`<i class="ti ti-${topSlowSort.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                            </th>
+                                            <th class="text-center" style="cursor:pointer;" onClick=${() => sortTopSlowBy('p95')}>
+                                                p95
+                                                ${topSlowSort.column === 'p95' ? html`<i class="ti ti-${topSlowSort.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                            </th>
+                                            <th style="min-width:140px;">Profile</th>
+                                            <th class="text-center" style="cursor:pointer;" onClick=${() => sortTopSlowBy('errorCount')}>
+                                                Errors
+                                                ${topSlowSort.column === 'errorCount' ? html`<i class="ti ti-${topSlowSort.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                            </th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${sortedTopSlowDevices.map((d, idx) => {
+                                            const p95Color = d.p95 >= 5000 ? 'danger' : d.p95 >= 2000 ? 'warning' : d.p95 >= 1000 ? 'info' : 'success';
+                                            const avgColor = d.avg >= 5000 ? 'danger' : d.avg >= 2000 ? 'warning' : d.avg >= 1000 ? 'info' : 'success';
+                                            const errorRate = d.count > 0 ? Math.round((d.errorCount / d.count) * 100) : 0;
+                                            const p50Pos = Math.min(100, Math.round((d.p50 / profileMax) * 100));
+                                            const avgPos = Math.min(100, Math.round((d.avg / profileMax) * 100));
+                                            const p95Pos = Math.min(100, Math.round((d.p95 / profileMax) * 100));
+                                            return html`
+                                                <tr key=${d.deviceId}>
+                                                    <td>
+                                                        <div class="d-flex align-items-center">
+                                                            <span class="avatar avatar-xs me-2 bg-secondary-lt text-muted">${idx + 1}</span>
+                                                            <div><code class="small">${d.deviceId}</code></div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="badge bg-secondary text-secondary-fg">${d.count}</span>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="badge bg-${avgColor} text-white">${d.avg}ms</span>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="text-muted small">${d.p50}ms</span>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="badge bg-${p95Color} text-white fw-bold">${d.p95}ms</span>
+                                                    </td>
+                                                    <td>
+                                                        <div style="position:relative;height:8px;background:var(--tblr-border-color-translucent, #e9ecef);border-radius:999px;">
+                                                            <span title="p50 ${d.p50}ms" style="position:absolute;left:calc(${p50Pos}% - 4px);top:0;width:8px;height:8px;border-radius:50%;background:#0d6efd;"></span>
+                                                            <span title="avg ${d.avg}ms" style="position:absolute;left:calc(${avgPos}% - 4px);top:0;width:8px;height:8px;border-radius:50%;background:#6c757d;"></span>
+                                                            <span title="p95 ${d.p95}ms" style="position:absolute;left:calc(${p95Pos}% - 4px);top:0;width:8px;height:8px;border-radius:50%;background:#f76707;"></span>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between mt-1" style="font-size:9px;">
+                                                            <span class="text-primary">p50</span>
+                                                            <span class="text-muted">avg</span>
+                                                            <span class="text-warning">p95</span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        ${d.errorCount > 0 ? html`
+                                                            <span class="badge bg-danger text-white">${d.errorCount} (${errorRate}%)</span>
+                                                        ` : html`
+                                                            <span class="text-muted small">—</span>
+                                                        `}
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <button class="btn btn-sm btn-ghost-secondary"
+                                                                title="Filter to this device"
+                                                                onClick=${() => setFilters({...filters, deviceId: d.deviceId})}>
+                                                            <i class="ti ti-filter"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            `;
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : null}
+                    </div>
+                ` : null}
+
                 <!-- Timeline Chart -->
                 <div class="card mb-3">
                     <div class="card-body">
@@ -604,7 +857,7 @@ export function DeviceActivityPage() {
             <button 
                 class="btn btn-primary btn-icon position-fixed bottom-0 end-0 m-3" 
                 style="z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.2);"
-                onClick=${() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                onClick=${scrollToTop}
                 title="Go to Top"
             >
                 <i class="ti ti-arrow-up"></i>

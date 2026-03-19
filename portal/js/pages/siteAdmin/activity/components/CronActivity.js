@@ -632,7 +632,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                     <div class="card-body">
                                         <div class="text-muted small mb-2">Last Activity</div>
                                         <div class="small mb-0">${lastEventTime}</div>
-                                        ${lastEvent && html`<span class="badge bg-${(lastEvent.eventType === 'SECURITY_REPORT' && (lastEvent.subType === 'SecurityReportFailed' || lastEvent.subType === 'FAILED')) ? 'danger' : 'success'}-lt mt-2 mt-sm-0">${(() => {
+                                        ${lastEvent && html`<span class="badge bg-${(lastEvent.eventType === 'SECURITY_REPORT' && (lastEvent.subType === 'SecurityReportFailed' || lastEvent.subType === 'FAILED')) ? 'danger' : 'success'}-lt text-${(lastEvent.eventType === 'SECURITY_REPORT' && (lastEvent.subType === 'SecurityReportFailed' || lastEvent.subType === 'FAILED')) ? 'danger' : 'success'} mt-2 mt-sm-0">${(() => {
                                             if (lastEvent.eventType === 'CRONRUN') {
                                                 return (lastEvent.subType === 'CronRunManual' || lastEvent.subType === 'Manual')
                                                     ? `Manual: ${lastEvent.metadata?.taskId || 'Unknown'}`

@@ -29,6 +29,31 @@ function getChartForeColor() {
 
 export function ApiAuditPage() {
     logger.debug('[API Audit] Component rendering...');
+
+    function scrollToTop(evt) {
+        const source = evt?.currentTarget || null;
+        const candidates = [
+            source?.closest('.page-body'),
+            source?.closest('.page-wrapper'),
+            document.querySelector('.page-body'),
+            document.querySelector('.page-wrapper'),
+            document.scrollingElement,
+            document.documentElement,
+            document.body
+        ].filter(Boolean);
+
+        const seen = new Set();
+        candidates.forEach((node) => {
+            if (!node || seen.has(node)) return;
+            seen.add(node);
+            if (typeof node.scrollTo === 'function') {
+                node.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                node.scrollTop = 0;
+            }
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -41,6 +66,7 @@ export function ApiAuditPage() {
         endpoint: 'all',
         user: 'all',
         statusFilter: 'all', // all, success, error
+        responseTimeMin: 'all', // all, 500, 1000, 2000, 2500, 5000
         search: ''
     });
     const [sortConfig, setSortConfig] = useState({
@@ -52,7 +78,9 @@ export function ApiAuditPage() {
     const [hasMore, setHasMore] = useState(false);
     const [continuationToken, setContinuationToken] = useState(null);
     const [expandedEvent, setExpandedEvent] = useState(null);
+    const [topSlowCollapsed, setTopSlowCollapsed] = useState(true);
     const chartRef = useRef(null);
+    const chartEventsRef = useRef([]);
     const scrollObserverRef = useRef(null);
     const eventsPerPage = 100;
     const currentOrgId = orgContext.getCurrentOrg()?.orgId;
@@ -90,7 +118,7 @@ export function ApiAuditPage() {
             unsubscribe?.();
             window.removeEventListener('orgChanged', handler);
         };
-    }, [currentOrgId, rangeDays]);
+    }, [currentOrgId, rangeDays, filters.responseTimeMin]);
 
     // Filter events when filters change
     useEffect(() => {
@@ -139,6 +167,10 @@ export function ApiAuditPage() {
             if (!reset && continuationToken) {
                 query.set('continuationToken', continuationToken);
                 logger.debug('[API Audit] Using continuation token:', continuationToken);
+            }
+
+            if (filters.responseTimeMin !== 'all') {
+                query.set('minDurationMs', filters.responseTimeMin);
             }
 
             const res = await api.get(`/api/v1/admin/audit?${query.toString()}`);
@@ -230,6 +262,18 @@ export function ApiAuditPage() {
                 const endpoint = parseEndpointPath(e.targetId);
                 return endpoint.endpoint === filters.endpoint;
             });
+        }
+
+        // Response time filter (client-side backup in case backend page misses without token)
+        if (filters.responseTimeMin !== 'all') {
+            const minDuration = parseInt(filters.responseTimeMin, 10);
+            if (!Number.isNaN(minDuration)) {
+                filtered = filtered.filter(e => {
+                    const meta = parseMetadata(e.metadata);
+                    const duration = parseInt(meta.DurationMs || meta.durationMs || meta.elapsedMs || '0', 10);
+                    return !Number.isNaN(duration) && duration >= minDuration;
+                });
+            }
         }
 
         // Search filter
@@ -441,6 +485,7 @@ export function ApiAuditPage() {
         
         // Take last 100 events for chart
         const chartEvents = sortedEvents.slice(-100);
+        chartEventsRef.current = chartEvents;
 
         const durations = [];
         const statusCodesByTime = [];
@@ -475,7 +520,22 @@ export function ApiAuditPage() {
                 height: 350,
                 toolbar: { show: false },
                 zoom: { enabled: false },
-                foreColor
+                foreColor,
+                events: {
+                    dataPointSelection: (event, chartContext, config) => {
+                        // Only respond to duration series (index 0 = columns)
+                        if (config.seriesIndex === 0 && config.dataPointIndex >= 0) {
+                            const chartEvt = chartEventsRef.current[config.dataPointIndex];
+                            if (chartEvt) {
+                                setExpandedEvent(chartEvt.eventId);
+                                setTimeout(() => {
+                                    const row = document.querySelector(`[data-event-id="${chartEvt.eventId}"]`);
+                                    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 150);
+                            }
+                        }
+                    }
+                }
             },
             series: [
                 {
@@ -653,7 +713,34 @@ export function ApiAuditPage() {
     const orgIds = [...new Set(events.map(e => parseEndpointPath(e.targetId).orgId).filter(o => o !== 'N/A'))].sort();
     const deviceIds = [...new Set(events.map(e => parseEndpointPath(e.targetId).deviceId).filter(d => d !== 'N/A'))].sort();
     const endpoints = [...new Set(events.map(e => parseEndpointPath(e.targetId).endpoint).filter(Boolean))].sort();
-    
+
+    // Per-endpoint latency stats for Top Slow Endpoints table
+    const endpointStatsMap = {};
+    filteredEvents.forEach(evt => {
+        const ep = parseEndpointPath(evt.targetId).endpoint;
+        if (!ep || ep === 'ROOT') return;
+        const meta = parseMetadata(evt.metadata);
+        const duration = parseInt(meta.DurationMs || meta.durationMs || meta.elapsedMs || '0', 10);
+        const statusCode = parseInt(meta.StatusCode || '200', 10);
+        const isError = statusCode >= 400;
+        if (!endpointStatsMap[ep]) {
+            endpointStatsMap[ep] = { endpoint: ep, count: 0, totalDuration: 0, durations: [], errorCount: 0 };
+        }
+        const ds = endpointStatsMap[ep];
+        ds.count++;
+        ds.totalDuration += Number.isNaN(duration) ? 0 : duration;
+        if (!Number.isNaN(duration) && duration > 0) ds.durations.push(duration);
+        if (isError) ds.errorCount++;
+    });
+    const topSlowEndpoints = Object.values(endpointStatsMap).map(d => {
+        const sorted = [...d.durations].sort((a, b) => a - b);
+        const p50 = sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.50)] : 0;
+        const p95 = sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.95)] : 0;
+        const avg = d.count > 0 ? Math.round(d.totalDuration / d.count) : 0;
+        return { ...d, avg, p50, p95 };
+    }).sort((a, b) => b.p95 - a.p95).slice(0, 10);
+    const epMaxP95 = topSlowEndpoints.length > 0 ? Math.max(topSlowEndpoints[0].p95, 1) : 1;
+
     // Debug logging
     if (events.length > 0) {
         logger.debug('[API Audit] Sample events:', events.slice(0, 3).map(e => {
@@ -810,7 +897,18 @@ export function ApiAuditPage() {
                         </div>
                     </div>
                     <div class="row g-2">
-                        <div class="col-md-12">
+                        <div class="col-md-2">
+                            <label class="form-label">Response Time</label>
+                            <select class="form-select" value=${filters.responseTimeMin} onChange=${(e) => setFilters({ ...filters, responseTimeMin: e.target.value })}>
+                                <option value="all">All</option>
+                                <option value="500">≥ 500ms</option>
+                                <option value="1000">≥ 1000ms</option>
+                                <option value="2000">≥ 2000ms</option>
+                                <option value="2500">≥ 2500ms</option>
+                                <option value="5000">≥ 5000ms</option>
+                            </select>
+                        </div>
+                        <div class="col-md-10">
                             <label class="form-label">Search</label>
                             <input 
                                 type="text" 
@@ -823,6 +921,95 @@ export function ApiAuditPage() {
                     </div>
                 </div>
             </div>
+
+            <!-- Top Slow Endpoints -->
+            ${topSlowEndpoints.length > 1 ? html`
+                <div class="card mb-3">
+                    <div class="card-header" style="cursor:pointer;" onClick=${() => setTopSlowCollapsed(!topSlowCollapsed)}>
+                        <h3 class="card-title">
+                            <i class="ti ti-trending-up me-2 text-danger"></i>
+                            Top Slow Endpoints
+                        </h3>
+                        <div class="card-options">
+                            <span class="text-muted small me-2">Sorted by p95 · Top ${topSlowEndpoints.length}</span>
+                            <i class="ti ti-chevron-${topSlowCollapsed ? 'down' : 'up'}"></i>
+                        </div>
+                    </div>
+                    ${!topSlowCollapsed ? html`
+                        <div class="table-responsive">
+                            <table class="table table-vcenter card-table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Endpoint</th>
+                                        <th class="text-center">Calls</th>
+                                        <th class="text-center">Avg</th>
+                                        <th class="text-center">p50</th>
+                                        <th class="text-center">p95</th>
+                                        <th>Latency</th>
+                                        <th class="text-center">Errors</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${topSlowEndpoints.map((d, idx) => {
+                                        const p95Color = d.p95 >= 5000 ? 'danger' : d.p95 >= 2000 ? 'warning' : d.p95 >= 1000 ? 'info' : 'success';
+                                        const avgColor = d.avg >= 5000 ? 'danger' : d.avg >= 2000 ? 'warning' : d.avg >= 1000 ? 'info' : 'success';
+                                        const errorRate = d.count > 0 ? Math.round((d.errorCount / d.count) * 100) : 0;
+                                        const p50Pct = Math.min(100, Math.round((d.p50 / epMaxP95) * 100));
+                                        const p95Pct = Math.min(100, Math.round((d.p95 / epMaxP95) * 100));
+                                        return html`
+                                            <tr key=${d.endpoint}>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="avatar avatar-xs me-2 bg-secondary-lt text-muted">${idx + 1}</span>
+                                                        <strong class="small">${d.endpoint}</strong>
+                                                    </div>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-secondary text-secondary-fg">${d.count}</span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-${avgColor} text-white">${d.avg}ms</span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="text-muted small">${d.p50}ms</span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-${p95Color} text-white fw-bold">${d.p95}ms</span>
+                                                </td>
+                                                <td style="min-width:100px;">
+                                                    <div style="position:relative;height:6px;background:var(--tblr-border-color-translucent, #e9ecef);border-radius:3px;">
+                                                        <div style="position:absolute;left:0;top:0;height:6px;width:${p95Pct}%;background:rgba(247,103,7,0.35);border-radius:3px;"></div>
+                                                        <div style="position:absolute;left:0;top:0;height:6px;width:${p50Pct}%;background:#0d6efd;border-radius:3px;"></div>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mt-1" style="font-size:9px;">
+                                                        <span class="text-primary">p50</span>
+                                                        <span class="text-warning">p95</span>
+                                                    </div>
+                                                </td>
+                                                <td class="text-center">
+                                                    ${d.errorCount > 0 ? html`
+                                                        <span class="badge bg-danger text-white">${d.errorCount} (${errorRate}%)</span>
+                                                    ` : html`
+                                                        <span class="text-muted small">—</span>
+                                                    `}
+                                                </td>
+                                                <td class="text-end">
+                                                    <button class="btn btn-sm btn-ghost-secondary"
+                                                            title="Filter to this endpoint"
+                                                            onClick=${() => setFilters({ ...filters, endpoint: d.endpoint })}>
+                                                        <i class="ti ti-filter"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : null}
+                </div>
+            ` : null}
 
             <!-- Events Table -->
             <div class="card">
@@ -890,7 +1077,7 @@ export function ApiAuditPage() {
                                 })();
 
                                 return html`
-                                    <tr key=${event.eventId}>
+                                    <tr key=${event.eventId} data-event-id=${event.eventId}>
                                         <td class="text-muted">${formatTimestamp(event.timestamp)}</td>
                                         <td>${getHttpMethodBadge(httpMethod)}</td>
                                         <td class="small"><code>${endpoint.orgId}</code></td>
@@ -1044,7 +1231,7 @@ export function ApiAuditPage() {
             <button 
                 class="btn btn-primary btn-icon position-fixed bottom-0 end-0 m-3" 
                 style="z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.2);"
-                onClick=${() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                onClick=${scrollToTop}
                 title="Go to Top"
             >
                 <i class="ti ti-arrow-up"></i>

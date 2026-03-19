@@ -591,7 +591,7 @@ export function AiReportsAnalysisPage() {
                                             const totalTime = r.enqueuedAt && r.completedAt ? new Date(r.completedAt) - new Date(r.enqueuedAt) : 0;
                                             const triggerSource = r.triggerSource || 'System';
                                             const performedBy = r.performedBy || 'system';
-                                            const triggerBadge = triggerSource === 'User' ? 'bg-info-lt' : 'bg-secondary-lt';
+                                            const triggerBadge = triggerSource === 'User' ? 'bg-info-lt text-info' : 'bg-secondary-lt text-secondary';
                                             return html`
                                                 <tr>
                                                     <td class="fw-semibold">${r.partitionKey || 'unknown'}</td>
