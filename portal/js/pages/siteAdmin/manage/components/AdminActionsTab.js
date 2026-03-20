@@ -213,8 +213,31 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 title: 'Business',
                 description: 'Downstream and platform-level derived artifacts: AI snapshots, report generation, and business/platform aggregates.',
                 jobs: [
-                    mkJob({ groupId: 'business', jobId: 'ai-snapshots', title: 'AI Snapshots', description: 'Daily per-org AI snapshot generation, driven by Org Data readiness markers.', taskId: null, supportsOrg: true, supportsRange: true, availabilityNote: 'This capability is currently executed as part of Org Data.' }),
-                    mkJob({ groupId: 'business', jobId: 'reports', title: 'Reports', description: 'Daily and weekly report generation, separate from send-only communications.', taskId: null, supportsOrg: true, supportsRange: true, availabilityNote: 'This capability is currently orchestrated by existing report jobs.' }),
+                    mkJob({
+                        groupId: 'business',
+                        jobId: 'ai-snapshots',
+                        title: 'AI Snapshots',
+                        description: 'Generate/repair AI snapshots using Org Data pipeline controls.',
+                        taskId: 'Org Data Cook',
+                        supportsOrg: true,
+                        supportsRange: true,
+                        supportsMode: true,
+                        modes: [
+                            { value: 'BuildMissing', label: 'Build Missing', description: 'Generate only missing AI snapshot artifacts for the selected scope.' },
+                            { value: 'BuildAll', label: 'Build All', description: 'Regenerate AI snapshot artifacts for the selected scope.' },
+                            { value: 'ClearAndBuildAll', label: 'Clear And Build', description: 'Clear generated artifacts, then rebuild AI snapshots for the selected scope.' }
+                        ],
+                        defaultMode: 'BuildMissing'
+                    }),
+                    mkJob({
+                        groupId: 'business',
+                        jobId: 'reports',
+                        title: 'Reports',
+                        description: 'Backfill missing generated report artifacts across the historical horizon.',
+                        taskId: 'Report Backfill',
+                        supportsOrg: false,
+                        supportsRange: false
+                    }),
                     mkJob({
                         groupId: 'business',
                         jobId: 'business-data',
