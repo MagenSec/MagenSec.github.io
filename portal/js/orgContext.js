@@ -9,6 +9,7 @@ import { logger } from './config.js';
 
 class OrgContext {
     constructor() {
+        this.bannerDismissTtlMs = 24 * 60 * 60 * 1000;
         this.currentOrg = null;
         this.availableOrgs = [];
         this.listeners = [];
@@ -409,26 +410,51 @@ class OrgContext {
                         <div>${detail}</div>
                     </div>
                 </div>
-                <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+                <button type="button" class="btn-close" data-org-banner-dismiss="true" aria-label="close"></button>
             </div>`;
 
+        const bindDismissHandler = (statusKey) => {
+            const closeBtn = alertEl.querySelector('[data-org-banner-dismiss="true"]');
+            if (!closeBtn) return;
+            closeBtn.addEventListener('click', () => {
+                this.markBannerDismissed(org.orgId, statusKey);
+                banner.style.display = 'none';
+            }, { once: true });
+        };
+
+        const shouldHideDismissed = (statusKey) => this.isBannerDismissed(org.orgId, statusKey);
+
         if (isDisabled) {
+            if (shouldHideDismissed('disabled')) {
+                banner.style.display = 'none';
+                return;
+            }
             alertEl.innerHTML = buildAlert(
                 'alert-danger',
                 iconBan,
                 'Account Disabled',
                 'This organization has been disabled. Contact <a href="mailto:support@magensec.com" class="text-reset fw-bold text-decoration-underline">support@magensec.com</a> to reinstate access.'
             );
+            bindDismissHandler('disabled');
             banner.style.display = 'block';
         } else if (isExpired) {
+            if (shouldHideDismissed('expired')) {
+                banner.style.display = 'none';
+                return;
+            }
             alertEl.innerHTML = buildAlert(
                 'alert-danger',
                 iconAlertCircle,
                 'License Expired',
                 'Your MagenSec license has no remaining credits. <a href="#!/account" class="text-reset fw-bold text-decoration-underline">Renew now</a> to restore full access.'
             );
+            bindDismissHandler('expired');
             banner.style.display = 'block';
         } else if (isExpiring) {
+            if (shouldHideDismissed('expiring')) {
+                banner.style.display = 'none';
+                return;
+            }
             const days = Math.floor(org.remainingCredits / (totalSeats || 1));
             alertEl.innerHTML = buildAlert(
                 'alert-warning',
@@ -436,9 +462,45 @@ class OrgContext {
                 'License Expiring Soon',
                 `Approximately ${days} day${days !== 1 ? 's' : ''} of credits remaining. <a href="#!/account" class="text-reset fw-bold text-decoration-underline">Renew now</a> to avoid interruption.`
             );
+            bindDismissHandler('expiring');
             banner.style.display = 'block';
         } else {
             banner.style.display = 'none';
+        }
+    }
+
+    getBannerDismissKey(orgId, statusKey) {
+        return `org_status_banner_dismissed:${orgId}:${statusKey}`;
+    }
+
+    isBannerDismissed(orgId, statusKey) {
+        if (!orgId || !statusKey) return false;
+        try {
+            const key = this.getBannerDismissKey(orgId, statusKey);
+            const raw = localStorage.getItem(key);
+            if (!raw) return false;
+            const dismissedAt = Number(raw);
+            if (!Number.isFinite(dismissedAt) || dismissedAt <= 0) {
+                localStorage.removeItem(key);
+                return false;
+            }
+            const expired = (Date.now() - dismissedAt) >= this.bannerDismissTtlMs;
+            if (expired) {
+                localStorage.removeItem(key);
+                return false;
+            }
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    markBannerDismissed(orgId, statusKey) {
+        if (!orgId || !statusKey) return;
+        try {
+            localStorage.setItem(this.getBannerDismissKey(orgId, statusKey), String(Date.now()));
+        } catch {
+            // Best-effort persistence only.
         }
     }
 

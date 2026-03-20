@@ -731,6 +731,41 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
+  renderBillingNoticeBanner() {
+    const notice = this.state?.data?.billingNotice;
+    if (!notice || notice.visible === false) return null;
+
+    const severity = (notice.severity || '').toLowerCase();
+    const alertClass = severity === 'critical'
+      ? 'alert-danger'
+      : severity === 'warning'
+        ? 'alert-warning'
+        : 'alert-info';
+
+    const daysRemaining = typeof notice.daysRemaining === 'number'
+      ? notice.daysRemaining
+      : null;
+    const metaParts = [];
+
+    if (notice.invoiceId) metaParts.push(`Invoice: ${notice.invoiceId}`);
+    if (notice.paymentRequestId) metaParts.push(`Payment: ${notice.paymentRequestId}`);
+    if (daysRemaining !== null) {
+      if (daysRemaining < 0) metaParts.push(`Expired ${Math.abs(daysRemaining)} day(s) ago`);
+      else if (daysRemaining === 0) metaParts.push('Expires today');
+      else metaParts.push(`${daysRemaining} day(s) remaining`);
+    }
+
+    return html`
+      <div class=${`alert ${alertClass} mb-4 border-0 shadow-sm rounded-3`} role="alert" aria-live="polite">
+        <div class="d-flex flex-column gap-1">
+          <div class="fw-semibold">${notice.title || 'License billing update'}</div>
+          <div>${notice.message || 'Renewal invoice is generated and emailed to business contacts.'}</div>
+          ${metaParts.length > 0 ? html`<div class="small opacity-75">${metaParts.join(' | ')}</div>` : null}
+        </div>
+      </div>
+    `;
+  }
+
   renderSearchHeader() {
     const { data, aiLoading, aiAnswer, aiError, refreshing } = this.state;
     const secScore = typeof data?.securityScore?.score === 'number' ? data.securityScore.score : 0;
@@ -2145,6 +2180,7 @@ export default class UnifiedDashboard extends Component {
       <div style="min-height: 100vh;">
         ${this.renderSecurityOfficerDrawer()}
         ${this.renderRefreshBanner()}
+        ${this.renderBillingNoticeBanner()}
         ${this.renderSearchHeader()}
         <${PersonaNav}
           activePersona=${this.state.activePersona}
