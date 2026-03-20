@@ -67,6 +67,7 @@ export function PeerBenchmarkPage() {
         addOnKey="PeerBenchmark"
         title="Peer Benchmark"
         endpoint="/api/v1/orgs/{orgId}/add-ons/peer-benchmark"
+        responseDataKey="peerBenchmark"
         isEnabled=${isEnabled}
         upgradeDesc="See how your security posture compares to sector peers. Available on BusinessUltimate."
         upgradeIcon="ti-chart-dots-3"

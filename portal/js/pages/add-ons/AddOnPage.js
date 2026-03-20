@@ -44,7 +44,7 @@ function UpgradeWall({ name, description, icon = 'ti-stars' }) {
  */
 export function AddOnPage({
     addOnKey, title, pretitle = 'Add-ons', endpoint,
-    isEnabled, upgradeDesc, upgradeIcon, renderContent
+    isEnabled, upgradeDesc, upgradeIcon, renderContent, responseDataKey = null
 }) {
     const [loading, setLoading] = useState(true);
     const [data, setData]       = useState(null);
@@ -65,8 +65,14 @@ export function AddOnPage({
             const path = endpoint.replace('{orgId}', encodeURIComponent(orgId));
             const resp = await api.get(path);
             if (!resp?.success) throw new Error(resp?.message || 'API error');
-            setData(resp.data);
-            setMeta({ cachedFromStore: resp.cachedFromStore, computedAt: resp.computedAt, schemaVersion: resp.schemaVersion });
+            const envelope = resp?.data || {};
+            const payload = responseDataKey ? (envelope?.[responseDataKey] ?? null) : envelope;
+            setData(payload);
+            setMeta({
+                cachedFromStore: envelope?.cachedFromStore ?? false,
+                computedAt: envelope?.computedAt || payload?.computedAt || payload?.snapshotDate || payload?.weekStartDate || null,
+                schemaVersion: envelope?.schemaVersion || null
+            });
         } catch (ex) {
             logger.error(`[AddOn:${addOnKey}] load failed`, ex);
             setError(ex.message || 'Failed to load data');

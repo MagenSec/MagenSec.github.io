@@ -36,6 +36,11 @@ export default class UnifiedDashboard extends Component {
       aiAnswer: null,
       aiLoading: false,
       aiError: null,
+      addOnSignals: {
+        loading: false,
+        peerBenchmark: null,
+        hygieneCoach: null
+      },
       cyberHygieneCollapsed: true,
       officerNoteOpen: false,
       officerNoteDismissed: false
@@ -215,6 +220,7 @@ export default class UnifiedDashboard extends Component {
       if (normalizedData) {
         normalizedData = await this.normalizeDashboardStats(orgId, normalizedData);
         this.setCachedDashboard(cacheKey, normalizedData);
+        this.loadAddOnSignals(orgId);
       }
 
       this.setState(prevState => ({
@@ -251,6 +257,122 @@ export default class UnifiedDashboard extends Component {
         isRefreshingInBackground: false
       });
     }
+  }
+
+  async loadAddOnSignals(orgId) {
+    const canBenchmark = orgContext.hasPeerBenchmark?.() ?? false;
+    const canCoach = orgContext.hasHygieneCoach?.() ?? false;
+
+    if (!canBenchmark && !canCoach) {
+      this.setState({ addOnSignals: { loading: false, peerBenchmark: null, hygieneCoach: null } });
+      return;
+    }
+
+    this.setState((prevState) => ({
+      addOnSignals: {
+        ...prevState.addOnSignals,
+        loading: true
+      }
+    }));
+
+    const requests = [
+      canBenchmark
+        ? api.get(`/api/v1/orgs/${encodeURIComponent(orgId)}/add-ons/peer-benchmark`)
+            .then((resp) => resp?.data?.peerBenchmark || null)
+            .catch(() => null)
+        : Promise.resolve(null),
+      canCoach
+        ? api.get(`/api/v1/orgs/${encodeURIComponent(orgId)}/add-ons/hygiene-coach`)
+            .then((resp) => resp?.data?.hygieneCoach || null)
+            .catch(() => null)
+        : Promise.resolve(null)
+    ];
+
+    const [peerBenchmark, hygieneCoach] = await Promise.all(requests);
+    const activeOrgId = orgContext.getCurrentOrg()?.orgId || auth.getUser()?.email;
+    if (activeOrgId !== orgId) {
+      return;
+    }
+
+    this.setState({
+      addOnSignals: {
+        loading: false,
+        peerBenchmark,
+        hygieneCoach
+      }
+    });
+  }
+
+  renderAddOnSpotlights() {
+    const { addOnSignals } = this.state;
+    const peer = addOnSignals?.peerBenchmark;
+    const coach = addOnSignals?.hygieneCoach;
+
+    if (!peer && !coach && !addOnSignals?.loading) {
+      return null;
+    }
+
+    const cardStyle = 'height:100%;background:rgba(255,255,255,0.82);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(148,163,184,0.18);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(15,23,42,0.08);';
+
+    return html`
+      <div style="max-width: 960px; margin: 18px auto 0; position: relative;">
+        <div class="row g-3">
+          ${peer || addOnSignals?.loading ? html`
+            <div class="col-12 col-lg-6">
+              <div style=${cardStyle}>
+                <div class="d-flex align-items-start justify-content-between mb-3">
+                  <div>
+                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6366f1;">Peer Benchmark</div>
+                    <div style="font-size:1.1rem;font-weight:700;color:#111827;">${peer ? `Ahead of ${peer.scorePercentile ?? 0}% of peers` : 'Loading benchmark signal...'}</div>
+                  </div>
+                  <span class="badge bg-primary text-white">${peer ? `${peer.orgScore ?? 0} score` : '...'}</span>
+                </div>
+                <div style="color:#4b5563;font-size:0.88rem;line-height:1.5;">
+                  ${peer
+                    ? `Sector median is ${peer.sectorMedianScore ?? 0}. Cohort: ${peer.sector || 'General'} · ${peer.cohortSize ?? 0} organizations.`
+                    : 'Pulling the latest cohort position for this organization.'}
+                </div>
+                ${peer?.topGapDomains?.length > 0 ? html`
+                  <div class="mt-3 d-flex flex-wrap gap-1">
+                    ${peer.topGapDomains.slice(0, 3).map((domain) => html`<span class="badge bg-warning-lt text-warning">${domain}</span>`)}
+                  </div>
+                ` : null}
+                <div class="mt-3">
+                  <a href="#!/add-ons/peer-benchmark" class="btn btn-sm btn-outline-primary">Open Benchmark</a>
+                </div>
+              </div>
+            </div>
+          ` : null}
+
+          ${coach || addOnSignals?.loading ? html`
+            <div class="col-12 col-lg-6">
+              <div style=${cardStyle}>
+                <div class="d-flex align-items-start justify-content-between mb-3">
+                  <div>
+                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0f766e;">Hygiene Coach</div>
+                    <div style="font-size:1.1rem;font-weight:700;color:#111827;">${coach?.homeworkItems?.[0]?.actionTitle || 'Loading this week\'s homework...'}</div>
+                  </div>
+                  <span class="badge bg-success text-white">${coach ? `${coach.currentStreak ?? 0} week streak` : '...'}</span>
+                </div>
+                <div style="color:#4b5563;font-size:0.88rem;line-height:1.5;">
+                  ${coach
+                    ? (coach.coachMessage || 'Fresh coaching guidance is available for this week.')
+                    : 'Pulling the latest weekly coaching plan for this organization.'}
+                </div>
+                ${coach?.homeworkItems?.[0] ? html`
+                  <div class="mt-3 text-muted" style="font-size:0.82rem;">
+                    Impact +${Number(coach.homeworkItems[0].impactScore || 0).toFixed(1)} · ${coach.homeworkItems[0].estimatedDaysToComplete ?? 0} day${coach.homeworkItems[0].estimatedDaysToComplete === 1 ? '' : 's'} to complete
+                  </div>
+                ` : null}
+                <div class="mt-3">
+                  <a href="#!/add-ons/hygiene-coach" class="btn btn-sm btn-outline-success">Open Coach</a>
+                </div>
+              </div>
+            </div>
+          ` : null}
+        </div>
+      </div>
+    `;
   }
 
   fleetStatsNeedHydration(data) {
@@ -940,6 +1062,8 @@ export default class UnifiedDashboard extends Component {
               ` : ''}
             </div>
           </div>
+
+          ${this.renderAddOnSpotlights()}
 
         </div>
       </div>

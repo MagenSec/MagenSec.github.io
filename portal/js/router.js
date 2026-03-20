@@ -25,6 +25,15 @@ function guardPersonalRestrictedRoute(ctx, page) {
     return false;
 }
 
+function guardAddOnRoute(page, addOnKey) {
+    const hasAddOn = window.orgContext?.hasAddOn?.(addOnKey);
+    if (!hasAddOn) {
+        redirectToHome(page);
+        return true;
+    }
+    return false;
+}
+
 export function initRouter(renderApp) {
     const page = window.page || window.Page;
     
@@ -221,26 +230,31 @@ export function initRouter(renderApp) {
     page('/add-ons/peer-benchmark', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
         if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardAddOnRoute(page, 'PeerBenchmark')) return;
         renderApp({ page: 'add-on/peer-benchmark', ctx });
     });
     page('/add-ons/hygiene-coach', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
         if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardAddOnRoute(page, 'HygieneCoach')) return;
         renderApp({ page: 'add-on/hygiene-coach', ctx });
     });
     page('/add-ons/insurance-readiness', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
         if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardAddOnRoute(page, 'InsuranceReadiness')) return;
         renderApp({ page: 'add-on/insurance-readiness', ctx });
     });
     page('/add-ons/compliance-plus', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
         if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardAddOnRoute(page, 'CompliancePlus')) return;
         renderApp({ page: 'add-on/compliance-plus', ctx });
     });
     page('/add-ons/supply-chain-intel', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
         if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardAddOnRoute(page, 'SupplyChainIntel')) return;
         renderApp({ page: 'add-on/supply-chain-intel', ctx });
     });
 
