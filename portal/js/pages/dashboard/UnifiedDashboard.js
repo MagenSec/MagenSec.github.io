@@ -1501,8 +1501,9 @@ export default class UnifiedDashboard extends Component {
     ];
     const barColor = v => v >= 80 ? '#16a34a' : v >= 60 ? '#d97706' : '#dc2626';
     const topGap = pillars
-      .map((p) => ({ ...p, delta: Math.abs((p.value || 0) - displayScore) }))
-      .sort((a, b) => b.delta - a.delta)[0];
+      .slice()
+      .sort((a, b) => (a.value || 0) - (b.value || 0))
+      .find(p => (p.value || 0) < 100) || null;
 
     const threats = data?.securityPro?.threatIntel || {};
     const fleet = this.getFleetStats(data);
