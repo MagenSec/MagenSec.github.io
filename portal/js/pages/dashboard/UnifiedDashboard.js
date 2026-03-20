@@ -303,7 +303,7 @@ export default class UnifiedDashboard extends Component {
     const itTotalApps = Number(data?.itAdmin?.inventory?.totalApps || 0);
     const hasAppRisks = Array.isArray(data?.itAdmin?.appRisks) && data.itAdmin.appRisks.length > 0;
 
-    return tracked <= 20 || itTotalApps <= 20 || (tracked > 0 && vulnerable === 0) || !hasAppRisks;
+    return tracked <= 0 || itTotalApps <= 0 || (tracked > 0 && vulnerable === 0) || !hasAppRisks;
   }
 
   deriveAppStatsFromInventoryPayload(inventoryPayload) {
@@ -409,7 +409,7 @@ export default class UnifiedDashboard extends Component {
 
     if (this.appStatsNeedHydration(normalized)) {
       try {
-        const inventoryResponse = await api.getSoftwareInventory(orgId);
+        const inventoryResponse = await api.getSoftwareInventory(orgId, { includeCachedSummary: true });
         const inventoryPayload = inventoryResponse?.data || inventoryResponse;
         const appStats = this.deriveAppStatsFromInventoryPayload(inventoryPayload);
         const derivedAppRisks = this.buildAppRisksFromInventoryPayload(inventoryPayload);
@@ -601,7 +601,15 @@ export default class UnifiedDashboard extends Component {
     }).length;
     const offlineByStatus = health.filter((d) => {
       const s = normalize(d?.status);
-      return s === 'offline' || s === 'stale';
+      const visibility = normalize(d?.visibilityState);
+      return s === 'offline'
+        || s === 'stale'
+        || s === 'degraded'
+        || s === 'dormant'
+        || s === 'ghosted'
+        || visibility === 'stale'
+        || visibility === 'dormant'
+        || visibility === 'ghosted';
     }).length;
 
     const total = rawTotal > 0
@@ -992,7 +1000,7 @@ export default class UnifiedDashboard extends Component {
               <span style="font-size:0.82rem;color:var(--db-slash-color);">/ ${totalDevices}</span>
             </div>
             <div style="${sub}${offlineDevices > 0 ? 'color:#d97706;' : ''}">
-              ${offlineDevices > 0 ? `${offlineDevices} offline` : '✓ All healthy'}
+              ${offlineDevices > 0 ? `${offlineDevices} at risk` : '✓ All healthy'}
             </div>
           </div>
         </div>
@@ -1510,7 +1518,7 @@ export default class UnifiedDashboard extends Component {
     const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
     const isCollapsedDesktop = cyberHygieneCollapsed && !isSmallScreen;
     const wrapperStyle = embedded
-      ? `max-width: ${isCollapsedDesktop ? '500px' : '800px'}; margin: 0 auto 8px;`
+      ? `max-width: ${isCollapsedDesktop ? '550px' : '800px'}; margin: 0 auto 8px;`
       : 'margin-top: -16px; margin-bottom: 8px;';
     const headerTitleStyle = isCollapsedDesktop
       ? 'color:var(--tblr-body-color,#111827); font-weight:800; font-size:1.2rem; line-height:1.14; letter-spacing:0.01em;'

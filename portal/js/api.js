@@ -825,6 +825,7 @@ export class ApiClient {
         if (deviceId) params.push(`deviceId=${encodeURIComponent(deviceId)}`);
         if (riskLevel) params.push(`riskLevel=${encodeURIComponent(riskLevel)}`);
         if (options?.date) params.push(`date=${encodeURIComponent(options.date)}`);
+        if (options?.includeCachedSummary) params.push('include=cached-summary');
         if (params.length) url += `?${params.join('&')}`;
         return this.get(url);
     }
