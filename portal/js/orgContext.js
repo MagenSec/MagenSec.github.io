@@ -259,6 +259,22 @@ class OrgContext {
     }
 
     /**
+     * Generic add-on check by key (case-insensitive).
+     * SiteAdmin is treated as having all add-ons for preview purposes.
+     */
+    hasAddOn(key) {
+        if (this.isSiteAdmin()) return true;
+        const addOns = this.currentOrg?.addOns;
+        return Array.isArray(addOns) && addOns.some(a => a.toLowerCase() === key.toLowerCase());
+    }
+
+    hasPeerBenchmark()      { return this.hasAddOn('PeerBenchmark'); }
+    hasHygieneCoach()       { return this.hasAddOn('HygieneCoach'); }
+    hasInsuranceReadiness() { return this.hasAddOn('InsuranceReadiness'); }
+    hasCompliancePlus()     { return this.hasAddOn('CompliancePlus'); }
+    hasSupplyChainIntel()   { return this.hasAddOn('SupplyChainIntel'); }
+
+    /**
      * Whether this org can access MAGI historical mode (Time Warp + AI analyst combo).
      * Requires both historical access and a non-ReadOnly role (ReadOnly has minimal AI quota).
      */

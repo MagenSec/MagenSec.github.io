@@ -217,6 +217,33 @@ export function initRouter(renderApp) {
         page.redirect('/mission-brief');
     });
 
+    // Add-on pages (protected, business-license only)
+    page('/add-ons/peer-benchmark', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        renderApp({ page: 'add-on/peer-benchmark', ctx });
+    });
+    page('/add-ons/hygiene-coach', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        renderApp({ page: 'add-on/hygiene-coach', ctx });
+    });
+    page('/add-ons/insurance-readiness', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        renderApp({ page: 'add-on/insurance-readiness', ctx });
+    });
+    page('/add-ons/compliance-plus', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        renderApp({ page: 'add-on/compliance-plus', ctx });
+    });
+    page('/add-ons/supply-chain-intel', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        renderApp({ page: 'add-on/supply-chain-intel', ctx });
+    });
+
     // Compliance (protected)
     page('/compliance', (ctx) => {
         if (!ctx.isAuthenticated) {
