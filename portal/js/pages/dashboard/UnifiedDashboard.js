@@ -1321,14 +1321,30 @@ export default class UnifiedDashboard extends Component {
     // Build action list (row 2 of sheet body)
     let actionRows = [];
     if (activePersona === 'business') {
-      actionRows = (bo.topActions || []).slice(0, 3).map(a => ({
-        badge: a.urgency || 'normal',
-        badgeColor: a.urgency === 'critical' || a.urgency === 'urgent' ? '#dc2626' : a.urgency === 'high' || a.urgency === 'important' ? '#d97706' : '#6b7280',
-        title: a.title || '',
-        sub: a.primaryDeviceName
-          ? `Affected device: ${a.primaryDeviceName}${a.deadlineText ? ` · ${a.deadlineText}` : ''}`
-          : (a.deadlineText || a.description || '')
-      }));
+      actionRows = (bo.topActions || []).slice(0, 3).map(a => {
+        const affectedNames = Array.isArray(a.affectedDeviceNames)
+          ? a.affectedDeviceNames.filter(Boolean)
+          : [];
+        const primaryName = affectedNames[0] || a.primaryDeviceName || '';
+        const count = Number.isFinite(Number(a.deviceCount))
+          ? Number(a.deviceCount)
+          : affectedNames.length;
+        const extra = Math.max(0, count - 1);
+        const targetText = primaryName
+          ? (count > 1
+              ? `Affected device: ${primaryName} and ${extra} more`
+              : `Affected device: ${primaryName}`)
+          : '';
+
+        return {
+          badge: a.urgency || 'normal',
+          badgeColor: a.urgency === 'critical' || a.urgency === 'urgent' ? '#dc2626' : a.urgency === 'high' || a.urgency === 'important' ? '#d97706' : '#6b7280',
+          title: a.title || '',
+          sub: targetText
+            ? `${targetText}${a.deadlineText ? ` · ${a.deadlineText}` : ''}`
+            : (a.deadlineText || a.description || '')
+        };
+      });
     } else if (activePersona === 'it') {
       actionRows = (it.appRisks || []).slice(0, 3).map(a => ({
         badge: `${a.cveSummary?.total ?? 0} CVEs`,
@@ -2002,22 +2018,28 @@ export default class UnifiedDashboard extends Component {
 
     const normalizedDescription = shouldHideDescription ? '' : descRaw;
 
-    // Use structured device fields from API; fall back to regex count from title
-    const apiDeviceId   = urgentAction?.primaryDeviceId   || null;
+    // Use structured device fields from API; prefer affectedDeviceNames when available
+    const apiDeviceId = urgentAction?.primaryDeviceId || null;
     const apiDeviceName = urgentAction?.primaryDeviceName || null;
-    const apiDeviceCount = urgentAction?.deviceCount != null ? urgentAction.deviceCount : actionDeviceCount;
+    const apiDeviceNames = Array.isArray(urgentAction?.affectedDeviceNames)
+      ? urgentAction.affectedDeviceNames.filter(Boolean)
+      : [];
+    const displayDeviceName = apiDeviceNames[0] || apiDeviceName;
+    const apiDeviceCount = urgentAction?.deviceCount != null
+      ? urgentAction.deviceCount
+      : (apiDeviceNames.length > 0 ? apiDeviceNames.length : actionDeviceCount);
+
     let targetDeviceLine = '';
     let targetDeviceNode = null;
-    if (apiDeviceName && apiDeviceCount === 1) {
+    if (displayDeviceName && apiDeviceCount === 1) {
       const deviceHref = apiDeviceId ? `#!/devices/${apiDeviceId}` : '#!/devices';
-      targetDeviceNode = html`<a href=${deviceHref} style="font-size:0.72rem;color:rgba(255,255,255,0.65);text-decoration:underline;text-underline-offset:2px;">${apiDeviceName}</a>`;
-    } else if (apiDeviceCount > 1 && apiDeviceName) {
-      // primary device + N more
+      targetDeviceNode = html`<a href=${deviceHref} style="font-size:0.72rem;color:rgba(255,255,255,0.65);text-decoration:underline;text-underline-offset:2px;">${displayDeviceName}</a>`;
+    } else if (apiDeviceCount > 1 && displayDeviceName) {
       const extra = apiDeviceCount - 1;
-      targetDeviceNode = html`<span style="font-size:0.72rem;color:rgba(255,255,255,0.55);">${apiDeviceName} + ${extra} more device${extra === 1 ? '' : 's'}</span>`;
+      targetDeviceNode = html`<span style="font-size:0.72rem;color:rgba(255,255,255,0.55);">${displayDeviceName} and ${extra} more</span>`;
     } else if (apiDeviceCount > 0) {
       targetDeviceLine = `Targets ${apiDeviceCount} device${apiDeviceCount === 1 ? '' : 's'}.`;
-    };
+    }
 
     const isGreenGrade = ['A+','A','A-','B+','B','B-'].includes(grade);
     const isAmberGrade = ['C+','C','C-'].includes(grade);
