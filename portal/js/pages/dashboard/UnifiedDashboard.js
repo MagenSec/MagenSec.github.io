@@ -2001,9 +2001,23 @@ export default class UnifiedDashboard extends Component {
       || (descDeviceCount > 0 && actionDeviceCount > 0 && descDeviceCount === actionDeviceCount);
 
     const normalizedDescription = shouldHideDescription ? '' : descRaw;
-    const targetDeviceLine = actionDeviceCount > 0
-      ? `Targets ${actionDeviceCount} device${actionDeviceCount === 1 ? '' : 's'}.`
-      : '';
+
+    // Use structured device fields from API; fall back to regex count from title
+    const apiDeviceId   = urgentAction?.primaryDeviceId   || null;
+    const apiDeviceName = urgentAction?.primaryDeviceName || null;
+    const apiDeviceCount = urgentAction?.deviceCount != null ? urgentAction.deviceCount : actionDeviceCount;
+    let targetDeviceLine = '';
+    let targetDeviceNode = null;
+    if (apiDeviceName && apiDeviceCount === 1) {
+      const deviceHref = apiDeviceId ? `#!/devices/${apiDeviceId}` : '#!/devices';
+      targetDeviceNode = html`<a href=${deviceHref} style="font-size:0.72rem;color:rgba(255,255,255,0.65);text-decoration:underline;text-underline-offset:2px;">${apiDeviceName}</a>`;
+    } else if (apiDeviceCount > 1 && apiDeviceName) {
+      // primary device + N more
+      const extra = apiDeviceCount - 1;
+      targetDeviceNode = html`<span style="font-size:0.72rem;color:rgba(255,255,255,0.55);">${apiDeviceName} + ${extra} more device${extra === 1 ? '' : 's'}</span>`;
+    } else if (apiDeviceCount > 0) {
+      targetDeviceLine = `Targets ${apiDeviceCount} device${apiDeviceCount === 1 ? '' : 's'}.`;
+    };
 
     const isGreenGrade = ['A+','A','A-','B+','B','B-'].includes(grade);
     const isAmberGrade = ['C+','C','C-'].includes(grade);
@@ -2229,7 +2243,7 @@ export default class UnifiedDashboard extends Component {
                     <div style="font-size: 0.83rem; font-weight: 600; color: rgba(255,255,255,0.88); overflow-wrap: anywhere; word-break: break-word;">${actionTitle || titleRaw}</div>
                   </div>
                   ${normalizedDescription ? html`<div style="font-size: 0.75rem; color: rgba(255,255,255,0.5);">${normalizedDescription}</div>` : ''}
-                  ${targetDeviceLine ? html`<div style="font-size: 0.72rem; color: rgba(255,255,255,0.42); margin-top: 2px;">${targetDeviceLine}</div>` : ''}
+                  ${targetDeviceNode ? html`<div style="font-size: 0.72rem; color: rgba(255,255,255,0.42); margin-top: 2px;">${targetDeviceNode}</div>` : targetDeviceLine ? html`<div style="font-size: 0.72rem; color: rgba(255,255,255,0.42); margin-top: 2px;">${targetDeviceLine}</div>` : ''}
                   ${urgentAction.deadlineText ? html`<div style="font-size: 0.72rem; color: rgba(255,255,255,0.4); margin-top: 2px;">${urgentAction.deadlineText}</div>` : ''}
                 </div>
               ` : ''}
