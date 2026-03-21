@@ -283,6 +283,24 @@ export function BusinessMatrixPage() {
             complianceAlerts: snapshot.complianceAlerts || [],
             operationalAlerts: snapshot.operationalAlerts || [],
 
+            // Operational intel: coverage tracking, fleet utilization, cost distribution
+            operationalIntel: {
+                region:                snapshot.region || null,
+                expectedOrgCount:      snapshot.expectedOrgCount || 0,
+                foundOrgCount:         snapshot.foundOrgCount || 0,
+                coveragePercent:       snapshot.coveragePercent || 0,
+                isComplete:            snapshot.isComplete || false,
+                totalRegisteredDevices:snapshot.totalRegisteredDevices || 0,
+                totalActiveDevices:    snapshot.totalActiveDevices || 0,
+                totalSeenDevices:      snapshot.totalSeenDevices || 0,
+                fleetUtilizationPercent:snapshot.fleetUtilizationPercent || 0,
+                avgDailyOnlinePercent: snapshot.avgDailyOnlinePercent || 0,
+                busiestDayOfWeek:      snapshot.busiestDayOfWeek || null,
+                topNoisyDevices:       snapshot.topNoisyDevices || [],
+                costByOrgVolume:       snapshot.costByOrgVolume || {},
+                totalAllocatedCost:    snapshot.totalAllocatedCost || 0,
+            },
+
             // Direct passthrough
             snapshotDate: snapshot.date,
             dailyCost: snapshot.dailyCost,
@@ -373,6 +391,14 @@ export function BusinessMatrixPage() {
             mrrTrendChart.destroy();
         }
 
+        // Separate complete points (coveragePercent >= 100 or unset) from partial ones (T-0 in progress)
+        // Partial points are rendered as faded/hollow markers but not excluded entirely so the
+        // chart always shows today's number (even if provisional).
+        const pointColors = trends.map(t => (t.coveragePercent ?? 100) < 100 ? 'rgba(170,170,170,0.6)' : '#2fb344');
+        const pointStyles = trends.map(t => (t.coveragePercent ?? 100) < 100 ? 'circle' : 'circle');
+        const pointRadii  = trends.map(t => (t.coveragePercent ?? 100) < 100 ? 5 : 4);
+        const pointBorder = trends.map(t => (t.coveragePercent ?? 100) < 100 ? 2 : 0);
+
         const chart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -383,8 +409,11 @@ export function BusinessMatrixPage() {
                     borderColor: '#2fb344',
                     backgroundColor: 'rgba(47, 179, 68, 0.1)',
                     borderWidth: 3,
-                    pointRadius: 4,
+                    pointRadius: pointRadii,
                     pointHoverRadius: 6,
+                    pointBackgroundColor: pointColors,
+                    pointBorderColor: pointColors,
+                    pointBorderWidth: pointBorder,
                     tension: 0.4,
                     fill: true
                 }]
@@ -399,7 +428,9 @@ export function BusinessMatrixPage() {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return 'MRR: ' + currencySymbol + context.parsed.y.toFixed(0);
+                                const t = trends[context.dataIndex];
+                                const partial = (t?.coveragePercent ?? 100) < 100;
+                                return 'MRR: ' + currencySymbol + context.parsed.y.toFixed(0) + (partial ? ' (partial)' : '');
                             }
                         }
                     }
@@ -2033,6 +2064,97 @@ export function BusinessMatrixPage() {
                     </div>
                 </div>
             </div>
+
+            <!-- Section: Operational Intel -->
+            ${metrics.operationalIntel?.expectedOrgCount > 0 ? (() => {
+                const intel = metrics.operationalIntel;
+                const coveragePct = intel.coveragePercent || 0;
+                const coverageClass = coveragePct >= 95 ? 'bg-success text-white' : coveragePct >= 75 ? 'bg-warning text-dark' : 'bg-danger text-white';
+                const fleetPct = intel.fleetUtilizationPercent || 0;
+                const fleetClass = fleetPct >= 70 ? 'bg-success text-white' : fleetPct >= 40 ? 'bg-warning text-dark' : 'bg-secondary text-white';
+                return html`
+                <div class="bm-section-header"><span>Operational Intel</span></div>
+                ${!intel.isComplete ? html`
+                    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+                        <svg class="icon me-2" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                        <div class="small">Today's data is still compiling — <strong>${coveragePct.toFixed(0)}%</strong> of orgs processed (${intel.foundOrgCount}/${intel.expectedOrgCount}). Numbers may shift until 100% coverage is reached.</div>
+                    </div>
+                ` : null}
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <div class="text-body-secondary small mb-2">Data Coverage</div>
+                                <div class="h3 mb-1">
+                                    <span class="badge ${coverageClass} fs-5">${coveragePct.toFixed(0)}%</span>
+                                </div>
+                                <div class="text-body-secondary small">${intel.foundOrgCount} / ${intel.expectedOrgCount} orgs</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <div class="text-body-secondary small mb-2">Fleet Utilization</div>
+                                <div class="h3 mb-1">
+                                    <span class="badge ${fleetClass} fs-5">${fleetPct.toFixed(1)}%</span>
+                                </div>
+                                <div class="text-body-secondary small">${(intel.totalSeenDevices || 0).toLocaleString()} seen / ${(intel.totalRegisteredDevices || 0).toLocaleString()} registered</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <div class="text-body-secondary small mb-2">Avg Daily Online</div>
+                                <div class="h3 mb-1">${(intel.avgDailyOnlinePercent || 0).toFixed(1)}%</div>
+                                <div class="text-body-secondary small">7-day rolling avg</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <div class="text-body-secondary small mb-2">Busiest Day</div>
+                                <div class="h3 mb-1">${intel.busiestDayOfWeek || '—'}</div>
+                                <div class="text-body-secondary small">by telemetry volume</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ${intel.topNoisyDevices?.length > 0 ? html`
+                <div class="card mb-4">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                        <h5 class="card-title mb-0">Top Volume Devices (Today)</h5>
+                        ${intel.totalAllocatedCost > 0 ? html`<span class="badge bg-secondary text-white small">Total allocated: $${Number(intel.totalAllocatedCost).toFixed(4)}</span>` : null}
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Device</th>
+                                        <th>Org</th>
+                                        <th class="text-end">Rows</th>
+                                        <th class="text-end">Est. Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${intel.topNoisyDevices.slice(0, 10).map((d, i) => html`
+                                        <tr key=${d.deviceId || i}>
+                                            <td class="fw-medium small font-monospace">${d.deviceId || '—'}</td>
+                                            <td class="text-muted small">${d.orgName || d.orgId || '—'}</td>
+                                            <td class="text-end small">${(d.totalRows || 0).toLocaleString()}</td>
+                                            <td class="text-end small">$${Number(d.estimatedDailyCost || 0).toFixed(4)}</td>
+                                        </tr>
+                                    `)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                ` : null}
+            `})() : null}
 
             <!-- Section: Rolling Windows -->
             ${(metrics.window7d || metrics.window30d || metrics.window90d) ? html`
