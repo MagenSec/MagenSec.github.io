@@ -312,65 +312,71 @@ export default class UnifiedDashboard extends Component {
       return null;
     }
 
-    const cardStyle = 'height:100%;background:rgba(255,255,255,0.82);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(148,163,184,0.18);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(15,23,42,0.08);';
+    const cardStyle = 'width:100%;display:flex;flex-direction:column;background:rgba(255,255,255,0.82);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(148,163,184,0.18);border-radius:16px;padding:12px 13px;box-shadow:0 8px 24px rgba(15,23,42,0.07);overflow:hidden;';
+    const eyebrowStyle = 'font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;';
+    const titleStyle = 'font-size:0.92rem;font-weight:700;color:#111827;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;';
+    const bodyStyle = 'color:#4b5563;font-size:0.8rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;';
+    const ribbonStyle = (background, color) => `display:inline-flex; align-items:center; justify-content:center; max-width:100%; min-height:26px; padding:5px 12px 6px; border-radius:999px 0 0 999px; background:${background}; color:${color}; font-size:0.72rem; font-weight:800; line-height:1.1; white-space:normal; text-align:center; box-shadow:0 6px 16px rgba(15,23,42,0.12); margin:-12px -13px 0 0;`;
 
     return html`
-      <div style="max-width: 960px; margin: 18px auto 0; position: relative;">
-        <div class="row g-3">
-          ${peer || addOnSignals?.loading ? html`
-            <div class="col-12 col-lg-6">
-              <div style=${cardStyle}>
-                <div class="d-flex align-items-start justify-content-between mb-3">
+      <div class="d-flex flex-column gap-2 h-100">
+        ${peer || addOnSignals?.loading ? html`
+          <div style=${cardStyle}>
+                <div>
+                <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                   <div>
-                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6366f1;">Peer Benchmark</div>
-                    <div style="font-size:1.1rem;font-weight:700;color:#111827;">${peer ? `Ahead of ${peer.scorePercentile ?? 0}% of peers` : 'Loading benchmark signal...'}</div>
+                    <div style=${`${eyebrowStyle}color:#6366f1;`}>Peer Benchmark</div>
+                    <div style=${titleStyle}>${peer ? `Ahead of ${peer.scorePercentile ?? 0}% of peers` : 'Loading benchmark signal...'}</div>
                   </div>
-                  <span class="badge bg-primary text-white">${peer ? `${peer.orgScore ?? 0} score` : '...'}</span>
+                  <div style="flex:0 0 auto; display:flex; justify-content:flex-end; align-items:flex-start; max-width:120px;">
+                    <span style=${ribbonStyle('linear-gradient(135deg, #2563eb, #4f46e5)', '#ffffff')}>${peer ? `${peer.orgScore ?? 0} score` : '...'}</span>
+                  </div>
                 </div>
-                <div style="color:#4b5563;font-size:0.88rem;line-height:1.5;">
+                <div style=${bodyStyle}>
                   ${peer
                     ? `Sector median is ${peer.sectorMedianScore ?? 0}. Cohort: ${peer.sector || 'General'} · ${peer.cohortSize ?? 0} organizations.`
                     : 'Pulling the latest cohort position for this organization.'}
                 </div>
-                ${peer?.topGapDomains?.length > 0 ? html`
-                  <div class="mt-3 d-flex flex-wrap gap-1">
-                    ${peer.topGapDomains.slice(0, 3).map((domain) => html`<span class="badge bg-warning-lt text-warning">${domain}</span>`)}
-                  </div>
-                ` : null}
-                <div class="mt-3">
+                <div class="mt-2 d-flex flex-wrap gap-1" style="min-height:24px;">
+                  ${peer?.topGapDomains?.length > 0
+                    ? peer.topGapDomains.slice(0, 3).map((domain) => html`<span class="badge bg-warning-lt text-warning">${domain}</span>`)
+                    : null}
+                </div>
+                </div>
+                <div class="mt-auto pt-2">
                   <a href="#!/add-ons/peer-benchmark" class="btn btn-sm btn-outline-primary">Open Benchmark</a>
                 </div>
-              </div>
-            </div>
-          ` : null}
+          </div>
+        ` : null}
 
-          ${coach || addOnSignals?.loading ? html`
-            <div class="col-12 col-lg-6">
-              <div style=${cardStyle}>
-                <div class="d-flex align-items-start justify-content-between mb-3">
+        ${coach || addOnSignals?.loading ? html`
+          <div style=${cardStyle}>
+                <div>
+                <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                   <div>
-                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0f766e;">Hygiene Coach</div>
-                    <div style="font-size:1.1rem;font-weight:700;color:#111827;">${coach?.homeworkItems?.[0]?.actionTitle || 'Loading this week\'s homework...'}</div>
+                    <div style=${`${eyebrowStyle}color:#0f766e;`}>Hygiene Coach</div>
+                    <div style=${titleStyle}>${coach?.homeworkItems?.[0]?.actionTitle || 'Loading this week\'s homework...'}</div>
                   </div>
-                  <span class="badge bg-success text-white">${coach ? `${coach.currentStreak ?? 0} week streak` : '...'}</span>
+                  <div style="flex:0 1 auto; display:flex; justify-content:flex-end; align-items:flex-start; max-width:145px;">
+                    <span style=${ribbonStyle('linear-gradient(135deg, #0f766e, #14b8a6)', '#ffffff')}>${coach ? `${coach.currentStreak ?? 0} week streak` : '...'}</span>
+                  </div>
                 </div>
-                <div style="color:#4b5563;font-size:0.88rem;line-height:1.5;">
+                <div style=${bodyStyle}>
                   ${coach
                     ? (coach.coachMessage || 'Fresh coaching guidance is available for this week.')
                     : 'Pulling the latest weekly coaching plan for this organization.'}
                 </div>
-                ${coach?.homeworkItems?.[0] ? html`
-                  <div class="mt-3 text-muted" style="font-size:0.82rem;">
-                    Impact +${Number(coach.homeworkItems[0].impactScore || 0).toFixed(1)} · ${coach.homeworkItems[0].estimatedDaysToComplete ?? 0} day${coach.homeworkItems[0].estimatedDaysToComplete === 1 ? '' : 's'} to complete
-                  </div>
-                ` : null}
-                <div class="mt-3">
+                <div class="mt-2" style="font-size:0.78rem; line-height:1.4; min-height:18px; color:var(--tblr-body-color, #334155); opacity:0.88; font-weight:600;">
+                  ${coach?.homeworkItems?.[0]
+                    ? `Impact +${Number(coach.homeworkItems[0].impactScore || 0).toFixed(1)} · ${coach.homeworkItems[0].estimatedDaysToComplete ?? 0} day${coach.homeworkItems[0].estimatedDaysToComplete === 1 ? '' : 's'} to complete`
+                    : ''}
+                </div>
+                </div>
+                <div class="mt-auto pt-2">
                   <a href="#!/add-ons/hygiene-coach" class="btn btn-sm btn-outline-success">Open Coach</a>
                 </div>
-              </div>
-            </div>
-          ` : null}
-        </div>
+          </div>
+        ` : null}
       </div>
     `;
   }
@@ -889,9 +895,10 @@ export default class UnifiedDashboard extends Component {
   }
 
   renderSearchHeader() {
-    const { data, aiLoading, aiAnswer, aiError, refreshing } = this.state;
+    const { data, aiLoading, aiAnswer, aiError, refreshing, addOnSignals } = this.state;
     const secScore = typeof data?.securityScore?.score === 'number' ? data.securityScore.score : 0;
     const freshness = this.getFreshnessInfo();
+    const hasSpotlightStrip = Boolean(addOnSignals?.loading || addOnSignals?.peerBenchmark || addOnSignals?.hygieneCoach);
     const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
     const aiPlaceholder = isSmallScreen
       ? 'Ask threats, compliance, or devices...'
@@ -910,19 +917,27 @@ export default class UnifiedDashboard extends Component {
         margin-right: -50vw;
         background: var(--tblr-body-bg, #f4f6fa);
         padding: 12px 16px 20px;
-        overflow: hidden;
+        overflow: visible;
       ">
         <!-- Decorative glow orbs -->
         <div style="position: absolute; top: -80px; right: -40px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 65%); pointer-events: none;"></div>
         <div style="position: absolute; bottom: -60px; left: -40px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(139,92,246,0.05) 0%, transparent 65%); pointer-events: none;"></div>
 
-        <div style="max-width: 960px; margin: 0 auto; position: relative;">
+        <div style="max-width: 1320px; margin: 0 auto; position: relative;">
+          <div class="row g-3 align-items-start mt-1">
+            <div class=${hasSpotlightStrip ? 'col-12 col-xl-9' : 'col-12'}>
+              <div style="max-width: 800px; margin: 0 auto 8px; display:flex; justify-content:center;">
+                ${this.renderSecurityOfficerDrawer({ embeddedInCard: true })}
+              </div>
 
-          <!-- Cyber Hygiene (AI-derived) -->
-          ${this.renderCyberHygieneLanding(data, true)}
+              <!-- Cyber Hygiene (AI-derived) -->
+              ${this.renderCyberHygieneLanding(data, true)}
 
-          <!-- AI Search bar -->
-          <div style="max-width: 680px; margin: 0 auto 12px;">
+              <!-- Refresh status belongs to left client area -->
+              ${this.renderRefreshBanner()}
+
+              <!-- AI Search bar -->
+              <div style="max-width: 700px; margin: 0 auto 12px;">
             <form onSubmit=${this.submitAiPrompt}>
               <div style="
                 display: flex;
@@ -1032,38 +1047,44 @@ export default class UnifiedDashboard extends Component {
                 <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: #dc2626; cursor: pointer; margin-left: 8px;">✕</button>
               </div>
             ` : ''}
-          </div>
 
-          <!-- Quick nav + freshness -->
-          <div style="text-align: center;">
-            <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;">
-              <a href="#!/security" class="db-quick-pill" style=${quickPillStyle}>Security</a>
-              <a
-                href="#!/compliance"
-                class=${`db-quick-pill ${this.getBusinessOnlyMeta('#!/compliance').className}`}
-                title=${this.getBusinessOnlyMeta('#!/compliance').title}
-                data-business-tooltip=${this.getBusinessOnlyMeta('#!/compliance').dataTooltip}
-                style=${quickPillStyle}
-              >Compliance</a>
-              <a
-                href="#!/reports"
-                class=${`db-quick-pill ${this.getBusinessOnlyMeta('#!/reports').className}`}
-                title=${this.getBusinessOnlyMeta('#!/reports').title}
-                data-business-tooltip=${this.getBusinessOnlyMeta('#!/reports').dataTooltip}
-                style=${quickPillStyle}
-              >Reports</a>
-              <button class="db-quick-pill db-quick-pill-btn" onClick=${() => this.refreshDashboard()} style=${refreshPillStyle}>
-                ${refreshing ? 'Refreshing…' : '↻ Refresh'}
-              </button>
-              ${freshness ? html`
-                <span style="font-size: 0.68rem; color: var(--db-faintest-text);">
-                  · ${freshness.ageText}${freshness.isStale ? ' (stale)' : ''}
-                </span>
-              ` : ''}
+              <!-- Quick nav + freshness -->
+              <div style="max-width: 700px; margin: 10px auto 0; text-align: center;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;">
+                  <a href="#!/security" class="db-quick-pill" style=${quickPillStyle}>Security</a>
+                  <a
+                    href="#!/compliance"
+                    class=${`db-quick-pill ${this.getBusinessOnlyMeta('#!/compliance').className}`}
+                    title=${this.getBusinessOnlyMeta('#!/compliance').title}
+                    data-business-tooltip=${this.getBusinessOnlyMeta('#!/compliance').dataTooltip}
+                    style=${quickPillStyle}
+                  >Compliance</a>
+                  <a
+                    href="#!/reports"
+                    class=${`db-quick-pill ${this.getBusinessOnlyMeta('#!/reports').className}`}
+                    title=${this.getBusinessOnlyMeta('#!/reports').title}
+                    data-business-tooltip=${this.getBusinessOnlyMeta('#!/reports').dataTooltip}
+                    style=${quickPillStyle}
+                  >Reports</a>
+                  <button class="db-quick-pill db-quick-pill-btn" onClick=${() => this.refreshDashboard()} style=${refreshPillStyle}>
+                    ${refreshing ? 'Refreshing…' : '↻ Refresh'}
+                  </button>
+                  ${freshness ? html`
+                    <span style="font-size: 0.68rem; color: var(--db-faintest-text);">
+                      · ${freshness.ageText}${freshness.isStale ? ' (stale)' : ''}
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+              </div>
             </div>
-          </div>
 
-          ${this.renderAddOnSpotlights()}
+            ${hasSpotlightStrip ? html`
+              <div class="col-12 col-xl-3">
+                ${this.renderAddOnSpotlights()}
+              </div>
+            ` : null}
+          </div>
 
         </div>
       </div>
@@ -1676,12 +1697,15 @@ export default class UnifiedDashboard extends Component {
     const fleet = this.getFleetStats(data);
     const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
     const isCollapsedDesktop = cyberHygieneCollapsed && !isSmallScreen;
+    const useSingleHeaderRow = !cyberHygieneCollapsed && !isSmallScreen;
     const wrapperStyle = embedded
       ? `max-width: ${isCollapsedDesktop ? '550px' : '800px'}; margin: 0 auto 8px;`
       : 'margin-top: -16px; margin-bottom: 8px;';
     const headerTitleStyle = isCollapsedDesktop
       ? 'color:var(--tblr-body-color,#111827); font-weight:800; font-size:1.2rem; line-height:1.14; letter-spacing:0.01em;'
-      : 'color:var(--tblr-body-color,#111827); font-weight:800; font-size:1.14rem; line-height:1.08; letter-spacing:0.01em;';
+      : (useSingleHeaderRow
+        ? 'color:var(--tblr-body-color,#111827); font-weight:800; font-size:1rem; line-height:1.04; letter-spacing:0.005em; white-space:nowrap;'
+        : 'color:var(--tblr-body-color,#111827); font-weight:800; font-size:1.14rem; line-height:1.08; letter-spacing:0.01em;');
     const headerTileWidth = isSmallScreen ? 0 : 122;
     const headerTileHeight = isSmallScreen ? 42 : 46;
     const headerLabelSize = isSmallScreen ? '0.46rem' : '0.5rem';
@@ -1740,28 +1764,22 @@ export default class UnifiedDashboard extends Component {
             }}
             style="display:block; position:relative; background: var(--tblr-bg-surface-secondary, #f8fafc); border-bottom: ${cyberHygieneCollapsed ? 'none' : '1px solid var(--tblr-border-color, #e6e7e9)'}; cursor:pointer; padding:12px 16px;"
           >
-            <div class=${isCollapsedDesktop
-              ? 'd-flex flex-column align-items-center justify-content-center w-100 gap-2'
-              : 'd-flex align-items-center justify-content-between w-100 flex-wrap gap-1'}>
-              <div class=${isCollapsedDesktop ? 'd-flex flex-column gap-1 align-items-center' : 'd-flex flex-column gap-1'}>
+            <div class=${useSingleHeaderRow ? 'd-flex align-items-center justify-content-between gap-2 w-100' : 'd-flex flex-column w-100 gap-2'}>
+              <div class=${useSingleHeaderRow ? 'd-flex align-items-center justify-content-start gap-1 text-start flex-nowrap' : 'd-flex align-items-center justify-content-center gap-1 flex-wrap text-center'}>
                 <h3 class="card-title mb-0 d-flex align-items-center gap-1">
                   <span style=${headerTitleStyle}>⚡MAGI LENS Cyber Hygiene</span>
                   <button
                     title="Business signal: a single confidence view across security posture, compliance gaps, audit readiness, and cyber-insurance eligibility."
                     aria-label="About the MAGI signal"
-                    style="display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(100,116,139,0.34); background:rgba(255,255,255,0.78); color:var(--tblr-secondary,#6b7280); cursor:help; box-shadow:0 1px 2px rgba(15,23,42,0.08);"
+                    style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; padding:0; border:none; background:transparent; color:var(--tblr-secondary,#6b7280); cursor:help; opacity:0.8;"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/><path d="M12 3a9 9 0 1 0 9 9a9 9 0 0 0 -9 -9"/></svg>
                   </button>
                 </h3>
               </div>
               <div
-                class=${isCollapsedDesktop
-                  ? 'd-flex align-items-stretch justify-content-center gap-1 flex-wrap w-100'
-                  : 'd-flex align-items-stretch gap-1 justify-content-end ms-auto'}
-                style=${isCollapsedDesktop
-                  ? 'white-space:nowrap;'
-                  : `white-space:${isSmallScreen ? 'normal' : 'nowrap'}; flex-wrap:${isSmallScreen ? 'wrap' : 'nowrap'}; ${isSmallScreen ? 'width:100%; margin-top:2px;' : ''}`}
+                class="d-flex align-items-center gap-1 w-100"
+                style=${`justify-content:${useSingleHeaderRow ? 'flex-end' : (isSmallScreen ? 'flex-start' : 'center')}; flex-wrap:${useSingleHeaderRow ? 'nowrap' : (isSmallScreen ? 'wrap' : 'nowrap')};`}
               >
                 <div style=${metricTileStyle('#e8f0ff', '#bed3ff')}>
                   <span style="font-size:1.08rem; line-height:1; grid-row:1 / span 2; display:flex; align-items:center; justify-content:center;">🧠</span>
@@ -1778,31 +1796,21 @@ export default class UnifiedDashboard extends Component {
                   <div style="font-size:${headerLabelSize}; text-transform:uppercase; letter-spacing:0.08em; opacity:0.92; font-weight:700; line-height:1.05;">Insurance</div>
                   <div style="font-size:${headerValueSize}; font-weight:800; line-height:1.05; color:${tierColor};">${ch.insuranceTier}</div>
                 </div>
-                ${isCollapsedDesktop ? '' : html`
+                <div style=${isSmallScreen ? 'margin-left:auto; flex:0 0 auto; align-self:center;' : 'margin-left:8px; flex:0 0 auto; align-self:center;'}>
                   <button
                     onClick=${(e) => { e.stopPropagation(); this.setState({ cyberHygieneCollapsed: !cyberHygieneCollapsed }); }}
                     title=${cyberHygieneCollapsed ? 'Expand Cyber Hygiene' : 'Collapse Cyber Hygiene'}
                     aria-label=${cyberHygieneCollapsed ? 'Expand Cyber Hygiene' : 'Collapse Cyber Hygiene'}
-                    style="display:inline-flex; align-items:center; justify-content:center; width:${isSmallScreen ? '42px' : '34px'}; min-width:${isSmallScreen ? '42px' : '34px'}; height:${isSmallScreen ? '42px' : '34px'}; border-radius:10px; border:1px solid rgba(14,165,233,0.35); background:rgba(14,165,233,0.14); color:#0369a1; cursor:pointer; margin-left:2px; flex:${isSmallScreen ? '0 0 42px' : '0 0 auto'};"
+                    style="display:inline-flex; align-items:center; justify-content:center; width:${isSmallScreen ? '42px' : '34px'}; min-width:${isSmallScreen ? '42px' : '34px'}; height:${isSmallScreen ? '42px' : '34px'}; border-radius:10px; border:1px solid rgba(14,165,233,0.35); background:rgba(14,165,233,0.14); color:#0369a1; cursor:pointer;"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" fill="none" style="transition:transform 0.2s ease; transform:rotate(${cyberHygieneCollapsed ? '0' : '180'}deg); ${cyberHygieneCollapsed ? 'animation: cyberExpandBounce 1.2s ease-in-out infinite;' : ''}"><polyline points="6 9 12 15 18 9"/></svg>
                   </button>
-                `}
+                </div>
               </div>
             </div>
-            ${isCollapsedDesktop ? html`
-              <button
-                onClick=${(e) => { e.stopPropagation(); this.setState({ cyberHygieneCollapsed: !cyberHygieneCollapsed }); }}
-                title="Expand Cyber Hygiene"
-                aria-label="Expand Cyber Hygiene"
-                style="position:absolute; top:10px; right:14px; display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:10px; border:1px solid rgba(14,165,233,0.35); background:rgba(14,165,233,0.14); color:#0369a1; cursor:pointer;"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" fill="none" style="animation: cyberExpandBounce 1.2s ease-in-out infinite;"><polyline points="6 9 12 15 18 9"/></svg>
-              </button>
-            ` : ''}
           </div>
           ${!cyberHygieneCollapsed ? html`
-          <div class="card-body" style="padding:12px 16px 12px;">
+          <div class="card-body" style="padding:8px 14px 6px;">
             <div class="row g-2 align-items-start">
               <div class="col-lg-5">
                 <div style="height: 204px;" ref=${(el) => { this.cyberChartRef = el; }}></div>
@@ -2004,7 +2012,9 @@ export default class UnifiedDashboard extends Component {
     const bgColor = isGreenGrade ? 'rgba(22,163,74,0.08)' : isAmberGrade ? 'rgba(217,119,6,0.08)' : 'rgba(239,68,68,0.06)';
     const noteAccent = embeddedInCard ? gradeColor : '#ef4444';
     const noteBorderColor = embeddedInCard ? borderColor : 'rgba(239,68,68,0.62)';
-    const noteBgColor = embeddedInCard ? bgColor : 'linear-gradient(135deg, rgba(24,10,14,0.96), rgba(36,12,17,0.94))';
+    const noteBgColor = embeddedInCard
+      ? 'var(--tblr-bg-surface, #ffffff)'
+      : 'linear-gradient(135deg, rgba(24,10,14,0.96), rgba(36,12,17,0.94))';
 
     let situationText = '';
     if (critical > 0 && high > 0) {
@@ -2034,9 +2044,9 @@ export default class UnifiedDashboard extends Component {
     });
 
     const glowAnim = isGreenGrade ? 'gradeGlowGreen' : isAmberGrade ? 'gradeGlowAmber' : 'gradeGlowRed';
-    const panelMaxHeight = embeddedInCard ? '72vh' : '560px';
+    const panelMaxHeight = embeddedInCard ? '2000px' : '560px';
     const panelPositionStyle = embeddedInCard
-      ? 'position:absolute; top:calc(100% + 8px); left:0; right:auto; width:min(420px, calc(100vw - 48px));'
+      ? 'position:absolute; top:100%; left:0; right:0; width:100%;'
       : 'position:absolute; top:100%; left:0; right:0; width:100%;';
 
     return html`
@@ -2084,7 +2094,7 @@ export default class UnifiedDashboard extends Component {
 
         <!-- Embedded card overlay wrapper -->
         <div class=${embeddedInCard ? '' : 'security-officer-top-note'} style="${embeddedInCard
-          ? 'position:relative; z-index:220; width:fit-content; margin:0;'
+          ? 'position:relative; z-index:220; width:min(390px, calc(100vw - 40px)); margin:0 auto;'
           : 'position:relative; z-index:' + (officerNoteOpen ? '950' : '5') + '; width:min(390px, calc(100vw - 40px)); margin:0 auto 8px;'}">
 
         <!-- Collapsed tab styled to match bottom persona lenses -->
@@ -2105,10 +2115,10 @@ export default class UnifiedDashboard extends Component {
             position: relative;
             display: flex;
             align-items: center;
-            justify-content: ${embeddedInCard ? 'flex-start' : 'center'};
+            justify-content: center;
             gap: 10px;
-            padding: ${embeddedInCard ? '8px 34px 8px 12px' : '8px 44px 8px 44px'};
-            width: ${embeddedInCard ? 'fit-content' : '100%'};
+            padding: ${embeddedInCard ? '8px 44px 8px 44px' : '8px 44px 8px 44px'};
+            width: 100%;
             cursor: pointer;
             user-select: none;
             background: ${noteBgColor};
@@ -2120,7 +2130,7 @@ export default class UnifiedDashboard extends Component {
           "
         >
           <!-- Shield icon -->
-          <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="${noteAccent}" fill="none" style="${embeddedInCard ? 'flex-shrink:0; opacity:0.8;' : 'position:absolute; left:14px; top:50%; transform:translateY(-50%); opacity:0.9;'}">
+          <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="${noteAccent}" fill="none" style="${embeddedInCard ? 'position:absolute; left:14px; top:50%; transform:translateY(-50%); opacity:0.9;' : 'position:absolute; left:14px; top:50%; transform:translateY(-50%); opacity:0.9;'}">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/>
             <path d="M9 12l2 2l4-4"/>
@@ -2128,7 +2138,7 @@ export default class UnifiedDashboard extends Component {
 
           <!-- Title text -->
           ${embeddedInCard ? html`
-            <span style="font-size: 0.62rem; font-weight: 700; color: var(--tblr-body-color, #1f2937); letter-spacing: 0.12em; text-transform: uppercase;">Officer Note</span>
+            <span style="font-size: 0.67rem; font-weight: 800; color: var(--tblr-body-color, #1f2937); letter-spacing: 0.12em; text-transform: uppercase; text-align:center; width:100%;">Security Officer's Note</span>
           ` : html`
             <span style="font-size: 0.67rem; font-weight: 800; color: #fecaca; letter-spacing: 0.12em; text-transform: uppercase; text-align:center; width:100%; text-shadow:0 0 12px rgba(239,68,68,0.35);">Security Officer's Note</span>
           `}
@@ -2137,7 +2147,7 @@ export default class UnifiedDashboard extends Component {
           <svg
             width="13" height="13" viewBox="0 0 24 24" stroke-width="2.5"
             stroke="var(--tblr-secondary, #6b7280)" fill="none"
-            style="position:${embeddedInCard ? 'static' : 'absolute'}; right:${embeddedInCard ? 'auto' : '34px'}; top:${embeddedInCard ? 'auto' : '50%'}; transition: transform 0.3s ease; transform:${embeddedInCard ? 'rotate(' + (officerNoteOpen ? '180' : '0') + 'deg)' : 'translateY(-50%) rotate(' + (officerNoteOpen ? '180' : '0') + 'deg)'}; ${embeddedInCard && !officerNoteOpen ? 'animation: noteBounceHint 1.2s ease-in-out infinite;' : ''}"
+            style="position:absolute; right:34px; top:50%; transition: transform 0.3s ease; transform:translateY(-50%) rotate(${officerNoteOpen ? '180' : '0'}deg); ${embeddedInCard && !officerNoteOpen ? 'animation: noteBounceHint 1.2s ease-in-out infinite;' : ''}"
           >
             <polyline points="6 9 12 15 18 9"/>
           </svg>
@@ -2160,7 +2170,7 @@ export default class UnifiedDashboard extends Component {
         <div id="security-officer-note-panel" style="
           ${panelPositionStyle}
           max-height: ${officerNoteOpen ? panelMaxHeight : '0'};
-          overflow: ${officerNoteOpen ? 'auto' : 'hidden'};
+          overflow: ${officerNoteOpen ? (embeddedInCard ? 'visible' : 'auto') : 'hidden'};
           transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
           z-index: ${embeddedInCard ? '200' : (officerNoteOpen ? '951' : '1')};
         ">
@@ -2269,15 +2279,20 @@ export default class UnifiedDashboard extends Component {
 
     if (loading) {
       return html`
-        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 70vh;">
-          <div style="
-            width: 48px; height: 48px; border-radius: 50%;
-            border: 3px solid rgba(99,102,241,0.2);
-            border-top-color: #6366f1;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 16px;
-          "></div>
-          <div style="color: var(--tblr-secondary, #888); font-size: 0.9rem;">Loading intelligence...</div>
+        <div class="container" style="padding-top: 48px; padding-bottom: 48px;">
+          <div style="max-width: 340px; margin: 0 auto; min-height: 42vh; display: flex; align-items: center; justify-content: center;">
+            <div style="width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px 24px;border-radius:18px;background:rgba(255,255,255,0.88);border:1px solid rgba(148,163,184,0.18);box-shadow:0 12px 32px rgba(15,23,42,0.08);text-align:center;">
+              <div style="
+                width: 42px; height: 42px; border-radius: 50%;
+                border: 3px solid rgba(99,102,241,0.18);
+                border-top-color: #6366f1;
+                animation: spin 0.8s linear infinite;
+                margin-bottom: 12px;
+              "></div>
+              <div style="color:#111827;font-size:0.95rem;font-weight:600;">Loading intelligence...</div>
+              <div style="color:#6b7280;font-size:0.82rem;margin-top:4px;">Building your current security dossier.</div>
+            </div>
+          </div>
           <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
         </div>
       `;
@@ -2302,8 +2317,6 @@ export default class UnifiedDashboard extends Component {
 
     return html`
       <div style="min-height: 100vh;">
-        ${this.renderSecurityOfficerDrawer()}
-        ${this.renderRefreshBanner()}
         ${this.renderBillingNoticeBanner()}
         ${this.renderSearchHeader()}
         <${PersonaNav}
