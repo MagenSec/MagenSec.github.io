@@ -11,9 +11,13 @@ class AccountPage extends Component {
             // Loading / error
             loading: true,
             loadError: null,
+            billingLoading: false,
             // Profile data (from API)
             user: null,
             orgs: [],
+            billingNotice: null,
+            billingPayments: [],
+            billingError: null,
             // Editable fields
             name: '',
             phone: '',
@@ -47,9 +51,69 @@ class AccountPage extends Component {
                 whatsAppEnabled: user.whatsAppEnabled || false,
                 defaultOrgId: user.defaultOrgId || (orgs && orgs.length > 0 ? orgs[0].orgId : '')
             });
+            this.loadBillingNotice();
         } catch (err) {
             console.error('[Account] Load failed:', err);
             this.setState({ loading: false, loadError: 'Could not connect to server.' });
+        }
+    }
+
+    async loadBillingNotice() {
+        try {
+            this.setState({ billingLoading: true, billingError: null });
+            const currentOrg = orgContext.getCurrentOrg?.();
+            const currentOrgId = currentOrg?.orgId || this.state.defaultOrgId || null;
+            if (!currentOrgId) {
+                this.setState({ billingLoading: false, billingError: 'No organization selected.' });
+                return;
+            }
+
+            const paymentsResponse = await api.get(`/api/v1/orgs/${currentOrgId}/payments`);
+            if (paymentsResponse?.success === false) {
+                this.setState({ billingLoading: false, billingError: paymentsResponse?.message || 'Billing details unavailable.' });
+                return;
+            }
+
+            const payments = Array.isArray(paymentsResponse?.data)
+                ? [...paymentsResponse.data]
+                : [];
+
+            payments.sort((a, b) => {
+                const left = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const right = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return right - left;
+            });
+
+            const pendingRenewal = payments.find(p =>
+                String(p?.paymentType || '').toLowerCase() === 'renewal' &&
+                String(p?.status || '').toLowerCase() === 'pending');
+
+            const remainingCredits = Number(currentOrg?.remainingCredits ?? 0);
+            const totalSeats = Number(currentOrg?.totalSeats ?? 0);
+            const daysRemaining = remainingCredits > 0 && totalSeats > 0
+                ? Math.floor(remainingCredits / totalSeats)
+                : null;
+
+            const shouldShowNotice = !!pendingRenewal || remainingCredits <= 0;
+            const billingNotice = shouldShowNotice ? {
+                visible: true,
+                severity: remainingCredits <= 0 ? 'critical' : 'warning',
+                title: remainingCredits <= 0 ? 'License expired - renewal pending' : 'License renewal pending',
+                message: 'Renewal invoice is generated and emailed. Complete payment to restore or retain full access.',
+                invoiceId: pendingRenewal?.invoiceId || null,
+                paymentRequestId: pendingRenewal?.paymentRequestId || null,
+                daysRemaining
+            } : null;
+
+            this.setState({
+                billingLoading: false,
+                billingNotice,
+                billingPayments: payments,
+                billingError: null
+            });
+        } catch (err) {
+            console.error('[Account] Billing notice load failed:', err);
+            this.setState({ billingLoading: false, billingError: 'Could not load billing details.' });
         }
     }
 
@@ -108,7 +172,7 @@ class AccountPage extends Component {
 
     render() {
         const { loading, loadError, user, orgs, name, phone, whatsAppEnabled, defaultOrgId,
-                saving, saved, saveError } = this.state;
+            saving, saved, saveError, billingLoading, billingNotice, billingPayments, billingError } = this.state;
 
         if (loading) {
             return html`
@@ -290,6 +354,121 @@ class AccountPage extends Component {
 
                     <!-- Right column: Organizations list -->
                     <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2 text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <rect x="3" y="7" width="18" height="13" rx="2"/>
+                                        <path d="M16 3v4"/>
+                                        <path d="M8 3v4"/>
+                                        <path d="M3 11h18"/>
+                                    </svg>
+                                    Billing & Renewal
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                ${billingLoading ? html`
+                                    <div class="d-flex align-items-center gap-2 text-muted">
+                                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                        <span>Loading billing details...</span>
+                                    </div>
+                                ` : html`
+                                    ${billingNotice?.visible ? html`
+                                    <div class="alert ${billingNotice.severity === 'critical' ? 'alert-danger' : billingNotice.severity === 'warning' ? 'alert-warning' : 'alert-info'} py-2 mb-3" role="alert">
+                                        <div class="fw-semibold">${billingNotice.title || 'Renewal notice'}</div>
+                                        <div class="small">${billingNotice.message || 'Renewal invoice is generated and emailed.'}</div>
+                                    </div>
+
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tbody>
+                                            <tr>
+                                                <td class="text-muted w-40">Invoice ID</td>
+                                                <td><code class="small" style="word-break: break-all; overflow-wrap: anywhere;">${billingNotice.invoiceId || 'Pending assignment'}</code></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-muted">Payment Request</td>
+                                                <td><code class="small" style="word-break: break-all; overflow-wrap: anywhere;">${billingNotice.paymentRequestId || 'Pending'}</code></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-muted">Status</td>
+                                                <td>${typeof billingNotice.daysRemaining === 'number' ? (billingNotice.daysRemaining <= 0 ? 'Expired' : `${billingNotice.daysRemaining} day(s) remaining`) : 'Pending renewal'}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    ` : null}
+
+                                    ${billingPayments.length > 0 ? html`
+                                        ${billingNotice?.visible ? html`<hr class="my-3" />` : null}
+                                        <div class="fw-semibold mb-2">Generated Invoices</div>
+                                        <div class="table-responsive d-none d-xl-block">
+                                            <table class="table table-sm table-vcenter">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Invoice</th>
+                                                        <th>Status</th>
+                                                        <th>Amount</th>
+                                                        <th>Created</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${billingPayments.slice(0, 8).map(p => html`
+                                                        <tr>
+                                                            <td>
+                                                                <div class="fw-semibold"><code class="small" style="word-break: break-all; overflow-wrap: anywhere;">${p.invoiceId || 'Pending'}</code></div>
+                                                                <div class="text-muted small"><code class="small" style="word-break: break-all; overflow-wrap: anywhere;">${p.paymentRequestId || '-'}</code></div>
+                                                            </td>
+                                                            <td>
+                                                                <span class=${`badge ${String(p.status || '').toLowerCase() === 'succeeded' ? 'bg-success text-white' : String(p.status || '').toLowerCase() === 'pending' ? 'bg-warning text-white' : 'bg-secondary text-white'}`}>
+                                                                    ${p.status || 'Unknown'}
+                                                                </span>
+                                                            </td>
+                                                            <td>${typeof p.amount === 'number' ? `${p.currency || 'USD'} ${p.amount.toFixed(2)}` : '-'}</td>
+                                                            <td>${p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</td>
+                                                        </tr>
+                                                    `)}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <div class="d-xl-none">
+                                            ${billingPayments.slice(0, 8).map(p => html`
+                                                <div class="card mb-2">
+                                                    <div class="card-body p-3">
+                                                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                                            <div class="text-muted small">Invoice</div>
+                                                            <span class=${`badge ${String(p.status || '').toLowerCase() === 'succeeded' ? 'bg-success text-white' : String(p.status || '').toLowerCase() === 'pending' ? 'bg-warning text-white' : 'bg-secondary text-white'}`}>
+                                                                ${p.status || 'Unknown'}
+                                                            </span>
+                                                        </div>
+                                                        <div class="mb-2">
+                                                            <code class="small" style="word-break: break-all; overflow-wrap: anywhere;">${p.invoiceId || 'Pending'}</code>
+                                                        </div>
+                                                        <div class="text-muted small mb-1">Payment Request</div>
+                                                        <div class="mb-2">
+                                                            <code class="small" style="word-break: break-all; overflow-wrap: anywhere;">${p.paymentRequestId || '-'}</code>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between small mt-2">
+                                                            <span class="text-muted">Amount</span>
+                                                            <span>${typeof p.amount === 'number' ? `${p.currency || 'USD'} ${p.amount.toFixed(2)}` : '-'}</span>
+                                                        </div>
+                                                        <div class="d-flex justify-content-between small mt-1">
+                                                            <span class="text-muted">Created</span>
+                                                            <span>${p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `)}
+                                        </div>
+                                    ` : html`
+                                        <div class="text-muted small">
+                                            ${billingError || 'No generated invoices for the current organization.'}
+                                        </div>
+                                    `}
+                                `}
+                            </div>
+                        </div>
+
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">

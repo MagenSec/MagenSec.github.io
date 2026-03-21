@@ -44,6 +44,11 @@ import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 import { DocumentationHub } from './pages/docs/DocumentationHub/index.js';
 import { GettingStartedPage } from './pages/getting-started/GettingStarted.js';
 import { ClientDevicePage } from './pages/client-device/ClientDevicePage.js';
+import { PeerBenchmarkPage }      from './pages/add-ons/PeerBenchmark.js';
+import { HygieneCoachPage }       from './pages/add-ons/HygieneCoach.js';
+import { InsuranceReadinessPage } from './pages/add-ons/InsuranceReadiness.js';
+import { CompliancePlusPage }     from './pages/add-ons/CompliancePlus.js';
+import { SupplyChainPage }        from './pages/add-ons/SupplyChain.js';
 
 const { html, render } = window;
 
@@ -144,6 +149,25 @@ function applyOrgUiRestrictions() {
         }
         // SiteAdmin visibility is handled by site-admin-only logic in setAuthenticationState
     }
+
+    // Add-on nav items: shown when the org's license includes the corresponding add-on.
+    // SiteAdmin always sees them (hasAddOn() returns true for SiteAdmin).
+    const addOnNavMap = {
+        'addon-peer-benchmark-nav':      orgContext.hasPeerBenchmark?.(),
+        'addon-hygiene-coach-nav':       orgContext.hasHygieneCoach?.(),
+        'addon-insurance-readiness-nav': orgContext.hasInsuranceReadiness?.(),
+        'addon-compliance-plus-nav':     orgContext.hasCompliancePlus?.(),
+        'addon-supply-chain-nav':        orgContext.hasSupplyChainIntel?.(),
+        'addon-dropdown-nav':            orgContext.hasPeerBenchmark?.() || orgContext.hasHygieneCoach?.() ||
+                                         orgContext.hasInsuranceReadiness?.() || orgContext.hasCompliancePlus?.() ||
+                                         orgContext.hasSupplyChainIntel?.(),
+    };
+    if (auth.isAuthenticated()) {
+        for (const [id, visible] of Object.entries(addOnNavMap)) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = visible ? '' : 'none';
+        }
+    }
 }
 
 // Main app component
@@ -200,6 +224,18 @@ function App() {
             return html`<${DocumentationHub} />`;
         case 'device-hub':
             return html`<${ClientDevicePage} />`;
+
+        // Add-on pages
+        case 'add-on/peer-benchmark':
+            return html`<${PeerBenchmarkPage} />`;
+        case 'add-on/hygiene-coach':
+            return html`<${HygieneCoachPage} />`;
+        case 'add-on/insurance-readiness':
+            return html`<${InsuranceReadinessPage} />`;
+        case 'add-on/compliance-plus':
+            return html`<${CompliancePlusPage} />`;
+        case 'add-on/supply-chain-intel':
+            return html`<${SupplyChainPage} />`;
         case 'inventory':
             return html`
                 <div>

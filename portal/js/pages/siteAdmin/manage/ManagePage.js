@@ -155,6 +155,7 @@ export class ManagePage extends Component {
                     orgType: data.orgType || 'Business',
                     licenseType: data.licenseType,
                     licenseTier: data.licenseTier,
+                    licensePackage: data.licensePackage || null,
                     licenseAddOns: data.licenseAddOns,
                     discountType: data.discountType,
                     discountValue: data.discountValue,

@@ -18,8 +18,34 @@ function resolveLicenseCatalog(catalog) {
         tiersByOrgType: c.tiersByOrgType && typeof c.tiersByOrgType === 'object' ? c.tiersByOrgType : {},
         demoTier: c.demoTier && typeof c.demoTier === 'object' ? c.demoTier : null,
         addOns: Array.isArray(c.addOns) && c.addOns.length ? c.addOns : [],
+        packages: Array.isArray(c.packages) && c.packages.length ? c.packages : [],
+        sizeRecommendation: c.sizeRecommendation && typeof c.sizeRecommendation === 'object' ? c.sizeRecommendation : null,
         licenseDuration: Array.isArray(c.licenseDuration) && c.licenseDuration.length ? c.licenseDuration : FALLBACK_DURATION_OPTIONS
     };
+}
+
+/** Returns the `includedAddOns` array for a given package key (empty array if not found). */
+function getAddOnsForPackage(packageKey, catalog) {
+    if (!packageKey || !Array.isArray(catalog.packages)) return [];
+    const pkg = catalog.packages.find(p => p.key === packageKey);
+    return Array.isArray(pkg?.includedAddOns) ? pkg.includedAddOns : [];
+}
+
+/** Returns a size-tier warning message if seats exceeds recommendation, or null. */
+function getSizeTierWarning(seats, catalog) {
+    const rec = catalog.sizeRecommendation;
+    if (!rec) return null;
+    const n = parseInt(seats, 10) || 0;
+    if (n > (rec.hardMaxDevices || 100)) {
+        return rec.overMaxMessage || `Organizations over ${rec.hardMaxDevices} devices require an enterprise plan.`;
+    }
+    const tiers = Array.isArray(rec.tiers) ? rec.tiers : [];
+    for (const tier of tiers) {
+        if (n >= (tier.minDevices || 0) && n <= (tier.maxDevices || Infinity)) {
+            return tier.showWarning ? tier.warningMessage || null : null;
+        }
+    }
+    return null;
 }
 
 function isDemoAllowedForOrgType(orgType, catalog) {
@@ -64,7 +90,7 @@ function normalizeCustomAddOns(addOns = [], isDemo = false, catalog = {}) {
     return Array.from(normalized);
 }
 
-function buildLicensePayload({ orgType, tier, seats, duration, addOns, catalog }) {
+function buildLicensePayload({ orgType, tier, seats, duration, addOns, packageKey, catalog }) {
     const config = getLicenseTierConfig(orgType, tier, catalog);
     const demoTierValue = catalog.demoTier?.value || 'Demo';
     const isCustom = tier === 'Custom';
@@ -78,6 +104,7 @@ function buildLicensePayload({ orgType, tier, seats, duration, addOns, catalog }
     return {
         licenseType,
         licenseTier: tier,
+        package: packageKey || null,
         seats: isDemo ? (demoAllowCustomSeats ? Math.max(1, parseInt(seats, 10) || demoDefaultSeats) : demoDefaultSeats) : effectiveSeats,
         durationDays: effectiveDuration,
         addOns: normalizeCustomAddOns(addOns, isDemo, catalog),
@@ -176,6 +203,7 @@ export function OrganizationsTab({
     const licenseUxCatalog = resolveLicenseCatalog(licenseCatalog);
     const orgTypeOptions = licenseUxCatalog.orgTypes || [];
     const addOnCatalog = licenseUxCatalog.addOns || [];
+    const packageCatalog = licenseUxCatalog.packages || [];
     const durationOptions = licenseUxCatalog.licenseDuration || FALLBACK_DURATION_OPTIONS;
     const demoTierValue = licenseUxCatalog.demoTier?.value || 'Demo';
 
@@ -210,6 +238,7 @@ export function OrganizationsTab({
     const [newOrgType, setNewOrgType] = useState('Business');
     const [newOrgLicenseTier, setNewOrgLicenseTier] = useState('Startup');
     const [newOrgLicenseAddOns, setNewOrgLicenseAddOns] = useState(['Security']);
+    const [newOrgPackage, setNewOrgPackage] = useState('');
     const [newOrgDiscountType, setNewOrgDiscountType] = useState('none');
     const [newOrgDiscountValue, setNewOrgDiscountValue] = useState(0);
     const [newIndustry, setNewIndustry] = useState('');
@@ -245,6 +274,7 @@ export function OrganizationsTab({
     const [newLicenseDuration, setNewLicenseDuration] = useState(365);
     const [newLicenseTier, setNewLicenseTier] = useState('Startup');
     const [newLicenseAddOns, setNewLicenseAddOns] = useState(['Security']);
+    const [newLicensePackage, setNewLicensePackage] = useState('');
     const [newLicenseDiscountType, setNewLicenseDiscountType] = useState('none');
     const [newLicenseDiscountValue, setNewLicenseDiscountValue] = useState(0);
     const [orgPayments, setOrgPayments] = useState([]);
@@ -524,6 +554,7 @@ export function OrganizationsTab({
             seats: newOrgSeats,
             duration: newOrgDuration,
             addOns: newOrgLicenseAddOns,
+            packageKey: newOrgPackage,
             catalog: licenseUxCatalog
         });
 
@@ -536,6 +567,7 @@ export function OrganizationsTab({
             licenseType: licensePayload.licenseType,
             licenseTier: licensePayload.licenseTier,
             licenseAddOns: licensePayload.addOns,
+            licensePackage: licensePayload.package,
             dailyReportEnabled: newDailyReportEnabled,
             weeklyReportEnabled: newWeeklyReportEnabled,
             sendToAllTeamMembers: newSendToAllMembers,
@@ -555,6 +587,7 @@ export function OrganizationsTab({
             setNewOrgType('Business');
             setNewOrgLicenseTier('Startup');
             setNewOrgLicenseAddOns(['Security']);
+            setNewOrgPackage('');
             setNewOrgDiscountType('none');
             setNewOrgDiscountValue(0);
             setNewIndustry('');
@@ -583,6 +616,20 @@ export function OrganizationsTab({
             setNewLicenseAddOns(normalizeCustomAddOns([], true, licenseUxCatalog));
         }
     }, [newLicenseTier, updateOrgType, selectedOrg, licenseCatalog]);
+
+    // When package changes, auto-fill included add-ons for create-org form
+    useEffect(() => {
+        if (!newOrgPackage) return;
+        const pkgAddOns = getAddOnsForPackage(newOrgPackage, licenseUxCatalog);
+        if (pkgAddOns.length) setNewOrgLicenseAddOns(pkgAddOns);
+    }, [newOrgPackage, licenseCatalog]);
+
+    // When package changes, auto-fill included add-ons for create-license form
+    useEffect(() => {
+        if (!newLicensePackage) return;
+        const pkgAddOns = getAddOnsForPackage(newLicensePackage, licenseUxCatalog);
+        if (pkgAddOns.length) setNewLicenseAddOns(pkgAddOns);
+    }, [newLicensePackage, licenseCatalog]);
 
     useEffect(() => {
         const defaultTier = getTierOptionsForOrgType(newOrgType, licenseUxCatalog)[0]?.value || 'Startup';
@@ -694,6 +741,7 @@ export function OrganizationsTab({
                 seats: newLicenseSeats,
                 duration: newLicenseDuration,
                 addOns: newLicenseAddOns,
+                packageKey: newLicensePackage,
                 catalog: licenseUxCatalog
             });
 
@@ -714,6 +762,7 @@ export function OrganizationsTab({
                 durationDays: licensePayload.durationDays,
                 licenseType: licensePayload.licenseType,
                 licenseTier: licensePayload.licenseTier,
+                package: licensePayload.package,
                 addOns: licensePayload.addOns,
                 discountType: newLicenseDiscountType === 'none' ? null : newLicenseDiscountType,
                 discountValue: newLicenseDiscountType === 'none' ? null : (parseFloat(newLicenseDiscountValue) || 0)
@@ -732,6 +781,7 @@ export function OrganizationsTab({
                 const defaultTier = getTierOptionsForOrgType(currentOrgType, licenseUxCatalog)[0]?.value || 'Startup';
                 setNewLicenseTier(defaultTier);
                 setNewLicenseAddOns(['Security']);
+                setNewLicensePackage('');
                 setNewLicenseDiscountType('none');
                 setNewLicenseDiscountValue(0);
                 await handleSelectOrg(selectedOrg);
@@ -988,6 +1038,16 @@ export function OrganizationsTab({
                                             </div>
                                             <div class="card-body">
                                                 <div class="row g-3">
+                                                    ${packageCatalog.length > 0 && newOrgType !== 'Education' && newOrgLicenseTier !== 'Demo' && newOrgLicenseTier !== demoTierValue && html`
+                                                        <div class="col-md-4">
+                                                            <label class="form-label">Package</label>
+                                                            <select class="form-select" value=${newOrgPackage} onChange=${(e) => setNewOrgPackage(e.target.value)}>
+                                                                <option value="">— None / Custom —</option>
+                                                                ${packageCatalog.map(pkg => html`<option value=${pkg.key}>${pkg.label}${pkg.priceMultiplier !== 1 ? ` (×${pkg.priceMultiplier})` : ''}</option>`)}
+                                                            </select>
+                                                            <small class="text-muted">Pre-configures included add-ons for this package.</small>
+                                                        </div>
+                                                    `}
                                                     <div class="col-md-4">
                                                         <label class="form-label">License Tier</label>
                                                         <select class="form-select" value=${newOrgLicenseTier} onChange=${(e) => setNewOrgLicenseTier(e.target.value)}>
@@ -1005,6 +1065,7 @@ export function OrganizationsTab({
                                                             disabled=${newOrgLicenseTier !== 'Custom' && !(newOrgLicenseTier === demoTierValue && licenseUxCatalog.demoTier?.allowCustomSeats)}
                                                             onInput=${(e) => setNewOrgSeats(e.target.value)}
                                                         />
+                                                        ${(() => { const w = getSizeTierWarning(newOrgSeats, licenseUxCatalog); return w ? html`<small class="text-warning"><i class="ti ti-alert-triangle me-1"></i>${w}</small>` : null; })()}
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label class="form-label">Duration</label>
@@ -1042,9 +1103,9 @@ export function OrganizationsTab({
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    ${(newOrgLicenseTier === 'Custom' || newOrgLicenseTier === demoTierValue) && html`
+                                                    ${(newOrgLicenseTier === 'Custom' || newOrgLicenseTier === demoTierValue || !!newOrgPackage) && html`
                                                         <div class="col-12">
-                                                            <label class="form-label">Platform Features / Add-ons</label>
+                                                            <label class="form-label">Platform Features / Add-ons${newOrgPackage ? html` <span class="badge bg-primary-lt text-primary ms-2">Pre-configured by package</span>` : ''}</label>
                                                             <div class="row g-2">
                                                                 ${addOnCatalog.map((addOn) => html`
                                                                     <div class="col-md-6">
@@ -1053,9 +1114,10 @@ export function OrganizationsTab({
                                                                                 class="form-check-input"
                                                                                 type="checkbox"
                                                                                         checked=${normalizeCustomAddOns(newOrgLicenseAddOns, newOrgLicenseTier === demoTierValue, licenseUxCatalog).includes(addOn.key)}
-                                                                                        disabled=${!!addOn.requiredForAll || (newOrgLicenseTier === demoTierValue && !!addOn.lockedForDemo)}
+                                                                                        disabled=${!!addOn.requiredForAll || (newOrgLicenseTier === demoTierValue && !!addOn.lockedForDemo) || (!!newOrgPackage && getAddOnsForPackage(newOrgPackage, licenseUxCatalog).includes(addOn.key))}
                                                                                 onChange=${(e) => {
                                                                                     if (addOn.requiredForAll || (newOrgLicenseTier === demoTierValue && addOn.lockedForDemo)) return;
+                                                                                    if (newOrgPackage && getAddOnsForPackage(newOrgPackage, licenseUxCatalog).includes(addOn.key)) return;
                                                                                             const selected = new Set(normalizeCustomAddOns(newOrgLicenseAddOns, newOrgLicenseTier === demoTierValue, licenseUxCatalog));
                                                                                     if (e.target.checked) selected.add(addOn.key);
                                                                                     else selected.delete(addOn.key);
@@ -1562,6 +1624,15 @@ export function OrganizationsTab({
                                                             </div>
                                                         `}
                                                         <div class="row g-2 align-items-end">
+                                                            ${packageCatalog.length > 0 && !isSelectedPersonal && html`
+                                                                <div class="col-md-2">
+                                                                    <label class="form-label small">Package</label>
+                                                                    <select class="form-select form-select-sm" value=${newLicensePackage} onChange=${(e) => setNewLicensePackage(e.target.value)}>
+                                                                        <option value="">— None —</option>
+                                                                        ${packageCatalog.map(pkg => html`<option value=${pkg.key}>${pkg.label}</option>`)}
+                                                                    </select>
+                                                                </div>
+                                                            `}
                                                             <div class="col-md-2">
                                                                 <label class="form-label small">Seats</label>
                                                                 <input
@@ -1572,6 +1643,7 @@ export function OrganizationsTab({
                                                                     disabled=${newLicenseTier !== 'Custom' && !(newLicenseTier === demoTierValue && licenseUxCatalog.demoTier?.allowCustomSeats)}
                                                                     onInput=${(e) => setNewLicenseSeats(e.target.value)}
                                                                 />
+                                                                ${(() => { const w = getSizeTierWarning(newLicenseSeats, licenseUxCatalog); return w ? html`<small class="text-warning d-block mt-1"><i class="ti ti-alert-triangle me-1"></i>${w}</small>` : null; })()}
                                                             </div>
                                                             <div class="col-md-2">
                                                                 <label class="form-label small">Duration (Days)</label>
@@ -1612,9 +1684,9 @@ export function OrganizationsTab({
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            ${(newLicenseTier === 'Custom' || newLicenseTier === demoTierValue) && html`
+                                                            ${(newLicenseTier === 'Custom' || newLicenseTier === demoTierValue || !!newLicensePackage) && html`
                                                                 <div class="col-12">
-                                                                    <label class="form-label small">Platform Features / Add-ons</label>
+                                                                    <label class="form-label small">Platform Features / Add-ons${newLicensePackage ? html` <span class="badge bg-primary-lt text-primary ms-1">Package defaults</span>` : ''}</label>
                                                                     <div class="row g-2">
                                                                         ${addOnCatalog.map((addOn) => html`
                                                                             <div class="col-md-6">
@@ -1623,9 +1695,10 @@ export function OrganizationsTab({
                                                                                         class="form-check-input"
                                                                                         type="checkbox"
                                                                                         checked=${normalizeCustomAddOns(newLicenseAddOns, newLicenseTier === demoTierValue, licenseUxCatalog).includes(addOn.key)}
-                                                                                        disabled=${!!addOn.requiredForAll || (newLicenseTier === demoTierValue && !!addOn.lockedForDemo)}
+                                                                                        disabled=${!!addOn.requiredForAll || (newLicenseTier === demoTierValue && !!addOn.lockedForDemo) || (!!newLicensePackage && getAddOnsForPackage(newLicensePackage, licenseUxCatalog).includes(addOn.key))}
                                                                                         onChange=${(e) => {
                                                                                             if (addOn.requiredForAll || (newLicenseTier === demoTierValue && addOn.lockedForDemo)) return;
+                                                                                            if (newLicensePackage && getAddOnsForPackage(newLicensePackage, licenseUxCatalog).includes(addOn.key)) return;
                                                                                             const selected = new Set(normalizeCustomAddOns(newLicenseAddOns, newLicenseTier === demoTierValue, licenseUxCatalog));
                                                                                             if (e.target.checked) selected.add(addOn.key);
                                                                                             else selected.delete(addOn.key);

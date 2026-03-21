@@ -5,6 +5,7 @@
 
 import { BusinessMatrixPage } from './components/BusinessMatrix.js';
 import { DiagnosticsPage } from './components/Diagnostics.js';
+import { ProfitabilityPage } from './components/Profitability.js';
 
 const { html, Component } = window;
 const { useState } = window.preactHooks;
@@ -13,7 +14,7 @@ export class BusinessPage extends Component {
     constructor(props) {
         super(props);
         this.state = {
-            activeTab: 'matrix' // 'matrix' or 'diagnostics'
+            activeTab: 'matrix' // 'matrix' | 'diagnostics' | 'profitability'
         };
     }
 
@@ -54,12 +55,23 @@ export class BusinessPage extends Component {
                             Diagnostics
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a 
+                            class="nav-link ${activeTab === 'profitability' ? 'active' : ''}" 
+                            href="#" 
+                            onClick=${(e) => { e.preventDefault(); this.setState({ activeTab: 'profitability' }); }}
+                        >
+                            <i class="ti ti-cash me-2"></i>
+                            Profitability
+                        </a>
+                    </li>
                 </ul>
 
                 <!-- Tab content -->
                 <div class="tab-content">
-                    ${activeTab === 'matrix' && html`<${BusinessMatrixPage} embedded=${true} />`}
-                    ${activeTab === 'diagnostics' && html`<${DiagnosticsPage} embedded=${true} />`}
+                    ${activeTab === 'matrix'        && html`<${BusinessMatrixPage} embedded=${true} />`}
+                    ${activeTab === 'diagnostics'   && html`<${DiagnosticsPage} embedded=${true} />`}
+                    ${activeTab === 'profitability' && html`<${ProfitabilityPage} />`}
                 </div>
             </div>
         `;
