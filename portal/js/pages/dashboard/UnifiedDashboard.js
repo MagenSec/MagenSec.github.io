@@ -1599,6 +1599,33 @@ export default class UnifiedDashboard extends Component {
                 </div>
               ` : ''}
 
+              <!-- Row 2e: Org Telemetry Activity (IT only) -->
+              ${activePersona === 'it' && it.orgActivity ? html`
+                <div style="padding: 12px 16px 0;">
+                  <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tblr-secondary, #999); margin-bottom: 8px;">Telemetry Activity</div>
+                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+                    <div style="text-align:center;padding:6px;border-radius:8px;background:var(--tblr-bg-surface-secondary,#f5f5f5);">
+                      <div style="font-size:1.1rem;font-weight:700;color:var(--tblr-body-color,#333);">${Number(it.orgActivity.seenDevices || 0).toLocaleString()}</div>
+                      <div style="font-size:0.65rem;color:var(--tblr-secondary,#999);text-transform:uppercase;letter-spacing:0.04em;">Reporting</div>
+                    </div>
+                    <div style="text-align:center;padding:6px;border-radius:8px;background:var(--tblr-bg-surface-secondary,#f5f5f5);">
+                      <div style="font-size:1.1rem;font-weight:700;color:var(--tblr-body-color,#333);">${Number(it.orgActivity.totalTelemetryRows || 0).toLocaleString()}</div>
+                      <div style="font-size:0.65rem;color:var(--tblr-secondary,#999);text-transform:uppercase;letter-spacing:0.04em;">Rows/Day</div>
+                    </div>
+                    <div style="text-align:center;padding:6px;border-radius:8px;background:var(--tblr-bg-surface-secondary,#f5f5f5);">
+                      <div style="font-size:1.1rem;font-weight:700;color:var(--tblr-body-color,#333);">${Number(it.orgActivity.avgRowsPerDevice || 0).toLocaleString()}</div>
+                      <div style="font-size:0.65rem;color:var(--tblr-secondary,#999);text-transform:uppercase;letter-spacing:0.04em;">Avg/Device</div>
+                    </div>
+                  </div>
+                  ${it.orgActivity.noisiestDeviceId ? html`
+                    <div style="font-size:0.75rem;color:var(--tblr-secondary,#666);margin-top:6px;">
+                      Noisiest: <strong style="color:var(--tblr-body-color,#333);">${it.orgActivity.noisiestDeviceId}</strong>
+                      <span style="opacity:0.7">(${Number(it.orgActivity.noisiestDeviceVolume || 0).toLocaleString()} rows)</span>
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+
               <!-- Row 2d: Top CVE table (security only) -->
               ${activePersona === 'security' && (data.securityPro?.cveDetails || []).length > 0 ? html`
                 <div style="padding: 12px 16px 0;">
