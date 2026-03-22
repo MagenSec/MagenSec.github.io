@@ -17,7 +17,7 @@ export function GettingStartedTab(html) {
                             <div style="min-width:32px;height:32px;border-radius:50%;background:#0054a6;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">1</div>
                             <div>
                                 <strong>Install the MagenSec client</strong>
-                                <p class="mb-0 text-muted" style="font-size:13px;">Download MagenSec from the Microsoft Store or use the manual installer. Run it on any Windows device you want to protect.</p>
+                                <p class="mb-0 text-muted" style="font-size:13px;">Install from the <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" target="_blank" rel="noopener">official Microsoft Store listing</a> or run <code>winget install MagenSec --silent --accept-package-agreements</code> for scripted install.</p>
                             </div>
                         </div>
                         <div class="d-flex gap-3 mb-3">
@@ -67,7 +67,7 @@ export function GettingStartedTab(html) {
                             <div style="min-width:32px;height:32px;border-radius:50%;background:#0054a6;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">2</div>
                             <div>
                                 <strong>Install the MagenSec client on your devices</strong>
-                                <p class="mb-0 text-muted" style="font-size:13px;">Download the client from the Microsoft Store or use the enterprise installer with command-line deployment for multiple machines.</p>
+                                <p class="mb-0 text-muted" style="font-size:13px;">Use the <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" target="_blank" rel="noopener">Microsoft Store listing</a> for standard rollout, or use <code>winget install MagenSec --silent --accept-package-agreements</code> in your endpoint management workflow.</p>
                             </div>
                         </div>
                         <div class="d-flex gap-3 mb-3">
