@@ -127,12 +127,39 @@ function applyOrgUiRestrictions() {
     const businessOnlyItems = document.querySelectorAll('.business-license-only');
     businessOnlyItems.forEach((item) => {
         const tooltip = item.getAttribute('data-business-tooltip') || 'Feature available in Business License only';
+        const navTrigger = item.querySelector(':scope > .nav-link.dropdown-toggle');
         if (isPersonal) {
             item.setAttribute('aria-disabled', 'true');
             item.setAttribute('title', tooltip);
+            if (navTrigger) {
+                navTrigger.classList.add('disabled');
+                navTrigger.setAttribute('aria-disabled', 'true');
+                navTrigger.setAttribute('tabindex', '-1');
+                if (navTrigger.hasAttribute('data-bs-toggle')) {
+                    navTrigger.setAttribute('data-disabled-bs-toggle', navTrigger.getAttribute('data-bs-toggle') || 'dropdown');
+                    navTrigger.removeAttribute('data-bs-toggle');
+                }
+                if (navTrigger.hasAttribute('href')) {
+                    navTrigger.setAttribute('data-disabled-href', navTrigger.getAttribute('href') || '#');
+                    navTrigger.removeAttribute('href');
+                }
+            }
         } else {
             item.removeAttribute('aria-disabled');
             item.removeAttribute('title');
+            if (navTrigger) {
+                navTrigger.classList.remove('disabled');
+                navTrigger.removeAttribute('aria-disabled');
+                navTrigger.removeAttribute('tabindex');
+                if (navTrigger.hasAttribute('data-disabled-bs-toggle')) {
+                    navTrigger.setAttribute('data-bs-toggle', navTrigger.getAttribute('data-disabled-bs-toggle') || 'dropdown');
+                    navTrigger.removeAttribute('data-disabled-bs-toggle');
+                }
+                if (navTrigger.hasAttribute('data-disabled-href')) {
+                    navTrigger.setAttribute('href', navTrigger.getAttribute('data-disabled-href') || '#');
+                    navTrigger.removeAttribute('data-disabled-href');
+                }
+            }
         }
     });
 
@@ -150,24 +177,68 @@ function applyOrgUiRestrictions() {
         // SiteAdmin visibility is handled by site-admin-only logic in setAuthenticationState
     }
 
-    // Add-on nav items: shown when the org's license includes the corresponding add-on.
-    // SiteAdmin always sees them (hasAddOn() returns true for SiteAdmin).
-    const addOnNavMap = {
-        'addon-peer-benchmark-nav':      orgContext.hasPeerBenchmark?.(),
-        'addon-hygiene-coach-nav':       orgContext.hasHygieneCoach?.(),
-        'addon-insurance-readiness-nav': orgContext.hasInsuranceReadiness?.(),
-        'addon-compliance-plus-nav':     orgContext.hasCompliancePlus?.(),
-        'addon-supply-chain-nav':        orgContext.hasSupplyChainIntel?.(),
-        'addon-dropdown-nav':            orgContext.hasPeerBenchmark?.() || orgContext.hasHygieneCoach?.() ||
-                                         orgContext.hasInsuranceReadiness?.() || orgContext.hasCompliancePlus?.() ||
-                                         orgContext.hasSupplyChainIntel?.(),
-    };
+    // Add-on nav items — three visibility modes:
+    //   • Personal org + regular user  → hide entirely (Business-only feature)
+    //   • Business org + regular user  → show; disable unlicensed items with Bootstrap .disabled
+    //   • Site Admin (any org)         → show all; mark unlicensed with orange dot (.nav-addon-unlicensed)
+    const isSiteAdminUser = auth.isAuthenticated() && auth.getUser()?.userType === 'SiteAdmin';
     if (auth.isAuthenticated()) {
-        for (const [id, visible] of Object.entries(addOnNavMap)) {
+        const hideAll = isPersonal && !isSiteAdminUser;
+        const addOnDropdown = document.getElementById('addon-dropdown-nav');
+        if (addOnDropdown) addOnDropdown.style.display = hideAll ? 'none' : '';
+
+        const addOnItems = [
+            { id: 'addon-peer-benchmark-nav',      key: 'PeerBenchmark',      has: orgContext.hasPeerBenchmark?.()      },
+            { id: 'addon-hygiene-coach-nav',        key: 'HygieneCoach',       has: orgContext.hasHygieneCoach?.()       },
+            { id: 'addon-insurance-readiness-nav',  key: 'InsuranceReadiness', has: orgContext.hasInsuranceReadiness?.() },
+            { id: 'addon-compliance-plus-nav',      key: 'CompliancePlus',     has: orgContext.hasCompliancePlus?.()     },
+            { id: 'addon-supply-chain-nav',         key: 'SupplyChainIntel',   has: orgContext.hasSupplyChainIntel?.()   },
+        ];
+        for (const { id, key, has } of addOnItems) {
             const el = document.getElementById(id);
-            if (el) el.style.display = visible ? '' : 'none';
+            if (!el) continue;
+            if (hideAll) {
+                el.style.display = 'none';
+                el.classList.remove('disabled', 'nav-addon-unlicensed');
+                el.removeAttribute('aria-disabled');
+                el.removeAttribute('title');
+            } else if (isSiteAdminUser) {
+                el.style.display = '';
+                el.classList.remove('disabled');
+                el.removeAttribute('aria-disabled');
+                el.removeAttribute('title');
+                el.classList.toggle('nav-addon-unlicensed', !(orgContext.hasAddOnForOrg?.(key) ?? false));
+            } else {
+                // Regular user, business org: show; disable if not licensed
+                el.style.display = '';
+                el.classList.remove('nav-addon-unlicensed');
+                if (has) {
+                    el.classList.remove('disabled');
+                    el.removeAttribute('aria-disabled');
+                    el.removeAttribute('title');
+                } else {
+                    el.classList.add('disabled');
+                    el.setAttribute('aria-disabled', 'true');
+                    el.setAttribute('title', 'Not included in your current plan');
+                }
+            }
         }
     }
+
+    // Personal org: hide Home, Insights, and Officer MAGI (business-only nav items)
+    const hideForPersonalNonAdmin = isPersonal && !isSiteAdminUser;
+    const personalNavHideMap = {
+        'nav-home-item':     hideForPersonalNonAdmin,
+        'nav-insights-item': hideForPersonalNonAdmin,
+        'nav-magi-item':     hideForPersonalNonAdmin,
+    };
+    if (auth.isAuthenticated()) {
+        for (const [id, hide] of Object.entries(personalNavHideMap)) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = hide ? 'none' : '';
+        }
+    }
+
 }
 
 // Main app component

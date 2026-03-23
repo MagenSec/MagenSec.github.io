@@ -18,7 +18,7 @@ function redirectToHome(page) {
 }
 
 function guardPersonalRestrictedRoute(ctx, page) {
-    if (isPersonalOrg()) {
+    if (isPersonalOrg() && !window.orgContext?.isSiteAdmin?.()) {
         redirectToHome(page);
         return true;
     }
@@ -327,6 +327,15 @@ export function initRouter(renderApp) {
             return;
         }
         renderApp({ page: 'inventory', ctx });
+    });
+
+    // Software Inventory (protected)
+    page('/apps', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'apps', ctx });
     });
 
     // Site Admin - Business (protected)

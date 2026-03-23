@@ -132,6 +132,7 @@ export function SettingsPage() {
                 setOrg({
                     orgId: orgData.orgId,
                     orgName: orgData.orgName || orgData.name,
+                    orgType: orgData.type || orgData.orgType || (isPersonalType ? 'Personal' : 'Business'),
                     ownerEmail: orgData.ownerEmail || 'Unknown',
                     totalCredits: orgData.totalCredits ?? 0,
                     remainingCredits: orgData.remainingCredits ?? 0,
@@ -153,6 +154,7 @@ export function SettingsPage() {
                     setOrg({
                         orgId: contextOrg.orgId,
                         orgName: contextOrg.name,
+                        orgType: contextOrg.type || (isPersonalType ? 'Personal' : 'Business'),
                         ownerEmail: contextOrg.ownerEmail || 'Unknown',
                         totalCredits: contextOrg.totalCredits ?? 0,
                         remainingCredits: contextOrg.remainingCredits ?? 0,
@@ -576,7 +578,14 @@ export function SettingsPage() {
                 <div class="row align-items-center">
                     <div class="col">
                         <h2 class="page-title">Organization Settings</h2>
-                        <div class="text-muted mt-1">${org?.orgName || 'Loading...'}</div>
+                        <div class="text-muted mt-1 d-flex align-items-center gap-2">
+                            ${org?.orgName || 'Loading...'}
+                            ${org?.orgType ? html`
+                                <span class=${'badge text-white ms-1 ' + (org.orgType === 'Personal' ? 'bg-purple' : org.orgType === 'Education' ? 'bg-cyan' : 'bg-blue')}>
+                                    ${org.orgType}
+                                </span>
+                            ` : null}
+                        </div>
                     </div>
                 </div>
             </div>

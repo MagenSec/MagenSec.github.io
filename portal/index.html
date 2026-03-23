@@ -347,7 +347,7 @@
                     <div class="container-xl">
                         <ul class="navbar-nav">
                             <!-- Home -->
-                            <li class="nav-item">
+                            <li class="nav-item" id="nav-home-item">
                                 <a class="nav-link" href="#!/dashboard">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
@@ -366,22 +366,22 @@
                                 </a>
                             </li>
 
-                            <!-- Operations -->
+                            <!-- Inventory -->
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l10 -10" /><path d="M2 12l5 5m5 -5l5 -5" /></svg>
                                     </span>
-                                    <span class="nav-link-title">Operations</span>
+                                    <span class="nav-link-title">Inventory</span>
                                 </a>
                                 <div class="dropdown-menu">
                                     <a class="dropdown-item" href="#!/devices"><i class="ti ti-devices me-2"></i>Devices</a>
-                                    <a class="dropdown-item business-license-only" href="#!/security/response" data-business-tooltip="Feature available in Business License only"><i class="ti ti-shield-half me-2"></i>Response</a>
+                                    <a class="dropdown-item" href="#!/apps"><i class="ti ti-apps me-2"></i>Software Inventory</a>
                                 </div>
                             </li>
 
                             <!-- Insights (business only) -->
-                            <li class="nav-item dropdown business-license-only" data-business-tooltip="Feature available in Business License only">
+                            <li class="nav-item dropdown business-license-only" id="nav-insights-item" data-business-tooltip="Feature available in Business License only">
                                 <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" /><path d="M9.7 17l4.6 0" /></svg>
@@ -426,6 +426,7 @@
                                 <div class="dropdown-menu">
                                     <a class="dropdown-item" href="#!/settings"><i class="ti ti-settings me-2"></i>General</a>
                                     <a class="dropdown-item" href="#!/audit"><i class="ti ti-file-search me-2"></i>Command Log</a>
+                                    <a class="dropdown-item site-admin-only" href="#!/response-actions"><i class="ti ti-terminal me-2"></i>Actions</a>
                                 </div>
                             </li>
 
@@ -433,7 +434,7 @@
 
                         <ul class="navbar-nav ms-auto">
                             <!-- Officer MAGI (top-level, highlighted) -->
-                            <li class="nav-item nav-item-ai-analyst business-license-only" data-business-tooltip="Feature available in Business License only">
+                            <li class="nav-item nav-item-ai-analyst business-license-only" id="nav-magi-item" data-business-tooltip="Feature available in Business License only">
                                 <a class="nav-link" href="#!/analyst">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>

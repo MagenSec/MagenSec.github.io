@@ -6,6 +6,30 @@
 const { html } = window;
 const { useState, useEffect, useRef } = window.preactHooks;
 
+// Canonical industry taxonomy — fallback used if catalog API hasn't loaded yet.
+// Source of truth is org-license-catalog.json (Cloud/Configs); served via /api/v1/admin/orgs/license-catalog.
+// To add a new industry: update org-license-catalog.json "industries" array and add fuzzy-match rules
+// to IndustryTaxonomy.cs (Cloud).
+const FALLBACK_INDUSTRIES = [
+    'Consulting',
+    'Education',
+    'Finance',
+    'Government',
+    'Healthcare',
+    'Legal',
+    'Manufacturing',
+    'Media & Entertainment',
+    'Non-Profit',
+    'Non-Government',
+    'Others',
+    'Professional Services',
+    'Retail',
+    'Technology',
+];
+
+// Returns the canonical industry value if it matches the provided list, else '' (unset)
+const normalizeIndustry = (raw, industries = FALLBACK_INDUSTRIES) => (raw && industries.includes(raw)) ? raw : '';
+
 const FALLBACK_DURATION_OPTIONS = [
     { label: '1 year (365 days)', value: 365 }
 ];
@@ -20,7 +44,8 @@ function resolveLicenseCatalog(catalog) {
         addOns: Array.isArray(c.addOns) && c.addOns.length ? c.addOns : [],
         packages: Array.isArray(c.packages) && c.packages.length ? c.packages : [],
         sizeRecommendation: c.sizeRecommendation && typeof c.sizeRecommendation === 'object' ? c.sizeRecommendation : null,
-        licenseDuration: Array.isArray(c.licenseDuration) && c.licenseDuration.length ? c.licenseDuration : FALLBACK_DURATION_OPTIONS
+        licenseDuration: Array.isArray(c.licenseDuration) && c.licenseDuration.length ? c.licenseDuration : FALLBACK_DURATION_OPTIONS,
+        industries: Array.isArray(c.industries) && c.industries.length ? c.industries : FALLBACK_INDUSTRIES
     };
 }
 
@@ -206,6 +231,7 @@ export function OrganizationsTab({
     const packageCatalog = licenseUxCatalog.packages || [];
     const durationOptions = licenseUxCatalog.licenseDuration || FALLBACK_DURATION_OPTIONS;
     const demoTierValue = licenseUxCatalog.demoTier?.value || 'Demo';
+    const industryOptions = licenseUxCatalog.industries || FALLBACK_INDUSTRIES;
 
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showOrgList, setShowOrgList] = useState(false);
@@ -483,7 +509,7 @@ export function OrganizationsTab({
         setUpdateOrgName(org.orgName || org.name || '');
         setUpdateOrgType(getOrgType(org));
         setNewTransferOwner(org.ownerEmail);
-        setUpdateIndustry(org.industry || '');
+        setUpdateIndustry(normalizeIndustry(org.industry, industryOptions));
         setUpdateOrgSize(org.orgSize || '');
         setUpdateNextAuditDate(org.nextAuditDate || '');
         setUpdateTodaySnapshotRefreshHoursOverride(
@@ -1156,13 +1182,14 @@ export function OrganizationsTab({
                                                     <div class="row g-3">
                                                         <div class="col-md-6">
                                                             <label class="form-label">Industry</label>
-                                                            <input
-                                                                type="text"
-                                                                class="form-control"
-                                                                placeholder="e.g. Healthcare, Finance, Legal"
+                                                            <select
+                                                                class="form-select"
                                                                 value=${newIndustry}
-                                                                onInput=${(e) => setNewIndustry(e.target.value)}
-                                                            />
+                                                                onChange=${(e) => setNewIndustry(e.target.value)}
+                                                            >
+                                                                <option value="">— Select industry —</option>
+                                                                ${industryOptions.map(i => html`<option value=${i}>${i}</option>`)}
+                                                            </select>
                                                         </div>
                                                         <div class="col-md-6">
                                                             <label class="form-label">Organisation Size</label>
@@ -1556,13 +1583,14 @@ export function OrganizationsTab({
                                                     <div class="row g-3">
                                                         <div class="col-md-6">
                                                             <label class="form-label">Industry</label>
-                                                            <input
-                                                                type="text"
-                                                                class="form-control"
-                                                                placeholder="e.g. Healthcare, Finance, Legal"
+                                                            <select
+                                                                class="form-select"
                                                                 value=${updateIndustry}
-                                                                onInput=${(e) => setUpdateIndustry(e.target.value)}
-                                                            />
+                                                                onChange=${(e) => setUpdateIndustry(e.target.value)}
+                                                            >
+                                                                <option value="">— Select industry —</option>
+                                                                ${industryOptions.map(i => html`<option value=${i}>${i}</option>`)}
+                                                            </select>
                                                             <small class="form-text text-muted">Used by AI to add industry-specific threat context</small>
                                                         </div>
                                                         <div class="col-md-6">

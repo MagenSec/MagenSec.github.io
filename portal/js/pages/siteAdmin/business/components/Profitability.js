@@ -386,6 +386,12 @@ export function ProfitabilityPage() {
                                 <th class="text-end" style="cursor:pointer" onClick=${() => toggleSort('activeDevices')}>
                                     Devices ${sortIcon('activeDevices')}
                                 </th>
+                                <th class="text-end" style="cursor:pointer" onClick=${() => toggleSort('seenDevices')}>
+                                    Seen ${sortIcon('seenDevices')}
+                                </th>
+                                <th class="text-end" style="cursor:pointer" onClick=${() => toggleSort('telemetryVolume')}>
+                                    Telemetry ${sortIcon('telemetryVolume')}
+                                </th>
                                 <th class="text-end" style="cursor:pointer" onClick=${() => toggleSort('dailyRevenueUsd')}>
                                     Daily Rev ${sortIcon('dailyRevenueUsd')}
                                 </th>
@@ -403,14 +409,14 @@ export function ProfitabilityPage() {
                             ${loading ? html`
                                 ${Array.from({ length: 6 }).map(() => html`
                                     <tr class="placeholder-glow">
-                                        ${Array.from({ length: 9 }).map(() => html`
+                                        ${Array.from({ length: 11 }).map(() => html`
                                             <td><span class="placeholder col-8"></span></td>
                                         `)}
                                     </tr>
                                 `)}
                             ` : sorted.length === 0 ? html`
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">
+                                    <td colspan="11" class="text-center text-muted py-4">
                                         No profitability data yet. Rows are computed by the nightly cron task.
                                     </td>
                                 </tr>
@@ -422,6 +428,8 @@ export function ProfitabilityPage() {
                                     <td>${packageBadge(o.package)}</td>
                                     <td><span class="text-muted small">${o.seatTier || '—'}</span></td>
                                     <td class="text-end">${o.activeDevices ?? '—'}</td>
+                                    <td class="text-end">${o.seenDevices > 0 ? o.seenDevices : html`<span class="text-muted">—</span>`}</td>
+                                    <td class="text-end font-monospace small">${o.telemetryVolume > 0 ? Number(o.telemetryVolume).toLocaleString() : html`<span class="text-muted">—</span>`}</td>
                                     <td class="text-end font-monospace small">${formatUsd(o.dailyRevenueUsd)}</td>
                                     <td class="text-end font-monospace small">${formatUsd(o.dailyCostUsd)}</td>
                                     <td class="text-end">${marginBadge(o.estimatedMargin)}</td>

@@ -951,10 +951,11 @@ export class ApiClient {
         });
     }
 
-    async getCommands(orgId, deviceId, limit) {
+    async getCommands(orgId, deviceId, limit, since) {
         const params = new URLSearchParams();
         if (deviceId) params.set('deviceId', deviceId);
         if (limit) params.set('limit', limit);
+        if (since) params.set('since', since);
         const qs = params.toString();
         return this.get(`/api/v1/orgs/${orgId}/response/commands${qs ? '?' + qs : ''}`);
     }

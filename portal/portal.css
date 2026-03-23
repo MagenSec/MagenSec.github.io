@@ -2791,3 +2791,13 @@ body.org-switcher-open .security-officer-top-note {
         padding: 4px 8px !important;
     }
 }
+
+/* SiteAdmin visual cue: dim add-on nav items when the current org lacks the license */
+.nav-addon-unlicensed {
+    opacity: 0.55;
+}
+.nav-addon-unlicensed::after {
+    content: ' \00b7';
+    color: var(--tblr-warning, #f59f00);
+    font-weight: bold;
+}

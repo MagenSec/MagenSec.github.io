@@ -260,8 +260,8 @@ export default class UnifiedDashboard extends Component {
   }
 
   async loadAddOnSignals(orgId) {
-    const canBenchmark = orgContext.hasPeerBenchmark?.() ?? false;
-    const canCoach = orgContext.hasHygieneCoach?.() ?? false;
+    const canBenchmark = orgContext.hasAddOnForOrg?.('PeerBenchmark') ?? false;
+    const canCoach     = orgContext.hasAddOnForOrg?.('HygieneCoach') ?? false;
 
     if (!canBenchmark && !canCoach) {
       this.setState({ addOnSignals: { loading: false, peerBenchmark: null, hygieneCoach: null } });
@@ -305,7 +305,7 @@ export default class UnifiedDashboard extends Component {
 
   renderAddOnSpotlights() {
     const { addOnSignals } = this.state;
-    const peer = addOnSignals?.peerBenchmark;
+    const peer  = addOnSignals?.peerBenchmark;
     const coach = addOnSignals?.hygieneCoach;
 
     if (!peer && !coach && !addOnSignals?.loading) {
@@ -326,7 +326,7 @@ export default class UnifiedDashboard extends Component {
                 <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                   <div>
                     <div style=${`${eyebrowStyle}color:#6366f1;`}>Peer Benchmark</div>
-                    <div style=${titleStyle}>${peer ? `Ahead of ${peer.scorePercentile ?? 0}% of peers` : 'Loading benchmark signal...'}</div>
+                    <div style=${titleStyle}>${peer ? `Ahead of ${peer.allOrgsPercentile ?? 0}% of peers` : 'Loading benchmark signal...'}</div>
                   </div>
                   <div style="flex:0 0 auto; display:flex; justify-content:flex-end; align-items:flex-start; max-width:120px;">
                     <span style=${ribbonStyle('linear-gradient(135deg, #2563eb, #4f46e5)', '#ffffff')}>${peer ? `${peer.orgScore ?? 0} score` : '...'}</span>
@@ -334,7 +334,9 @@ export default class UnifiedDashboard extends Component {
                 </div>
                 <div style=${bodyStyle}>
                   ${peer
-                    ? `Sector median is ${peer.sectorMedianScore ?? 0}. Cohort: ${peer.sector || 'General'} · ${peer.cohortSize ?? 0} organizations.`
+                    ? (peer.hasIndustryCohort
+                        ? `${peer.industryBucket}: ${peer.industryPercentile ?? 0}th · Global median ${peer.allOrgsMedianScore ?? 0} · ${peer.globalCohortSize ?? 0} organizations.`
+                        : `Global median ${peer.allOrgsMedianScore ?? 0} · ${peer.globalCohortSize ?? 0} organizations.`)
                     : 'Pulling the latest cohort position for this organization.'}
                 </div>
                 <div class="mt-2 d-flex flex-wrap gap-1" style="min-height:24px;">
@@ -898,7 +900,10 @@ export default class UnifiedDashboard extends Component {
     const { data, aiLoading, aiAnswer, aiError, refreshing, addOnSignals } = this.state;
     const secScore = typeof data?.securityScore?.score === 'number' ? data.securityScore.score : 0;
     const freshness = this.getFreshnessInfo();
-    const hasSpotlightStrip = Boolean(addOnSignals?.loading || addOnSignals?.peerBenchmark || addOnSignals?.hygieneCoach);
+    const isSiteAdmin = orgContext.isSiteAdmin?.() ?? false;
+    const hasSpotlightStrip = Boolean(
+      addOnSignals?.loading || addOnSignals?.peerBenchmark || addOnSignals?.hygieneCoach
+    );
     const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
     const aiPlaceholder = isSmallScreen
       ? 'Ask threats, compliance, or devices...'
@@ -1321,14 +1326,30 @@ export default class UnifiedDashboard extends Component {
     // Build action list (row 2 of sheet body)
     let actionRows = [];
     if (activePersona === 'business') {
-      actionRows = (bo.topActions || []).slice(0, 3).map(a => ({
-        badge: a.urgency || 'normal',
-        badgeColor: a.urgency === 'critical' || a.urgency === 'urgent' ? '#dc2626' : a.urgency === 'high' || a.urgency === 'important' ? '#d97706' : '#6b7280',
-        title: a.title || '',
-        sub: a.primaryDeviceName
-          ? `Affected device: ${a.primaryDeviceName}${a.deadlineText ? ` · ${a.deadlineText}` : ''}`
-          : (a.deadlineText || a.description || '')
-      }));
+      actionRows = (bo.topActions || []).slice(0, 3).map(a => {
+        const affectedNames = Array.isArray(a.affectedDeviceNames)
+          ? a.affectedDeviceNames.filter(Boolean)
+          : [];
+        const primaryName = affectedNames[0] || a.primaryDeviceName || '';
+        const count = Number.isFinite(Number(a.deviceCount))
+          ? Number(a.deviceCount)
+          : affectedNames.length;
+        const extra = Math.max(0, count - 1);
+        const targetText = primaryName
+          ? (count > 1
+              ? `Affected device: ${primaryName} and ${extra} more`
+              : `Affected device: ${primaryName}`)
+          : '';
+
+        return {
+          badge: a.urgency || 'normal',
+          badgeColor: a.urgency === 'critical' || a.urgency === 'urgent' ? '#dc2626' : a.urgency === 'high' || a.urgency === 'important' ? '#d97706' : '#6b7280',
+          title: a.title || '',
+          sub: targetText
+            ? `${targetText}${a.deadlineText ? ` · ${a.deadlineText}` : ''}`
+            : (a.deadlineText || a.description || '')
+        };
+      });
     } else if (activePersona === 'it') {
       actionRows = (it.appRisks || []).slice(0, 3).map(a => ({
         badge: `${a.cveSummary?.total ?? 0} CVEs`,
@@ -2002,22 +2023,28 @@ export default class UnifiedDashboard extends Component {
 
     const normalizedDescription = shouldHideDescription ? '' : descRaw;
 
-    // Use structured device fields from API; fall back to regex count from title
-    const apiDeviceId   = urgentAction?.primaryDeviceId   || null;
+    // Use structured device fields from API; prefer affectedDeviceNames when available
+    const apiDeviceId = urgentAction?.primaryDeviceId || null;
     const apiDeviceName = urgentAction?.primaryDeviceName || null;
-    const apiDeviceCount = urgentAction?.deviceCount != null ? urgentAction.deviceCount : actionDeviceCount;
+    const apiDeviceNames = Array.isArray(urgentAction?.affectedDeviceNames)
+      ? urgentAction.affectedDeviceNames.filter(Boolean)
+      : [];
+    const displayDeviceName = apiDeviceNames[0] || apiDeviceName;
+    const apiDeviceCount = urgentAction?.deviceCount != null
+      ? urgentAction.deviceCount
+      : (apiDeviceNames.length > 0 ? apiDeviceNames.length : actionDeviceCount);
+
     let targetDeviceLine = '';
     let targetDeviceNode = null;
-    if (apiDeviceName && apiDeviceCount === 1) {
+    if (displayDeviceName && apiDeviceCount === 1) {
       const deviceHref = apiDeviceId ? `#!/devices/${apiDeviceId}` : '#!/devices';
-      targetDeviceNode = html`<a href=${deviceHref} style="font-size:0.72rem;color:rgba(255,255,255,0.65);text-decoration:underline;text-underline-offset:2px;">${apiDeviceName}</a>`;
-    } else if (apiDeviceCount > 1 && apiDeviceName) {
-      // primary device + N more
+      targetDeviceNode = html`<a href=${deviceHref} style="font-size:0.72rem;color:rgba(255,255,255,0.65);text-decoration:underline;text-underline-offset:2px;">${displayDeviceName}</a>`;
+    } else if (apiDeviceCount > 1 && displayDeviceName) {
       const extra = apiDeviceCount - 1;
-      targetDeviceNode = html`<span style="font-size:0.72rem;color:rgba(255,255,255,0.55);">${apiDeviceName} + ${extra} more device${extra === 1 ? '' : 's'}</span>`;
+      targetDeviceNode = html`<span style="font-size:0.72rem;color:rgba(255,255,255,0.55);">${displayDeviceName} and ${extra} more</span>`;
     } else if (apiDeviceCount > 0) {
       targetDeviceLine = `Targets ${apiDeviceCount} device${apiDeviceCount === 1 ? '' : 's'}.`;
-    };
+    }
 
     const isGreenGrade = ['A+','A','A-','B+','B','B-'].includes(grade);
     const isAmberGrade = ['C+','C','C-'].includes(grade);
