@@ -269,6 +269,16 @@ class OrgContext {
         return Array.isArray(addOns) && addOns.some(a => a.toLowerCase() === key.toLowerCase());
     }
 
+    /**
+     * Checks whether the org's actual license includes the given add-on key,
+     * WITHOUT the SiteAdmin bypass. Use this to show informational banners to
+     * SiteAdmins when they view an add-on page for an org that hasn't licensed it.
+     */
+    hasAddOnForOrg(key) {
+        const addOns = this.currentOrg?.addOns;
+        return Array.isArray(addOns) && addOns.some(a => a.toLowerCase() === key.toLowerCase());
+    }
+
     hasPeerBenchmark()      { return this.hasAddOn('PeerBenchmark'); }
     hasHygieneCoach()       { return this.hasAddOn('HygieneCoach'); }
     hasInsuranceReadiness() { return this.hasAddOn('InsuranceReadiness'); }

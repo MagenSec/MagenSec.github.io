@@ -33,6 +33,7 @@ import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDo
 // Service modules
 import { RiskService } from './services/RiskService.js';
 import { NetworkService } from './services/NetworkService.js';
+import { CommandMonitor } from '@components/CommandMonitor.js';
 
 export class DeviceDetailPage extends window.Component {
     constructor(props) {
@@ -2322,18 +2323,6 @@ export class DeviceDetailPage extends window.Component {
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>
                                                     Collect Logs
                                                 </a>
-                                                ${(device.DeviceState || device.deviceState || '').toUpperCase() === 'ACTIVE' ? html`
-                                                    <a class="dropdown-item text-warning" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('Isolate'); }}>
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 3l0 18" /><path d="M3 12l18 0" /></svg>
-                                                        Isolate Device
-                                                    </a>
-                                                ` : ''}
-                                                ${(device.DeviceState || device.deviceState || '').toUpperCase() === 'ISOLATED' ? html`
-                                                    <a class="dropdown-item text-success" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('RemoveIsolation'); }}>
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l3 3l3 -3" /></svg>
-                                                        Remove Isolation
-                                                    </a>
-                                                ` : ''}
                                                 <div class="dropdown-divider"></div>
                                                 <a class="dropdown-item text-danger" href="#" onclick=${(e) => { e.preventDefault(); this.blockDevice(false); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M5.7 5.7l12.6 12.6" /></svg>
@@ -2750,6 +2739,10 @@ export class DeviceDetailPage extends window.Component {
                         </div>
                     </div>
                 </div>
+
+                <!-- Command Monitor -->
+                <${CommandMonitor} orgId=${orgContext.getCurrentOrg()?.orgId} deviceId=${this.state.deviceId || device?.deviceId} />
+
             </div>
         `;
     }

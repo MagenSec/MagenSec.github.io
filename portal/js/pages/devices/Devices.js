@@ -28,6 +28,7 @@ import { DeviceFilterService } from './services/DeviceFilterService.js';
 // Component modules
 import { renderBulkActionsBar } from './components/BulkActionsBar.js';
 import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDotClass, getTrendIcon, getTrendClass, renderOfflineComplianceRisk } from './DeviceHealthRenderer.js';
+import { CommandMonitor } from '@components/CommandMonitor.js';
 
 class DevicesPage extends window.Component {
     constructor(props) {
@@ -2126,6 +2127,22 @@ class DevicesPage extends window.Component {
         }
     }
 
+    async queueOrgCommand(commandType) {
+        const orgId = this.getCurrentOrgId();
+        if (!orgId) { if (window.toast) window.toast.error('No organization selected'); return; }
+        try {
+            const result = await api.queueCommand(orgId, commandType, null);
+            if (result?.success) {
+                const count = result.data?.targetCount ?? 0;
+                if (window.toast) window.toast.success(`${commandType} queued for ${count} device(s). Will execute on next check-in.`);
+            } else {
+                if (window.toast) window.toast.error(result?.message || `Failed to queue ${commandType}`);
+            }
+        } catch (err) {
+            if (window.toast) window.toast.error(`Failed to queue command: ${err.message}`);
+        }
+    }
+
     openResponseActionsForDevice(device) {
         if (!device?.id) return;
         window.location.hash = `#!/response-actions?deviceIds=${encodeURIComponent(device.id)}`;
@@ -2809,12 +2826,7 @@ class DevicesPage extends window.Component {
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>
                                                     View Device
                                                 </button>
-                                                ${!orgContext.isReadOnly() ? html`
-                                                <div class="dropdown-divider"></div>
-                                                <button type="button" class="dropdown-item" onclick=${() => this.openResponseActionsForDevice(device)}>
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" /><path d="M13 18l6 -6l-6 -6" /></svg>
-                                                    Open Response Actions
-                                                </button>
+                                                ${!orgContext.isReadOnly() && !orgContext.isIndividualUser() ? html`
                                                 <div class="dropdown-divider"></div>
                                                 <button type="button" class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'TriggerScan')}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
@@ -2829,18 +2841,6 @@ class DevicesPage extends window.Component {
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>
                                                     Collect Logs
                                                 </button>
-                                                ${(device.state || '').toUpperCase() === 'ACTIVE' ? html`
-                                                    <button type="button" class="dropdown-item text-warning" onclick=${() => this.queueDeviceAction(device, 'Isolate')}>
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 3l0 18" /><path d="M3 12l18 0" /></svg>
-                                                        Isolate Device
-                                                    </button>
-                                                ` : ''}
-                                                ${(device.state || '').toUpperCase() === 'ISOLATED' ? html`
-                                                    <button type="button" class="dropdown-item text-success" onclick=${() => this.queueDeviceAction(device, 'RemoveIsolation')}>
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l3 3l3 -3" /></svg>
-                                                        Remove Isolation
-                                                    </button>
-                                                ` : ''}
                                                 <div class="dropdown-divider"></div>
                                                 ${this.canEnableDevice(device.state) ? html`
                                                     <button type="button" class="dropdown-item text-success" onclick=${() => this.enableDevice(device.id)}>
@@ -3021,6 +3021,7 @@ class DevicesPage extends window.Component {
                                                 <a class="dropdown-item" href=${"#!/devices/" + device.id}>View Device</a>
                                                 <a class="dropdown-item" href=${"#!/devices/" + device.id + "?tab=specs"}>View Specs</a>
                                                 <a class="dropdown-item" href=${"#!/devices/" + device.id + "?tab=perf"}>View Performance</a>
+                                                ${!orgContext.isIndividualUser() ? html`
                                                 <div class="dropdown-divider"></div>
                                                 <button class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'TriggerScan')}>Trigger Scan</button>
                                                 <button class=${"dropdown-item" + (isOutdated ? " bg-warning-lt" : "")} onclick=${() => this.queueDeviceAction(device, 'CheckUpdates')}>
@@ -3029,6 +3030,7 @@ class DevicesPage extends window.Component {
                                                 <button class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'CollectLogs')}>Collect Logs</button>
                                                 <div class="dropdown-divider"></div>
                                                 <button class="dropdown-item text-danger" onclick=${() => this.deleteDevice(device.id)}>Delete Device</button>
+                                                ` : ''}
                                             </div>
                                         </div>
                                     </td>
@@ -3087,6 +3089,22 @@ class DevicesPage extends window.Component {
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>
                         </button>
                     </div>
+                    ${!orgContext.isReadOnly() ? html`
+                        <div class="vr mx-1"></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick=${() => this.queueOrgCommand('TriggerScan')} title="Trigger scan on all devices">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
+                            Scan All
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick=${() => this.queueOrgCommand('CheckUpdates')} title="Check for updates on all devices">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                            Check Updates
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick=${() => this.queueOrgCommand('RefreshInventory')} title="Refresh software inventory on all devices">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74" /><path d="M3 4v4h4" /></svg>
+                            Refresh Inventory
+                        </button>
+                        <div class="vr mx-1"></div>
+                    ` : ''}
                     <button 
                         class="btn btn-sm btn-outline-primary ${this.state.refreshingManifest ? 'disabled' : ''}" 
                         onclick=${() => this.reloadPageData()}
@@ -3505,13 +3523,8 @@ class DevicesPage extends window.Component {
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>
                                                                         View Device
                                                                     </button>
+                                                                    ${!orgContext.isIndividualUser() ? html`
                                                                     <div class="dropdown-divider"></div>
-                                                                    <!-- Response Actions -->
-                                                                    <div class="dropdown-header">Response Actions</div>
-                                                                    <button type="button" class="dropdown-item" onclick=${() => this.openResponseActionsForDevice(device)}>
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" /><path d="M13 18l6 -6l-6 -6" /></svg>
-                                                                        Open Response Actions
-                                                                    </button>
                                                                     <button type="button" class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'TriggerScan')}>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
                                                                         Trigger Scan
@@ -3525,19 +3538,6 @@ class DevicesPage extends window.Component {
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>
                                                                         Collect Logs
                                                                     </button>
-                                                                    ${(device.state || '').toUpperCase() === 'ACTIVE' ? html`
-                                                                        <button type="button" class="dropdown-item text-warning" onclick=${() => this.queueDeviceAction(device, 'Isolate')}>
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 3l0 18" /><path d="M3 12l18 0" /></svg>
-                                                                            Isolate Device
-                                                                        </button>
-                                                                    ` : ''}
-                                                                    ${(device.state || '').toUpperCase() === 'ISOLATED' ? html`
-                                                                        <button type="button" class="dropdown-item text-success" onclick=${() => this.queueDeviceAction(device, 'RemoveIsolation')}>
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l3 3l3 -3" /></svg>
-                                                                            Remove Isolation
-                                                                        </button>
-                                                                    ` : ''}
-
                                                                     <div class="dropdown-divider"></div>
 
                                                                     <!-- Device Lifecycle -->
@@ -3562,6 +3562,7 @@ class DevicesPage extends window.Component {
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
                                                                         Delete Device
                                                                     </button>
+                                                                    ` : ''}
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -3572,6 +3573,9 @@ class DevicesPage extends window.Component {
                                     </div>
                                 </div>
                             `}
+
+                <!-- Command Monitor -->
+                <${CommandMonitor} orgId=${orgContext.getCurrentOrg()?.orgId} />
 
                 <!-- Download Warning Modal -->
                 ${this.state.showDownloadModal && this.state.downloadTarget ? window.html`

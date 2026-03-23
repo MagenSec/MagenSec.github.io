@@ -160,9 +160,11 @@ export class SoftwareInventoryPage extends Component {
 
         try {
             // Step 2 — parallel fetch both endpoints
+            // getAppLicenses is a business-only feature; personal orgs return FORBIDDEN
+            const isPersonal = orgContext.isIndividualUser();
             const [invRes, licRes] = await Promise.all([
                 api.getSoftwareInventory(orgId, { date: this.state.selectedDate }),
-                api.getAppLicenses(orgId),
+                isPersonal ? Promise.resolve(null) : api.getAppLicenses(orgId),
             ]);
 
             const apps = invRes?.data?.apps ?? invRes?.data ?? [];
@@ -721,7 +723,7 @@ export class SoftwareInventoryPage extends Component {
         const TABS = [
             { id: 'all',      label: `All Software`,  badge: kpis.total,    badgeCls: 'bg-blue text-white' },
             { id: 'atrisk',   label: `At Risk`,       badge: kpis.vuln,     badgeCls: kpis.vuln > 0 ? 'bg-danger text-white' : 'bg-success text-white' },
-            { id: 'licenses', label: `Licenses`,      badge: kpis.licensed, badgeCls: 'bg-purple text-white' },
+            ...(!orgContext.isIndividualUser() ? [{ id: 'licenses', label: `Licenses`, badge: kpis.licensed, badgeCls: 'bg-purple text-white' }] : []),
         ];
 
         return html`

@@ -227,16 +227,21 @@ export function ApiAuditPage() {
             filtered = filtered.filter(e => e.performedBy === filters.user);
         }
 
-        // Filter by status (success/error)
+        // Filter by status (success/error/rate-limited)
         if (filters.statusFilter === 'success') {
             filtered = filtered.filter(e => {
                 const statusCode = e.metadata?.StatusCode;
-                return statusCode && parseInt(statusCode) >= 200 && parseInt(statusCode) < 300;
+                return statusCode && parseInt(statusCode, 10) >= 200 && parseInt(statusCode, 10) < 300;
             });
         } else if (filters.statusFilter === 'error') {
             filtered = filtered.filter(e => {
                 const statusCode = e.metadata?.StatusCode;
-                return statusCode && (parseInt(statusCode) < 200 || parseInt(statusCode) >= 300);
+                return statusCode && (parseInt(statusCode, 10) < 200 || parseInt(statusCode, 10) >= 300);
+            });
+        } else if (filters.statusFilter === 'rateLimited') {
+            filtered = filtered.filter(e => {
+                const statusCode = e.metadata?.StatusCode;
+                return statusCode && parseInt(statusCode, 10) === 429;
             });
         }
 
@@ -741,6 +746,22 @@ export function ApiAuditPage() {
     }).sort((a, b) => b.p95 - a.p95).slice(0, 10);
     const epMaxP95 = topSlowEndpoints.length > 0 ? Math.max(topSlowEndpoints[0].p95, 1) : 1;
 
+    // KPI summary for User Activity tab
+    const totalCalls = filteredEvents.length;
+    const successCalls = filteredEvents.filter(e => {
+        const code = parseInt(parseMetadata(e.metadata).StatusCode || '0', 10);
+        return code >= 200 && code < 300;
+    }).length;
+    const errorCalls = filteredEvents.filter(e => {
+        const code = parseInt(parseMetadata(e.metadata).StatusCode || '0', 10);
+        return code >= 400;
+    }).length;
+    const rateLimitedCalls = filteredEvents.filter(e => {
+        const code = parseInt(parseMetadata(e.metadata).StatusCode || '0', 10);
+        return code === 429;
+    }).length;
+    const rateLimitedPct = totalCalls > 0 ? ((rateLimitedCalls / totalCalls) * 100).toFixed(1) : '0.0';
+
     // Debug logging
     if (events.length > 0) {
         logger.debug('[API Audit] Sample events:', events.slice(0, 3).map(e => {
@@ -796,6 +817,43 @@ export function ApiAuditPage() {
         </div>
 
         <div class="container-xl">
+            <!-- KPI Summary -->
+            <div class="row row-deck row-cards mb-3">
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted">Total API Calls</div>
+                            <div class="h2 mt-1 mb-0">${totalCalls}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted">Success (2xx)</div>
+                            <div class="h2 mt-1 mb-0 text-success">${successCalls}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted">Errors (4xx/5xx)</div>
+                            <div class="h2 mt-1 mb-0 text-danger">${errorCalls}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted">Rate Limited (429)</div>
+                            <div class="h2 mt-1 mb-0 text-warning">${rateLimitedCalls}</div>
+                            <div class="small text-muted">${rateLimitedPct}% of visible calls</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Charts (Side by Side) -->
             <div class="card mb-3">
                 <div class="row g-0">
@@ -893,6 +951,7 @@ export function ApiAuditPage() {
                                 <option value="all">All Statuses</option>
                                 <option value="success">Success (2xx)</option>
                                 <option value="error">Errors (4xx, 5xx)</option>
+                                <option value="rateLimited">Rate Limited (429)</option>
                             </select>
                         </div>
                     </div>

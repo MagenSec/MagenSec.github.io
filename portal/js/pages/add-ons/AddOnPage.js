@@ -10,20 +10,53 @@ const { html } = window;
 const { useState, useEffect } = window.preactHooks;
 
 /**
- * Upgrade wall shown when the org doesn't have the add-on.
+ * Rich upgrade wall shown when the org doesn't have the add-on.
+ * Presents the feature as a sales opportunity.
  */
-function UpgradeWall({ name, description, icon = 'ti-stars' }) {
+function UpgradeWall({ name, description, icon = 'ti-stars', features = [] }) {
+    const defaultFeatures = [
+        'AI-powered security intelligence tailored to your organization',
+        'Automated analysis and actionable recommendations',
+        'Continuous monitoring with weekly reporting',
+        'Benchmarks and comparisons across your industry'
+    ];
+    const displayFeatures = features.length > 0 ? features : defaultFeatures;
+
     return html`
-        <div class="empty mt-5">
-            <div class="empty-icon">
-                <i class="ti ${icon}" style="font-size:3rem;color:var(--tblr-primary)"></i>
-            </div>
-            <p class="empty-title">${name}</p>
-            <p class="empty-subtitle text-muted">${description}</p>
-            <div class="empty-action">
-                <a href="#!/settings" class="btn btn-primary">
-                    <i class="ti ti-arrow-up-circle me-1"></i> Upgrade License
-                </a>
+        <div style="max-width:640px;margin:48px auto 0;">
+            <div class="card" style="border-top:3px solid var(--tblr-primary);">
+                <div class="card-body text-center pt-5 pb-5 px-4">
+                    <div class="mb-4">
+                        <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#2563eb);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(99,102,241,0.25);">
+                            <i class="ti ${icon}" style="font-size:2.2rem;color:white;"></i>
+                        </div>
+                    </div>
+                    <h2 class="mb-2">${name}</h2>
+                    <p class="text-muted mb-4" style="max-width:460px;margin-left:auto;margin-right:auto;">${description}</p>
+
+                    <div class="text-start mb-5" style="max-width:420px;margin-left:auto;margin-right:auto;">
+                        ${displayFeatures.map(f => html`
+                            <div class="d-flex align-items-start gap-2 mb-3">
+                                <div style="width:20px;height:20px;border-radius:50%;background:rgba(99,102,241,0.12);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
+                                    <i class="ti ti-check" style="font-size:0.75rem;color:#6366f1;"></i>
+                                </div>
+                                <span class="text-secondary">${f}</span>
+                            </div>
+                        `)}
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-center flex-wrap mb-3">
+                        <a href="mailto:MagenSec@Gigabits.co.in?subject=Upgrade%20Inquiry%20%E2%80%94%20${encodeURIComponent(name)}" class="btn btn-primary">
+                            <i class="ti ti-mail me-1"></i> Contact Us to Upgrade
+                        </a>
+                        <a href="mailto:MagenSec@Gigabits.co.in?subject=Demo%20Request%20%E2%80%94%20${encodeURIComponent(name)}" class="btn btn-outline-secondary">
+                            <i class="ti ti-calendar me-1"></i> Book a Demo
+                        </a>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        Available on <strong>Business Ultimate</strong> plan.
+                    </p>
+                </div>
             </div>
         </div>
     `;
@@ -44,8 +77,10 @@ function UpgradeWall({ name, description, icon = 'ti-stars' }) {
  */
 export function AddOnPage({
     addOnKey, title, pretitle = 'Add-ons', endpoint,
-    isEnabled, upgradeDesc, upgradeIcon, renderContent, responseDataKey = null
+    isEnabled, upgradeDesc, upgradeIcon, upgradeFeatures, renderContent, responseDataKey = null
 }) {
+    const isLicensedForOrg = window.orgContext?.hasAddOnForOrg?.(addOnKey) ?? false;
+    const isSiteAdmin      = window.orgContext?.isSiteAdmin?.() ?? false;
     const [loading, setLoading] = useState(true);
     const [data, setData]       = useState(null);
     const [meta, setMeta]       = useState(null);
@@ -56,7 +91,7 @@ export function AddOnPage({
     useEffect(() => {
         if (!isEnabled || !orgId) { setLoading(false); return; }
         load();
-    }, [isEnabled, orgId]);
+    }, [isEnabled, isLicensedForOrg, orgId]);
 
     const load = async () => {
         setLoading(true);
@@ -81,7 +116,7 @@ export function AddOnPage({
         }
     };
 
-    if (!isEnabled) {
+    if (!isEnabled && !isSiteAdmin) {
         return html`
             <div class="container-xl">
                 <div class="page-header d-print-none mb-3">
@@ -92,7 +127,7 @@ export function AddOnPage({
                         </div>
                     </div>
                 </div>
-                <${UpgradeWall} name=${title} description=${upgradeDesc} icon=${upgradeIcon} />
+                <${UpgradeWall} name=${title} description=${upgradeDesc} icon=${upgradeIcon} features=${upgradeFeatures || []} />
             </div>
         `;
     }
@@ -139,7 +174,7 @@ export function AddOnPage({
                         </button>
                     </div>
                 </div>
-            `}
+                `}
         </div>
     `;
 }

@@ -260,8 +260,8 @@ export default class UnifiedDashboard extends Component {
   }
 
   async loadAddOnSignals(orgId) {
-    const canBenchmark = orgContext.hasPeerBenchmark?.() ?? false;
-    const canCoach = orgContext.hasHygieneCoach?.() ?? false;
+    const canBenchmark = orgContext.hasAddOnForOrg?.('PeerBenchmark') ?? false;
+    const canCoach     = orgContext.hasAddOnForOrg?.('HygieneCoach') ?? false;
 
     if (!canBenchmark && !canCoach) {
       this.setState({ addOnSignals: { loading: false, peerBenchmark: null, hygieneCoach: null } });
@@ -305,7 +305,7 @@ export default class UnifiedDashboard extends Component {
 
   renderAddOnSpotlights() {
     const { addOnSignals } = this.state;
-    const peer = addOnSignals?.peerBenchmark;
+    const peer  = addOnSignals?.peerBenchmark;
     const coach = addOnSignals?.hygieneCoach;
 
     if (!peer && !coach && !addOnSignals?.loading) {
@@ -326,7 +326,7 @@ export default class UnifiedDashboard extends Component {
                 <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                   <div>
                     <div style=${`${eyebrowStyle}color:#6366f1;`}>Peer Benchmark</div>
-                    <div style=${titleStyle}>${peer ? `Ahead of ${peer.scorePercentile ?? 0}% of peers` : 'Loading benchmark signal...'}</div>
+                    <div style=${titleStyle}>${peer ? `Ahead of ${peer.allOrgsPercentile ?? 0}% of peers` : 'Loading benchmark signal...'}</div>
                   </div>
                   <div style="flex:0 0 auto; display:flex; justify-content:flex-end; align-items:flex-start; max-width:120px;">
                     <span style=${ribbonStyle('linear-gradient(135deg, #2563eb, #4f46e5)', '#ffffff')}>${peer ? `${peer.orgScore ?? 0} score` : '...'}</span>
@@ -334,7 +334,9 @@ export default class UnifiedDashboard extends Component {
                 </div>
                 <div style=${bodyStyle}>
                   ${peer
-                    ? `Sector median is ${peer.sectorMedianScore ?? 0}. Cohort: ${peer.sector || 'General'} · ${peer.cohortSize ?? 0} organizations.`
+                    ? (peer.hasIndustryCohort
+                        ? `${peer.industryBucket}: ${peer.industryPercentile ?? 0}th · Global median ${peer.allOrgsMedianScore ?? 0} · ${peer.globalCohortSize ?? 0} organizations.`
+                        : `Global median ${peer.allOrgsMedianScore ?? 0} · ${peer.globalCohortSize ?? 0} organizations.`)
                     : 'Pulling the latest cohort position for this organization.'}
                 </div>
                 <div class="mt-2 d-flex flex-wrap gap-1" style="min-height:24px;">
@@ -898,7 +900,10 @@ export default class UnifiedDashboard extends Component {
     const { data, aiLoading, aiAnswer, aiError, refreshing, addOnSignals } = this.state;
     const secScore = typeof data?.securityScore?.score === 'number' ? data.securityScore.score : 0;
     const freshness = this.getFreshnessInfo();
-    const hasSpotlightStrip = Boolean(addOnSignals?.loading || addOnSignals?.peerBenchmark || addOnSignals?.hygieneCoach);
+    const isSiteAdmin = orgContext.isSiteAdmin?.() ?? false;
+    const hasSpotlightStrip = Boolean(
+      addOnSignals?.loading || addOnSignals?.peerBenchmark || addOnSignals?.hygieneCoach
+    );
     const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
     const aiPlaceholder = isSmallScreen
       ? 'Ask threats, compliance, or devices...'
