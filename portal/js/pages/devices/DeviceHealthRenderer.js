@@ -1,0 +1,351 @@
+/**
+ * Device Health & Risk Rendering Helpers
+ * Unified components for displaying device health, risk, and patch compliance
+ * Consumes new API fields: health, risk, patchCompliance
+ */
+
+export function renderHealthStatus(device) {
+    if (!device) {
+        return { status: 'unknown', icon: '?', color: 'secondary', text: 'Unknown' };
+    }
+
+    // Calculate health from device's lastHeartbeat, lastTelemetry, and inactiveMinutes
+    const inactiveMinutes = device.inactiveMinutes || 0;
+    const lastHeartbeat = device.lastHeartbeat ? new Date(device.lastHeartbeat) : null;
+    const lastTelemetry = device.lastTelemetry ? new Date(device.lastTelemetry) : null;
+    const state = (device.state || '').toLowerCase();
+    
+    let status, icon, color, text, animated, reason;
+    
+    if (state === 'blocked') {
+        status = 'blocked';
+        icon = '⊘';
+        color = 'dark';
+        text = 'Blocked';
+        animated = false;
+        reason = 'Device is blocked';
+    } else if (!lastHeartbeat) {
+        status = 'error';
+        icon = '!';
+        color = 'danger';
+        text = 'Error';
+        animated = false;
+        reason = 'No heartbeat data';
+    } else if (lastHeartbeat && lastTelemetry && Math.abs((lastHeartbeat.getTime() - lastTelemetry.getTime()) / 60000) > 30) {
+        status = 'error';
+        icon = '!';
+        color = 'danger';
+        text = 'Error';
+        animated = false;
+        reason = 'Heartbeat/telemetry mismatch';
+    } else if (inactiveMinutes >= 10080) {
+        // >= 7 days (7*1440) = Ghosted (Critical Risk)
+        status = 'ghosted';
+        icon = '●';
+        color = 'secondary';
+        text = 'Ghosted';
+        animated = false;
+        reason = `Last seen ${Math.floor(inactiveMinutes / 1440)}d ago`;
+    } else if (inactiveMinutes >= 4320) {
+        // >= 3 days (3*1440) = Dormant (High Risk)
+        status = 'dormant';
+        icon = '●';
+        color = 'danger';
+        text = 'Dormant';
+        animated = false;
+        reason = `Last seen ${Math.floor(inactiveMinutes / 1440)}d ago`;
+    } else if (inactiveMinutes >= 1440) {
+        // >= 1 day (1440) = Stale (Medium Risk)
+        status = 'stale';
+        icon = '●';
+        color = 'warning';
+        text = 'Stale';
+        animated = false;
+        reason = `Last seen ${Math.floor(inactiveMinutes / 1440)}d ago`;
+    } else if (inactiveMinutes >= 60) {
+        // >= 60m = Recent but Offline
+        status = 'recent-offline';
+        icon = '●';
+        color = 'info';
+        text = 'Offline';
+        animated = false;
+        reason = `Last seen ${Math.floor(inactiveMinutes / 60)}h ago`;
+    } else {
+        status = 'online';
+        icon = '●';
+        color = 'success';
+        text = 'Online';
+        animated = true;
+        reason = 'Active';
+    }
+
+    return {
+        status,
+        icon,
+        color,
+        text,
+        animated,
+        reason,
+        lastActivityMinutes: inactiveMinutes,
+        score: null,
+        grade: null
+    };
+}
+
+export function renderRiskIndicator(device) {
+    // Calculate risk from device summary (apps, CVEs)
+    const summary = device.summary || device.Summary;
+    
+    // Return null score if no summary data available
+    if (!summary) {
+        return {
+            score: null,
+            severity: 'UNKNOWN',
+            badge: 'bg-secondary',
+            trend7d: 0,
+            trend30d: 0,
+            trajectory: 'stable',
+            criticalCves: 0,
+            highCves: 0,
+            mediumCves: 0,
+            lowCves: 0,
+            vulnerableApps: 0,
+            patchCompliance: null
+        };
+    }
+    
+    const appCount = summary.appCount || summary.AppCount || 0;
+    const cveCount = summary.cveCount || summary.CveCount || 0;
+    const criticalCves = summary.criticalCveCount || summary.CriticalCveCount || 0;
+    const highCves = summary.highCveCount || summary.HighCveCount || 0;
+    const mediumCves = summary.mediumCveCount || summary.MediumCveCount || 0;
+    const lowCves = summary.lowCveCount || summary.LowCveCount || 0;
+    const vulnerableApps = summary.vulnerableAppCount || summary.VulnerableAppCount || 0;
+    const providedRiskScore = summary.enrichedRiskScore ?? summary.EnrichedRiskScore ?? summary.riskScore ?? summary.RiskScore ?? summary.score;
+    
+    // Calculate risk score (0-100, where 100 = WORST)
+    // Prefer the server-provided enriched risk score when available, otherwise fall back
+    // to a simple severity/app-density heuristic so the page never overstates device health.
+    let riskScore = 0;
+    if (Number.isFinite(providedRiskScore)) {
+        riskScore = Math.min(100, Math.max(0, Math.round(Number(providedRiskScore))));
+    } else if (appCount > 0) {
+        const vulnAppRatio = vulnerableApps / appCount;
+        riskScore = (criticalCves * 10) + (highCves * 5) + (mediumCves * 2) + (lowCves * 0.5);
+        riskScore += (vulnAppRatio * 30); // Vulnerable app ratio contributes up to 30 points
+        riskScore = Math.min(100, Math.round(riskScore));
+    }
+    
+    // Severity based on score (INVERTED: 100 = WORST)
+    const severity = riskScore >= 80 ? 'CRITICAL' :
+                    riskScore >= 60 ? 'HIGH' :
+                    riskScore >= 40 ? 'MEDIUM' : 'LOW';
+
+    const badge = severity === 'CRITICAL' ? 'bg-danger' :
+                 severity === 'HIGH' ? 'bg-warning' :
+                 severity === 'MEDIUM' ? 'bg-info' :
+                 'bg-success';
+
+    return {
+        score: riskScore,
+        severity,
+        badge,
+        trend7d: 0,
+        trend30d: 0,
+        trajectory: 'stable',
+        criticalCves,
+        highCves,
+        mediumCves,
+        lowCves,
+        vulnerableApps,
+        patchCompliance: null
+    };
+}
+
+export function renderPatchStatus(device) {
+    // Calculate patch compliance from device summary
+    const summary = device.summary || device.Summary;
+    
+    // Return null if no summary data available
+    if (!summary) {
+        return { 
+            compliant: false, 
+            percent: null, 
+            pending: null, 
+            badge: 'bg-secondary-lt',
+            text: 'No data',
+            trend7d: null,
+            lastScan: null
+        };
+    }
+    
+    const appCount = summary.appCount || summary.AppCount || 0;
+    const vulnerableApps = summary.vulnerableAppCount || summary.VulnerableAppCount || 0;
+    const cveCount = summary.cveCount || summary.CveCount || 0;
+    
+    if (appCount === 0) {
+        return { 
+            compliant: false, 
+            percent: null, 
+            pending: null, 
+            badge: 'bg-secondary-lt',
+            text: 'No apps',
+            trend7d: null,
+            lastScan: null
+        };
+    }
+    
+    // Formula: Patch % = ((total apps - vulnerable apps) / total apps) * 100
+    // Adjusted down by CVE density (more CVEs = worse compliance)
+    const baseCompliance = ((appCount - vulnerableApps) / appCount) * 100;
+    const cveDensity = cveCount / appCount; // CVEs per app
+    const cvePenalty = Math.min(30, cveDensity * 10); // Up to 30% penalty
+    const patchPercent = Math.max(0, Math.round(baseCompliance - cvePenalty));
+    
+    const badge = patchPercent >= 90 ? 'bg-success-lt' :
+                 patchPercent >= 75 ? 'bg-info-lt' :
+                 patchPercent >= 50 ? 'bg-warning-lt' :
+                 'bg-danger-lt';
+
+    return {
+        compliant: patchPercent >= 90,
+        percent: patchPercent,
+        pending: vulnerableApps,
+        badge,
+        text: `${patchPercent}% Patched`,
+        trend7d: null,
+        lastScan: summary.lastScanTime || null
+    };
+}
+
+export function getStatusDotClass(health) {
+    if (!health) return 'status-dot status-gray';
+
+    // Accept either the health object or the status string directly
+    const status = typeof health === 'string' ? health : health.status;
+
+    const map = {
+        'online':          'status-dot status-dot-animated status-green',
+        'recent-online':   'status-dot status-dot-animated status-green',
+        'recent-offline':  'status-dot status-azure',
+        'stale':           'status-dot status-yellow',
+        'dormant':         'status-dot status-orange',
+        'ghosted':         'status-dot status-red',
+        'error':           'status-dot status-red',
+        'blocked':         'status-dot status-gray',
+        'unknown':         'status-dot status-gray'
+    };
+
+    return map[status] || 'status-dot status-gray';
+}
+
+export function getTrendIcon(trendValue) {
+    if (trendValue > 5) return '↑';      // Worsening
+    if (trendValue < -5) return '↓';     // Improving
+    return '→';                           // Stable
+}
+
+export function getTrendColor(trendValue) {
+    if (trendValue > 5) return 'danger';  // Worsening
+    if (trendValue < -5) return 'success'; // Improving
+    return 'muted';                       // Stable
+}
+
+export function getTrendClass(trendValue) {
+    if (trendValue > 5) return 'text-danger';
+    if (trendValue < -5) return 'text-success';
+    return 'text-muted';
+}
+
+export function isVersionOutdated(currentVersion, latestVersion) {
+    if (!currentVersion || !latestVersion) return false;
+    
+    // Parse version strings (e.g., "26.10.44095.0")
+    const parseCurrent = currentVersion.split('.').map(v => parseInt(v) || 0);
+    const parseLatest = latestVersion.split('.').map(v => parseInt(v) || 0);
+    
+    // Compare major.minor.build
+    for (let i = 0; i < 3; i++) {
+        const c = parseCurrent[i] || 0;
+        const l = parseLatest[i] || 0;
+        if (c < l) return true;
+        if (c > l) return false;
+    }
+    
+    return false;
+}
+
+/**
+ * Offline Compliance Risk Indicator
+ * Maps OfflineComplianceRisk enum values (0=Ok, 1=Low, 2=Medium, 3=High, 4=Critical)
+ * to display colors, text, and risk assessment
+ */
+export function renderOfflineComplianceRisk(summary) {
+    if (!summary || summary.offlineRisk === null || summary.offlineRisk === undefined) {
+        return null; // No offline risk data available
+    }
+
+    const riskLevel = summary.offlineRisk; // 0-4
+    const lastHeartbeat = summary.lastHeartbeat ? new Date(summary.lastHeartbeat) : null;
+    const offlineDays = summary.offlineDurationDays || 0;
+    const shouldAutoBlock = summary.shouldAutoBlock || false;
+
+    let text, badge, color, icon, title;
+
+    switch (riskLevel) {
+        case 0: // Ok - Less than 2 days offline
+            text = 'Compliant';
+            badge = 'bg-success-lt text-success';
+            color = 'success';
+            icon = '✓';
+            title = `Device online. Last heartbeat ${offlineDays}d ago.`;
+            break;
+        
+        case 1: // Low - 2-7 days offline
+            text = 'At Risk (Low)';
+            badge = 'bg-warning-lt text-warning';
+            color = 'warning';
+            icon = '⚠';
+            title = `Device offline ${offlineDays} days. Low compliance risk.`;
+            break;
+        
+        case 2: // Medium - 7-15 days offline
+            text = 'At Risk (Medium)';
+            badge = 'bg-orange-lt text-orange';
+            color = 'orange';
+            icon = '⚠';
+            title = `Device offline ${offlineDays} days. Medium compliance risk.`;
+            break;
+        
+        case 3: // High - 15-30 days offline
+            text = 'At Risk (High)';
+            badge = 'bg-danger-lt text-danger';
+            color = 'danger';
+            icon = '!';
+            title = `Device offline ${offlineDays} days. High compliance risk.`;
+            break;
+        
+        case 4: // Critical - More than 30 days offline (Auto-block candidate)
+            text = 'Non-Compliant';
+            badge = 'bg-dark-lt text-dark';
+            color = 'dark';
+            icon = '✕';
+            title = `Device offline ${offlineDays} days. Will be auto-blocked.`;
+            break;
+        
+        default:
+            return null;
+    }
+
+    return {
+        riskLevel,
+        text,
+        badge,
+        color,
+        icon,
+        title,
+        shouldAutoBlock,
+        lastHeartbeat,
+        offlineDays
+    };
+}

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>Install | MagenSec</title>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+    <style>
+      @import url('https://rsms.me/inter/inter.css');
+      :root { --tblr-font-sans-serif: 'Inter Var', -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif; }
+      body { font-family: 'Inter Var', system-ui; background-color: #0b0f19; color: #e2e8f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+      .code-block { background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); font-family: monospace; border-radius: 6px; padding: 1rem; position: relative; }
+      .copy-btn { position: absolute; right: 8px; top: 8px; background: transparent; border: none; color: #64748b; cursor: pointer; transition: color 0.2s; }
+      .copy-btn:hover { color: #e2e8f0; }
+      
+      /* Subtle back link */
+      .back-nav { position: absolute; top: 2rem; left: 2rem; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-nav text-muted text-decoration-none d-none d-md-flex align-items-center">
+        <i class="ti ti-arrow-left me-2"></i> Back to site
+    </a>
+
+    <div class="container-tight text-center px-3 py-5">
+        <div class="mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-primary" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+        </div>
+        <h1 class="display-5 fw-bold mb-3 text-white">Install MagenSec</h1>     
+        <p class="fs-3 text-muted mb-5">Deploy the Windows agent to begin your continuous security proof.</p>
+        
+        <div class="d-flex flex-column gap-4 align-items-center">
+            <!-- Microsoft Store Button -->
+            <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn btn-primary btn-pill btn-lg px-5 w-100" style="max-width: 380px;">
+                <i class="ti ti-brand-windows me-2"></i> Download from Microsoft Store
+            </a>
+
+            <div class="text-muted fs-4 fw-medium my-1">OR</div>
+
+            <!-- WinGet Installation -->
+            <div class="w-100 text-start" style="max-width: 380px;">
+                <p class="fs-4 text-muted mb-2 ps-1">Install silently via WinGet:</p>
+                <div class="code-block d-flex align-items-center justify-content-between">
+                    <span class="text-white fs-4" id="wingetCommand">winget install MagenSec</span>
+                    <button class="copy-btn" onclick="copyCommand()" title="Copy to clipboard">
+                        <i class="ti ti-copy fs-2" id="copyIcon"></i>
+                    </button>
+                </div>
+                <div class="text-center mt-3">
+                    <span class="badge bg-green-lt text-green"><i class="ti ti-check me-1"></i> No admin rights required</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function copyCommand() {
+            navigator.clipboard.writeText(document.getElementById('wingetCommand').innerText);
+            const icon = document.getElementById('copyIcon');
+            icon.classList.replace('ti-copy', 'ti-check');
+            icon.classList.add('text-green');
+            setTimeout(() => {
+                icon.classList.replace('ti-check', 'ti-copy');
+                icon.classList.remove('text-green');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
+
+
+

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>Terms & Privacy | MagenSec</title>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+    <style>
+      @import url('https://rsms.me/inter/inter.css');
+      :root { --tblr-font-sans-serif: 'Inter Var', -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif; }
+      html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
+      body { font-family: 'Inter Var', system-ui; background-color: #0b0f19; color: #e2e8f0; }
+      .navbar { background: rgba(11, 15, 25, 0.8) !important; backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05); }
+      .accordion-button::after { filter: invert(1); }
+    </style>
+</head>
+<body>
+    <div class="page">
+      <header class="navbar z-3 navbar-expand-md navbar-dark fixed-top d-print-none">
+        <div class="container-xl">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <h1 class="navbar-brand navbar-brand-autodark pe-0 pe-md-3">
+            <a href="index.html" class="text-decoration-none d-flex align-items-center">
+              <span class="bg-black text-white rounded d-flex align-items-center justify-content-center me-2 shadow-sm" style="width: 32px; height: 32px; border: 1px solid rgba(255,255,255,0.1);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin: 0;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+              </span>
+              <span class="fw-bold fs-2" style="background: -webkit-linear-gradient(45deg, #4299e1, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">MagenSec</span>
+            </a>
+          </h1>
+          <div class="navbar-nav flex-row order-md-last">
+            <div class="nav-item">
+              <a href="portal/" class="nav-link d-flex lh-1 text-reset p-0">
+                <span class="btn btn-outline-primary btn-pill btn-sm d-none d-sm-inline-block">Sign In</span>
+              </a>
+            </div>
+          </div>
+          <div class="collapse navbar-collapse" id="navbar-menu">
+            <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+              <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link fs-4 tracking-wide font-weight-medium" href="index.html">
+                      <span class="nav-link-title">Home</span>
+                    </a>
+                  </li>
+                </ul>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="page-wrapper" style="padding-top: 6rem;">
+        <div class="container-xl py-6">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <h1 class="display-5 fw-bold text-white mb-4">Terms of Service & Privacy Policy</h1>
+                    <p class="fs-3 text-muted mb-5">Last Updated: April 2026 | Operated by Gigabits</p>
+                    
+                    <div class="mb-4">
+                        <p class="fs-3 mb-4">These terms and privacy policies outline our commitment to your data, how our telemetry operates, and the scope of our services. Please review the detailed sections below.</p>
+
+                        <div class="accordion" id="accordion-legal">
+                            <!-- Privacy & Data -->
+                            <div class="accordion-item bg-dark border-0 rounded-4 mb-3" style="border: 1px solid rgba(255,255,255,0.05) !important; overflow: hidden;" id="privacy">
+                                <h2 class="accordion-header" id="heading-privacy">
+                                    <button class="accordion-button collapsed bg-transparent text-white fs-3 fw-bold py-4 px-5" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-privacy" aria-expanded="false">
+                                        1. Data Privacy & Telemetry
+                                    </button>
+                                </h2>
+                                <div id="collapse-privacy" class="accordion-collapse collapse" data-bs-parent="#accordion-legal">
+                                    <div class="accordion-body px-5 pb-5 pt-0 text-muted fs-4">
+                                        <p class="mb-3">MagenSec applies absolute minimal telemetry required to map and validate endpoint configurations to assess vulnerabilities, to power the MAGI decision engine, and to allow for generation of historically accurate operational proofs.</p>
+                                        <h4 class="text-white mt-4 mb-2">What We Collect</h4>
+                                        <ul class="mb-3">
+                                            <li><strong>System Metadata:</strong> Standard OS versioning, identifiers, and configuration rules mapping to generalized compliance frameworks.</li>
+                                            <li><strong>Security Posture Data:</strong> Signals from security providers on the endpoint including Microsoft Defender active state.</li>
+                                            <li><strong>Application Inventory:</strong> Identified software installations strictly for the purpose of cross-referencing known exploitation risks and vulnerability signatures.</li>
+                                        </ul>
+                                        <h4 class="text-white mt-4 mb-2">What We Do Not Collect</h4>
+                                        <ul class="mb-3">
+                                            <li>We <strong>never</strong> index, intercept, or copy personal documents, communications, file payloads, browsing logs, or session secrets.</li>
+                                            <li>We strictly minimize contextual logging and reject gathering general usage habits unassociated with specific security health states.</li>
+                                        </ul>
+                                        <h4 class="text-white mt-4 mb-2">Data Processing & Industry-Standard Encryption</h4>
+                                        <p class="mb-0">In practice, we use HTTPS for all communications. From a protocol standard standpoint, that translates equivalently to utilizing minimum Transport Layer Security (TLS) 1.2 or 1.3 across all of our transit corridors, establishing an authoritative level of data privacy mirroring modern SaaS encryption guarantees. Furthermore, our persistent telemetry is processed purely to provide decision intelligence exclusively to you.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Service Usage -->
+                            <div class="accordion-item bg-dark border-0 rounded-4 mb-3" style="border: 1px solid rgba(255,255,255,0.05) !important; overflow: hidden;" id="usage">
+                                <h2 class="accordion-header" id="heading-usage">
+                                    <button class="accordion-button collapsed bg-transparent text-white fs-3 fw-bold py-4 px-5" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-usage" aria-expanded="false">
+                                        2. Scope of Service & Acceptable Use
+                                    </button>
+                                </h2>
+                                <div id="collapse-usage" class="accordion-collapse collapse" data-bs-parent="#accordion-legal">
+                                    <div class="accordion-body px-5 pb-5 pt-0 text-muted fs-4">
+                                        <p class="mb-3">Our platform aims to be a source of structural security truth. In executing our system on your machines, the following principles apply:</p>
+                                        <ul class="mb-3">
+                                            <li><strong>Authorized Deployment:</strong> You must limit distribution of the MagenSec agent only directly to hardware assets under your ownership or explicit legal administration.</li>
+                                            <li><strong>Integrity Protocols:</strong> Hostile misuse of our cloud pipelines, interfering with internal logic of the MAGI decision framework, or injecting fraudulent anomalies into our posture ingestion logic equates to explicit violation of service terms and requires zero tolerance access suspension.</li>
+                                        </ul>
+                                        <p class="mb-0">Licensing enables telemetry flow and reporting functionality. Where a license expires, data flow naturally suspends while previously compiled snapshots generally await proper resumption via renewal.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Accountability & Liability -->
+                            <div class="accordion-item bg-dark border-0 rounded-4 mb-3" style="border: 1px solid rgba(255,255,255,0.05) !important; overflow: hidden;" id="liability">
+                                <h2 class="accordion-header" id="heading-liability">
+                                    <button class="accordion-button collapsed bg-transparent text-white fs-3 fw-bold py-4 px-5" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-liability" aria-expanded="false">
+                                        3. Limitation of Liability & Disputes
+                                    </button>
+                                </h2>
+                                <div id="collapse-liability" class="accordion-collapse collapse" data-bs-parent="#accordion-legal">
+                                    <div class="accordion-body px-5 pb-5 pt-0 text-muted fs-4">
+                                        <p class="mb-3">Though MagenSec strives to uncloak opaque vulnerabilities and provide immediate intelligence over security degradation, the system acts primarily as an analytical observability layer—ultimately relying on administration from your personnel for execution of risk-mitigating adjustments.</p>
+                                        <h4 class="text-white mt-4 mb-2">No Guarantee of Absolute Security</h4>
+                                        <p class="mb-3">Because adversarial operations continuously pivot, MagenSec cannot guarantee total network invulnerability. Our MAGI synthesis guides resource allocation, yet the services are offered essentially "AS IS" out of functional necessity.</p>
+                                        <h4 class="text-white mt-4 mb-2">Aggregate Limits</h4>
+                                        <p class="mb-3">Under no framework parameters shall organizational aggregate liability related to system performance logically exceed total sub-tier subscription amounts delivered during the specific twelve preceding operational months linked directly to the inciting event.</p>
+                                        
+                                        <div class="p-4 bg-dark-lt border border-primary border-opacity-25 rounded mt-5">
+                                            <h4 class="text-white mb-2 d-flex align-items-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon text-primary me-2"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l0 4l2 2" /></svg>
+                                                Jurisdiction & Operator
+                                            </h4>
+                                            <p class="mb-0 fs-4 text-muted">
+                                                These terms are governed exclusively by the laws of Hyderabad, India, bypassing generalized conflict of laws principles. The legal operational entity steering the services is <strong>Gigabits</strong>, pending any localized corporate restructuring initiatives. All arbitration directives mandate proceedings local to Hyderabad, India.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        const hash = window.location.hash;
+        if (hash) {
+          let targetId = '';
+          if (hash.includes('privacy')) targetId = 'collapse-privacy';
+          else if (hash.includes('usage') || hash.includes('terms') || hash.includes('acceptable')) targetId = 'collapse-usage';
+          else if (hash.includes('accountability') || hash.includes('liability')) targetId = 'collapse-liability';
+          
+          if (targetId) {
+            const targetCollapse = document.getElementById(targetId);
+            if (targetCollapse) {
+                const bsCollapse = new bootstrap.Collapse(targetCollapse, { toggle: false });
+                bsCollapse.show();
+                setTimeout(() => {
+                    targetCollapse.parentElement.scrollIntoView({behavior: 'smooth', block: 'start'});
+                }, 300);
+            }
+          }
+        }
+      });
+    </script>
+</body>
+</html>
+
+
+

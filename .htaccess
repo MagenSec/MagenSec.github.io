@@ -1,0 +1,119 @@
+# MagenSec Website - Apache Configuration
+# Security, Performance, and SEO Optimizations
+
+# Enable RewriteEngine
+RewriteEngine On
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Content Security Policy
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://www.google-analytics.com; frame-ancestors 'none';"
+    
+    # X-Frame-Options
+    Header always set X-Frame-Options "DENY"
+    
+    # X-Content-Type-Options
+    Header always set X-Content-Type-Options "nosniff"
+    
+    # X-XSS-Protection
+    Header always set X-XSS-Protection "1; mode=block"
+    
+    # Referrer Policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Remove Server Information
+    Header unset Server
+    Header unset X-Powered-By
+</IfModule>
+
+# WWW Redirect (choose one - uncomment the version you need)
+# Force WWW version:
+# RewriteCond %{HTTP_HOST} ^magensec\.gigabits\.co\.in$ [NC]
+# RewriteRule ^(.*)$ https://www.magensec.gigabits.co.in/$1 [R=301,L]
+
+# Force non-WWW version (recommended):
+RewriteCond %{HTTP_HOST} ^www\.magensec\.gigabits\.co\.in$ [NC]
+RewriteRule ^(.*)$ https://magensec.gigabits.co.in/$1 [R=301,L]
+
+# Force HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+# Custom 404 Error Page
+ErrorDocument 404 /404.html
+
+# Block access to sensitive files and directories
+<FilesMatch "\.(htaccess|htpasswd|ini|log|sh|inc|bak|backup|sql)$">
+    Require all denied
+</FilesMatch>
+
+# Block access to backup and diagnostic directories
+RedirectMatch 404 /backup-original/.*
+RedirectMatch 404 /\.git/.*
+
+# Expire Headers for Static Assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # Images
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+    
+    # CSS and JavaScript
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType text/javascript "access plus 1 month"
+    
+    # Fonts
+    ExpiresByType application/font-woff "access plus 1 year"
+    ExpiresByType application/font-woff2 "access plus 1 year"
+    ExpiresByType application/vnd.ms-fontobject "access plus 1 year"
+    ExpiresByType font/ttf "access plus 1 year"
+    ExpiresByType font/opentype "access plus 1 year"
+    
+    # Default
+    ExpiresDefault "access plus 1 week"
+</IfModule>
+
+# Enable Gzip Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# Remove ETags (use Expires headers instead)
+<IfModule mod_headers.c>
+    Header unset ETag
+</IfModule>
+FileETag None
+
+# Prevent access to hidden files
+<Files ".*">
+    Require all denied
+</Files>
+<Files ".well-known/*">
+    Require all granted
+</Files>
+
+# Optional: Pretty URLs (remove .html extension)
+# RewriteCond %{REQUEST_FILENAME} !-d
+# RewriteCond %{REQUEST_FILENAME} !-f
+# RewriteRule ^([^\.]+)$ $1.html [NC,L]
+
+# Remove trailing slashes for files
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.+)/$ /$1 [R=301,L]

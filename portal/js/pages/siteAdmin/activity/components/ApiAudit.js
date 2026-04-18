@@ -1,0 +1,1300 @@
+/**
+ * API Audit Page - View all API calls with request/response details
+ */
+
+import { api } from '@api';
+import { orgContext } from '@orgContext';
+import toast from '@toast';
+import { logger } from '@config';
+
+const { html } = window;
+const { useState, useEffect, useRef } = window.preactHooks;
+
+// ApexCharts instances
+let apiChartInstance = null;
+let responseChartInstance = null;
+
+function getChartForeColor() {
+    try {
+        const theme = document.documentElement.getAttribute('data-bs-theme');
+        if (theme && theme.toLowerCase() === 'dark') return '#ffffff';
+
+        const styles = getComputedStyle(document.documentElement);
+        const bodyColor = styles.getPropertyValue('--tblr-body-color')?.trim();
+        return bodyColor || '#1f2937';
+    } catch {
+        return '#ffffff';
+    }
+}
+
+export function ApiAuditPage() {
+    logger.debug('[API Audit] Component rendering...');
+
+    function scrollToTop(evt) {
+        const source = evt?.currentTarget || null;
+        const candidates = [
+            source?.closest('.page-body'),
+            source?.closest('.page-wrapper'),
+            document.querySelector('.page-body'),
+            document.querySelector('.page-wrapper'),
+            document.scrollingElement,
+            document.documentElement,
+            document.body
+        ].filter(Boolean);
+
+        const seen = new Set();
+        candidates.forEach((node) => {
+            if (!node || seen.has(node)) return;
+            seen.add(node);
+            if (typeof node.scrollTo === 'function') {
+                node.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                node.scrollTop = 0;
+            }
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [events, setEvents] = useState([]);
+    const [filteredEvents, setFilteredEvents] = useState([]);
+    const [filters, setFilters] = useState({
+        httpMethod: 'all',
+        orgId: 'all',
+        deviceId: 'all',
+        endpoint: 'all',
+        user: 'all',
+        statusFilter: 'all', // all, success, error
+        responseTimeMin: 'all', // all, 500, 1000, 2000, 2500, 5000
+        search: ''
+    });
+    const [sortConfig, setSortConfig] = useState({
+        column: 'timestamp', // time, org, deviceId, endpoint, user, status, duration
+        direction: 'desc' // asc, desc
+    });
+    const [rangeDays, setRangeDays] = useState(7);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
+    const [continuationToken, setContinuationToken] = useState(null);
+    const [expandedEvent, setExpandedEvent] = useState(null);
+    const [topSlowCollapsed, setTopSlowCollapsed] = useState(true);
+    const chartRef = useRef(null);
+    const chartEventsRef = useRef([]);
+    const scrollObserverRef = useRef(null);
+    const eventsPerPage = 100;
+    const currentOrgId = orgContext.getCurrentOrg()?.orgId;
+
+    // Infinite scroll observer
+    useEffect(() => {
+        const observerTarget = scrollObserverRef.current;
+        if (!observerTarget) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+                    loadApiEvents(false);
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        observer.observe(observerTarget);
+        return () => observer.disconnect();
+    }, [hasMore, loading, loadingMore]);
+
+    // Load API audit data
+    useEffect(() => {
+        loadApiEvents(true);
+
+        const handler = () => {
+            setPage(1);
+            loadApiEvents(true);
+        };
+        const unsubscribe = orgContext.onChange(handler);
+        window.addEventListener('orgChanged', handler);
+
+        return () => {
+            unsubscribe?.();
+            window.removeEventListener('orgChanged', handler);
+        };
+    }, [currentOrgId, rangeDays, filters.responseTimeMin]);
+
+    // Filter events when filters change
+    useEffect(() => {
+        applyFilters();
+    }, [events, filters, sortConfig]);
+
+    // Render chart when filtered events change
+    useEffect(() => {
+        logger.debug('[API Audit] Chart useEffect triggered, filteredEvents.length:', filteredEvents.length);
+        if (filteredEvents.length > 0 && chartRef.current && window.ApexCharts) {
+            renderApiChart();
+        }
+    }, [filteredEvents, filteredEvents.length]);
+
+    // Render response codes/duration chart when filtered events change
+    useEffect(() => {
+        logger.debug('[API Audit] Response chart useEffect triggered, filteredEvents.length:', filteredEvents.length);
+        if (filteredEvents.length > 0 && window.ApexCharts) {
+            renderResponseChart();
+        }
+    }, [filteredEvents, filteredEvents.length]);
+
+    async function loadApiEvents(reset = false) {
+        logger.debug('[API Audit] loadApiEvents called, reset:', reset);
+        if (reset) {
+            setLoading(true);
+        } else {
+            setLoadingMore(true);
+        }
+
+        try {
+            const currentOrg = orgContext.getCurrentOrg();
+            if (!currentOrg) {
+                logger.warn('[API Audit] No org selected');
+                setLoading(false);
+                return;
+            }
+
+            const query = new URLSearchParams({
+                apiActivity: 'true', // CRITICAL: Fetch user API calls (exclude heartbeats)
+                pageSize: eventsPerPage.toString(),
+                days: rangeDays.toString()
+            });
+
+            // Add continuation token if loading more
+            if (!reset && continuationToken) {
+                query.set('continuationToken', continuationToken);
+                logger.debug('[API Audit] Using continuation token:', continuationToken);
+            }
+
+            if (filters.responseTimeMin !== 'all') {
+                query.set('minDurationMs', filters.responseTimeMin);
+            }
+
+            const res = await api.get(`/api/v1/admin/audit?${query.toString()}`);
+            logger.debug('[API Audit] API response hasMore:', res.data?.hasMore, 'newToken:', res.data?.continuationToken);
+
+            if (res.success && res.data) {
+                const eventsData = res.data.events || [];
+                logger.debug('[API Audit] Events loaded:', eventsData.length, 'reset:', reset);
+                
+                // Check for duplicates by eventId
+                const newEvents = reset ? eventsData : (() => {
+                    const existingIds = new Set(events.map(e => e.eventId));
+                    const uniqueNew = eventsData.filter(e => !existingIds.has(e.eventId));
+                    logger.debug('[API Audit] Filtered duplicates:', eventsData.length - uniqueNew.length);
+                    return [...events, ...uniqueNew];
+                })();
+                
+                setEvents(newEvents);
+                setHasMore(res.data.hasMore || false);
+                setContinuationToken(res.data.continuationToken || null);
+            } else {
+                logger.error('[API Audit] API returned error:', res.message);
+                toast.show(res.message || 'Failed to load API audit events', 'error');
+                if (reset) setEvents([]);
+            }
+        } catch (error) {
+            logger.error('[API Audit] Error loading events:', error);
+            toast.show('Failed to load API audit events', 'error');
+            if (reset) setEvents([]);
+        } finally {
+            if (reset) {
+                setLoading(false);
+            } else {
+                setLoadingMore(false);
+            }
+        }
+    }
+
+    function applyFilters() {
+        let filtered = [...events];
+
+        const getHttpMethod = (e) => {
+            const meta = parseMetadata(e.metadata);
+            return meta.HttpMethod || meta.httpMethod || e.subType || '';
+        };
+
+        // Filter by HTTP method
+        if (filters.httpMethod !== 'all') {
+            filtered = filtered.filter(e => getHttpMethod(e) === filters.httpMethod);
+        }
+
+        // Filter by user
+        if (filters.user !== 'all') {
+            filtered = filtered.filter(e => e.performedBy === filters.user);
+        }
+
+        // Filter by status (success/error/rate-limited)
+        if (filters.statusFilter === 'success') {
+            filtered = filtered.filter(e => {
+                const statusCode = e.metadata?.StatusCode;
+                return statusCode && parseInt(statusCode, 10) >= 200 && parseInt(statusCode, 10) < 300;
+            });
+        } else if (filters.statusFilter === 'error') {
+            filtered = filtered.filter(e => {
+                const statusCode = e.metadata?.StatusCode;
+                return statusCode && (parseInt(statusCode, 10) < 200 || parseInt(statusCode, 10) >= 300);
+            });
+        } else if (filters.statusFilter === 'rateLimited') {
+            filtered = filtered.filter(e => {
+                const statusCode = e.metadata?.StatusCode;
+                return statusCode && parseInt(statusCode, 10) === 429;
+            });
+        }
+
+        // Filter by orgId
+        if (filters.orgId !== 'all') {
+            filtered = filtered.filter(e => {
+                const endpoint = parseEndpointPath(e.targetId);
+                return endpoint.orgId === filters.orgId;
+            });
+        }
+
+        // Filter by deviceId
+        if (filters.deviceId !== 'all') {
+            filtered = filtered.filter(e => {
+                const endpoint = parseEndpointPath(e.targetId);
+                return endpoint.deviceId === filters.deviceId;
+            });
+        }
+
+        // Filter by endpoint
+        if (filters.endpoint !== 'all') {
+            filtered = filtered.filter(e => {
+                const endpoint = parseEndpointPath(e.targetId);
+                return endpoint.endpoint === filters.endpoint;
+            });
+        }
+
+        // Response time filter (client-side backup in case backend page misses without token)
+        if (filters.responseTimeMin !== 'all') {
+            const minDuration = parseInt(filters.responseTimeMin, 10);
+            if (!Number.isNaN(minDuration)) {
+                filtered = filtered.filter(e => {
+                    const meta = parseMetadata(e.metadata);
+                    const duration = parseInt(meta.DurationMs || meta.durationMs || meta.elapsedMs || '0', 10);
+                    return !Number.isNaN(duration) && duration >= minDuration;
+                });
+            }
+        }
+
+        // Search filter
+        if (filters.search) {
+            const searchLower = filters.search.toLowerCase();
+            filtered = filtered.filter(e =>
+                (e.targetId || '').toLowerCase().includes(searchLower) ||
+                (e.description || '').toLowerCase().includes(searchLower) ||
+                (e.performedBy || '').toLowerCase().includes(searchLower)
+            );
+        }
+
+        // Apply sorting
+        if (sortConfig.column && sortConfig.direction) {
+            filtered.sort((a, b) => {
+                let aVal, bVal;
+
+                switch (sortConfig.column) {
+                    case 'timestamp':
+                        aVal = new Date(a.timestamp).getTime();
+                        bVal = new Date(b.timestamp).getTime();
+                        break;
+                    case 'method':
+                        aVal = getHttpMethod(a);
+                        bVal = getHttpMethod(b);
+                        break;
+                    case 'status':
+                        aVal = parseInt(parseMetadata(a.metadata).StatusCode || 0);
+                        bVal = parseInt(parseMetadata(b.metadata).StatusCode || 0);
+                        break;
+                    case 'duration':
+                        aVal = parseInt(parseMetadata(a.metadata).DurationMs || 0);
+                        bVal = parseInt(parseMetadata(b.metadata).DurationMs || 0);
+                        break;
+                    case 'user':
+                        aVal = a.performedBy || '';
+                        bVal = b.performedBy || '';
+                        break;
+                    case 'org':
+                        aVal = parseEndpointPath(a.targetId).orgId || '';
+                        bVal = parseEndpointPath(b.targetId).orgId || '';
+                        break;
+                    case 'device':
+                        aVal = parseEndpointPath(a.targetId).deviceId || '';
+                        bVal = parseEndpointPath(b.targetId).deviceId || '';
+                        break;
+                    case 'endpoint':
+                        aVal = parseEndpointPath(a.targetId).endpoint || '';
+                        bVal = parseEndpointPath(b.targetId).endpoint || '';
+                        break;
+                    default:
+                        aVal = a.timestamp;
+                        bVal = b.timestamp;
+                }
+
+                // Handle string comparison
+                if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                    if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+                    if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+                    return 0;
+                }
+
+                // Handle numeric comparison
+                if (sortConfig.direction === 'asc') {
+                    return aVal - bVal;
+                } else {
+                    return bVal - aVal;
+                }
+            });
+        }
+
+        setFilteredEvents(filtered);
+    }
+
+    function parseEndpointPath(targetId) {
+        // Parse paths like:
+        // /api/v1/admin/audit
+        // /api/v1/orgs/ORGB-DEMO-MAGE-NSEC/devices
+        // /api/v1/orgs/ORGB-DEMO-MAGE-NSEC/devices/439a5b21-8bc8-46af-9c9f-3c3a5e784a9e/apps
+        
+        const path = targetId || '';
+        const orgMatch = path.match(/\/orgs\/([^\s/]+)/);
+        const deviceMatch = path.match(/\/devices\/([^\s/]+)/);
+        
+        // Extract endpoint name (last part after final /)
+        const pathParts = path.split('/').filter(p => p && p !== 'api' && p !== 'v1' && !p.match(/^[a-f0-9-]{36}$/));
+        let endpoint = pathParts[pathParts.length - 1] || 'ROOT';
+        
+        // Capitalize endpoint
+        endpoint = endpoint.toUpperCase();
+        
+        return {
+            orgId: orgMatch ? orgMatch[1] : 'N/A',
+            deviceId: deviceMatch ? deviceMatch[1] : 'N/A',
+            endpoint: endpoint,
+            fullPath: targetId
+        };
+    }
+
+    function renderApiChart() {
+        logger.debug('[API Audit] renderApiChart called with', filteredEvents.length, 'events');
+        
+        if (!window.ApexCharts || !chartRef.current) {
+            logger.warn('[API Audit] ApexCharts not loaded or chart ref not ready');
+            return;
+        }
+
+        // Destroy existing chart
+        if (apiChartInstance) {
+            apiChartInstance.destroy();
+            apiChartInstance = null;
+        }
+
+        // Always group by hour for better granularity
+        const timeGroups = {};
+
+        filteredEvents.forEach(event => {
+            const timestamp = new Date(event.timestamp);
+            const key = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')} ${String(timestamp.getHours()).padStart(2, '0')}:00`;
+
+            if (!timeGroups[key]) {
+                timeGroups[key] = { total: 0, success: 0, error: 0 };
+            }
+
+            timeGroups[key].total++;
+            const statusCode = event.metadata?.StatusCode;
+            if (statusCode && parseInt(statusCode) >= 200 && parseInt(statusCode) < 300) {
+                timeGroups[key].success++;
+            } else if (statusCode) {
+                timeGroups[key].error++;
+            }
+        });
+
+        const sortedKeys = Object.keys(timeGroups).sort();
+        const chartData = sortedKeys.map(key => ({
+            x: key,
+            total: timeGroups[key].total,
+            success: timeGroups[key].success,
+            error: timeGroups[key].error
+        }));
+
+        const foreColor = getChartForeColor();
+        const options = {
+            chart: {
+                type: 'bar',
+                height: 300,
+                stacked: true,
+                toolbar: { show: false },
+                foreColor
+            },
+            series: [
+                {
+                    name: 'Success',
+                    data: chartData.map(d => ({ x: d.x, y: d.success })),
+                    color: '#28a745'
+                },
+                {
+                    name: 'Error',
+                    data: chartData.map(d => ({ x: d.x, y: d.error })),
+                    color: '#dc3545'
+                }
+            ],
+            xaxis: {
+                type: 'category',
+                labels: {
+                    rotate: -45,
+                    rotateAlways: true,
+                    style: { colors: foreColor }
+                }
+            },
+            yaxis: {
+                title: { text: 'API Calls', style: { color: foreColor } },
+                labels: { style: { colors: foreColor } }
+            },
+            tooltip: {
+                y: {
+                    formatter: (val) => `${val} calls`
+                }
+            },
+            legend: {
+                position: 'top',
+                labels: { colors: foreColor }
+            }
+        };
+
+        apiChartInstance = new window.ApexCharts(chartRef.current, options);
+        apiChartInstance.render();
+    }
+
+    function renderResponseChart() {
+        logger.debug('[API Audit] renderResponseChart called with', filteredEvents.length, 'events');
+        
+        const responseChartRef = document.getElementById('responseChartRef');
+        if (!window.ApexCharts || !responseChartRef) {
+            logger.warn('[API Audit] ApexCharts not loaded or responseChartRef not found');
+            return;
+        }
+
+        // Destroy existing chart if any
+        if (responseChartInstance) {
+            responseChartInstance.destroy();
+            responseChartInstance = null;
+        }
+
+        // Sort events by timestamp
+        const sortedEvents = [...filteredEvents].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        // Take last 100 events for chart
+        const chartEvents = sortedEvents.slice(-100);
+        chartEventsRef.current = chartEvents;
+
+        const durations = [];
+        const statusCodesByTime = [];
+
+        chartEvents.forEach(event => {
+            const metadata = parseMetadata(event.metadata);
+            const statusCode = parseInt(metadata.StatusCode || '0');
+            const durationMs = parseInt(metadata.DurationMs || 0);
+            const timeLabel = new Date(event.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            
+            durations.push({
+                x: timeLabel,
+                y: durationMs
+            });
+            
+            statusCodesByTime.push({
+                x: timeLabel,
+                y: statusCode
+            });
+        });
+
+        // If no data, show message
+        if (durations.length === 0) {
+            responseChartRef.innerHTML = '<div class="text-muted text-center py-5">No response duration data available</div>';
+            return;
+        }
+
+        const foreColor = getChartForeColor();
+        const options = {
+            chart: {
+                type: 'line',
+                height: 350,
+                toolbar: { show: false },
+                zoom: { enabled: false },
+                foreColor,
+                events: {
+                    dataPointSelection: (event, chartContext, config) => {
+                        // Only respond to duration series (index 0 = columns)
+                        if (config.seriesIndex === 0 && config.dataPointIndex >= 0) {
+                            const chartEvt = chartEventsRef.current[config.dataPointIndex];
+                            if (chartEvt) {
+                                setExpandedEvent(chartEvt.eventId);
+                                setTimeout(() => {
+                                    const row = document.querySelector(`[data-event-id="${chartEvt.eventId}"]`);
+                                    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 150);
+                            }
+                        }
+                    }
+                }
+            },
+            series: [
+                {
+                    name: 'Response Duration (ms)',
+                    type: 'column',
+                    data: durations,
+                    color: '#0c63e4'
+                },
+                {
+                    name: 'Status Code',
+                    type: 'line',
+                    data: statusCodesByTime,
+                    color: '#2fb344'
+                }
+            ],
+            plotOptions: {
+                bar: {
+                    columnWidth: '50%',
+                    borderRadius: 4
+                }
+            },
+            fill: {
+                opacity: [0.85, 1]
+            },
+            xaxis: {
+                type: 'category',
+                labels: { 
+                    rotate: -45, 
+                    rotateAlways: true,
+                    style: { colors: foreColor }
+                },
+                tooltip: { enabled: false }
+            },
+            yaxis: [
+                {
+                    title: { text: 'Duration (ms)', style: { color: foreColor } },
+                    min: 0,
+                    seriesName: 'Response Duration (ms)',
+                    labels: {
+                        formatter: (val) => Math.round(val),
+                        style: { colors: foreColor }
+                    }
+                },
+                {
+                    opposite: true,
+                    title: { text: 'Status Code', style: { color: foreColor } },
+                    min: 0,
+                    max: 600,
+                    seriesName: 'Status Code',
+                    labels: {
+                        formatter: (val) => Math.round(val),
+                        style: { colors: foreColor }
+                    }
+                }
+            ],
+            dataLabels: {
+                enabled: false
+            },
+            tooltip: {
+                shared: true,
+                intersect: false,
+                y: {
+                    formatter: (val, opts) => {
+                        if (opts?.seriesIndex === 0) return `${Math.round(val)}ms`;
+                        return `Status: ${Math.round(val)}`;
+                    }
+                }
+            },
+            legend: {
+                position: 'top',
+                horizontalAlign: 'left',
+                labels: { colors: foreColor }
+            },
+            stroke: {
+                curve: 'smooth',
+                width: [0, 3],
+                dashArray: [0, 0]
+            },
+            markers: {
+                size: 5,
+                strokeWidth: 2,
+                hover: {
+                    size: 7
+                }
+            },
+            grid: {
+                padding: { bottom: 20 }
+            }
+        };
+
+        responseChartInstance = new window.ApexCharts(responseChartRef, options);
+        responseChartInstance.render();
+    }
+
+    function getStatusBadge(statusCode) {
+        const code = parseInt(statusCode);
+        if (code >= 200 && code < 300) {
+            return html`<span class="badge badge-outline text-success">${statusCode}</span>`;
+        } else if (code >= 400 && code < 500) {
+            return html`<span class="badge badge-outline text-warning">${statusCode}</span>`;
+        } else if (code >= 500) {
+            return html`<span class="badge badge-outline text-danger">${statusCode}</span>`;
+        }
+        return html`<span class="badge badge-outline text-secondary">${statusCode}</span>`;
+    }
+
+    function getHttpMethodBadge(method) {
+        const colors = {
+            'GET': 'primary',
+            'POST': 'success',
+            'PUT': 'warning',
+            'PATCH': 'info',
+            'DELETE': 'danger'
+        };
+        const color = colors[method] || 'secondary';
+        return html`<span class="badge badge-outline text-${color}">${method}</span>`;
+    }
+
+    function formatDuration(ms) {
+        if (ms < 1000) return `${ms}ms`;
+        return `${(ms / 1000).toFixed(2)}s`;
+    }
+
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = now - date;
+        
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+        
+        return date.toLocaleString();
+    }
+
+    function toggleEventDetails(eventId) {
+        setExpandedEvent(expandedEvent === eventId ? null : eventId);
+    }
+
+    function parseMetadata(metadataJson) {
+        if (!metadataJson) return {};
+        try {
+            const meta = typeof metadataJson === 'string' ? JSON.parse(metadataJson) : metadataJson;
+            // Normalize legacy vs new audit metadata keys
+            if (meta && meta.DurationMs === undefined && meta.elapsedMs !== undefined) meta.DurationMs = meta.elapsedMs;
+            if (meta && meta.DurationSeconds === undefined && meta.durationSeconds !== undefined) meta.DurationSeconds = meta.durationSeconds;
+            return meta;
+        } catch {
+            return {};
+        }
+    }
+
+    function toggleSort(column) {
+        if (sortConfig.column === column) {
+            // Toggle direction if same column
+            setSortConfig({
+                column: column,
+                direction: sortConfig.direction === 'asc' ? 'desc' : 'asc'
+            });
+        } else {
+            // New column, default to ascending
+            setSortConfig({
+                column: column,
+                direction: 'asc'
+            });
+        }
+    }
+
+    // Get unique values for filters
+    const httpMethods = [...new Set(events.map(e => {
+        const meta = parseMetadata(e.metadata);
+        return meta.HttpMethod || meta.httpMethod || e.subType;
+    }).filter(Boolean))].sort();
+    const users = [...new Set(events.map(e => e.performedBy).filter(Boolean))].sort();
+    const orgIds = [...new Set(events.map(e => parseEndpointPath(e.targetId).orgId).filter(o => o !== 'N/A'))].sort();
+    const deviceIds = [...new Set(events.map(e => parseEndpointPath(e.targetId).deviceId).filter(d => d !== 'N/A'))].sort();
+    const endpoints = [...new Set(events.map(e => parseEndpointPath(e.targetId).endpoint).filter(Boolean))].sort();
+
+    // Per-endpoint latency stats for Top Slow Endpoints table
+    const endpointStatsMap = {};
+    filteredEvents.forEach(evt => {
+        const ep = parseEndpointPath(evt.targetId).endpoint;
+        if (!ep || ep === 'ROOT') return;
+        const meta = parseMetadata(evt.metadata);
+        const duration = parseInt(meta.DurationMs || meta.durationMs || meta.elapsedMs || '0', 10);
+        const statusCode = parseInt(meta.StatusCode || '200', 10);
+        const isError = statusCode >= 400;
+        if (!endpointStatsMap[ep]) {
+            endpointStatsMap[ep] = { endpoint: ep, count: 0, totalDuration: 0, durations: [], errorCount: 0 };
+        }
+        const ds = endpointStatsMap[ep];
+        ds.count++;
+        ds.totalDuration += Number.isNaN(duration) ? 0 : duration;
+        if (!Number.isNaN(duration) && duration > 0) ds.durations.push(duration);
+        if (isError) ds.errorCount++;
+    });
+    const topSlowEndpoints = Object.values(endpointStatsMap).map(d => {
+        const sorted = [...d.durations].sort((a, b) => a - b);
+        const p50 = sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.50)] : 0;
+        const p95 = sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) * 0.95)] : 0;
+        const avg = d.count > 0 ? Math.round(d.totalDuration / d.count) : 0;
+        return { ...d, avg, p50, p95 };
+    }).sort((a, b) => b.p95 - a.p95).slice(0, 10);
+    const epMaxP95 = topSlowEndpoints.length > 0 ? Math.max(topSlowEndpoints[0].p95, 1) : 1;
+
+    // KPI summary for User Activity tab
+    const totalCalls = filteredEvents.length;
+    const successCalls = filteredEvents.filter(e => {
+        const code = parseInt(parseMetadata(e.metadata).StatusCode || '0', 10);
+        return code >= 200 && code < 300;
+    }).length;
+    const errorCalls = filteredEvents.filter(e => {
+        const code = parseInt(parseMetadata(e.metadata).StatusCode || '0', 10);
+        return code >= 400;
+    }).length;
+    const rateLimitedCalls = filteredEvents.filter(e => {
+        const code = parseInt(parseMetadata(e.metadata).StatusCode || '0', 10);
+        return code === 429;
+    }).length;
+    const rateLimitedPct = totalCalls > 0 ? ((rateLimitedCalls / totalCalls) * 100).toFixed(1) : '0.0';
+
+    // Debug logging
+    if (events.length > 0) {
+        logger.debug('[API Audit] Sample events:', events.slice(0, 3).map(e => {
+            const meta = parseMetadata(e.metadata);
+            return {
+                performedBy: e.performedBy,
+                eventType: e.eventType,
+                subType: e.subType,
+                httpMethod: meta.HttpMethod || meta.httpMethod
+            };
+        }));
+        logger.debug('[API Audit] Unique users:', users);
+    }
+
+    return html`
+        <div class="page-header d-print-none mb-3">
+            <div class="container-xl">
+                <div class="row g-2 align-items-center">
+                    <div class="col">
+                        <h2 class="page-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                            API Audit
+                        </h2>
+                        <div class="page-subtitle">
+                            <span class="text-muted">View all API calls with request/response details</span>
+                        </div>
+                    </div>
+                    <div class="col-auto ms-auto">
+                        <div class="d-flex gap-2">
+                            <select 
+                                class="form-select" 
+                                value=${rangeDays}
+                                onChange=${(e) => setRangeDays(Number(e.target.value))}
+                                style="min-width: 150px;"
+                            >
+                                <option value="1">Last 24 hours</option>
+                                <option value="7">Last 7 days</option>
+                                <option value="30">Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                            </select>
+                            <button 
+                                class="btn btn-primary" 
+                                onClick=${() => loadApiEvents(true)}
+                                disabled=${loading}
+                            >
+                                <i class="ti ti-refresh me-1"></i>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-xl">
+            <!-- KPI Summary -->
+            <div class="row row-deck row-cards mb-3">
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted">Total API Calls</div>
+                            <div class="h2 mt-1 mb-0">${totalCalls}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted">Success (2xx)</div>
+                            <div class="h2 mt-1 mb-0 text-success">${successCalls}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted">Errors (4xx/5xx)</div>
+                            <div class="h2 mt-1 mb-0 text-danger">${errorCalls}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-muted">Rate Limited (429)</div>
+                            <div class="h2 mt-1 mb-0 text-warning">${rateLimitedCalls}</div>
+                            <div class="small text-muted">${rateLimitedPct}% of visible calls</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts (Side by Side) -->
+            <div class="card mb-3">
+                <div class="row g-0">
+                    <div class="col-lg-6 border-end">
+                        <div class="card-body">
+                            <h3 class="card-title">API Calls Over Time</h3>
+                            <div ref=${chartRef}></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card-body">
+                            <h3 class="card-title">Response Duration & Status Codes</h3>
+                            <div id="responseChartRef"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-2">
+                            <label class="form-label">HTTP Method</label>
+                            <select 
+                                class="form-select" 
+                                value=${filters.httpMethod}
+                                onChange=${(e) => setFilters({ ...filters, httpMethod: e.target.value })}
+                            >
+                                <option value="all">All Methods</option>
+                                ${httpMethods.map(method => html`
+                                    <option value=${method}>${method}</option>
+                                `)}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Organization</label>
+                            <select 
+                                class="form-select" 
+                                value=${filters.orgId}
+                                onChange=${(e) => setFilters({ ...filters, orgId: e.target.value })}
+                            >
+                                <option value="all">All Organizations</option>
+                                ${orgIds.map(orgId => html`
+                                    <option value=${orgId}>${orgId}</option>
+                                `)}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Device</label>
+                            <select 
+                                class="form-select" 
+                                value=${filters.deviceId}
+                                onChange=${(e) => setFilters({ ...filters, deviceId: e.target.value })}
+                            >
+                                <option value="all">All Devices</option>
+                                ${deviceIds.map(deviceId => html`
+                                    <option value=${deviceId}>${deviceId.substring(0, 8)}...</option>
+                                `)}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Endpoint</label>
+                            <select 
+                                class="form-select" 
+                                value=${filters.endpoint}
+                                onChange=${(e) => setFilters({ ...filters, endpoint: e.target.value })}
+                            >
+                                <option value="all">All Endpoints</option>
+                                ${endpoints.map(endpoint => html`
+                                    <option value=${endpoint}>${endpoint}</option>
+                                `)}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">User</label>
+                            <select 
+                                class="form-select" 
+                                value=${filters.user}
+                                onChange=${(e) => setFilters({ ...filters, user: e.target.value })}
+                            >
+                                <option value="all">All Users</option>
+                                ${users.map(user => html`
+                                    <option value=${user}>${user}</option>
+                                `)}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Status</label>
+                            <select 
+                                class="form-select" 
+                                value=${filters.statusFilter}
+                                onChange=${(e) => setFilters({ ...filters, statusFilter: e.target.value })}
+                            >
+                                <option value="all">All Statuses</option>
+                                <option value="success">Success (2xx)</option>
+                                <option value="error">Errors (4xx, 5xx)</option>
+                                <option value="rateLimited">Rate Limited (429)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-2">
+                            <label class="form-label">Response Time</label>
+                            <select class="form-select" value=${filters.responseTimeMin} onChange=${(e) => setFilters({ ...filters, responseTimeMin: e.target.value })}>
+                                <option value="all">All</option>
+                                <option value="500">≥ 500ms</option>
+                                <option value="1000">≥ 1000ms</option>
+                                <option value="2000">≥ 2000ms</option>
+                                <option value="2500">≥ 2500ms</option>
+                                <option value="5000">≥ 5000ms</option>
+                            </select>
+                        </div>
+                        <div class="col-md-10">
+                            <label class="form-label">Search</label>
+                            <input 
+                                type="text" 
+                                class="form-control" 
+                                placeholder="Search by path, description, or user..."
+                                value=${filters.search}
+                                onInput=${(e) => setFilters({ ...filters, search: e.target.value })}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Slow Endpoints -->
+            ${topSlowEndpoints.length > 1 ? html`
+                <div class="card mb-3">
+                    <div class="card-header" style="cursor:pointer;" onClick=${() => setTopSlowCollapsed(!topSlowCollapsed)}>
+                        <h3 class="card-title">
+                            <i class="ti ti-trending-up me-2 text-danger"></i>
+                            Top Slow Endpoints
+                        </h3>
+                        <div class="card-options">
+                            <span class="text-muted small me-2">Sorted by p95 · Top ${topSlowEndpoints.length}</span>
+                            <i class="ti ti-chevron-${topSlowCollapsed ? 'down' : 'up'}"></i>
+                        </div>
+                    </div>
+                    ${!topSlowCollapsed ? html`
+                        <div class="table-responsive">
+                            <table class="table table-vcenter card-table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Endpoint</th>
+                                        <th class="text-center">Calls</th>
+                                        <th class="text-center">Avg</th>
+                                        <th class="text-center">p50</th>
+                                        <th class="text-center">p95</th>
+                                        <th>Latency</th>
+                                        <th class="text-center">Errors</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${topSlowEndpoints.map((d, idx) => {
+                                        const p95Color = d.p95 >= 5000 ? 'danger' : d.p95 >= 2000 ? 'warning' : d.p95 >= 1000 ? 'info' : 'success';
+                                        const avgColor = d.avg >= 5000 ? 'danger' : d.avg >= 2000 ? 'warning' : d.avg >= 1000 ? 'info' : 'success';
+                                        const errorRate = d.count > 0 ? Math.round((d.errorCount / d.count) * 100) : 0;
+                                        const p50Pct = Math.min(100, Math.round((d.p50 / epMaxP95) * 100));
+                                        const p95Pct = Math.min(100, Math.round((d.p95 / epMaxP95) * 100));
+                                        return html`
+                                            <tr key=${d.endpoint}>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="avatar avatar-xs me-2 bg-secondary-lt text-muted">${idx + 1}</span>
+                                                        <strong class="small">${d.endpoint}</strong>
+                                                    </div>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-secondary text-secondary-fg">${d.count}</span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-${avgColor} text-white">${d.avg}ms</span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="text-muted small">${d.p50}ms</span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-${p95Color} text-white fw-bold">${d.p95}ms</span>
+                                                </td>
+                                                <td style="min-width:100px;">
+                                                    <div style="position:relative;height:6px;background:var(--tblr-border-color-translucent, #e9ecef);border-radius:3px;">
+                                                        <div style="position:absolute;left:0;top:0;height:6px;width:${p95Pct}%;background:rgba(247,103,7,0.35);border-radius:3px;"></div>
+                                                        <div style="position:absolute;left:0;top:0;height:6px;width:${p50Pct}%;background:#0d6efd;border-radius:3px;"></div>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mt-1" style="font-size:9px;">
+                                                        <span class="text-primary">p50</span>
+                                                        <span class="text-warning">p95</span>
+                                                    </div>
+                                                </td>
+                                                <td class="text-center">
+                                                    ${d.errorCount > 0 ? html`
+                                                        <span class="badge bg-danger text-white">${d.errorCount} (${errorRate}%)</span>
+                                                    ` : html`
+                                                        <span class="text-muted small">—</span>
+                                                    `}
+                                                </td>
+                                                <td class="text-end">
+                                                    <button class="btn btn-sm btn-ghost-secondary"
+                                                            title="Filter to this endpoint"
+                                                            onClick=${() => setFilters({ ...filters, endpoint: d.endpoint })}>
+                                                        <i class="ti ti-filter"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : null}
+                </div>
+            ` : null}
+
+            <!-- Events Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">API Calls (${filteredEvents.length})</h3>
+                </div>
+                <div class="table-responsive">
+                    <table class="table card-table table-vcenter">
+                        <thead>
+                            <tr>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('timestamp')}>
+                                    Time 
+                                    ${sortConfig.column === 'timestamp' ? html`<i class="ti ti-${sortConfig.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                </th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('method')}>
+                                    Method
+                                    ${sortConfig.column === 'method' ? html`<i class="ti ti-${sortConfig.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                </th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('org')}>
+                                    Org
+                                    ${sortConfig.column === 'org' ? html`<i class="ti ti-${sortConfig.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                </th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('device')}>
+                                    Device
+                                    ${sortConfig.column === 'device' ? html`<i class="ti ti-${sortConfig.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                </th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('endpoint')}>
+                                    Endpoint
+                                    ${sortConfig.column === 'endpoint' ? html`<i class="ti ti-${sortConfig.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                </th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('user')}>
+                                    User
+                                    ${sortConfig.column === 'user' ? html`<i class="ti ti-${sortConfig.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                </th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('status')}>
+                                    Status
+                                    ${sortConfig.column === 'status' ? html`<i class="ti ti-${sortConfig.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                </th>
+                                <th style="cursor: pointer;" onClick=${() => toggleSort('duration')}>
+                                    Duration
+                                    ${sortConfig.column === 'duration' ? html`<i class="ti ti-${sortConfig.direction === 'asc' ? 'sort-ascending' : 'sort-descending'} ms-1"></i>` : ''}
+                                </th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${loading ? html`
+                                <tr><td colspan="8" class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm me-2"></div>
+                                    Loading API audit data...
+                                </td></tr>
+                            ` : filteredEvents.length === 0 ? html`
+                                <tr><td colspan="8" class="text-center py-4 text-muted">
+                                    No API calls found for the selected filters
+                                </td></tr>
+                            ` : filteredEvents.map(event => {
+                                const metadata = parseMetadata(event.metadata);
+                                const statusCode = metadata.StatusCode || 'N/A';
+                                const durationMs = metadata.DurationMs || 0;
+                                const isExpanded = expandedEvent === event.eventId;
+                                const endpoint = parseEndpointPath(event.targetId);
+                                const httpMethod = (() => {
+                                    const meta = parseMetadata(event.metadata);
+                                    return meta.HttpMethod || meta.httpMethod || event.subType;
+                                })();
+
+                                return html`
+                                    <tr key=${event.eventId} data-event-id=${event.eventId}>
+                                        <td class="text-muted">${formatTimestamp(event.timestamp)}</td>
+                                        <td>${getHttpMethodBadge(httpMethod)}</td>
+                                        <td class="small"><code>${endpoint.orgId}</code></td>
+                                        <td class="small">${endpoint.deviceId === 'N/A' ? '-' : html`<code>${endpoint.deviceId.substring(0, 8)}...</code>`}</td>
+                                        <td class="small"><strong>${endpoint.endpoint}</strong></td>
+                                        <td class="text-muted small">${event.performedBy}</td>
+                                        <td>${getStatusBadge(statusCode)}</td>
+                                        <td class="text-muted small">${formatDuration(durationMs)}</td>
+                                        <td class="text-end">
+                                            <button 
+                                                class="btn btn-sm btn-ghost-secondary"
+                                                onClick=${() => toggleEventDetails(event.eventId)}
+                                            >
+                                                <i class="ti ti-${isExpanded ? 'chevron-up' : 'chevron-down'}"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    ${isExpanded ? html`
+                                        <tr key="${event.eventId}-details">
+                                            <td colspan="9" class="activity-details-cell">
+                                                <div class="p-3">
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <h4 class="text-muted mb-2">Endpoint Details</h4>
+                                                            <table class="table table-sm">
+                                                                <tr>
+                                                                    <td><strong>Full Path:</strong></td>
+                                                                    <td><code class="small">${endpoint.fullPath}</code></td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>Organization:</strong></td>
+                                                                    <td><code class="small">${endpoint.orgId}</code></td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>Device ID:</strong></td>
+                                                                    <td>${endpoint.deviceId === 'N/A' ? 'N/A' : html`<code class="small">${endpoint.deviceId}</code>`}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>Endpoint:</strong></td>
+                                                                    <td><code class="small">${endpoint.endpoint}</code></td>
+                                                                </tr>
+                                                            </table>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <h4 class="text-muted mb-2">Request Details</h4>
+                                                            <table class="table table-sm">
+                                                                <tr>
+                                                                    <td><strong>Request ID:</strong></td>
+                                                                    <td><code class="small">${metadata.RequestId || 'N/A'}</code></td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>User Agent:</strong></td>
+                                                                    <td class="small">${metadata.UserAgent || 'N/A'}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>IP Address:</strong></td>
+                                                                    <td><code class="small">${metadata.IpAddress || 'N/A'}</code></td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>Source Page:</strong></td>
+                                                                    <td class="small">${metadata.SourcePage || 'Direct'}</td>
+                                                                </tr>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row mt-3">
+                                                        <div class="col-md-6">
+                                                            <h4 class="text-muted mb-2">Response Details</h4>
+                                                            <table class="table table-sm">
+                                                                <tr>
+                                                                    <td><strong>Timestamp:</strong></td>
+                                                                    <td class="small">${new Date(event.timestamp).toLocaleString()}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>Status:</strong></td>
+                                                                    <td>${getStatusBadge(statusCode)}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>Duration:</strong></td>
+                                                                    <td class="small">${formatDuration(durationMs)}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>Request Size:</strong></td>
+                                                                    <td class="small">${(() => {
+                                                                        const bytes = parseInt(metadata.RequestSize || 0);
+                                                                        if (bytes === 0) return '0 B';
+                                                                        if (bytes < 1024) return bytes + ' B';
+                                                                        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+                                                                        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                                                                    })()}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td><strong>Response Size:</strong></td>
+                                                                    <td class="small">${(() => {
+                                                                        const bytes = parseInt(metadata.ResponseSize || 0);
+                                                                        if (bytes === 0) return '0 B';
+                                                                        if (bytes < 1024) return bytes + ' B';
+                                                                        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+                                                                        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                                                                    })()}</td>
+                                                                </tr>
+                                                                ${metadata.ErrorCode ? html`
+                                                                    <tr>
+                                                                        <td><strong>Error Code:</strong></td>
+                                                                        <td><code class="small text-danger">${metadata.ErrorCode}</code></td>
+                                                                    </tr>
+                                                                ` : null}
+                                                                ${metadata.ErrorMessage ? html`
+                                                                    <tr>
+                                                                        <td><strong>Error Message:</strong></td>
+                                                                        <td class="small text-danger">${metadata.ErrorMessage}</td>
+                                                                    </tr>
+                                                                ` : null}
+                                                            </table>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <h4 class="text-muted mb-2">Full Metadata</h4>
+                                                            <pre class="json-metadata activity-details-pre p-2 rounded" style="max-height: 300px; overflow-y: auto; font-size: 11px;">${JSON.stringify(metadata, null, 2)}</pre>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ` : null}
+                                `;
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Infinite Scroll Sentinel -->
+                <div ref=${scrollObserverRef} style="height: 20px; margin: 20px 0;"></div>
+                
+                ${loadingMore ? html`
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading more...</span>
+                        </div>
+                        <div class="text-muted mt-2 small">Loading more events...</div>
+                    </div>
+                ` : ''}
+                
+                ${!hasMore && events.length > 0 ? html`
+                    <div class="text-center text-muted py-2">
+                        <small>No more events to load</small>
+                    </div>
+                ` : ''}
+            </div>
+
+            <!-- Go to Top Button -->
+            <button 
+                class="btn btn-primary btn-icon position-fixed bottom-0 end-0 m-3" 
+                style="z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.2);"
+                onClick=${scrollToTop}
+                title="Go to Top"
+            >
+                <i class="ti ti-arrow-up"></i>
+            </button>
+        </div>
+    `;
+}

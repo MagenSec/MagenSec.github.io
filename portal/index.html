@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>MagenSec Security Center</title>
+    
+    <!--#include file=".cdn-includes/head.html" -->
+    
+    <!-- Fallback CDN resources if SSI not processed (for local dev) -->
+    <!-- These load unconditionally but check avoids double-loading in production -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-GgnF119bh9fxkKuWHRQYSgEe1rSp5jB0EJ2W8eMf8mjowfwhZP2H1u8n8xJUW3FQ">
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-PwEnNZvp50/uDLtKrd1s2D4Xe/y+fCVtEigigjik/PgHlDXUF1uJ32m7guk/XWYV">
+    <!-- MagenSec Custom Styles - Tabler Extensions -->
+    <link href="portal.css" rel="stylesheet">
+    <link href="js/pages/ai/ai-pages.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/dist/preact.umd.js" crossorigin="anonymous" integrity="sha384-U4OMVsjjX51xPGffCeL/sA3lRY9728Yr9c2GrxjjKXCqLDmTU3YTMoEo7S3w0zV0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/preact@10.19.3/hooks/dist/hooks.umd.js" crossorigin="anonymous" integrity="sha384-dotES0HQfWapSbwVniIh09lILVkW8rHjyp+eRlkP7zfcos3bwARWTh85LJRYp+K2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js" crossorigin="anonymous" integrity="sha384-toVdrLSMaw7Y55MowcKqkmFL/Ek6Sky62NOk0b5sDDZBu2wcoPyyQUt9unDVjXhL"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" crossorigin="anonymous" integrity="sha384-cVMg8E3QFwTvGCDuK+ET4PD341jF3W8nO1auiXfuZNQkzbUUiBGLsIQUE+b1mxws"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0" crossorigin="anonymous" integrity="sha384-AMGf6SjYWuydruLCEKIx7wNrplae/LWMqStBYe5zhISiQeyuogc8OLM2QzJIreuY"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js" crossorigin="anonymous" integrity="sha384-vdScihEZCfbPnBQf+lc7LgXUdJVYyhC3yWHUW5C5P5GpHRqVnaM6HJELJxT6IqwM"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js" crossorigin="anonymous" integrity="sha384-odPBjvtXVM/5hOYIr3A1dB+flh0c3wAT3bSesIOqEGmyUA4JoKf/YTWy0XKOYAY7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js" crossorigin="anonymous" integrity="sha384-+NGfjU8KzpDLXRHduEqW+ZiJr2rIg+cidUVk7B51R5xK7cHwMKQfrdFwGdrq1Bcz"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/page@1.11.6/page.min.js" crossorigin="anonymous" integrity="sha384-I21flNc4c7wK3Q4Zxf/hz43oz5U8ks1jEK2NdsOPELdxzIs9XHBgvBulNBRklYVf"></script>
+    
+    <!-- Import Maps: Path aliases to make imports location-independent -->
+    <script type="importmap">
+    {
+        "imports": {
+            "@/": "./js/",
+            "@auth": "./js/auth.js",
+            "@api": "./js/api.js",
+            "@config": "./js/config.js",
+            "@orgContext": "./js/orgContext.js",
+            "@rewindContext": "./js/rewindContext.js",
+            "@rewindBar": "./js/components/RewindBar.js",
+            "@toast": "./js/toast.js",
+            "@components/": "./js/components/",
+            "@utils/": "./js/utils/"
+        }
+    }
+    </script>
+    
+    <style>
+        /* Modal backdrop tweaks */
+        .modal-root { position: fixed; inset: 0; z-index: 1040; }
+        .modal-root .modal-backdrop.custom-backdrop { background-color: rgba(0,0,0,0.6); }
+        .modal-root .modal-backdrop { position: fixed; inset: 0; }
+        .modal-root .modal { z-index: 1050; }
+
+        /* Markdown content styling */
+        .markdown {
+            line-height: 1.6;
+        }
+        .markdown h1, .markdown h2, .markdown h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .markdown ul, .markdown ol {
+            padding-left: 2rem;
+        }
+        .markdown code {
+            background: #f8f9fa;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.875em;
+        }
+        .markdown pre {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .markdown pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* Markdown table styling with borders */
+        .markdown-content table,
+        .markdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            border: 1px solid #dee2e6;
+        }
+        
+        .markdown-content table th,
+        .markdown-table th {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .markdown-content table td,
+        .markdown-table td {
+            border: 1px solid #dee2e6;
+            padding: 0.75rem;
+        }
+        
+        .markdown-content table tbody tr:nth-child(odd),
+        .markdown-table tbody tr:nth-child(odd) {
+            background-color: #f8f9fa;
+        }
+        
+        .markdown-content table tbody tr:hover,
+        .markdown-table tbody tr:hover {
+            background-color: #e9ecef;
+        }
+
+        /* Mermaid diagram styling */
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 2rem 0;
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        
+        /* JSON metadata viewer - dark theme with proper contrast */
+        .json-metadata {
+            background: #1e1e1e !important;
+            color: #d4d4d4 !important;
+            border: 1px solid #3e3e3e !important;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        /* Login overlay - full-page pattern like Tabler sign-in */
+        #login-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--tblr-bg-surface);
+            z-index: 9999;
+        }
+        #login-overlay.active {
+            display: block;
+        }
+        
+        /* Hide ONLY the main page container when unauthenticated (not overlay content) */
+        body.unauthenticated > .page {
+            display: none;
+        }
+
+        /* Officer MAGI top-level highlight */
+        .nav-item-ai-analyst {
+            margin-right: 0.5rem;
+        }
+        .nav-item-ai-analyst .nav-link {
+            background: linear-gradient(135deg, #244fae 0%, #4f46e5 55%, #6d28d9 100%);
+            color: #ffffff !important;
+            border-radius: 6px;
+            padding: 0.5rem 1rem !important;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            box-shadow: 0 6px 14px rgba(46, 81, 180, 0.22);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            position: relative;
+            overflow: hidden;
+        }
+        .nav-item-ai-analyst .nav-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 18px rgba(46, 81, 180, 0.28);
+            filter: saturate(1.08);
+        }
+        .nav-item-ai-analyst .nav-link.active,
+        .nav-item-ai-analyst.active .nav-link {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 20px rgba(46, 81, 180, 0.34);
+            border-color: rgba(255, 255, 255, 0.52);
+            filter: saturate(1.12) brightness(1.03);
+        }
+        .nav-item-ai-analyst .nav-link.active::after,
+        .nav-item-ai-analyst.active .nav-link::after {
+            opacity: 1;
+            border-color: rgba(224, 231, 255, 0.9);
+            box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.16);
+            animation-duration: 2.8s;
+        }
+        .nav-item-ai-analyst .nav-link:focus-visible {
+            outline: 2px solid rgba(79, 70, 229, 0.45);
+            outline-offset: 2px;
+        }
+        .nav-item-ai-analyst .nav-link::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 6px;
+            border: 1px solid rgba(199, 210, 254, 0.55);
+            animation: magi-glow 3.8s ease-in-out infinite;
+            pointer-events: none;
+        }
+        .nav-item-ai-analyst .nav-link-icon svg {
+            opacity: 0.95;
+        }
+        @keyframes magi-glow {
+            0%, 100% { opacity: 0.6; box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.15); }
+            50% { opacity: 0.95; box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.08); }
+        }
+
+        [data-bs-theme="dark"] .nav-item-ai-analyst .nav-link {
+            box-shadow: 0 8px 16px rgba(31, 41, 55, 0.45);
+            border-color: rgba(199, 210, 254, 0.35);
+        }
+        [data-bs-theme="dark"] .nav-item-ai-analyst .nav-link.active,
+        [data-bs-theme="dark"] .nav-item-ai-analyst.active .nav-link {
+            box-shadow: 0 14px 24px rgba(17, 24, 39, 0.62);
+            border-color: rgba(224, 231, 255, 0.55);
+        }
+        
+        /* Sortable table headers */
+        .cursor-pointer {
+            cursor: pointer;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .cursor-pointer:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+
+        body.org-personal .business-license-only {
+            opacity: 0.55;
+        }
+
+        body.org-personal .business-license-only,
+        body.org-personal .business-license-only * {
+            cursor: not-allowed !important;
+        }
+    </style>
+</head>
+<body class="unauthenticated">
+    <!-- Login Overlay (full-page) -->
+    <div id="login-overlay" class="active"></div>
+    
+    <div class="page">
+        <!-- Navbar -->
+        <header class="navbar navbar-expand-md navbar-light d-print-none">
+            <div class="container-xl navbar-top-grid">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-label="Toggle navigation menu">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3 navbar-top-left">
+                    <span class="navbar-brand-static d-inline-flex align-items-center" role="text" aria-label="MagenSec">
+                        <img src="../assets/green_shield_64.ico" alt="MagenSec" height="24" class="me-2">
+                        <span class="magensec-brand-magen">Magen</span><span class="magensec-brand-sec">Sec</span>
+                    </span>
+                </h1>
+                <!-- Center: Org Switcher -->
+                <div class="navbar-nav flex-fill justify-content-center d-flex align-items-center navbar-top-center">
+                    <div id="org-switcher-root"></div>
+                </div>
+                <!-- Right: Theme toggle, Site Admin, Rewind trigger, User Menu -->
+                <div class="navbar-nav flex-row order-md-last gap-2 align-items-center navbar-top-right">
+
+                    <!-- Theme toggle (icon button) -->
+                    <div class="nav-item d-flex align-items-center" id="theme-toggle-nav">
+                        <button id="theme-toggle-btn" class="btn btn-icon" aria-label="Toggle theme" title="Toggle dark/light theme">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Site Admin dropdown (hidden unless SiteAdmin) -->
+                    <div class="nav-item dropdown site-admin-only" style="display:none">
+                        <a class="nav-link dropdown-toggle p-0 px-2 d-flex align-items-center" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false" style="font-size:13px; font-weight:500;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 15l0 0" /></svg>
+                            Site Admin
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a class="dropdown-item" href="#!/siteadmin/business"><span class="me-2">📊</span>Business</a>
+                            <a class="dropdown-item" href="#!/siteadmin/manage"><span class="me-2">⚙️</span>Manage</a>
+                            <a class="dropdown-item" href="#!/siteadmin/activity"><span class="me-2">📈</span>Activity</a>
+                            <a class="dropdown-item" href="#!/siteadmin/preview"><span class="me-2">👁️</span>Preview</a>
+                            <a class="dropdown-item" href="#!/siteadmin/ai-responses"><span class="me-2">🧠</span>AI Responses</a>
+                            <div class="dropdown-divider"></div>
+                            <h6 class="dropdown-header">Review Unwired Pages</h6>
+                            <a class="dropdown-item" href="#!/review"><i class="ti ti-list-details me-2"></i>Parked Pages Catalog</a>
+                            <a class="dropdown-item" href="#!/analyst"><i class="ti ti-message-chatbot me-2"></i>AI Analyst</a>
+                            <a class="dropdown-item" href="#!/posture"><i class="ti ti-shield-check me-2"></i>Security Posture</a>
+                            <a class="dropdown-item" href="#!/vulnerabilities"><i class="ti ti-bug me-2"></i>Risks</a>
+                            <a class="dropdown-item" href="#!/add-ons/compliance-plus"><i class="ti ti-certificate-2 me-2"></i>Compliance Plus</a>
+                            <a class="dropdown-item" href="#!/add-ons/supply-chain-intel"><i class="ti ti-building-factory me-2"></i>Supply Chain Intel</a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#!/siteadmin/review"><span class="badge bg-yellow text-white float-end">Internal</span><i class="ti ti-bug-search me-2"></i>Vulnerability Review</a>
+                        </div>
+                    </div>
+
+                    <!-- Time Warp button (top-level, beside user avatar) -->
+                    <div class="nav-item site-admin-only" style="display:none" id="rewind-nav-item">
+                        <button id="rewind-trigger"
+                            class="btn btn-sm fw-bold d-flex align-items-center gap-1"
+                            style="border-radius:20px; padding:4px 14px; border:1.5px solid rgba(247,103,7,0.55); background:linear-gradient(135deg,#1c0a00 0%,#3d1800 55%,#1c0a00 100%); color:#f59f00; transition:all 0.25s; font-size:0.8rem; letter-spacing:0.04em;"
+                            title="Time Warp — see your security state on any past date"
+                            aria-label="Open Time Warp"
+                            aria-expanded="false">
+                            <span id="rewind-btn-icon" style="display:inline-flex; align-items:center;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" />
+                                </svg>
+                            </span>
+                            <span id="rewind-btn-label">Time Warp</span>
+                        </button>
+                    </div>
+
+                    <!-- User menu -->
+                    <div class="nav-item dropdown">
+                        <a href="#" id="user-menu-trigger" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-expanded="false" role="button">
+                            <span class="avatar avatar-sm" id="user-avatar">
+                                <img id="user-avatar-img" alt="User" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:50%;" />
+                                <span id="user-avatar-fallback" class="avatar-initials" style="display:none;"></span>
+                            </span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="#!/account" class="dropdown-item">Account</a>
+                            <a href="#!/docs" class="dropdown-item">Help Center</a>
+                            <div class="dropdown-divider"></div>
+                            
+                            <a href="#" class="dropdown-item" id="logout-link">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Time Warp bar (above secondary nav, mounted by RewindBar.js when active) -->
+        <div id="rewind-bar-root"></div>
+
+        <!-- Horizontal Navigation — Four Pillars: Protect, Prove, Monitor, Settings -->
+        <div class="navbar-expand-md">
+            <div class="collapse navbar-collapse" id="navbar-menu">
+                <div class="navbar navbar-light">
+                    <div class="container-xl">
+                        <ul class="navbar-nav">
+                            <!-- Home -->
+                            <li class="nav-item" id="nav-home-item">
+                                <a class="nav-link" href="#!/dashboard">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Home</span>
+                                </a>
+                            </li>
+
+                            <!-- Protect: Devices, Software, Vulnerabilities, Action Items -->
+                            <li class="nav-item dropdown" id="nav-protect-item">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Protect</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/devices"><i class="ti ti-devices me-2"></i>Devices</a>
+                                    <a class="dropdown-item" href="#!/apps"><i class="ti ti-apps me-2"></i>Software Inventory</a>
+                                    <a class="dropdown-item" href="#!/vulnerabilities"><i class="ti ti-bug me-2"></i>Vulnerabilities</a>
+                                    <a class="dropdown-item business-nav-only" href="#!/alerts"><i class="ti ti-bell-ringing me-2"></i>Action Items</a>
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item" href="#!/changelog"><i class="ti ti-history me-2"></i>Software Changelog</a>
+                                </div>
+                            </li>
+
+                            <!-- Prove: Compliance, Reports, Insurance, Auditor -->
+                            <li class="nav-item dropdown business-license-only" id="nav-prove-item" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 12l2 2l4 -4" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Prove</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" data-addon="Compliance" href="#!/compliance"><i class="ti ti-certificate me-2"></i>Compliance</a>
+                                    <a class="dropdown-item" href="#!/reports"><i class="ti ti-chart-bar me-2"></i>Reports</a>
+                                    <a class="dropdown-item" data-addon="InsuranceReadiness" href="#!/add-ons/insurance-readiness"><i class="ti ti-shield-lock me-2"></i>Insurance Readiness</a>
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item" data-addon="Audit" href="#!/auditor"><i class="ti ti-file-search me-2"></i>Auditor Dashboard</a>
+                                    <a class="dropdown-item" data-addon="PeerBenchmark" href="#!/add-ons/peer-benchmark"><i class="ti ti-chart-dots-3 me-2"></i>Peer Benchmark</a>
+                                </div>
+                            </li>
+
+                            <!-- Monitor: Security Overview, Audit Trail, Attack Chain, Hygiene Coach -->
+                            <li class="nav-item dropdown" id="nav-monitor-item">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Monitor</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/security"><i class="ti ti-shield me-2"></i>Security Overview</a>
+                                    <a class="dropdown-item" href="#!/audit"><i class="ti ti-file-search me-2"></i>Audit Trail</a>
+                                    <a class="dropdown-item business-nav-only" data-addon="AttackChain" href="#!/attack-chain"><i class="ti ti-route me-2"></i>Attack Chain</a>
+                                    <div class="dropdown-divider business-nav-only"></div>
+                                    <a class="dropdown-item business-nav-only" data-addon="HygieneCoach" href="#!/add-ons/hygiene-coach"><i class="ti ti-heart-rate-monitor me-2"></i>Hygiene Coach</a>
+                                    <a class="dropdown-item business-nav-only" data-addon="MAGI" href="#!/mission-brief"><i class="ti ti-brain me-2"></i>Mission Brief</a>
+                                </div>
+                            </li>
+
+                            <!-- Settings (dropdown) -->
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Settings</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/settings"><i class="ti ti-settings me-2"></i>General</a>
+                                    <a class="dropdown-item site-admin-only" href="#!/response-actions"><i class="ti ti-terminal me-2"></i>Actions</a>
+                                </div>
+                            </li>
+
+                        </ul>
+
+                        <ul class="navbar-nav ms-auto">
+                            <!-- Officer MAGI (top-level, highlighted) -->
+                            <li class="nav-item nav-item-ai-analyst business-license-only" id="nav-magi-item" data-addon="MAGI" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link" href="#!/analyst">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
+                                    </span>
+                                    <span class="nav-link-title">Officer MAGI</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Org Status Banner (shown/hidden by orgContext.js) -->
+        <div id="org-status-banner" style="display:none;">
+            <div class="container-xl mt-2">
+                <div id="org-status-alert" role="alert"></div>
+            </div>
+        </div>
+
+        <!-- Time Warp panel drawer (fixed-positioned, drops below trigger button) -->
+        <div id="rewind-panel"
+             style="display:none; position:fixed; top:0; right:0; z-index:1090; min-width:320px; max-width:360px;"
+             role="dialog" aria-label="Time Warp date selector">
+            <div id="rewind-panel-inner" class="shadow-lg"
+                 style="border-radius:0 0 12px 12px; border-top:3px solid #f59f00; padding:20px 18px;">
+                <div class="text-center text-muted small py-2">Loading…</div>
+            </div>
+        </div>
+
+        <!-- Page wrapper with boxed layout -->
+        <div class="page-wrapper">
+            <div class="container-xl">
+                <!-- Page body -->
+                <div class="page-body">
+                    <div id="app"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!--#include file=".cdn-includes/footer.html" -->
+    
+    <!-- Fallback for Bootstrap and Tabler JS if SSI not processed (for local dev) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js" crossorigin="anonymous" integrity="sha384-skr6f2xmgHOAc9USAHvYxA0lNy9tzSr5JIkdr9ytaCy2C/ofOu+OWd+d/hsnEJFN"></script>
+    <script>
+        // Verify Bootstrap loaded
+        console.log('[Portal] Bootstrap available:', typeof bootstrap !== 'undefined');
+        console.log('[Portal] Tabler available:', typeof tabler !== 'undefined');
+
+        // Bootstrap dropdowns need to work for SPA-rendered content.
+        // Use delegated click handling so dynamically-added dropdown toggles work.
+            if (typeof bootstrap !== 'undefined') {
+                document.addEventListener('click', (e) => {
+                    const toggle = e.target.closest('[data-bs-toggle="dropdown"]');
+                    if (!toggle) return;
+
+                    // If Bootstrap is available, always drive via the Dropdown API to avoid
+                    // timing issues where data-api isn't bound for SPA-rendered nodes.
+                    try {
+                        if (window.bootstrap?.Dropdown) {
+                            e.preventDefault();
+                            const instance = window.bootstrap.Dropdown.getOrCreateInstance(toggle);
+                            instance.toggle();
+                        }
+                    } catch (_err) {
+                        // no-op
+                    }
+                }, true);
+        }
+
+        function getCurrentRoutePath() {
+            const hash = window.location.hash || '';
+            if (!hash.startsWith('#!/')) {
+                return '/dashboard';
+            }
+
+            // Handle both "#!/route" and "#!/route?query=params".
+            const routeWithQuery = hash.slice(2);
+            const routeWithoutQuery = routeWithQuery.split('?')[0] || '/dashboard';
+            return routeWithoutQuery.startsWith('/') ? routeWithoutQuery : `/${routeWithoutQuery}`;
+        }
+
+        function clearNavbarActiveState() {
+            const navRoot = document.getElementById('navbar-menu');
+            if (!navRoot) return;
+
+            navRoot.querySelectorAll('.nav-link.active, .dropdown-item.active, .nav-item.active').forEach((el) => {
+                el.classList.remove('active');
+            });
+        }
+
+        function markActive(anchor) {
+            if (!anchor) return;
+
+            anchor.classList.add('active');
+            anchor.closest('.nav-item')?.classList.add('active');
+
+            const dropdownMenu = anchor.closest('.dropdown-menu');
+            if (!dropdownMenu) return;
+
+            const dropdownToggle = dropdownMenu.previousElementSibling;
+            if (dropdownToggle?.classList.contains('dropdown-toggle')) {
+                dropdownToggle.classList.add('active');
+                dropdownToggle.closest('.nav-item')?.classList.add('active');
+            }
+        }
+
+        function setNavbarActiveState() {
+            const navRoot = document.getElementById('navbar-menu');
+            if (!navRoot) return;
+
+            const routePath = getCurrentRoutePath();
+            clearNavbarActiveState();
+
+            let targetHref = null;
+
+            if (routePath.startsWith('/security/response') || routePath.startsWith('/response-actions') || routePath.startsWith('/devices')) {
+                targetHref = routePath.startsWith('/devices') ? '#!/devices' : '#!/security/response';
+            } else if (routePath.startsWith('/analyst') || routePath.startsWith('/ai-reports')) {
+                targetHref = '#!/analyst';
+            } else if (
+                routePath.startsWith('/mission-brief') ||
+                routePath.startsWith('/posture-ai') ||
+                routePath.startsWith('/compliance') ||
+                routePath.startsWith('/reports') ||
+                routePath.startsWith('/auditor')
+            ) {
+                if (routePath.startsWith('/mission-brief') || routePath.startsWith('/posture-ai')) {
+                    targetHref = '#!/mission-brief';
+                } else if (routePath.startsWith('/compliance')) {
+                    targetHref = '#!/compliance';
+                } else if (routePath.startsWith('/reports')) {
+                    targetHref = '#!/reports';
+                } else {
+                    targetHref = '#!/auditor';
+                }
+            } else if (
+                routePath.startsWith('/settings') ||
+                routePath.startsWith('/audit') ||
+                routePath.startsWith('/members') ||
+                routePath.startsWith('/licenses')
+            ) {
+                targetHref = routePath.startsWith('/audit') ? '#!/audit' : '#!/settings';
+            } else if (
+                routePath.startsWith('/siteadmin/') ||
+                routePath.startsWith('/review') ||
+                routePath.startsWith('/posture') ||
+                routePath.startsWith('/vulnerabilities')
+            ) {
+                if (routePath.startsWith('/siteadmin/business')) {
+                    targetHref = '#!/siteadmin/business';
+                } else if (routePath.startsWith('/siteadmin/manage')) {
+                    targetHref = '#!/siteadmin/manage';
+                } else if (routePath.startsWith('/siteadmin/activity')) {
+                    targetHref = '#!/siteadmin/activity';
+                } else if (routePath.startsWith('/siteadmin/preview')) {
+                    targetHref = '#!/siteadmin/preview';
+                } else if (routePath.startsWith('/siteadmin/review')) {
+                    targetHref = '#!/siteadmin/review';
+                } else if (routePath.startsWith('/posture')) {
+                    targetHref = '#!/posture';
+                } else if (routePath.startsWith('/vulnerabilities')) {
+                    targetHref = '#!/vulnerabilities';
+                } else {
+                    targetHref = '#!/review';
+                }
+            } else if (routePath.startsWith('/security') || routePath.startsWith('/unified-dashboard')) {
+                targetHref = '#!/security';
+            } else if (routePath === '/' || routePath.startsWith('/dashboard')) {
+                targetHref = '#!/dashboard';
+            }
+
+            if (!targetHref) return;
+
+            const targetAnchor = navRoot.querySelector(`a[href="${targetHref}"]`);
+            markActive(targetAnchor);
+        }
+
+        window.addEventListener('hashchange', setNavbarActiveState);
+        document.addEventListener('DOMContentLoaded', setNavbarActiveState);
+    </script>
+    
+    <!-- Initialize HTM -->
+    <script>
+        // Wait for libraries to load before initializing
+        function initializeGlobals() {
+            if (!window.preact || !window.htm) {
+                console.error('[Portal] Preact or HTM not loaded yet');
+                return false;
+            }
+            
+            // Initialize Preact and HTM globals
+            window.html = window.htm.bind(window.preact.h);
+            window.render = window.preact.render;
+            window.Component = window.preact.Component;
+            window.h = window.preact.h;
+            window.createRef = window.preact.createRef;
+            return true;
+        }
+        
+        // Try to initialize immediately, or wait for load event
+        if (!initializeGlobals()) {
+            window.addEventListener('load', initializeGlobals);
+        }
+    </script>
+    
+    <!-- Load modules in sequence -->
+    <script type="module">
+        async function loadModule(src) {
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = src;
+            document.body.appendChild(script);
+            return new Promise((resolve, reject) => {
+                script.onload = resolve;
+                script.onerror = reject;
+            });
+        }
+        
+        async function init() {
+            try {
+                // Load core modules first
+                await Promise.all([
+                    loadModule('./js/config.js'),
+                    loadModule('./js/theme.js')
+                ]);
+                
+                // Load auth and API layer
+                await Promise.all([
+                    loadModule('./js/auth.js'),
+                    loadModule('./js/api.js')
+                ]);
+                
+                // Load context and routing
+                await Promise.all([
+                    loadModule('./js/orgContext.js'),
+                    loadModule('./js/router.js'),
+                    loadModule('./js/utils/constants.js'),
+                    loadModule('./js/utils/manifestCache.js'),
+                    loadModule('./js/toast.js'),
+                    loadModule('./js/utils/piiDecryption.js')
+                ]);
+                
+                // Load components in parallel
+                await Promise.all([
+                    loadModule('./js/components/ChartRenderer.js'),
+                    loadModule('./js/components/PromptSuggestions.js'),
+                    loadModule('./js/components/SearchableOrgSwitcher.js'),
+                    loadModule('./js/components/ErrorBoundary.js')
+                ]);
+                
+                // Note: Page modules (Login, Dashboard, Devices, SiteAdmin, etc.) are NOT
+                // pre-loaded separately here. They are imported in app.js (lines 12-35)
+                // and automatically loaded via ES6 module system when app.js loads.
+                // Pre-loading them as separate module scripts is unnecessary and could
+                // cause path resolution issues, especially on case-sensitive filesystems.
+                
+                // Load app last
+                await loadModule('./js/app.js');
+                console.log('[App] All modules loaded successfully');
+            } catch (error) {
+                console.error('[App] Module loading failed:', error);
+                document.getElementById('app').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-danger" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        </div>
+                        <p class="empty-title">Failed to load portal</p>
+                        <p class="empty-subtitle text-muted">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>

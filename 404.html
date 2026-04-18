@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 - Page Not Found | MagenSec</title>
+  <meta name="description" content="The page you were looking for doesn't exist. Head back to MagenSec to explore endpoint security, MAGI AI, and more.">
+  <meta name="robots" content="noindex, follow">
+  <link rel="icon" type="image/x-icon" href="assets/black_shield_64.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="assets/css/magensec.css">
+  <script>if (window.location.protocol !== 'file:') document.documentElement.classList.add('js-ready');</script>
+  <noscript><style>[data-reveal]{opacity:1!important;transform:none!important}</style></noscript>
+  <style>
+    .pg-404 {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+    .pg-404__inner {
+      max-width: 620px;
+      padding: 1.5rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.32), rgba(15, 23, 42, 0.2));
+      box-shadow: 0 24px 48px rgba(2, 8, 23, 0.3);
+    }
+    .pg-404__shield {
+      display: inline-block;
+      margin-bottom: 2rem;
+      opacity: 0.6;
+      filter: drop-shadow(0 0 24px rgba(59,130,246,0.4));
+      animation: floatShield 4s ease-in-out infinite;
+    }
+    @keyframes floatShield {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+    .pg-404__code {
+      font-size: clamp(5rem, 15vw, 8rem);
+      font-weight: 800;
+      line-height: 1;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+    .pg-404__title {
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      font-weight: 700;
+      color: var(--color-text);
+      margin-bottom: 1rem;
+    }
+    .pg-404__desc {
+      color: var(--color-text-muted);
+      font-size: 1.05rem;
+      line-height: 1.7;
+      margin-bottom: 2.5rem;
+    }
+    .pg-404__links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+    }
+    .pg-404__hint {
+      margin-top: 3rem;
+      padding: 1rem 1.25rem;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 0.9rem;
+      background: rgba(15, 23, 42, 0.3);
+      color: var(--color-text-muted);
+      font-size: 0.875rem;
+      line-height: 1.65;
+    }
+    .pg-404__hint a {
+      color: var(--color-blue);
+      text-decoration: none;
+    }
+    .pg-404__hint a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<main class="pg-404" role="main">
+  <div class="pg-404__inner">
+
+    <div class="pg-404__shield">
+      <img src="assets/black_shield_256x256.png" alt="MagenSec shield" width="80" height="90">
+    </div>
+
+    <div class="pg-404__code" aria-label="Error code 404">404</div>
+
+    <h1 class="pg-404__title">This page wandered off</h1>
+
+    <p class="pg-404__desc">
+      The page you were looking for doesn't exist or may have moved.<br>
+      Let's get you back somewhere useful.
+    </p>
+
+    <div class="pg-404__links">
+      <a href="index.html" class="btn-primary">Return home</a>
+      <a href="install.html" class="btn-secondary">Install MagenSec</a>
+      <a href="portal/" class="btn-secondary">Go to portal</a>
+    </div>
+
+    <div class="pg-404__hint">
+      Looking for something specific? Try
+      <a href="platform/vulnerability.html">Vulnerability Detection</a>,
+      <a href="platform/compliance.html">Compliance Monitoring</a>,
+      <a href="magi.html">MAGI AI</a>, or
+      <a href="editions.html">Pricing</a>.
+      <br><br>
+      If you followed a link that should work,
+      <a href="mailto:MagenSec@Gigabits.co.in?subject=Broken%20link%20report">let us know</a>.
+    </div>
+
+  </div>
+</main>
+
+<script src="assets/js/core.js" defer></script>
+</body>
+</html>
+

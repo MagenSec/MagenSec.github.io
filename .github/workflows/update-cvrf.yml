@@ -1,0 +1,105 @@
+name: CVRF Security Updates
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      max_updates:
+        description: 'Maximum number of updates to process'
+        required: false
+        default: '1000'
+        type: string
+      force_refresh:
+        description: 'Force full refresh (ignore cache)'
+        required: false
+        default: 'false'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  update-cvrf-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run CVRF parser
+        shell: bash
+        run: |
+          MAX_UPDATES=${{ github.event.inputs.max_updates }}
+          if [ -z "$MAX_UPDATES" ]; then
+            MAX_UPDATES=1000
+          fi
+          FORCE_REFRESH_FLAG=""
+          if [ "${{ github.event.inputs.force_refresh }}" = "true" ] || [ "${{ github.event.inputs.force_refresh }}" = "True" ]; then
+            FORCE_REFRESH_FLAG="-ForceRefresh"
+          fi
+          pwsh -NoProfile -NonInteractive diag/cvrf-parser.ps1 \
+            -OutputFile "diag/cvrf_products.json" \
+            -CacheFile "diag/cvrf_cache.json" \
+            -MaxUpdates $MAX_UPDATES $FORCE_REFRESH_FLAG
+
+      - name: Check for changes and prepare commit
+        id: git_status
+        shell: bash
+        run: |
+          git add diag/cvrf_products.json diag/cvrf_cache.json
+          if git diff --staged --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected. Skipping commit."
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected. Preparing to commit."
+          fi
+
+      - name: Commit and push updates
+        if: ${{ steps.git_status.outputs.has_changes == 'true' }}
+        timeout-minutes: 5
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update CVRF data (${{ github.event_name }}) #${{ github.run_number }}"
+          
+          # Try to push with force-with-lease, pull and retry if rejected
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            # Use --force-with-lease for safer force push (only if no one else pushed)
+            if git push --force-with-lease origin main; then
+              echo "✅ Successfully pushed changes"
+              exit 0
+            else
+              echo "⚠️ Push rejected, pulling latest changes (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+              
+              # Fetch and rebase with timeout
+              if timeout 30s git pull --rebase origin main; then
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                sleep 2
+              else
+                echo "❌ Failed to pull/rebase - possible conflict or timeout"
+                git rebase --abort 2>/dev/null || true
+                exit 1
+              fi
+            fi
+          done
+          
+          echo "❌ Failed to push after $MAX_RETRIES attempts"
+          exit 1
+
+      - name: Notify on success
+        if: ${{ success() && steps.git_status.outputs.has_changes == 'true' }}
+        run: |
+          echo "✅ CVRF data successfully updated and pushed!"
+          echo "📊 Workflow run: ${{ github.run_number }}"
+          echo "🔗 Commit: https://github.com/${{ github.repository }}/commit/$(git rev-parse HEAD)"
+      
+      - name: Notify on failure
+        if: ${{ failure() }}
+        run: |
+          echo "❌ CVRF update workflow failed!"
+          echo "📊 Workflow run: ${{ github.run_number }}"
+          echo "🔗 View logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

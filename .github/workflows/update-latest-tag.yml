@@ -1,0 +1,31 @@
+name: Update Latest Tag
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:  # Allows manual execution
+
+jobs:
+  update-latest-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Ensures all tags are available
+
+      - name: Get latest release tag
+        id: get-latest-tag
+        run: echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Delete existing latest tag (if exists)
+        run: |
+          if git rev-parse latest >/dev/null 2>&1; then
+            git tag -d latest
+            git push origin --delete latest || true
+          fi
+
+      - name: Create and push new latest tag
+        run: |
+          git tag latest ${{ env.tag_name }}
+          git push origin latest

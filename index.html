@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>MagenSec | Continuous Security Proof System</title>
+    <meta name="description" content="MagenSec continuously monitors your endpoints, proves compliance to auditors and insurers, and tells you exactly what to fix — powered by MAGI, your AI security decision engine.">
+    <!-- CSS files -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+    <style>
+      @import url('https://rsms.me/inter/inter.css');
+      :root {
+      --tblr-font-sans-serif: 'Inter Var', -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif;
+      }
+      body {
+        font-family: 'Inter Var', system-ui;
+        background-color: #0b0f19;
+        color: #e2e8f0;
+      }
+      .navbar {
+        background: rgba(11, 15, 25, 0.8) !important;
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+      }
+      .hero-gradient {
+        background: radial-gradient(circle at 50% 0%, rgba(32, 107, 196, 0.15) 0%, rgba(11, 15, 25, 1) 60%);
+        padding-top: 8rem;
+        padding-bottom: 6rem;
+      }
+      .cyber-card {
+        background: #111827;
+        border: 1px solid rgba(255,255,255,0.05);
+        transition: transform 0.3s ease, border-color 0.3s ease;
+      }
+      .cyber-card:hover {
+        transform: translateY(-5px);
+        border-color: rgba(32, 107, 196, 0.5);
+        box-shadow: 0 0 0 1px rgba(32, 107, 196, 0.3), 0 20px 40px rgba(32, 107, 196, 0.15);
+      }
+      .text-gradient {
+        background: -webkit-linear-gradient(right, #206bc4, #4299e1);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .display-3 { font-weight: 800; letter-spacing: -0.03em; }
+      html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
+      html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
+       100% { opacity: 0.9; } }
+   100% { opacity: 0.9; } }
+</style>
+
+  <style>
+    /* Advanced Security Theme Background */
+    body::before { content: ""; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -2; background-color: #0b1121; background-image: radial-gradient(circle at center, rgba(32, 107, 196, 0.1) 0%, transparent 60%), linear-gradient(rgba(32, 107, 196, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(32, 107, 196, 0.05) 1px, transparent 1px); background-size: 100vw 100vh, 40px 40px, 40px 40px; pointer-events: none; }
+    /* Radar Sweep Effect */
+    body::after { content: ""; position: fixed; top: 50%; left: 50%; width: 200vw; height: 200vw; margin-left: -100vw; margin-top: -100vw; z-index: -1; background: conic-gradient(from 0deg, transparent 70%, rgba(32, 107, 196, 0.1) 100%); animation: radarSweep 10s linear infinite; pointer-events: none; border-radius: 50%; }
+    @keyframes radarSweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    /* Cyber Scanline */
+    .cyber-scanline { position: fixed; top: 0; left: 0; width: 100vw; height: 2px; background: rgba(101, 116, 205, 0.5); box-shadow: 0 0 10px rgba(101, 116, 205, 0.8); z-index: -1; animation: scanline 8s linear infinite; pointer-events: none; }
+    @keyframes scanline { 0% { top: -10px; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100vh; opacity: 0; } }
+    /* Ribbon Purple Gradient */
+    .purple-gradient-ribbon { background: linear-gradient(135deg, #764ba2 0%, #667eea 100%) !important; border: none !important; color: white !important; margin-top: 5px; }
+    
+    /* Timewarp Animations */
+    @keyframes timeScrub { 0% { width: 10%; } 50% { width: 90%; } 100% { width: 10%; } }
+    @keyframes timeLabel { 0% { left: 10%; transform: translateX(-50%); } 50% { left: 90%; transform: translateX(-50%); } 100% { left: 10%; transform: translateX(-50%); } }
+    .timewarp-progress { animation: timeScrub 10s ease-in-out infinite; background: linear-gradient(90deg, #206bc4, #4299e1) !important; box-shadow: 0 0 10px rgba(66, 153, 225, 0.6); position: relative; }
+    .timewarp-label { animation: timeLabel 10s ease-in-out infinite; box-shadow: 0 0 15px rgba(66, 153, 225, 0.8) !important; z-index: 2; position: absolute !important; top: 0; white-space: nowrap; font-size: 0.72rem; }
+    /* Sonar Animation — shared source between MAGI (right edge) and Timewarp (left edge) */
+    .sonar-wrapper { position: absolute; top: 50%; right: 0; transform: translate(50%, -50%); width: 300px; height: 300px; z-index: 0; pointer-events: none; }
+    .sonar-emitter { position: absolute; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle, rgba(101, 116, 205, 0.4) 0%, transparent 70%); }
+    .sonar-wave { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; border: 2px solid rgba(101, 116, 205, 0.6); opacity: 0; animation: sonarWave 3s ease-out infinite; box-shadow: 0 0 20px rgba(101, 116, 205, 0.5); }
+    .sonar-wave:nth-child(2) { animation-delay: 1s; }
+    .sonar-wave:nth-child(3) { animation-delay: 2s; }
+    @keyframes sonarWave { 0% { transform: scale(0); opacity: 1; border-width: 3px; } 100% { transform: scale(2.5); opacity: 0; border-width: 0; } }
+    /* Timewarp sonar — mirrored at left edge, blue tones, same timing as MAGI */
+    .timewarp-sonar-wrapper { position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%); width: 300px; height: 300px; z-index: 0; pointer-events: none; }
+    .timewarp-sonar-emitter { position: absolute; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle, rgba(32, 107, 196, 0.4) 0%, transparent 70%); }
+    .timewarp-sonar-wave { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; border: 2px solid rgba(56, 189, 248, 0.6); opacity: 0; animation: sonarWave 3s ease-out infinite; box-shadow: 0 0 20px rgba(56, 189, 248, 0.5); }
+    .timewarp-sonar-wave:nth-child(2) { animation-delay: 1s; }
+    .timewarp-sonar-wave:nth-child(3) { animation-delay: 2s; }
+    /* Brand Glow — full MagenSec via drop-shadow (works on gradient text) */
+    @keyframes brandGlow { 0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 224, 64, 0.55)) drop-shadow(0 0 14px rgba(101, 116, 205, 0.3)); } 50% { filter: drop-shadow(0 0 14px rgba(255, 224, 64, 1.0)) drop-shadow(0 0 28px rgba(101, 116, 205, 0.5)); } }
+    #brandframes brandGlow { 0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 224, 64, 0.55)) drop-shadow(0 0 14px rgba(101, 116, 205, 0.3)); } 50% { filter: drop-shadow(0 0 14px rgba(255, 224, 64, 1.0)) drop-shadow(0 0 28px rgba(101, 116, 205, 0.5)); } }
+    #brand-text { animation: brandGlow 3s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+    <div class="page">
+      <!-- Navbar -->
+      <header class="navbar z-3 navbar-expand-md navbar-dark fixed-top d-print-none">
+        <div class="container-xl">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <h1 class="navbar-brand navbar-brand-autodark pe-0 pe-md-3">
+            <a href="index.html" class="text-decoration-none d-flex align-items-center gap-2">
+              <img src="assets/black_shield_256x256.png" alt="MagenSec" height="36" width="36" style="flex-shrink:0;">
+              <span id="brand-text" class="fw-bold fs-2 lh-1"><span style="background:-webkit-linear-gradient(45deg,#4299e1,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Magen</span><span style="color:#ffee88;-webkit-text-fill-color:#ffee88;">Sec</span></span>
+            </a>
+          </h1>
+          <div class="navbar-nav flex-row order-md-last">
+            <div class="nav-item">
+              <a href="portal/" class="nav-link d-flex lh-1 text-reset p-0">
+                <span class="btn btn-outline-primary btn-pill btn-sm d-none d-sm-inline-block">Sign In</span>
+              </a>
+            </div>
+          </div>
+          <div class="collapse navbar-collapse" id="navbar-menu">
+            <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
+              <ul class="navbar-nav">
+                <li class="nav-item"><a class="nav-link" href="#proof"><span class="nav-link-title">Proof</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="#magi"><span class="nav-link-title">MagenSec AI</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="#editions"><span class="nav-link-title">Editions</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="about.html"><span class="nav-link-title">About</span></a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="page-wrapper">
+        <!-- Hero Section -->
+        <div class="hero-gradient text-center px-3">
+            <div class="container-xl">
+                <div class="row justify-content-center">
+                    <div class="col-lg-8">
+                        <span class="badge bg-blue-lt text-uppercase tracking-wide mb-4 px-3 py-2 rounded-pill">Continuous Security Proof System</span>
+                        <h1 class="display-3 mb-4">You're not as secure as you think. <br/><span class="text-gradient">Prove it.</span></h1>
+                        <p class="lead text-muted mb-5 fs-3" style="max-width: 600px; margin: 0 auto;">Your endpoints might be protected. But can you prove it to an auditor? An insurer? Your own board? MagenSec shows you the truth — and gives you the evidence.</p>
+                        
+                        <!-- Last Secure State Hook -->
+                        <div class="mt-4 mb-5 p-4 rounded-4" style="background:#111827; border:1px solid rgba(255,255,255,0.05); max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                          <div class="text-muted small text-uppercase tracking-wide">Last known secure state</div>
+                          <div class="fs-1 fw-bold text-danger my-1 d-flex align-items-center justify-content-center">
+                              <i class="ti ti-alert-triangle fs-2 me-2"></i> 3 days ago
+                          </div>
+                          <div class="text-muted small mt-2">
+                            Since then: 4 vulnerabilities, 1 protection disabled
+                          </div>
+                        </div>
+
+                        <div class="d-flex flex-column flex-sm-row justify-content-center gap-3">
+                            <a href="#editions" class="btn btn-primary btn-lg btn-pill px-4 py-2">
+                                See your risk
+                            </a>
+                            <a href="#" class="btn btn-outline-light btn-lg btn-pill px-4 py-2" data-bs-toggle="modal" data-bs-target="#contactModal">
+                                Prove your security
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Defender Wedge (Acquisition Hook) -->
+        <div class="container-xl py-6 border-bottom" style="border-color: rgba(255,255,255,0.05) !important;">
+            <div class="row align-items-center justify-content-center">
+                <div class="col-lg-8 text-center">
+                    <h2 class="display-6 fw-bold mb-4">You already have protection. <br/><span class="text-muted">Here’s the problem.</span></h2>
+                    <p class="fs-3 text-muted mb-5">Most systems already have Microsoft Defender. But no one is monitoring it. No one knows if it’s actually working. No one can prove it. <strong class="text-white">That’s the risk.</strong></p>
+                    
+                    <div class="card cyber-card border-0 rounded-4 text-start">
+                        <div class="card-body p-4 p-md-5">
+                            <div class="row g-4">
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <span class="bg-red-lt p-2 rounded me-3"><i class="ti ti-eye-off text-red fs-2"></i></span>
+                                        <h4 class="mb-0 fs-3">Not Monitored</h4>
+                                    </div>
+                                    <p class="text-muted">Defender is running, but are signatures current? Is real-time protection active everywhere?</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <span class="bg-orange-lt p-2 rounded me-3"><i class="ti ti-shield-half text-orange fs-2"></i></span>
+                                        <h4 class="mb-0 fs-3">Not Validated</h4>
+                                    </div>
+                                    <p class="text-muted">Drift happens silently. Exclusions get added. Controls fail without alerting you.</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <span class="bg-blue-lt p-2 rounded me-3"><i class="ti ti-file-certificate text-blue fs-2"></i></span>
+                                        <h4 class="mb-0 fs-3">Not Provable</h4>
+                                    </div>
+                                    <p class="text-muted">Even if it works perfectly, you can't generate the historical proof auditors demand.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-dark border-0 text-center py-4 rounded-bottom-4">
+                            <h4 class="mb-0 text-azure fs-3">MagenSec makes your existing protection visible, reliable, and provable.</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- The Value Chain -->
+        <div class="container-xl py-7" id="proof">
+            <div class="row align-items-center g-5">
+                <div class="col-lg-6">
+                    <p class="fs-2 fw-semibold text-danger mb-2">Most tools stop at protection.</p>
+                    <h2 class="display-6 fw-bold mb-4">MagenSec continues.</h2>
+                    <p class="fs-3 text-muted mb-4">MagenSec doesn't just find problems. It builds a continuous, auditable record of your security posture that satisfies auditors, insurers, and your own peace of mind.</p>
+                    <ul class="list-unstyled space-y-4 fs-3 text-muted">
+                        <li class="d-flex align-items-start"><i class="ti ti-shield-check text-azure fs-2 me-3 mt-1"></i> <div><strong class="text-white">Protect:</strong> Continuous visibility into endpoint health.</div></li>
+                        <li class="d-flex align-items-start"><i class="ti ti-gavel text-azure fs-2 me-3 mt-1"></i> <div><strong class="text-white">Prove:</strong> Map posture to compliance frameworks.</div></li>
+                        <li class="d-flex align-items-start"><i class="ti ti-history text-azure fs-2 me-3 mt-1"></i> <div><strong class="text-white">Audit (Timewarp):</strong> Rewind to any date. Compare historical posture. The ultimate show-stealer.</div></li>
+                        <li class="d-flex align-items-start"><i class="ti ti-certificate text-azure fs-2 me-3 mt-1"></i> <div><strong class="text-white">Insure:</strong> Readiness scoring and hygiene assessment.</div></li>
+                    </ul>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card border-0 rounded-4 overflow-hidden" style="background:#1e293b; border: 1px solid rgba(255,255,255,0.1) !important;">
+                        <div class="card-header bg-dark border-bottom-0 p-4">
+                            <h3 class="card-title text-white">Traditional Tools <span class="text-muted mx-2">vs</span> <span class="text-azure text-gradient">MagenSec</span></h3>
+                        </div>
+                        <div class="list-group list-group-flush list-group-hoverable">
+                            <div class="list-group-item bg-transparent text-white border-bottom-0 py-3">
+                                <div class="row align-items-center">
+                                    <div class="col text-muted text-decoration-line-through">Generate alerts</div>
+                                    <div class="col-auto"><i class="ti ti-arrow-right text-muted"></i></div>
+                                    <div class="col text-end fw-semibold">Shows what actually matters</div>
+                                </div>
+                            </div>
+                            <div class="list-group-item bg-transparent text-white border-bottom-0 py-3">
+                                <div class="row align-items-center">
+                                    <div class="col text-muted text-decoration-line-through">Require you to figure it out</div>
+                                    <div class="col-auto"><i class="ti ti-arrow-right text-muted"></i></div>
+                                    <div class="col text-end fw-semibold">Tells you exactly what to fix</div>
+                                </div>
+                            </div>
+                            <div class="list-group-item bg-transparent text-white border-bottom-0 py-3">
+                                <div class="row align-items-center">
+                                    <div class="col text-muted text-decoration-line-through">Stop at detection</div>
+                                    <div class="col-auto"><i class="ti ti-arrow-right text-muted"></i></div>
+                                    <div class="col text-end fw-semibold">Proves you're secure</div>
+                                </div>
+                            </div>
+                            <div class="list-group-item bg-transparent text-white py-3">
+                                <div class="row align-items-center">
+                                    <div class="col text-muted text-decoration-line-through">Point-in-time snapshot</div>
+                                    <div class="col-auto"><i class="ti ti-arrow-right text-muted"></i></div>
+                                    <div class="col text-end fw-semibold">Continuous historical record</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Install Aha Moment -->
+        <div class="container-xl py-6" style="background: rgba(32, 107, 196, 0.05); border-radius: 24px;">
+            <div class="text-center mb-5">
+                <h2 class="display-6 fw-bold">From install to visibility — in minutes</h2>
+            </div>
+            <div class="row justify-content-center text-center g-4">
+                <div class="col-md-2">
+                    <div class="fs-1 text-muted mb-2">01</div>
+                    <div class="text-white fw-bold">Install</div>
+                    <div class="text-muted small mt-1">Deploy agent silently</div>
+                </div>
+                <div class="col-auto d-none d-md-flex align-items-center"><i class="ti ti-chevron-right text-muted fs-2"></i></div>
+                <div class="col-md-2">
+                    <div class="fs-1 text-danger mb-2">02</div>
+                    <div class="text-white fw-bold">Risks Detected</div>
+                    <div class="text-muted small mt-1">Gaps exposed instantly</div>
+                </div>
+                <div class="col-auto d-none d-md-flex align-items-center"><i class="ti ti-chevron-right text-muted fs-2"></i></div>
+                <div class="col-md-2">
+                    <div class="fs-1 text-orange mb-2">03</div>
+                    <div class="text-white fw-bold">MAGI Guides</div>
+                    <div class="text-muted small mt-1">Fix in 2 simple steps</div>
+                </div>
+                <div class="col-auto d-none d-md-flex align-items-center"><i class="ti ti-chevron-right text-muted fs-2"></i></div>
+                <div class="col-md-2">
+                    <div class="fs-1 text-green mb-2">04</div>
+                    <div class="text-white fw-bold">Secure</div>
+                    <div class="text-muted small mt-1">Environment hardened</div>
+                </div>
+                <div class="col-auto d-none d-md-flex align-items-center"><i class="ti ti-chevron-right text-muted fs-2"></i></div>
+                <div class="col-md-2">
+                    <div class="fs-1 text-azure mb-2">05</div>
+                    <div class="text-white fw-bold">Proof Ready</div>
+                    <div class="text-muted small mt-1">Export audit evidence</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAGI & Timewarp Posters Section -->
+        <div class="container-xl py-7 mt-5" id="magi">
+            <div class="text-center mb-6">
+                <span class="badge bg-indigo-lt text-uppercase tracking-wide mb-3 px-3 py-2 rounded-pill">MagenSec Intelligence</span>
+                <h2 class="display-5 fw-bold mb-3">Intelligence & Time Travel</h2>
+                <p class="fs-3 text-muted max-w-xl mx-auto">Meet the two core systems that separate MagenSec from everything else. MAGI decides what matters today. Timewarp proves what happened yesterday.</p>
+            </div>
+
+            <div class="row g-5">
+                <!-- MAGI Poster -->
+                <div class="col-lg-6">
+                    <div class="card bg-dark border-0 rounded-4 overflow-hidden h-100 position-relative magi-hero" style="border: 1px solid rgba(101, 116, 205, 0.3) !important; box-shadow: 0 20px 40px rgba(101, 116, 205, 0.1);">
+                          <div class="sonar-wrapper">
+                              <div class="sonar-emitter"></div>
+                              <div class="sonar-wave"></div>
+                              <div class="sonar-wave"></div>
+                              <div class="sonar-wave"></div>
+                          </div>
+                          <div class="p-5 position-relative z-1" style="background: radial-gradient(circle at top right, rgba(101, 116, 205, 0.15), transparent 60%);">
+                            <div class="d-flex align-items-center mb-4">
+                                <span class="bg-indigo text-white p-3 rounded-3 me-3"><i class="ti ti-brain fs-1"></i></span>
+                                <div>
+                                    <h3 class="display-6 fw-bold mb-0 text-white">MAGI</h3>
+                                    <p class="text-indigo fs-4 fw-medium mb-0">AI Security Decision Engine</p>
+                                </div>
+                            </div>
+                            <p class="fs-3 text-muted mb-5">MAGI doesn't assist you. It makes decisions. It maps risk across your environment, highlights what to fix first, and tells you exactly what to do based on business impact.</p>
+                            
+                            <!-- Virtual Chat Poster Visual -->
+                            <div class="bg-black p-4 rounded-3 border border-secondary border-opacity-10">
+                                <div class="d-flex align-items-start mb-4">
+                                    <div class="text-muted small me-3 mt-1">You</div>
+                                    <div class="fs-4 text-white">What should my team focus on today?</div>
+                                </div>
+                                <div class="p-3 rounded-2" style="background: rgba(101, 116, 205, 0.1); border-left: 4px solid #6574cd;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-indigo fw-bold text-uppercase small tracking-wide">MAGI Decision</span>
+                                        <span class="text-muted small"><i class="ti ti-target text-red"></i> High Confidence</span>
+                                    </div>
+                                    <div class="text-white fs-4 mb-2">4 endpoints need attention. Your top priority covers 3 active CVEs and maps to CIS Control 4.1.</div>
+                                    <button class="btn btn-indigo btn-sm mt-2"><i class="ti ti-player-play me-2"></i>Execute Action Sequence</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timewarp Poster -->
+                <div class="col-lg-6">
+                    <div class="card bg-dark border-0 rounded-4 overflow-hidden h-100 position-relative" style="border: 1px solid rgba(32, 107, 196, 0.3) !important; box-shadow: 0 20px 40px rgba(32, 107, 196, 0.1);">
+                          <div class="timewarp-sonar-wrapper">
+                              <div class="timewarp-sonar-emitter"></div>
+                              <div class="timewarp-sonar-wave"></div>
+                              <div class="timewarp-sonar-wave"></div>
+                              <div class="timewarp-sonar-wave"></div>
+                          </div>
+                        <div class="p-5 position-relative z-1" style="background: radial-gradient(circle at top right, rgba(32, 107, 196, 0.15), transparent 60%);">
+
+                            <div class="d-flex align-items-center mb-4">
+                                <span class="bg-blue text-white p-3 rounded-3 me-3"><i class="ti ti-history fs-1"></i></span>
+                                <div>
+                                    <h3 class="display-6 fw-bold mb-0 text-white">Timewarp</h3>
+                                    <p class="text-blue fs-4 fw-medium mb-0">Historical Evidence System</p>
+                                </div>
+                            </div>
+                            <p class="fs-3 text-muted mb-5">Auditors don't just want to know if you're secure today. Timewarp lets you travel back to any exact date to prove your compliance state definitively.</p>
+                            
+                            <!-- Timewarp Visual -->
+                            <div class="bg-black p-4 rounded-3 border border-secondary border-opacity-10 position-relative">
+                                <div class="d-flex justify-content-between align-items-center border-bottom border-secondary border-opacity-25 pb-3 mb-3">
+                                    <div class="text-muted fw-bold">Auditor Request: <span class="text-white fw-normal">Q3 Posture</span></div>
+                                    <div class="badge bg-blue-lt"><i class="ti ti-clock-rewind me-1"></i><span id="timewarp-status">Rewinding…</span></div>
+                                </div>
+                                <div class="d-flex align-items-center justify-content-between mb-4">
+                                    <div class="text-center opacity-50">
+                                        <div class="small text-muted">Aug 1</div>
+                                        <div class="fw-bold fs-3 text-white">Secure</div>
+                                    </div>
+                                    <div class="flex-grow-1 mx-3 position-relative" style="padding-top: 26px;">
+                                        <div class="timewarp-label bg-blue text-white rounded-pill px-2 py-1 shadow">
+                                            <i class="ti ti-clock-rewind me-1"></i><span id="timewarp-date">Sep 15, 2024</span>
+                                        </div>
+                                        <div class="progress" style="height: 6px; border-radius: 4px;">
+                                            <div class="progress-bar bg-blue timewarp-progress" style="width: 50%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center opacity-50">
+                                        <div class="small text-muted">Oct 1</div>
+                                        <div class="fw-bold fs-3 text-white">Secure</div>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center justify-content-center p-3 rounded" style="background: rgba(32, 107, 196, 0.1);">
+                                    <i class="ti ti-file-export text-blue fs-2 me-2"></i>
+                                    <span class="text-white fw-medium" id="timewarp-action">Generating Historical Proof Report...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Why Now Urgency -->
+        <div class="container-xl py-6 text-center border-top border-bottom mt-5" style="border-color: rgba(255,255,255,0.05) !important;">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <h3 class="text-orange text-uppercase tracking-wide mb-3 fs-5">Why this matters now</h3>
+                    <h2 class="display-6 fw-bold mb-4">By the time you check, it’s already outdated.</h2>
+                    <p class="fs-3 text-muted">Vulnerabilities are exploited within days. Protection drifts silently. Periodic manual audits do not reflect reality.<br/><br/>If you wait for the auditor, you've already failed.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editions / Pricing -->
+        <div class="container-xl py-7" id="editions">
+            <div class="text-center mb-6">
+                <h2 class="display-6 fw-bold text-white mb-3">Your security tier. Your <span class="text-gradient">accountability</span> level.</h2>
+                <p class="fs-3 text-muted max-w-xl mx-auto">Personal users get Security++. Teams get compliance attestation. Institutions get fleet control. Every tier is built on continuous monitoring you can prove.</p>
+                <div class="d-flex justify-content-center gap-5 mt-4 flex-wrap">
+                    <div class="text-center"><div class="display-6 fw-bold text-white">4,000+</div><div class="text-muted small">devices monitored</div></div>
+                    <div class="text-center"><div class="display-6 fw-bold text-white">140+</div><div class="text-muted small">CVE families tracked</div></div>
+                    <div class="text-center"><div class="display-6 fw-bold text-white">99.9%</div><div class="text-muted small">uptime SLA</div></div>
+                </div>
+            </div>
+            
+                          <div class="row g-4 justify-content-center align-items-stretch">
+                  <!-- Personal Edition -->
+                  <div class="col-md-6 col-lg-4">
+                      <div class="card cyber-card h-100 rounded-4 text-center position-relative border-blue border-opacity-25" style="box-shadow: 0 15px 35px rgba(32, 107, 196, 0.1); overflow: hidden;">
+                            <div style="position:absolute;top:0;left:0;right:0;padding:0.45rem 1rem;text-align:center;background:linear-gradient(90deg,#764ba2,#4299e1);z-index:1;"><span style="font-size:0.72rem;font-weight:700;letter-spacing:0.1em;color:#fff;text-transform:uppercase;"><i class="ti ti-rocket me-1"></i> Launch Offer</span></div>
+                            <div class="card-body p-5 d-flex flex-column" style="padding-top:3.5rem!important;">
+                          <h3 class="h1 text-blue mb-1">Personal</h3>
+                          <p class="text-muted mb-4 fs-3">Know Your Risk</p>
+
+                          <div class="mb-4">
+                              <span class="display-4 fw-bold text-white">$29</span><span class="text-muted fs-3">/year</span>
+                              <div class="mt-2"><span class="text-muted">Up to 5 devices</span> &nbsp;<span class="badge bg-green-lt text-green" style="font-size:0.72rem;">&lt;50¢/mo</span></div>
+                              <div class="mt-2 text-muted" style="font-size:0.78rem;"><i class="ti ti-info-circle me-1 opacity-50"></i>Most AV subscriptions cost $40–60/year — and they don't show you what's actually exposed.</div>
+                          </div>
+
+                          <ul class="list-unstyled space-y-3 text-start text-muted mb-5 fs-4">
+                              <li><i class="ti ti-virus-off text-green me-2"></i> <strong class="text-white">No antivirus subscription needed</strong></li>
+                              <li><i class="ti ti-shield-plus text-blue me-2"></i> <strong class="text-white">Security++</strong> — the layer beyond your AV</li>
+                              <li><i class="ti ti-check text-green me-2"></i> Vulnerability detection &amp; risk scoring</li>
+                              <li><i class="ti ti-check text-green me-2"></i> Daily security digest in your inbox</li>
+                          </ul>
+
+                          <div class="mt-auto">
+                              <a href="install.html" class="btn btn-outline-primary btn-pill w-100 py-2 py-3 fs-3">See my risk score</a>
+                            </div>
+                              </div>
+                        </div>
+                    </div>
+
+                    <!-- Business Edition -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card card-body h-100 p-5 rounded-4 text-center position-relative" style="background: rgba(32, 107, 196, 0.1); border: 1px solid rgba(32, 107, 196, 0.4); overflow: hidden; padding-top: 3.5rem !important;">
+                            <div style="position:absolute;top:0;left:0;right:0;padding:0.45rem 1rem;text-align:center;background:linear-gradient(90deg,#1e40af,#3182ce);z-index:1;"><span style="font-size:0.72rem;font-weight:700;letter-spacing:0.1em;color:#fff;text-transform:uppercase;"><i class="ti ti-briefcase me-1"></i> Managed Services Available</span></div>
+                            <h3 class="h1 text-azure mb-1">Business</h3>
+                            <p class="text-muted mb-4 fs-3">Security your auditor can read</p>
+
+                            <div class="text-start mb-4">
+                                <p class="text-muted mb-3 fs-3">Continuous endpoint visibility driven by MagenSec AI. Designed for compliance, observability, and scale — without opening your systems to third-party access.</p>
+                            </div>
+
+                            <!-- Core Capabilities Abstracted -->
+                            <div class="text-start text-muted mb-5 flex-grow-1">
+                                 <ul class="list-unstyled space-y-4">
+                                    <li>
+                                        <div class="d-flex align-items-start">
+                                            <i class="ti ti-hexagon-letter-m text-azure mt-1 me-3 fs-2"></i>
+                                            <div>
+                                                <strong class="text-white d-block fs-3">Autonomous Risk Prioritization</strong>
+                                                <span class="fs-4 opacity-75">MagenSec AI tells you what to fix first.</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="d-flex align-items-start">
+                                            <i class="ti ti-shield-check text-azure mt-1 me-3 fs-2"></i>
+                                            <div>
+                                                <strong class="text-white d-block fs-3">Compliance Attestation</strong>
+                                                <span class="fs-4 opacity-75">Real-time mapped auditor validation.</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="d-flex align-items-start">
+                                            <i class="ti ti-history text-azure mt-1 me-3 fs-2"></i>
+                                            <div>
+                                                <strong class="text-white d-block fs-3">Temporal Analytics</strong>
+                                                <span class="fs-4 opacity-75">See changes in your security state and return to a known-good baseline.</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="d-flex align-items-start">
+                                            <i class="ti ti-chart-radar text-azure mt-1 me-3 fs-2"></i>
+                                            <div>
+                                                <strong class="text-white d-block fs-3">Insurability Telemetry</strong>
+                                                <span class="fs-4 opacity-75">Export cyber insurance reporting.</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                 </ul>
+                            </div>
+
+                            <div class="mt-auto">
+                                <a href="#" data-bs-toggle="modal" data-bs-target="#contactModal" class="btn btn-primary btn-pill w-100 py-2 py-3 fs-3">Book a Demo</a>
+                            </div>
+                      </div>
+                  </div>
+
+                  <!-- Education Edition -->
+                  <div class="col-md-6 col-lg-4">
+                      <div class="card cyber-card card-body h-100 p-5 rounded-4 text-center position-relative">
+                          <h3 class="h1 text-green mb-1">Education</h3>
+                          <p class="text-muted mb-4 fs-3">For Institutions &amp; NGOs</p>
+
+                          <div class="mb-4">
+                              <div class="display-4 fw-bold text-white fs-2 mt-3">Custom Pricing</div>
+                              <div class="text-muted mt-2">Centralized shared fleet oversight</div>
+                          </div>
+
+                          <ul class="list-unstyled space-y-3 text-start text-muted mb-5 fs-4">
+                              <li><i class="ti ti-check text-green me-2"></i> Continuous endpoint monitoring</li>
+                              <li><i class="ti ti-check text-green me-2"></i> Vulnerability detection</li>
+                              <li><i class="ti ti-check text-green me-2"></i> Software inventory &amp; tracking</li>
+                              <li><i class="ti ti-check text-green me-2"></i> Fleet view management</li>
+                          </ul>
+
+                          <div class="mt-auto">
+                              <a href="#" data-bs-toggle="modal" data-bs-target="#contactModal" class="btn btn-outline-success btn-pill w-100 py-2 py-3 fs-3">Contact Us</a>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+
+          <!-- Footer CTA -->
+        <div class="container-xl py-7 mt-4 mb-6">
+            <div class="card bg-dark text-white p-5 p-md-7 border-0 rounded-4 text-center" style="background: radial-gradient(circle at 50% 50%, rgba(32, 107, 196, 0.25) 0%, rgba(11, 15, 25, 1) 100%); border: 1px solid rgba(255,255,255,0.05) !important;">
+                <h2 class="display-5 fw-bold mb-4">Stop guessing. <span class="text-gradient">Start proving.</span></h2>
+                <p class="fs-2 text-muted mb-5 mx-auto" style="max-width: 600px;">Install MagenSec, see your real posture in minutes, and let MAGI tell you what matters.</p>
+                <div class="d-flex flex-column flex-sm-row justify-content-center gap-3">
+                    <a href="install.html" class="btn btn-primary btn-pill btn-lg px-5">Check your security now</a>
+                    <a href="#" class="btn btn-outline-light btn-pill btn-lg px-5" data-bs-toggle="modal" data-bs-target="#contactModal">Prove your security</a>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer footer-transparent d-print-none text-muted py-5 text-center border-top" style="border-color: rgba(255,255,255,0.05) !important;">
+          <div class="container-xl">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
+              <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon text-primary me-2 mb-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+                <strong class="text-white">MagenSec</strong> &copy; 2026
+              </div>
+              <ul class="list-inline list-inline-dots mb-0 mt-3 mt-md-0">
+                <li class="list-inline-item"><a href="about.html" class="link-secondary">About</a></li>
+                <li class="list-inline-item"><a href="terms.html" class="link-secondary">Terms & Privacy</a></li>
+              </ul>
+            </div>
+          </div>
+        </footer>
+
+      </div>
+    </div>
+    
+        <!-- Contact Modal -->
+    <div class="modal modal-blur fade" id="contactModal" tabindex="-1" role="dialog" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Prove Your Security</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form action="https://formsubmit.co/MagenSec@Gigabits.co.in" method="POST">
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label" for="contact-name">Name</label>
+                <input type="text" id="contact-name" class="form-control" name="name" required placeholder="Your name" autocomplete="name">
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="contact-email">Email address</label>
+                <input type="email" id="contact-email" class="form-control" name="email" required placeholder="your@email.com" autocomplete="email">
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="contact-phone">Mobile Number <span class="text-muted">(Optional)</span></label>
+                <input type="tel" id="contact-phone" class="form-control" name="phone" placeholder="For a quick contact" autocomplete="tel">
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="contact-message">Message</label>
+                <textarea id="contact-message" class="form-control" name="message" rows="4" required placeholder="How can we help you?" autocomplete="off"></textarea>
+              </div>
+              <input type="hidden" name="_next" value="https://magensec.gigabits.co.in/portal/index.html">
+              <input type="hidden" name="_subject" value="New MagenSec Inquiry">
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+              <div class="text-muted small">Or email us directly at <a href="mailto:MagenSec@Gigabits.co.in">MagenSec@Gigabits.co.in</a></div>
+              <div>
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary ms-auto">Send Message</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Timewarp JS -->
+    <script src="assets/js/timewarp.js"></script>
+
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
