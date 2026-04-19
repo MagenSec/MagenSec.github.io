@@ -2109,6 +2109,7 @@ export default class UnifiedDashboard extends Component {
     const score = data.securityScore || {};
     const threats = data.securityPro?.threatIntel || {};
     const actions = data.businessOwner?.topActions || [];
+    const todaysAction = data.businessOwner?.todaysAction || null;
     const secScore = typeof score.score === 'number' ? score.score : 100;
     const grade = score.grade || '—';
     const critical = threats.criticalCveCount || 0;
@@ -2250,6 +2251,11 @@ export default class UnifiedDashboard extends Component {
                   <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/>
                 </svg>
                 <span style="font-size:0.7rem;font-weight:800;color:rgba(255,255,255,0.85);letter-spacing:0.1em;text-transform:uppercase;">Officer's Briefing</span>
+                ${todaysAction && todaysAction.streakDays > 0 ? html`
+                  <span title="Consecutive days you've taken the recommended action" style="display:inline-flex;align-items:center;gap:3px;background:rgba(245,158,11,0.16);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);border-radius:999px;padding:2px 8px;font-size:0.62rem;font-weight:800;letter-spacing:0.04em;">
+                    🔥 ${todaysAction.streakDays}d
+                  </span>
+                ` : null}
               </div>
               <div style="display:flex;gap:6px;">
                 <button onClick=${() => this.setState({ officerNoteOpen: false })} style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:0.75rem;padding:2px 6px;">—</button>
@@ -2275,8 +2281,69 @@ export default class UnifiedDashboard extends Component {
               ` : null}
             </div>
 
+            <!-- Reward strip (yesterday's action resolved) -->
+            ${todaysAction && todaysAction.yesterdayResolvedApp ? html`
+              <div style="margin:0 16px 10px;background:rgba(22,163,74,0.12);border:1px solid rgba(22,163,74,0.35);border-radius:8px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start;">
+                <span style="font-size:0.95rem;line-height:1;">✅</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:0.72rem;font-weight:700;color:#86efac;line-height:1.3;">You closed ${todaysAction.yesterdayResolvedApp} yesterday</div>
+                  <div style="font-size:0.64rem;color:rgba(134,239,172,0.7);margin-top:1px;">Score is moving in the right direction.</div>
+                </div>
+              </div>
+            ` : null}
+
             <!-- Top action -->
-            ${urgentAction ? html`
+            ${todaysAction ? html`
+              <div style="margin:0 16px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+                  <span style="font-size:0.6rem;font-weight:700;color:#fff;background:${glowColor};padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.05em;">
+                    🎯 Today’s action · 2 min
+                  </span>
+                  ${todaysAction.hasKev ? html`
+                    <span style="font-size:0.58rem;font-weight:800;color:#fecaca;background:rgba(220,38,38,0.18);border:1px solid rgba(220,38,38,0.45);padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:0.04em;">
+                      🚨 KEV
+                    </span>
+                  ` : null}
+                </div>
+                <div style="font-size:0.92rem;font-weight:700;color:rgba(255,255,255,0.95);word-break:break-word;line-height:1.3;">${todaysAction.title || todaysAction.appName}</div>
+                ${todaysAction.deviceCount > 0 ? html`
+                  <div style="font-size:0.68rem;color:rgba(255,255,255,0.55);margin-top:3px;">
+                    On ${todaysAction.deviceNames && todaysAction.deviceNames.length
+                      ? (todaysAction.deviceNames.length <= 2
+                          ? todaysAction.deviceNames.join(' · ')
+                          : `${todaysAction.deviceNames[0]} · ${todaysAction.deviceNames[1]} +${todaysAction.deviceCount - 2} more`)
+                      : `${todaysAction.deviceCount} device${todaysAction.deviceCount === 1 ? '' : 's'}`}
+                  </div>
+                ` : null}
+
+                ${todaysAction.whyItMatters ? html`
+                  <div style="margin-top:10px;">
+                    <div style="font-size:0.6rem;font-weight:800;color:rgba(255,255,255,0.45);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px;">Why it matters</div>
+                    <div style="font-size:0.72rem;color:rgba(255,255,255,0.78);line-height:1.45;">${todaysAction.whyItMatters}</div>
+                  </div>
+                ` : null}
+
+                ${todaysAction.remediationSteps && todaysAction.remediationSteps.length ? html`
+                  <div style="margin-top:10px;">
+                    <div style="font-size:0.6rem;font-weight:800;color:rgba(255,255,255,0.45);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px;">How to fix</div>
+                    <ol style="margin:0;padding-left:18px;font-size:0.7rem;color:rgba(255,255,255,0.78);line-height:1.5;">
+                      ${todaysAction.remediationSteps.slice(0, 3).map(step => html`<li style="margin-bottom:2px;">${step}</li>`)}
+                    </ol>
+                  </div>
+                ` : (todaysAction.whatToDo ? html`
+                  <div style="margin-top:10px;">
+                    <div style="font-size:0.6rem;font-weight:800;color:rgba(255,255,255,0.45);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px;">How to fix</div>
+                    <div style="font-size:0.72rem;color:rgba(255,255,255,0.78);line-height:1.45;">${todaysAction.whatToDo}</div>
+                  </div>
+                ` : null)}
+
+                ${todaysAction.riskReductionPct > 0 ? html`
+                  <div style="margin-top:10px;font-size:0.65rem;color:rgba(134,239,172,0.85);font-weight:600;">
+                    Expected score lift: +${todaysAction.riskReductionPct} pts
+                  </div>
+                ` : null}
+              </div>
+            ` : (urgentAction ? html`
               <div style="margin:0 16px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
                   <span style="font-size:0.6rem;font-weight:700;color:#d97706;background:rgba(217,119,6,0.12);border:1px solid rgba(217,119,6,0.25);padding:1px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:0.04em;">
@@ -2288,7 +2355,7 @@ export default class UnifiedDashboard extends Component {
                   <div style="font-size:0.68rem;color:rgba(255,255,255,0.45);margin-top:4px;">${actionDevices}</div>
                 ` : null}
               </div>
-            ` : null}
+            ` : null)}
 
             <!-- Footer links -->
             <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px 14px;">
