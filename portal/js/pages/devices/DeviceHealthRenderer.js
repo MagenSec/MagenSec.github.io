@@ -21,9 +21,18 @@ export function renderHealthStatus(device) {
         status = 'blocked';
         icon = '⊘';
         color = 'dark';
-        text = 'Blocked';
+        // Distinguish system-initiated (auto-block by MAGI) from manual admin blocks.
+        // BlockedBy = "MAGI" → system-initiated; "ADMIN" or null → manual.
+        const blockedBy = (device.blockedBy || '').toUpperCase();
+        const blockedReason = (device.blockedReason || '').toUpperCase();
+        if (blockedBy === 'MAGI' || blockedReason === 'AUTO_OFFLINE') {
+            text = 'Blocked by MAGI';
+            reason = 'Auto-blocked: device offline >30 days. Click Enable to restore.';
+        } else {
+            text = 'Blocked';
+            reason = 'Blocked by admin. Click Enable to restore.';
+        }
         animated = false;
-        reason = 'Device is blocked';
     } else if (!lastHeartbeat) {
         status = 'error';
         icon = '!';

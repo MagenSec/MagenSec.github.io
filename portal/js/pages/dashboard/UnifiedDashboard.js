@@ -2251,11 +2251,36 @@ export default class UnifiedDashboard extends Component {
                   <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/>
                 </svg>
                 <span style="font-size:0.7rem;font-weight:800;color:rgba(255,255,255,0.85);letter-spacing:0.1em;text-transform:uppercase;">Officer's Briefing</span>
-                ${todaysAction && todaysAction.streakDays > 0 ? html`
-                  <span title="Consecutive days you've taken the recommended action" style="display:inline-flex;align-items:center;gap:3px;background:rgba(245,158,11,0.16);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);border-radius:999px;padding:2px 8px;font-size:0.62rem;font-weight:800;letter-spacing:0.04em;">
-                    🔥 ${todaysAction.streakDays}d
-                  </span>
-                ` : null}
+                ${(() => {
+                  // State-aware streak pill — mirrors daily email so portal and inbox tell the same story.
+                  // 0 days: "Start a streak" invite that fades after habit forms.
+                  // 1-6: 🔥 Day N badge.
+                  // ≥7: 🔥 N-day streak · top 5%.
+                  // Broke yesterday: 💔 fallback so user sees the lapse instead of silent reset.
+                  const streak = todaysAction?.streakDays ?? 0;
+                  const longest = todaysAction?.longestStreak ?? 0;
+                  const lastIncIso = todaysAction?.lastStreakIncrementUtc;
+                  const lastInc = lastIncIso ? new Date(lastIncIso) : null;
+                  const hoursSinceLastInc = lastInc ? (Date.now() - lastInc.getTime()) / 3.6e6 : null;
+                  const brokeYesterday = streak === 0 && longest > 0 && hoursSinceLastInc != null && hoursSinceLastInc > 24 && hoursSinceLastInc < 168;
+                  let label = '🌱 Start a streak';
+                  let title = 'Take the recommended action today to start a daily streak.';
+                  if (brokeYesterday) {
+                    label = `💔 Streak broken (was ${longest})`;
+                    title = `Best streak: ${longest} days. Take action today to start fresh.`;
+                  } else if (streak >= 7) {
+                    label = `🔥 ${streak}d · top 5%`;
+                    title = `${streak} consecutive weekdays acted on. You are in the top 5% of customers.`;
+                  } else if (streak > 0) {
+                    label = `🔥 Day ${streak}`;
+                    title = `${streak} consecutive weekday${streak === 1 ? '' : 's'} acted on. Keep going.`;
+                  }
+                  return html`
+                    <span title=${title} style="display:inline-flex;align-items:center;gap:3px;background:rgba(245,158,11,0.16);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);border-radius:999px;padding:2px 8px;font-size:0.62rem;font-weight:800;letter-spacing:0.04em;">
+                      ${label}
+                    </span>
+                  `;
+                })()}
               </div>
               <div style="display:flex;gap:6px;">
                 <button onClick=${() => this.setState({ officerNoteOpen: false })} style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:0.75rem;padding:2px 6px;">—</button>
@@ -2281,16 +2306,32 @@ export default class UnifiedDashboard extends Component {
               ` : null}
             </div>
 
-            <!-- Reward strip (yesterday's action resolved) -->
-            ${todaysAction && todaysAction.yesterdayResolvedApp ? html`
-              <div style="margin:0 16px 10px;background:rgba(22,163,74,0.12);border:1px solid rgba(22,163,74,0.35);border-radius:8px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start;">
-                <span style="font-size:0.95rem;line-height:1;">✅</span>
-                <div style="flex:1;min-width:0;">
-                  <div style="font-size:0.72rem;font-weight:700;color:#86efac;line-height:1.3;">You closed ${todaysAction.yesterdayResolvedApp} yesterday</div>
-                  <div style="font-size:0.64rem;color:rgba(134,239,172,0.7);margin-top:1px;">Score is moving in the right direction.</div>
-                </div>
-              </div>
-            ` : null}
+            <!-- Reward strip — three states mirror the daily email -->
+            ${(() => {
+              if (todaysAction?.yesterdayResolvedApp) {
+                return html`
+                  <div style="margin:0 16px 10px;background:rgba(22,163,74,0.12);border:1px solid rgba(22,163,74,0.35);border-radius:8px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start;">
+                    <span style="font-size:0.95rem;line-height:1;">✅</span>
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-size:0.72rem;font-weight:700;color:#86efac;line-height:1.3;">You closed ${todaysAction.yesterdayResolvedApp} yesterday</div>
+                      <div style="font-size:0.64rem;color:rgba(134,239,172,0.7);margin-top:1px;">Score is moving in the right direction.</div>
+                    </div>
+                  </div>
+                `;
+              }
+              if (todaysAction?.pendingAction) {
+                return html`
+                  <div style="margin:0 16px 10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);border-radius:8px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start;">
+                    <span style="font-size:0.95rem;line-height:1;">⏳</span>
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-size:0.72rem;font-weight:700;color:#fbbf24;line-height:1.3;">${todaysAction.pendingAction} is still pending</div>
+                      <div style="font-size:0.64rem;color:rgba(251,191,36,0.7);margin-top:1px;">Closing it today will lift your score and start your streak.</div>
+                    </div>
+                  </div>
+                `;
+              }
+              return null;
+            })()}
 
             <!-- Top action -->
             ${todaysAction ? html`
