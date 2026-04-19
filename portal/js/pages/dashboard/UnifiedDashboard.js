@@ -2797,9 +2797,66 @@ export default class UnifiedDashboard extends Component {
     return html`
       <div style="min-height: calc(100vh - 120px); display: flex; flex-direction: column;">
         ${this.renderBillingNoticeBanner()}
-        ${this.renderSearchHeader()}
-        ${this.renderHealthPillars()}
-        ${this.renderOfficerOrb()}
+        ${this.isBootstrapState() ? this.renderBootstrapSetup() : html`
+          ${this.renderSearchHeader()}
+          ${this.renderHealthPillars()}
+          ${this.renderOfficerOrb()}
+        `}
+      </div>
+    `;
+  }
+
+  /**
+   * Bootstrap state: org has no enrolled devices yet. Backend sets
+   * healthScore.isBootstrap=true and returns zeroed pillar scores. Suppress the
+   * synthesized 70/C tile and the 5 sub-pillar cards (they read as "you're
+   * failing" on a brand-new account) in favour of a single Setup card.
+   */
+  isBootstrapState() {
+    const data = this.state.data;
+    if (!data) return false;
+    if (data.healthScore?.isBootstrap === true) return true;
+    // Secondary signal — no quickStats devices at all.
+    const coverage = data.quickStats?.coverage || data.itAdmin?.coverage || {};
+    const totalCov = Number(coverage.total) || 0;
+    const fleet = this.getFleetStats(data);
+    return totalCov <= 0 && (fleet?.total ?? 0) <= 0;
+  }
+
+  renderBootstrapSetup() {
+    const data = this.state.data || {};
+    const orgLabel = data.orgName || data.org?.name || 'your organization';
+    const installUrl = '#!/devices';
+    return html`
+      <div style="width:100vw;position:relative;left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;background:var(--tblr-body-bg,#f4f6fa);padding:32px 16px 48px;">
+        <div style="max-width:720px;margin:0 auto;">
+          <!-- Hero -->
+          <div style="background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);color:#fff;border-radius:16px;padding:28px 32px;box-shadow:0 8px 28px rgba(30,58,138,0.18);">
+            <div style="font-size:0.72rem;letter-spacing:0.12em;font-weight:700;text-transform:uppercase;opacity:0.85;">Welcome to MagenSec</div>
+            <h1 style="margin:8px 0 4px;font-size:1.75rem;font-weight:700;line-height:1.2;">Setup pending — add your first device</h1>
+            <p style="margin:0;font-size:0.95rem;opacity:0.9;max-width:520px;">MagenSec needs at least one enrolled device in <strong>${orgLabel}</strong> before MAGI can start scoring your posture, scanning apps, and producing your daily security action.</p>
+          </div>
+
+          <!-- Steps -->
+          <div style="margin-top:16px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px 28px;">
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;color:#475569;margin-bottom:12px;">How to get started</div>
+            <ol style="margin:0;padding-left:22px;color:#1e293b;font-size:0.95rem;line-height:1.7;">
+              <li>Open the <a href=${installUrl} style="color:#2563eb;text-decoration:none;font-weight:600;">Devices</a> page and click <strong>Add device</strong>.</li>
+              <li>Download the MagenSec installer for your platform.</li>
+              <li>Run it on the device you want to monitor — no admin rights required.</li>
+              <li>MAGI will pick up the first heartbeat within 5 minutes and start scoring.</li>
+            </ol>
+            <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;">
+              <a href=${installUrl} class="btn btn-primary btn-pill px-4" style="background:#0f172a;border-color:#0f172a;color:#fff;font-weight:700;">Add your first device →</a>
+              <a href="#!/ai-chat" class="btn btn-outline-secondary btn-pill px-4" style="font-weight:600;">Ask Officer MAGI</a>
+            </div>
+          </div>
+
+          <!-- Why no score -->
+          <div style="margin-top:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:18px 24px;color:#475569;font-size:0.85rem;line-height:1.6;">
+            <strong style="color:#0f172a;">Why don't I see a score?</strong> Scores are computed from device telemetry (apps installed, patch level, heartbeat freshness, compliance controls). Until at least one device checks in, we'd be making numbers up — and that's not what MAGI does.
+          </div>
+        </div>
       </div>
     `;
   }
