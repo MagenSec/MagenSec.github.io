@@ -199,13 +199,22 @@ export class DeviceDetailPage extends window.Component {
             return { score: 0, constituents: null, enrichmentFactors: {} };
         }
         
+        const fallbackScore = Math.max(0, Math.min(100, Math.round(Number(summary.score) || 0)));
         const constituents = summary.constituents || summary.riskScoreConstituents;
-        if (!constituents || constituents.cveCount === 0) {
-            return { score: summary.score, constituents, enrichmentFactors: {} };
+        if (!constituents || !constituents.cveCount) {
+            return { score: fallbackScore, constituents, enrichmentFactors: {} };
         }
         
         // Base calculation: CVSS × EPSS
-        let riskFactor = constituents.maxCvssNormalized * constituents.maxEpssStored;
+        const cvss = Number(constituents.maxCvssNormalized) || 0;
+        const epss = Number(constituents.maxEpssStored) || 0;
+        
+        // If enrichment inputs are missing, trust the server-computed score
+        if (cvss <= 0 || epss <= 0) {
+            return { score: fallbackScore, constituents, enrichmentFactors: { usedFallbackScore: true } };
+        }
+        
+        let riskFactor = cvss * epss;
         
         // Check if any CVE is a known exploit
         const hasKnownExploit = this.state.knownExploits && this.state.cveInventory.some(cve => 
@@ -221,16 +230,19 @@ export class DeviceDetailPage extends window.Component {
         // Final score with all factors
         const finalRisk = (
             riskFactor *
-            constituents.exposureFactor *
-            constituents.privilegeFactor *
+            (Number(constituents.exposureFactor) || 1) *
+            (Number(constituents.privilegeFactor) || 1) *
             exploitFactor *
             timeDecayFactor
         ) * 100;
         
-        const enrichedScore = Math.round(finalRisk * 100) / 100;
+        const enrichedScore = Math.min(100, Math.max(0, Math.round(finalRisk * 100) / 100));
+        
+        // Don't let enrichment collapse the score below the server's base score
+        const finalScore = Math.max(enrichedScore, fallbackScore);
         
         return {
-            score: enrichedScore,
+            score: finalScore,
             constituents,
             enrichmentFactors: {
                 hasKnownExploit,
@@ -2432,11 +2444,30 @@ export class DeviceDetailPage extends window.Component {
         const registeredAt = device.FirstHeartbeat || device.firstSeen || device.createdAt || null;
         const lastSeenAt = this.state.telemetryDetail?.latest?.timestamp || device.LastHeartbeat || device.lastHeartbeat || device.LastSeen || device.lastSeen || null;
         const displayUser = (() => {
-            const encoded = latestFields.UserName || latestFields.Username || latestFields.userName || latestFields.LoggedOnUser || latestFields.CurrentUser || null;
+            // Try telemetry detail first, then device's telemetry summary from list API
+            const encoded = latestFields.UserName || latestFields.Username || latestFields.userName
+                || latestFields.LoggedOnUser || latestFields.CurrentUser
+                || device.Telemetry?.Username || device.Telemetry?.userName
+                || device.telemetry?.Username || device.telemetry?.userName
+                || null;
             const resolved = encoded ? PiiDecryption.decryptIfEncrypted(String(encoded)) : null;
             return resolved ? String(resolved) : 'Unknown';
         })();
-        const displayOs = latestFields.OSEdition || latestFields.osEdition || latestFields.OSVersion || latestFields.osVersion || device.OS || device.os || 'OS unknown';
+        const displayOs = (() => {
+            // Try telemetry detail fields first
+            const edition = latestFields.OSEdition || latestFields.osEdition || '';
+            const version = latestFields.OSVersion || latestFields.osVersion || '';
+            if (edition || version) return `${edition} ${version}`.trim();
+            // Fall back to device's telemetry summary (from Devices list API)
+            const telem = device.Telemetry || device.telemetry;
+            if (telem) {
+                const te = telem.OSEdition || telem.osEdition || telem.OsEdition || '';
+                const tv = telem.OSVersion || telem.osVersion || telem.OsVersion || '';
+                if (te || tv) return `${te} ${tv}`.trim();
+            }
+            // Fall back to device-level OS field (from Heartbeat table OperatingSystem)
+            return device.OS || device.os || device.operatingSystem || device.OperatingSystem || 'OS unknown';
+        })();
         const clientVersion = device.ClientVersion || device.clientVersion || this.state.deviceSummary?.clientVersion || null;
         const primaryIp = ipList[0] || null;
         const summarySignalAt = this.state.deviceSummary?.lastScanTime || this.state.summaryMeta?.generatedAt || this.state.summaryMeta?.cachedAt || null;
@@ -2643,7 +2674,8 @@ export class DeviceDetailPage extends window.Component {
                                                     <div class="col-md-4">
                                                         <div class="text-muted small font-weight-medium">Risk outlook</div>
                                                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                                                            <span class="badge ${this.getSeverityColor(worstSeverity || 'LOW')}">${worstSeverity || 'LOW'} · Score ${Math.round(Number.isFinite(riskScore) ? riskScore : 0)}</span>
+                                                            <span class="badge ${this.getSeverityColor(worstSeverity || 'LOW')}">${worstSeverity || 'LOW'}</span>
+                                                            <span class="fw-bold">${Math.max(0, 100 - Math.round(Number.isFinite(riskScore) ? riskScore : 0))}/100</span>
                                                             ${hasRiskTrend
                                                                 ? html`<span class="${getTrendClass(riskTrend)}">${getTrendIcon(riskTrend)} ${Math.abs(Math.round(riskTrend))} in 7d</span>`
                                                                 : html`<span class="text-muted">No 7d trend yet</span>`}
@@ -2713,8 +2745,8 @@ export class DeviceDetailPage extends window.Component {
                                                         offset += length;
                                                     };
                                                     pushSlice(counts.crit, '#d63939');
-                                                    pushSlice(counts.high, '#f59f00');
-                                                    pushSlice(counts.med, '#fab005');
+                                                    pushSlice(counts.high, '#f76707');
+                                                    pushSlice(counts.med, '#f59f00');
                                                     pushSlice(counts.low, '#74b816');
 
                                                     return html`
@@ -2993,8 +3025,10 @@ export class DeviceDetailPage extends window.Component {
         const baseScore = summary ? this.getRiskScoreValue(summary, this.calculateRiskScore(this.state.device)) : this.calculateRiskScore(this.state.device);
         const scoreRaw = enriched && enriched.score !== undefined ? enriched.score : baseScore;
         const scoreNum = Number(scoreRaw);
-        const score = Number.isFinite(scoreNum) ? scoreNum : 0;
-        const clampedScore = Math.max(0, Math.min(100, Math.round(score)));
+        const riskScore = Number.isFinite(scoreNum) ? scoreNum : 0;
+        // Health score: inverted risk (100 = perfect, 0 = worst) — matches table column and modal
+        const healthScore = Math.max(0, Math.min(100, 100 - Math.round(riskScore)));
+        const clampedScore = healthScore;
 
         // Use active CVEs for chart rendering (excludes uninstalled apps)
         const activeCves = this.getActiveCves();
@@ -3012,19 +3046,9 @@ export class DeviceDetailPage extends window.Component {
                     height: 120,
                     sparkline: { enabled: true }
                 },
-                colors: [gradientStart],
+                colors: [healthScore >= 75 ? '#2fb344' : healthScore >= 50 ? '#f59f00' : '#d63939'],
                 fill: {
-                    type: 'gradient',
-                    gradient: {
-                        shade: 'light',
-                        type: 'horizontal',
-                        colorStops: [
-                            { offset: 0, color: '#2fb344', opacity: 1 },
-                            { offset: 33, color: '#f59f00', opacity: 1 },
-                            { offset: 66, color: '#fab005', opacity: 1 },
-                            { offset: 100, color: '#d63939', opacity: 1 }
-                        ]
-                    }
+                    type: 'solid'
                 },
                 series: [clampedScore],
                 plotOptions: {

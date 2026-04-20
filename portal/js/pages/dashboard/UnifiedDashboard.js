@@ -1307,8 +1307,8 @@ export default class UnifiedDashboard extends Component {
                   <span style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;color:var(--db-muted-text,#6b7280);">${p.data?.label || p.key}</span>
                 </div>
                 <div style="font-size:1.75rem;font-weight:800;color:${color};line-height:1;margin-bottom:6px;">${s}</div>
-                <div style="background:var(--db-bar-track,rgba(0,0,0,0.06));border-radius:3px;height:3px;overflow:hidden;margin-bottom:6px;">
-                  <div style="width:${s}%;height:100%;background:${color};border-radius:3px;transition:width 0.9s ease;"></div>
+                <div style="background:${s <= 30 ? 'rgba(220,38,38,0.15)' : 'var(--db-bar-track,rgba(0,0,0,0.06))'};border-radius:4px;height:5px;overflow:hidden;margin-bottom:6px;">
+                  <div style="width:${Math.max(s, 3)}%;height:100%;background:${color};border-radius:4px;transition:width 0.9s ease;"></div>
                 </div>
                 <div style="font-size:0.7rem;color:var(--db-faint-text,#9ca3af);line-height:1.3;">${p.data?.shortReason || ''}</div>
               </div>

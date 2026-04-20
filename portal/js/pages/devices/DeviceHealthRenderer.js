@@ -47,7 +47,21 @@ export function renderHealthStatus(device) {
         text = 'Error';
         animated = false;
         reason = 'Heartbeat/telemetry mismatch';
-    } else if (inactiveMinutes >= 10080) {
+    } else if (inactiveMinutes >= 10 && device.lastSignalAt) {
+        // Partial connectivity: heartbeat is stale but device is still sending signals via SAS
+        const lastSignal = new Date(device.lastSignalAt);
+        const signalAgeMin = (Date.now() - lastSignal.getTime()) / 60000;
+        if (signalAgeMin < 60) {
+            status = 'partial';
+            icon = '●';
+            color = 'warning';
+            text = 'Partial';
+            animated = false;
+            reason = 'Telemetry flowing but heartbeat failing — management commands may not reach this device';
+        }
+    }
+    
+    if (!status && inactiveMinutes >= 10080) {
         // >= 7 days (7*1440) = Ghosted (Critical Risk)
         status = 'ghosted';
         icon = '●';
@@ -55,7 +69,7 @@ export function renderHealthStatus(device) {
         text = 'Ghosted';
         animated = false;
         reason = `Last seen ${Math.floor(inactiveMinutes / 1440)}d ago`;
-    } else if (inactiveMinutes >= 4320) {
+    } else if (!status && inactiveMinutes >= 4320) {
         // >= 3 days (3*1440) = Dormant (High Risk)
         status = 'dormant';
         icon = '●';
@@ -63,7 +77,7 @@ export function renderHealthStatus(device) {
         text = 'Dormant';
         animated = false;
         reason = `Last seen ${Math.floor(inactiveMinutes / 1440)}d ago`;
-    } else if (inactiveMinutes >= 1440) {
+    } else if (!status && inactiveMinutes >= 1440) {
         // >= 1 day (1440) = Stale (Medium Risk)
         status = 'stale';
         icon = '●';
@@ -71,15 +85,16 @@ export function renderHealthStatus(device) {
         text = 'Stale';
         animated = false;
         reason = `Last seen ${Math.floor(inactiveMinutes / 1440)}d ago`;
-    } else if (inactiveMinutes >= 60) {
-        // >= 60m = Recent but Offline
+    } else if (!status && inactiveMinutes >= 60) {
+        // >= 60m, < 24h = Recent but not actively connected
+        const hours = Math.floor(inactiveMinutes / 60);
         status = 'recent-offline';
         icon = '●';
-        color = 'info';
-        text = 'Offline';
+        color = 'azure';
+        text = `${hours}h ago`;
         animated = false;
-        reason = `Last seen ${Math.floor(inactiveMinutes / 60)}h ago`;
-    } else {
+        reason = `Last heartbeat ${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else if (!status) {
         status = 'online';
         icon = '●';
         color = 'success';

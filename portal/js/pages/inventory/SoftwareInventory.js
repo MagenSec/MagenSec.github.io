@@ -302,7 +302,8 @@ export class SoftwareInventoryPage extends Component {
         const total    = apps.length;
         const vuln     = apps.filter(a => (a.cveCount || 0) > 0).length;
         const freeware = apps.filter(a => a.isFreeware).length;
-        const licensed = apps.filter(a => !!licenses[this._appKey(a)]).length;
+        const manuallyTracked = apps.filter(a => !!licenses[this._appKey(a)]).length;
+        const licensed = manuallyTracked + freeware; // Freeware is auto-classified
         const unlicensed = Math.max(0, total - licensed);
         const deviceCoverage = new Set(
             apps.flatMap(a => (a.devices || []).map(d => d?.deviceId || d?.deviceName || '').filter(Boolean))
@@ -444,14 +445,14 @@ export class SoftwareInventoryPage extends Component {
                 <div class="alert alert-info mb-3">
                     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                         <div>
-                            <div class="fw-medium">License tracking is review-based for now</div>
+                            <div class="fw-medium">License tracking</div>
                             <div class="text-muted small">
-                                Protect focuses on exposure first. ${kpis.licensed} app rows have a reviewed entitlement record and ${kpis.unlicensed} are still awaiting classification.
+                                ${kpis.licensed} apps classified (${kpis.freeware} auto-detected as freeware, ${kpis.licensed - kpis.freeware} manually reviewed). ${kpis.unlicensed} remaining.
                             </div>
                         </div>
                         <div class="d-flex gap-2 flex-wrap">
-                            <span class="badge bg-purple text-white">${kpis.licensed} reviewed</span>
-                            <span class="badge bg-secondary-lt text-secondary">${kpis.unlicensed} awaiting review</span>
+                            <span class="badge bg-purple text-white">${kpis.licensed} classified</span>
+                            <span class="badge bg-secondary-lt text-secondary">${kpis.unlicensed} unclassified</span>
                         </div>
                     </div>
                 </div>
@@ -1077,7 +1078,9 @@ export class SoftwareInventoryPage extends Component {
                                         <td>
                                             ${lic
                                                 ? html`<span class="badge bg-purple-lt text-purple">${lic.licenseType}</span>`
-                                                : html`<span class="text-muted fst-italic small">Not tracked</span>`}
+                                                : app.isFreeware
+                                                    ? html`<span class="badge bg-success-lt text-success">Freeware</span>`
+                                                    : html`<span class="text-muted fst-italic small">Not tracked</span>`}
                                         </td>
                                         <td>
                                             ${lic?.expiryDate
@@ -1184,52 +1187,34 @@ export class SoftwareInventoryPage extends Component {
                     <!-- KPI strip -->
                     ${this._renderKpiStrip(kpis)}
 
-                    <div class="card mb-3">
-                        <div class="card-body py-2">
-                            <div class="row g-2 align-items-center">
-                                <div class="col-auto">
-                                    <span class="text-muted small fw-medium">Group by</span>
-                                </div>
-                                <div class="col-auto">
-                                    <${SegmentedControl}
-                                        options=${[
-                                            { id: 'application', label: 'Application' },
-                                            { id: 'vendor', label: 'Vendor' },
-                                            { id: 'device', label: 'Device' }
-                                        ]}
-                                        value=${groupBy}
-                                        onChange=${value => this.setState({ groupBy: value })}
-                                    />
-                                </div>
-                                <div class="col text-muted small">
-                                    ${activeTab === 'licenses'
-                                        ? 'Grouping is designed for the inventory and risk tabs; the license registry stays flat for editing.'
-                                        : groupBy === 'application'
-                                            ? 'Default view keeps one row per app version.'
-                                            : groupBy === 'vendor'
-                                                ? 'Vendor view clusters software by publisher with nested inventory tables.'
-                                                : 'Device view shows exactly what is installed per endpoint.'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Tabs (primary navigation) -->
+                    <ul class="nav nav-tabs mb-3">
+                        ${TABS.map(t => html`
+                            <li class="nav-item">
+                                <a href="#" class="nav-link ${activeTab === t.id ? 'active' : ''} d-flex align-items-center gap-2"
+                                   onClick=${e => { e.preventDefault(); this.setState({ activeTab: t.id }); }}>
+                                    ${t.label}
+                                    <span class="badge ${t.badgeCls} ms-1">${t.badge}</span>
+                                </a>
+                            </li>
+                        `)}
+                    </ul>
 
-                    <!-- Tabs -->
-                    <div class="card mb-3">
-                        <div class="card-header p-0">
-                            <ul class="nav nav-tabs card-header-tabs px-4">
-                                ${TABS.map(t => html`
-                                    <li class="nav-item">
-                                        <a href="#" class="nav-link ${activeTab === t.id ? 'active' : ''} d-flex align-items-center gap-2"
-                                           onClick=${e => { e.preventDefault(); this.setState({ activeTab: t.id }); }}>
-                                            ${t.label}
-                                            <span class="badge ${t.badgeCls} ms-1">${t.badge}</span>
-                                        </a>
-                                    </li>
-                                `)}
-                            </ul>
+                    <!-- Group-by controls (only for inventory/risk tabs) -->
+                    ${activeTab !== 'licenses' ? html`
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <span class="text-muted small fw-medium">Group by</span>
+                            <${SegmentedControl}
+                                options=${[
+                                    { id: 'application', label: 'Application' },
+                                    { id: 'vendor', label: 'Vendor' },
+                                    { id: 'device', label: 'Device' }
+                                ]}
+                                value=${groupBy}
+                                onChange=${value => this.setState({ groupBy: value })}
+                            />
                         </div>
-                    </div>
+                    ` : ''}
 
                     <!-- Tab content -->
                     ${activeTab === 'all'      ? this._renderAllTab()     : ''}

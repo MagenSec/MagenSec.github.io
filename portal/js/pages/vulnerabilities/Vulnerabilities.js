@@ -695,7 +695,7 @@ export class VulnerabilitiesPage extends Component {
                                     <span class="badge bg-warning text-white">${highCount} High</span>
                                     <span class="badge bg-info text-white">${mediumCount} Medium</span>
                                     <span class="badge bg-success text-white">${lowCount} Low</span>
-                                    ${needsReviewCount > 0 ? html`<span class="badge bg-warning text-white">${needsReviewCount} Needs review</span>` : ''}
+                                    ${needsReviewCount > 0 && orgContext.isSiteAdmin() ? html`<span class="badge bg-warning text-white">${needsReviewCount} Needs review</span>` : ''}
                                     ${rewindContext.isActive() ? html`<span class="badge bg-azure-lt text-azure">As of ${api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
                                 </div>
                             </div>
@@ -750,7 +750,7 @@ export class VulnerabilitiesPage extends Component {
                             </div>
                         </div>
                     </div>
-                    ${reviewItems.length > 0 ? this.renderReviewQueue(reviewItems) : ''}
+                    ${reviewItems.length > 0 && orgContext.isSiteAdmin() ? this.renderReviewQueue(reviewItems) : ''}
                     ${filtered.length === 0 ? html`
                         <div class="empty">
                             <div class="empty-icon">

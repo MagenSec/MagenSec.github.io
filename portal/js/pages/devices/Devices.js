@@ -365,7 +365,7 @@ class DevicesPage extends window.Component {
                                                     const totalCves = (summary.criticalCves || 0) + (summary.highCves || 0) + (summary.mediumCves || 0) + (summary.lowCves || 0);
                                                     return html`
                                                             <div class="d-flex flex-column gap-3">
-                                                            <div class="d-flex align-items-start gap-3 flex-wrap" style="cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(this.state.selectedDevice); }} title="Click to see what drives this risk score">
+                                                            <div class="d-flex align-items-start gap-3 flex-wrap" style="cursor: pointer;" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(this.state.selectedDevice); }} title="Click to see score breakdown">
                                                                                                 <div style="width: 88px; height: 88px;" ref=${(el) => { this.riskChartEl = el; }}></div>
                                                                                                 <div class="d-flex flex-column gap-1 align-items-start" style="min-width: 140px;">
                                                                                                     <div class="d-flex align-items-center gap-2">
@@ -429,6 +429,10 @@ class DevicesPage extends window.Component {
         const summary = this.state.deviceSummaries[device.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
         const enriched = this.state.enrichedScores[device.id] || { score: summary.score, constituents: summary.constituents || {} };
         const constituents = enriched.constituents || summary.constituents || {};
+        const riskScore = Math.round(enriched.score || 0);
+        // Health score = inverted risk (matches the number shown in the table column)
+        const healthScore = Math.max(0, Math.min(100, 100 - riskScore));
+        const healthColor = healthScore >= 75 ? 'success' : healthScore >= 50 ? 'warning' : 'danger';
         const exploitInfo = this.deriveKnownExploitInfo(constituents);
         const knownExploitCount = exploitInfo.count;
         const hasKnownExploit = exploitInfo.has;
@@ -443,18 +447,17 @@ class DevicesPage extends window.Component {
                 <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
                     <div class="modal-content" style="z-index: 2056;">
                         <div class="modal-header bg-light">
-                            <h5 class="modal-title">Risk Score Analysis</h5>
+                            <h5 class="modal-title">Security Score Analysis</h5>
                             <button type="button" class="btn-close" onclick=${() => this.closeRiskExplanationModal()}></button>
                         </div>
                         <div class="modal-body">
                             <div class="mb-4">
-                                <h5 class="text-muted">Overall Risk: <strong>${Math.round(enriched.score || 0)}/100</strong></h5>
+                                <h5 class="text-muted">Security Score: <strong class="text-${healthColor}">${healthScore}</strong><span class="text-muted">/100</span></h5>
                                 <div class="progress mb-3" style="height: 8px;">
-                                    <div class="progress-bar ${enriched.score >= 80 ? 'bg-success' : enriched.score >= 60 ? 'bg-info' : enriched.score >= 40 ? 'bg-warning' : 'bg-danger'}" style="width: ${Math.min(enriched.score || 0, 100)}%"></div>
+                                    <div class="progress-bar bg-${healthColor}" style="width: ${Math.max(healthScore, 3)}%"></div>
                                 </div>
                                 <p class="text-muted small">
-                                    This risk score combines vulnerability data from installed applications with network and deployment factors.
-                                    A higher score indicates greater security risk and need for remediation.
+                                    Higher is better. This score reflects how well-protected this device is based on vulnerability exposure, exploit probability, and patch status.
                                 </p>
                             </div>
 
@@ -551,15 +554,12 @@ class DevicesPage extends window.Component {
                                                 ${networkExposure.reasons.join(' • ')}
                                             </div>
                                         ` : ''}
-                                        <div class="text-muted small mt-1" title="Firewall status, inbound ports, endpoint protection require admin privileges to collect">
-                                            Missing signals (admin required): ${networkExposure.missingAdmin.join(', ')}
-                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="mb-4">
-                                <h5>How to Reduce This Risk</h5>
+                                <h5>How to Improve This Score</h5>
                                 <ol class="small">
                                     ${summary.vulnerableApps > 0 ? html`
                                         <li class="mb-2">
@@ -589,7 +589,7 @@ class DevicesPage extends window.Component {
                             </div>
 
                             <div class="alert alert-info small">
-                                <strong>Note:</strong> This score is calculated using a proprietary risk model that considers vulnerability severity, exploit probability, attack surface, and other factors. The exact formula is not disclosed to prevent gaming the system.
+                                <strong>How it's calculated:</strong> The score starts at 100 (perfect) and is reduced by CVE severity (critical × 35, high × 20, medium × 10, low × 4), exploit probability (EPSS), and vulnerable app count. A score of ${healthScore} means ${riskScore} risk points deducted.
                             </div>
                         </div>
                         <div class="modal-footer d-flex justify-content-between align-items-center">
@@ -2371,7 +2371,7 @@ class DevicesPage extends window.Component {
                                     </span>
                                     ${healthScore === null
                                         ? html`<span class="badge bg-secondary-lt text-secondary">Signal pending</span>`
-                                        : html`<span class="badge bg-${healthColor}-lt text-${healthColor}">Health ${healthGrade}</span>`}
+                                        : html`<span class="badge bg-${healthColor}-lt text-${healthColor}">Grade ${healthGrade} · ${healthScore}%</span>`}
                                     ${totalApps > 0 ? html`<span class="text-muted small">${totalApps.toLocaleString()} apps</span>` : ''}
                                 </div>
                             </div>
@@ -2548,7 +2548,7 @@ class DevicesPage extends window.Component {
                                             <option value="all" selected=${this.state.deviceFilters.connection === 'all'}>All</option>
                                             <option value="recent" selected=${this.state.deviceFilters.connection === 'recent'}>Recent (${'<'}24h)</option>
                                             <option value="recent-online" selected=${this.state.deviceFilters.connection === 'recent-online'}>Online (${'<'}1h)</option>
-                                            <option value="recent-offline" selected=${this.state.deviceFilters.connection === 'recent-offline'}>Offline (1-24h)</option>
+                                            <option value="recent-offline" selected=${this.state.deviceFilters.connection === 'recent-offline'}>Away (1-24h)</option>
                                             <option value="stale" selected=${this.state.deviceFilters.connection === 'stale'}>Stale (1-3d)</option>
                                             <option value="dormant" selected=${this.state.deviceFilters.connection === 'dormant'}>Dormant (3-7d)</option>
                                             <option value="ghosted" selected=${this.state.deviceFilters.connection === 'ghosted'}>Ghosted (${ '>' }7d)</option>
@@ -2715,10 +2715,13 @@ class DevicesPage extends window.Component {
                                                             </td>
 
                                                             <!-- Score Column -->
-                                                            <td class="text-center">
+                                                            <td class="text-center" style="min-width: 80px;">
                                                                 ${risk.score !== null && !showSignalPending ? html`
                                                                     <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; cursor: pointer;">
                                                                         <div class="h2 mb-0 fw-bold text-${scoreColor}">${scoreValue}</div>
+                                                                        <div class="progress progress-sm mt-1" style="height: 3px;">
+                                                                            <div class="progress-bar bg-${scoreColor}" style="width: ${Math.min(scoreValue, 100)}%"></div>
+                                                                        </div>
                                                                     </a>
                                                                 ` : html`<span class="text-muted small">—</span>`}
                                                             </td>
@@ -2739,7 +2742,6 @@ class DevicesPage extends window.Component {
                                                                         <div class="d-flex align-items-center gap-1">
                                                                             ${summary.criticalCves > 0 ? html`<span class="badge bg-danger text-white">${summary.criticalCves} Critical</span>` : ''}
                                                                             ${summary.highCves > 0 ? html`<span class="badge bg-warning text-white">${summary.highCves} High</span>` : ''}
-                                                                            ${signalMeta.stale ? html`<span class="badge bg-warning-lt text-warning">Stale</span>` : ''}
                                                                         </div>
                                                                         ${summary.vulnerableApps > 0 ? html`<span class="text-muted small">${summary.vulnerableApps} vuln apps</span>` : ''}
                                                                     </div>
@@ -2751,8 +2753,13 @@ class DevicesPage extends window.Component {
                                                             <!-- Software Column -->
                                                             <td>
                                                                 <div class="fw-medium">${summary.apps || 0} apps</div>
+                                                                ${(summary.vulnerableApps || 0) > 0 ? html`
+                                                                    <span class="text-danger small">${summary.vulnerableApps} vulnerable</span>
+                                                                ` : html`
+                                                                    <span class="text-success small">Clean</span>
+                                                                `}
                                                                 ${isOutdated ? html`
-                                                                    <span class="badge bg-warning-lt text-warning small" title="Agent update available">Agent outdated</span>
+                                                                    <span class="badge bg-warning-lt text-warning small ms-1" title="Agent update available">Outdated</span>
                                                                 ` : ''}
                                                             </td>
 

@@ -34,8 +34,9 @@ export function renderRiskAssessment(component) {
 
     const progressClass = riskScoreValue >= 80 ? 'bg-danger' : riskScoreValue >= 60 ? 'bg-warning' : riskScoreValue >= 40 ? 'bg-warning' : 'bg-success';
 
-    const postureScore = component.state.enrichedScore?.score ?? riskScoreValue;
-    const postureLabel = postureScore >= 80 ? 'Critical' : postureScore >= 60 ? 'Elevated' : postureScore >= 40 ? 'Watch' : postureScore >= 20 ? 'Stable' : 'Secure';
+    const postureRisk = component.state.enrichedScore?.score ?? riskScoreValue;
+    const postureScore = Math.max(0, Math.min(100, 100 - Math.round(postureRisk)));
+    const postureLabel = postureScore >= 75 ? 'Good' : postureScore >= 50 ? 'Fair' : postureScore >= 25 ? 'Poor' : 'Critical';
     const riskPercentBase = (() => {
         const enrichedRaw = component.state.enrichedScore?.score;
         const canonicalRaw = component.getRiskScoreValue(
@@ -47,30 +48,28 @@ export function renderRiskAssessment(component) {
         return Number.isFinite(n) ? n : 0;
     })();
     const riskPercent = Math.max(0, Math.min(100, Math.round(riskPercentBase)));
-    const postureBadge = postureScore >= 80 ? 'bg-danger' : postureScore >= 60 ? 'bg-warning' : postureScore >= 40 ? 'bg-warning' : postureScore >= 20 ? 'bg-info' : 'bg-success';
+    const postureBadge = postureScore >= 75 ? 'bg-success' : postureScore >= 50 ? 'bg-info' : postureScore >= 25 ? 'bg-warning' : 'bg-danger';
     const riskPercentBadge = riskPercent >= 80 ? 'bg-danger' : riskPercent >= 60 ? 'bg-warning' : riskPercent >= 40 ? 'bg-warning' : riskPercent >= 20 ? 'bg-info' : 'bg-success';
-    const postureCopy = postureScore >= 80
-        ? 'Active exploitability and exposure signals present; isolate and patch immediately.'
-        : postureScore >= 60
-            ? 'High exploitability or internet exposure; prioritize remediation and segmentation.'
-            : postureScore >= 40
-                ? 'Exploitable issues exist with moderate exposure; schedule remediation soon.'
-                : postureScore >= 20
-                    ? 'Mostly resilient with some findings; keep patching cadence steady.'
-                    : 'Strong resilience and minimal exposure; continue monitoring.';
-    const riskPercentCopy = 'Same calculation as the Devices list gauge: enriched score when present, otherwise the summary score.';
+    const postureCopy = postureScore >= 75
+        ? 'Strong resilience and minimal exposure; continue monitoring.'
+        : postureScore >= 50
+            ? 'Mostly resilient with some findings; keep patching cadence steady.'
+            : postureScore >= 25
+                ? 'Significant vulnerabilities detected; prioritize remediation and segmentation.'
+                : 'Critical exposure; isolate and patch immediately.';
+    const riskPercentCopy = 'Based on CVE severity counts, EPSS probability, and vulnerable app density.';
     return html`
         <div class="row row-cards">
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="text-muted small">Security posture (0-100)</div>
+                            <div class="text-muted small">Security Score</div>
                             <span class="badge ${postureBadge}">${postureLabel}</span>
                         </div>
                         <div class="d-flex align-items-center gap-3 mb-3">
                             <div class="display-4 fw-bold mb-0">${Math.round(postureScore)}</div>
-                            <div class="small text-muted">Exposure-adjusted resilience: EPSS + known exploits + network exposure + severity + time decay.</div>
+                            <div class="small text-muted">Higher is better. Combines vulnerability severity, exploit probability, and patch status.</div>
                         </div>
                         <div ref=${(el) => { component.detailRiskChartEl = el; }} style="min-height: 120px;"></div>
                         <div class="text-muted small">${postureCopy}</div>
@@ -81,12 +80,12 @@ export function renderRiskAssessment(component) {
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="text-muted small">Risk % (Devices list)</div>
+                            <div class="text-muted small">Risk Level</div>
                             <span class="badge ${component.getSeverityColor(worstSeverity)}">${worstSeverity}</span>
                         </div>
                         <div class="d-flex align-items-center gap-3 mb-3">
                             <div class="display-4 fw-bold mb-0">${riskPercent}%</div>
-                            <div class="small text-muted">Normalized severity/volume score used on the Devices page for cross-device comparison.</div>
+                            <div class="small text-muted">Raw risk score used on the Devices page. Higher = more risk factors present.</div>
                         </div>
                         <div class="progress mb-2" style="height: 8px;">
                             <div class="progress-bar ${riskPercentBadge}" style="width: ${Math.min(100, Math.max(0, riskPercent))}%"></div>
