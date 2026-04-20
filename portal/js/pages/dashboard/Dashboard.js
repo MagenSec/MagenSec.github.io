@@ -144,7 +144,10 @@ export class DashboardPage extends Component {
         const appStats = quickStats.apps || {};
         const cveStats = quickStats.cves || {};
         const licenseStats = quickStats.license || {};
-        const securityScore = payload.securityScore || {};
+        const hygiene = payload.cyberHygiene;
+        const securityScore = hygiene
+            ? { score: hygiene.score, grade: hygiene.grade, compliancePercent: hygiene.compliance }
+            : (payload.hygieneScore || payload.securityScore || {});
         const businessOwner = payload.businessOwner || {};
         const itAdmin = payload.itAdmin || {};
         const inventorySummary = itAdmin.inventory || {};

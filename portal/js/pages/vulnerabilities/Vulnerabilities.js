@@ -47,6 +47,7 @@ export class VulnerabilitiesPage extends Component {
             magiFixApp: null, // { appName, vendor, version }
             selectedCveId: null,
             nvdDetails: {},  // { [cveId]: { description, references, ... } }
+            deepLinkApp: null, // ?app=X from email deep-links
         };
         this.orgUnsubscribe = null;
         this._rewindUnsub = null;
@@ -55,6 +56,18 @@ export class VulnerabilitiesPage extends Component {
     componentDidMount() {
         this.orgUnsubscribe = orgContext.onChange(() => this.loadVulnerabilities());
         this._rewindUnsub = rewindContext.onChange(() => this.loadVulnerabilities());
+
+        // Deep-link: ?app=AppName from email "Fix this now" links
+        const hash = window.location.hash || '';
+        const qIdx = hash.indexOf('?');
+        if (qIdx >= 0) {
+            const params = new URLSearchParams(hash.substring(qIdx));
+            const appFilter = params.get('app');
+            if (appFilter) {
+                this.setState({ deepLinkApp: appFilter });
+            }
+        }
+
         this.loadVulnerabilities();
     }
 
@@ -636,7 +649,7 @@ export class VulnerabilitiesPage extends Component {
     }
 
     render() {
-        const { loading, error, vulnerabilities, reviewItems, severityFilter, groupBy, isRefreshingInBackground, summary } = this.state;
+        const { loading, error, vulnerabilities, reviewItems, severityFilter, groupBy, isRefreshingInBackground, summary, deepLinkApp } = this.state;
 
         if (loading && !vulnerabilities.length) {
             return html`<div class="d-flex align-items-center justify-content-center" style="min-height: 60vh;"><div class="spinner-border text-primary"></div></div>`;
@@ -646,7 +659,13 @@ export class VulnerabilitiesPage extends Component {
             return html`<div class="alert alert-danger"><h4 class="alert-title">Error</h4><div>${error}</div></div>`;
         }
 
-        const filtered = severityFilter === 'all' ? vulnerabilities : vulnerabilities.filter(v => v.severity === severityFilter);
+        let filtered = severityFilter === 'all' ? vulnerabilities : vulnerabilities.filter(v => v.severity === severityFilter);
+
+        // Deep-link filter: ?app=AppName from email "Fix this now" links
+        if (deepLinkApp) {
+            filtered = filtered.filter(v =>
+                (v.appName || v.app || '').toLowerCase().includes(deepLinkApp.toLowerCase()));
+        }
 
         const criticalCount = Number(summary?.critical ?? vulnerabilities.filter(v => v.severity === 'Critical').length);
         const highCount = Number(summary?.high ?? vulnerabilities.filter(v => v.severity === 'High').length);
