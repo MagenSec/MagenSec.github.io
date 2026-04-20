@@ -5,6 +5,7 @@
 import { auth } from '@auth';
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 import { config } from '@config';
 import { PiiDecryption } from '@utils/piiDecryption.js';
 import { getInstallerConfig, clearManifestCache, getCacheStatus } from '@utils/manifestCache.js';
@@ -89,6 +90,7 @@ class DevicesPage extends window.Component {
 
     componentDidMount() {
         this.orgChangeUnsubscribe = orgContext.onChange(() => this.loadDevices(true));
+        this._rewindUnsub = rewindContext.onChange(() => this.loadDevices(true));
         this.loadInstallerConfig();
         this.loadDevices();
         this.loadKnownExploitsAsync();
@@ -268,6 +270,7 @@ class DevicesPage extends window.Component {
 
     componentWillUnmount() {
         if (this.orgChangeUnsubscribe) this.orgChangeUnsubscribe();
+        if (this._rewindUnsub) this._rewindUnsub();
         this.destroyApexCharts();
         this.destroyTableApexCharts();
     }
