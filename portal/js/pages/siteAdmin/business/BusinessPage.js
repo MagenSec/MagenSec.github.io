@@ -41,20 +41,48 @@ export function BusinessPage() {
         profitability: useRef(null),
     };
 
+    const CACHE_KEY = 'ms-business-dashboard';
+    const CACHE_TTL = 30 * 60 * 1000; // 30 min
+
+    function getCached() {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (!raw) return null;
+            const { data, timestamp } = JSON.parse(raw);
+            const isStale = Date.now() - timestamp >= CACHE_TTL;
+            return { data, isStale };
+        } catch { return null; }
+    }
+
+    function setCache(data) {
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() })); } catch { /* quota */ }
+    }
+
     // Unmounted guard
     const unmountedRef = useRef(false);
     useEffect(() => {
         unmountedRef.current = false;
+        // SWR: serve cached immediately, then fetch fresh
+        const cached = getCached();
+        if (cached) {
+            setSnapshot(cached.data);
+            setHistory(cached.data.history || []);
+            setLoading(false);
+            setRefreshing(true);
+        }
         loadDashboard();
         return () => { unmountedRef.current = true; };
     }, []);
 
     async function loadDashboard(refresh = false) {
         try {
-            if (refresh) setRefreshing(true); else setLoading(true);
+            if (refresh) setRefreshing(true);
+            else if (!snapshot) setLoading(true);
             setError(null);
 
-            const url = refresh ? '/api/v1/admin/business-metrics?refresh=true' : '/api/v1/admin/business-metrics';
+            const url = refresh
+                ? '/api/v1/admin/business-metrics?refresh=true'
+                : '/api/v1/admin/business-metrics?include=cached-summary';
             const [response, catalogResponse] = await Promise.all([
                 api.get(url),
                 api.get('/api/v1/admin/orgs/license-catalog').catch(() => null),
@@ -65,6 +93,7 @@ export function BusinessPage() {
             if (response.success && response.data) {
                 setSnapshot(response.data);
                 setHistory(response.data.history || []);
+                setCache(response.data);
                 if (catalogResponse?.success && catalogResponse.data) {
                     setCatalog(catalogResponse.data);
                 }

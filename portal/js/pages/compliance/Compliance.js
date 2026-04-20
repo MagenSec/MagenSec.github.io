@@ -137,6 +137,7 @@ export class CompliancePage extends Component {
       loading: true,
       error: null,
       snapshot: null,
+      isRefreshingInBackground: false,
       selectedFramework: 'all',
       selectedDate: toInputDate(null),
       reportLoading: false,
@@ -173,23 +174,60 @@ export class CompliancePage extends Component {
     return currentOrg?.orgId || user?.email || null;
   }
 
-  async loadPage() {
+  _cacheKey() {
+    return `ms-compliance-${this.getOrgId()}`;
+  }
+
+  _getCached() {
+    try {
+      const raw = localStorage.getItem(this._cacheKey());
+      if (!raw) return null;
+      const { data, timestamp } = JSON.parse(raw);
+      const isStale = Date.now() - timestamp >= 15 * 60 * 1000; // 15 min TTL
+      return { data, isStale };
+    } catch { return null; }
+  }
+
+  _setCache(data) {
+    try { localStorage.setItem(this._cacheKey(), JSON.stringify({ data, timestamp: Date.now() })); } catch { /* quota */ }
+  }
+
+  async loadPage(forceRefresh = false) {
     const orgId = this.getOrgId();
     if (!orgId) {
       window.location.hash = '#!/login';
       return;
     }
 
-    this.setState({ loading: true, error: null });
+    // SWR: serve cached snapshot immediately
+    if (!forceRefresh) {
+      const cached = this._getCached();
+      if (cached) {
+        this.setState({
+          snapshot: cached.data,
+          loading: false,
+          isRefreshingInBackground: true,
+          error: null,
+          selectedDate: toInputDate(cached.data?.generatedAt)
+        }, () => this.loadLatestReport());
+      }
+    }
+
+    if (!this.state.snapshot) {
+      this.setState({ loading: true, error: null });
+    }
+
     try {
       const snapshotResponse = await api.getLatestComplianceSnapshot(orgId);
       if (!snapshotResponse?.success) {
         throw new Error(snapshotResponse?.message || 'Failed to load compliance snapshot');
       }
 
+      this._setCache(snapshotResponse.data);
       this.setState({
         snapshot: snapshotResponse.data,
         loading: false,
+        isRefreshingInBackground: false,
         error: null,
         selectedDate: toInputDate(snapshotResponse.data?.generatedAt)
       }, () => {
@@ -198,6 +236,7 @@ export class CompliancePage extends Component {
     } catch (err) {
       this.setState({
         loading: false,
+        isRefreshingInBackground: false,
         error: err?.message || 'Failed to load compliance page'
       });
     }
