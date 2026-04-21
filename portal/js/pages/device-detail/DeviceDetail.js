@@ -98,7 +98,10 @@ export class DeviceDetailPage extends window.Component {
             perfBucket: '6h',
             perfRangeDays: 7,
             perfLoading: false,
-            perfError: null
+            perfError: null,
+            missingPatches: null,
+            missingPatchesLoading: false,
+            missingPatchesError: null
         };
     }
 
@@ -107,6 +110,7 @@ export class DeviceDetailPage extends window.Component {
         this.riskService = new RiskService(this.state);
         this.loadInstallerConfig(true);
         this.loadDeviceData();
+        this.loadMissingPatches();
     }
 
     componentDidUpdate(prevProps, prevState) {
@@ -190,6 +194,26 @@ export class DeviceDetailPage extends window.Component {
                 manifestError: 'Latest installer metadata is temporarily unavailable. Showing built-in baseline.'
             });
             return fallbackInstallers;
+        }
+    }
+
+    // Load missing patches (KB-MISSING alerts) for this device. Cheap query —
+    // PartitionKey-scoped on the org Alerts table.
+    async loadMissingPatches() {
+        try {
+            const org = orgContext.getCurrentOrg();
+            if (!org?.orgId || !this.state.deviceId) return;
+            this.setState({ missingPatchesLoading: true, missingPatchesError: null });
+            const resp = await api.getDevicePatchPosture(org.orgId, this.state.deviceId);
+            if (!resp?.success) throw new Error(resp?.message || 'Failed to load missing patches');
+            const host = (resp.data?.hosts || [])[0] || null;
+            this.setState({
+                missingPatchesLoading: false,
+                missingPatches: host ? (host.missingPatches || []) : []
+            });
+        } catch (err) {
+            console.warn('[DeviceDetail] loadMissingPatches failed', err);
+            this.setState({ missingPatchesLoading: false, missingPatchesError: err.message || String(err), missingPatches: [] });
         }
     }
     
@@ -2958,6 +2982,23 @@ export class DeviceDetailPage extends window.Component {
                                         </div>
                                         <div class="accordion-item border-0">
                                             <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detailMissingPatches" aria-expanded="false">
+                                                    Missing Security Patches
+                                                    ${(this.state.missingPatches?.length || 0) > 0
+                                                        ? html`<span class="badge bg-danger text-white ms-2">${this.state.missingPatches.length}</span>`
+                                                        : (this.state.missingPatchesLoading
+                                                            ? html`<span class="badge bg-secondary-lt text-secondary ms-2">…</span>`
+                                                            : html`<span class="badge bg-success-lt text-success ms-2">0</span>`)}
+                                                </button>
+                                            </h2>
+                                            <div id="detailMissingPatches" class="accordion-collapse collapse" data-bs-parent="#deviceDetailsAccordion">
+                                                <div class="accordion-body">
+                                                    ${this.renderMissingPatchesTab()}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="accordion-item border-0">
+                                            <h2 class="accordion-header">
                                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detailTelemetry" aria-expanded="false">
                                                     Telemetry
                                                     ${(this.state.telemetryHistory?.length || 0) > 0 ? html`<span class="badge bg-info-lt text-info ms-2">${this.state.telemetryHistory.length}</span>` : ''}
@@ -3850,6 +3891,76 @@ export class DeviceDetailPage extends window.Component {
 
     renderTimelineTab() {
         return renderTimelineTab(this);
+    }
+
+    renderMissingPatchesTab() {
+        const { missingPatches, missingPatchesLoading, missingPatchesError } = this.state;
+        if (missingPatchesLoading) {
+            return html`<div class="text-muted small">Loading missing-patch alerts…</div>`;
+        }
+        if (missingPatchesError) {
+            return html`<div class="alert alert-warning mb-0">${missingPatchesError}</div>`;
+        }
+        if (!missingPatches || missingPatches.length === 0) {
+            return html`
+                <div class="empty py-4">
+                    <p class="empty-title mb-1">No missing patches detected</p>
+                    <p class="empty-subtitle text-muted small mb-0">
+                        This device has no open KB-MISSING alerts. Patch posture is derived from the MSRC catalog;
+                        if intel has not been built yet for this org, run "MSRC Patch Sync" from Site Admin → Manage → Admin Actions.
+                    </p>
+                </div>
+            `;
+        }
+        const sevBadge = (s) => s >= 3
+            ? html`<span class="badge bg-danger text-white">Critical</span>`
+            : s >= 2 ? html`<span class="badge bg-warning text-white">High</span>`
+            : s >= 1 ? html`<span class="badge bg-info text-white">Medium</span>`
+            : html`<span class="badge bg-secondary text-white">Low</span>`;
+        return html`
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>KB</th>
+                            <th>Product</th>
+                            <th>Severity</th>
+                            <th class="text-end">CVSS</th>
+                            <th class="text-center">Exploited</th>
+                            <th class="text-end">Age (d)</th>
+                            <th>CVEs</th>
+                            <th>Advisory</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${missingPatches.map(p => html`
+                            <tr key=${p.kb + '|' + p.productId}>
+                                <td><code>${p.kb}</code></td>
+                                <td>
+                                    <div>${p.productName || p.productId}</div>
+                                    <div class="text-muted small">${p.msrcSeverity || ''}</div>
+                                </td>
+                                <td>${sevBadge(p.severity)}</td>
+                                <td class="text-end">${p.maxCvss != null ? p.maxCvss.toFixed(1) : '—'}</td>
+                                <td class="text-center">${p.isExploited
+                                    ? html`<span class="badge bg-danger text-white">Yes</span>`
+                                    : html`<span class="text-muted">No</span>`}</td>
+                                <td class="text-end">${p.daysSinceRelease ?? 0}</td>
+                                <td>
+                                    ${(p.cves || []).slice(0, 3).map(c => html`
+                                        <a href="#!/cves/${c}" class="badge bg-blue-lt text-blue me-1">${c}</a>
+                                    `)}
+                                    ${(p.cves || []).length > 3 ? html`<span class="text-muted small">+${p.cves.length - 3}</span>` : null}
+                                </td>
+                                <td>${p.advisoryUrl
+                                    ? html`<a href=${p.advisoryUrl} target="_blank" rel="noopener"><i class="ti ti-external-link"></i></a>`
+                                    : '—'}</td>
+                            </tr>
+                        `)}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 
     renderTelemetryHealthBadge() {

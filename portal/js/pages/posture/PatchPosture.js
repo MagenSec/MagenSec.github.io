@@ -10,7 +10,32 @@ const { html, Component } = window;
  *   GET /api/v1/orgs/{orgId}/patch-posture  → { summary, intel, hosts[] }
  *
  * Intel freshness is surfaced so admins know whether the MSRC catalog is stale.
+ *
+ * Caching: stale-while-revalidate from localStorage (15min TTL). On mount,
+ * paint the cached payload immediately, then fetch fresh data in the background
+ * and silently swap. Eliminates the 1-2s blank screen on repeat visits.
  */
+const CACHE_TTL_MS = 15 * 60 * 1000;
+const CACHE_KEY_PREFIX = 'magensec.patchPosture.v1';
+const cacheKey = (orgId) => `${CACHE_KEY_PREFIX}.${orgId}`;
+
+function readCache(orgId) {
+    try {
+        const raw = localStorage.getItem(cacheKey(orgId));
+        if (!raw) return null;
+        const obj = JSON.parse(raw);
+        if (!obj?.cachedAt || !obj?.data) return null;
+        if (Date.now() - obj.cachedAt > CACHE_TTL_MS) return null;
+        return obj;
+    } catch { return null; }
+}
+
+function writeCache(orgId, data) {
+    try {
+        localStorage.setItem(cacheKey(orgId), JSON.stringify({ cachedAt: Date.now(), data }));
+    } catch { /* quota or disabled — ignore */ }
+}
+
 export class PatchPosturePage extends Component {
     constructor(props) {
         super(props);
@@ -19,6 +44,7 @@ export class PatchPosturePage extends Component {
         this.state = {
             loading: true,
             refreshing: false,
+            fromCache: false,
             error: null,
             data: null,
             expanded: new Set(),
@@ -46,14 +72,28 @@ export class PatchPosturePage extends Component {
             this.setState({ loading: false, error: 'No organization selected.' });
             return;
         }
-        this.setState({ loading: this.state.data == null, refreshing: this.state.data != null, error: null });
+
+        // Stale-while-revalidate: paint cache immediately if fresh, then fetch.
+        const cached = readCache(org.orgId);
+        if (cached) {
+            this.setState({ loading: false, refreshing: true, fromCache: true, data: cached.data, error: null });
+        } else {
+            this.setState({ loading: this.state.data == null, refreshing: this.state.data != null, fromCache: false, error: null });
+        }
+
         try {
             const resp = await api.getPatchPosture(org.orgId);
             if (!resp?.success) throw new Error(resp?.message || 'Failed to load patch posture');
-            this.setState({ loading: false, refreshing: false, data: resp.data });
+            writeCache(org.orgId, resp.data);
+            this.setState({ loading: false, refreshing: false, fromCache: false, data: resp.data });
         } catch (err) {
             console.error('[PatchPosture] load failed', err);
-            this.setState({ loading: false, refreshing: false, error: err.message || String(err) });
+            // Keep stale cache visible if present; only clear if we had no data.
+            this.setState({
+                loading: false,
+                refreshing: false,
+                error: this.state.data ? null : (err.message || String(err))
+            });
         }
     }
 
@@ -215,7 +255,10 @@ export class PatchPosturePage extends Component {
             <div class="page-body"><div class="container-xl">
                 <div class="d-flex align-items-center mb-3">
                     <div>
-                        <h2 class="page-title mb-1">Patch Posture</h2>
+                        <h2 class="page-title mb-1">
+                            Patch Posture
+                            ${refreshing ? html`<span class="badge bg-info-lt text-info ms-2"><i class="ti ti-refresh me-1"></i>Refreshing…</span>` : null}
+                        </h2>
                         <div class="text-muted">Missing-patch rollup from MSRC KB catalog. Driven by KB-MISSING alerts.</div>
                     </div>
                     <div class="ms-auto">

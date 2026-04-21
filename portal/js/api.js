@@ -546,6 +546,11 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/patch-posture`, null, options);
     }
 
+    async getDevicePatchPosture(orgId, deviceId, options = {}) {
+        const qs = `?deviceId=${encodeURIComponent(deviceId)}`;
+        return this.get(`/api/v1/orgs/${orgId}/patch-posture${qs}`, null, options);
+    }
+
     async getPatchPostureIntel(orgId, options = {}) {
         return this.get(`/api/v1/orgs/${orgId}/patch-posture/intel`, null, options);
     }
