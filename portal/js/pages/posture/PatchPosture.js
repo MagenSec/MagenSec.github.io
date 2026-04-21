@@ -130,11 +130,54 @@ export class PatchPosturePage extends Component {
         return html`<span class="badge bg-secondary text-white">Low</span>`;
     }
 
+    /**
+     * Operational health banner. Tells admins exactly what's missing in the
+     * 3-stage pipeline (client telemetry → MSRC sync → SignalAssimilation)
+     * before the page can show data.
+     */
+    renderDiagnostics(summary, intel, hosts) {
+        if (!intel?.loaded || (intel?.productCount ?? 0) === 0) {
+            return html`
+                <div class="alert alert-warning d-flex align-items-start mb-3" role="alert">
+                    <i class="ti ti-alert-triangle me-2 fs-2"></i>
+                    <div>
+                        <strong>MSRC intel index not yet built.</strong>
+                        Until the MSRC catalog is downloaded and parsed, no KB-MISSING alerts can be raised.
+                        Run <strong>MSRC Patch Sync</strong> from <em>Site Admin → Cron tasks</em>, or wait for the next 6h scheduled run.
+                    </div>
+                </div>`;
+        }
+        if ((intel?.productCount ?? 0) > 0 && hosts.length === 0 && (summary?.openAlerts ?? 0) === 0) {
+            return html`
+                <div class="alert alert-info d-flex align-items-start mb-3" role="alert">
+                    <i class="ti ti-info-circle me-2 fs-2"></i>
+                    <div>
+                        <strong>Pipeline healthy — no missing patches detected.</strong>
+                        MSRC intel covers ${intel.productCount} products / ${intel.leafPatchCount} KBs.
+                        If you expect alerts here, confirm devices are running MagenSec ≥ 26.31.x (which collects WUA + QFE)
+                        and that <em>Signal Assimilation</em> has run since the last heartbeat.
+                    </div>
+                </div>`;
+        }
+        return null;
+    }
+
+    async exportCsv() {
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId) return;
+        try {
+            await api.exportPatchPostureCsv(org.orgId);
+        } catch (err) {
+            console.error('[PatchPosture] csv export failed', err);
+            window.toast?.show?.(err.message || 'CSV export failed', 'danger', 5000);
+        }
+    }
+
     renderKpis(summary, intel) {
         const builtAt = intel?.builtAt ? new Date(intel.builtAt).toLocaleString() : '—';
         const intelStatus = intel?.loaded
             ? html`<span class="text-success">Loaded</span>`
-            : html`<span class="text-danger">Not built</span> <small class="text-muted d-block">Run MSRC Patch Sync from Site Admin</small>`;
+            : html`<span class="text-danger">Not built</span>`;
         return html`
             <div class="row row-cards mb-3">
                 <div class="col-sm-6 col-lg-3">
@@ -262,11 +305,16 @@ export class PatchPosturePage extends Component {
                         <div class="text-muted">Missing-patch rollup from MSRC KB catalog. Driven by KB-MISSING alerts.</div>
                     </div>
                     <div class="ms-auto">
+                        <button class="btn btn-outline-secondary me-2" onClick=${() => this.exportCsv()} disabled=${!summary?.openAlerts}>
+                            <i class="ti ti-download me-1"></i>Download CSV
+                        </button>
                         <button class="btn btn-outline-primary" onClick=${() => this.load()} disabled=${refreshing}>
                             <i class="ti ti-refresh me-1"></i>${refreshing ? 'Refreshing…' : 'Refresh'}
                         </button>
                     </div>
                 </div>
+
+                ${this.renderDiagnostics(summary, intel, hosts)}
 
                 ${this.renderKpis(summary, intel)}
 

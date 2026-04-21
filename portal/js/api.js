@@ -564,6 +564,29 @@ export class ApiClient {
         return this.get(url, null, options);
     }
 
+    /**
+     * Download patch posture as CSV. Server streams the file, browser saves it.
+     */
+    async exportPatchPostureCsv(orgId) {
+        const token = auth.getToken() || '';
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/export?format=csv`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => null);
+            throw new Error(body?.message || `Export failed (${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const stamp = new Date().toISOString().slice(0, 10);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `patch-posture-${orgId}-${stamp}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     // Consolidated device state update (replaces separate block/enable endpoints)
     async updateDeviceState(orgId, deviceId, state, options = {}) {
         const { deleteTelemetry = false, reason } = options;
