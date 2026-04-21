@@ -587,6 +587,31 @@ export class ApiClient {
         URL.revokeObjectURL(url);
     }
 
+    /**
+     * Open the printable HTML patch posture report in a new tab.
+     * The bearer-protected report is fetched as a blob, then opened so the
+     * browser's native print dialog can render it as PDF.
+     */
+    async openPatchPosturePrintReport(orgId) {
+        const token = auth.getToken() || '';
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/export?format=html`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => null);
+            throw new Error(body?.message || `Print report failed (${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, '_blank');
+        if (!win) {
+            throw new Error('Popup blocked — please allow popups for this site to view the printable report.');
+        }
+        // Don't revoke immediately — let the new tab finish loading. Browsers usually GC after page navigation.
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
+
     // Consolidated device state update (replaces separate block/enable endpoints)
     async updateDeviceState(orgId, deviceId, state, options = {}) {
         const { deleteTelemetry = false, reason } = options;

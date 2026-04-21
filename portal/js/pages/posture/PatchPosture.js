@@ -154,8 +154,9 @@ export class PatchPosturePage extends Component {
                     <div>
                         <strong>Pipeline healthy — no missing patches detected.</strong>
                         MSRC intel covers ${intel.productCount} products / ${intel.leafPatchCount} KBs.
-                        If you expect alerts here, confirm devices are running MagenSec ≥ 26.31.x (which collects WUA + QFE)
-                        and that <em>Signal Assimilation</em> has run since the last heartbeat.
+                        If you expect findings here, confirm: (1) devices are running <strong>MagenSec build ≥ 26.31.x</strong> (which collects WUA + QFE installed-KB lists),
+                        (2) at least one heartbeat has shipped since they were upgraded, and
+                        (3) <em>Signal Assimilation</em> has run since the last heartbeat (Site Admin → Cron tasks).
                     </div>
                 </div>`;
         }
@@ -170,6 +171,21 @@ export class PatchPosturePage extends Component {
         } catch (err) {
             console.error('[PatchPosture] csv export failed', err);
             window.toast?.show?.(err.message || 'CSV export failed', 'danger', 5000);
+        }
+    }
+
+    /**
+     * Opens the printable HTML report in a new tab. The user then hits
+     * Ctrl+P / Cmd+P → "Save as PDF". Avoids server-side PDF deps.
+     */
+    async openPrintReport() {
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId) return;
+        try {
+            await api.openPatchPosturePrintReport(org.orgId);
+        } catch (err) {
+            console.error('[PatchPosture] print report failed', err);
+            window.toast?.show?.(err.message || 'Failed to open printable report', 'danger', 5000);
         }
     }
 
@@ -305,9 +321,22 @@ export class PatchPosturePage extends Component {
                         <div class="text-muted">Missing-patch rollup from MSRC KB catalog. Driven by KB-MISSING alerts.</div>
                     </div>
                     <div class="ms-auto">
-                        <button class="btn btn-outline-secondary me-2" onClick=${() => this.exportCsv()} disabled=${!summary?.openAlerts}>
-                            <i class="ti ti-download me-1"></i>Download CSV
-                        </button>
+                        <div class="btn-group me-2">
+                            <button class="btn btn-outline-secondary" onClick=${() => this.exportCsv()} disabled=${!summary?.openAlerts}>
+                                <i class="ti ti-download me-1"></i>Download CSV
+                            </button>
+                            <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" disabled=${!summary?.openAlerts}>
+                                <span class="visually-hidden">Toggle dropdown</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.exportCsv(); }}>
+                                    <i class="ti ti-file-spreadsheet me-2"></i>CSV (Excel / SIEM)
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.openPrintReport(); }}>
+                                    <i class="ti ti-printer me-2"></i>Printable PDF report
+                                </a></li>
+                            </ul>
+                        </div>
                         <button class="btn btn-outline-primary" onClick=${() => this.load()} disabled=${refreshing}>
                             <i class="ti ti-refresh me-1"></i>${refreshing ? 'Refreshing…' : 'Refresh'}
                         </button>
