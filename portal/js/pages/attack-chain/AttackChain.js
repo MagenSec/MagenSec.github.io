@@ -101,6 +101,11 @@ export class AttackChainPage extends Component {
                 attackChain: chain,
                 selectedGraph: chain?.graphs?.[0] ?? null,
             });
+
+            // Auto-generate if no chain available (first visit or blob migration)
+            if (!chain && !this.state.refreshing) {
+                this.handleRefresh();
+            }
         } catch (err) {
             this.setState({ loading: false, error: err.message });
         }
