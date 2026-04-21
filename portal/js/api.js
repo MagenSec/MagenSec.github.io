@@ -612,6 +612,16 @@ export class ApiClient {
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
     }
 
+    /**
+     * Sends the Patch Posture HTML report via email. Mirrors UX of the review-report send button.
+     * @param {string} orgId
+     * @param {'owner'|'custom'} recipient
+     * @param {string} [customEmail]
+     */
+    async sendPatchPostureReport(orgId, recipient = 'owner', customEmail = '') {
+        return this.post(`/api/v1/orgs/${orgId}/patch-posture/send-report`, { recipient, customEmail });
+    }
+
     // Consolidated device state update (replaces separate block/enable endpoints)
     async updateDeviceState(orgId, deviceId, state, options = {}) {
         const { deleteTelemetry = false, reason } = options;

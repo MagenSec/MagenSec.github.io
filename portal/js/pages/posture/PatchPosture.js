@@ -131,9 +131,11 @@ export class PatchPosturePage extends Component {
     }
 
     /**
-     * Operational health banner. Tells admins exactly what's missing in the
-     * 3-stage pipeline (client telemetry → MSRC sync → SignalAssimilation)
-     * before the page can show data.
+     * Operational health banner. Two outcomes for the customer:
+     *  - intel index missing → tell them MagenSec is still ingesting Microsoft's
+     *    catalog and to retry shortly. No internal cron / Site-Admin references.
+     *  - intel ready but zero findings → reassure that all monitored devices are
+     *    current with available Microsoft updates. No build numbers, no cron names.
      */
     renderDiagnostics(summary, intel, hosts) {
         if (!intel?.loaded || (intel?.productCount ?? 0) === 0) {
@@ -141,22 +143,18 @@ export class PatchPosturePage extends Component {
                 <div class="alert alert-warning d-flex align-items-start mb-3" role="alert">
                     <i class="ti ti-alert-triangle me-2 fs-2"></i>
                     <div>
-                        <strong>MSRC intel index not yet built.</strong>
-                        Until the MSRC catalog is downloaded and parsed, no KB-MISSING alerts can be raised.
-                        Run <strong>MSRC Patch Sync</strong> from <em>Site Admin → Cron tasks</em>, or wait for the next 6h scheduled run.
+                        <strong>Patch intelligence is still being prepared.</strong>
+                        MagenSec is downloading the latest Microsoft Security Response Center catalog. This usually completes within a few hours of a fresh install or after a major Patch Tuesday release. Please check back shortly.
                     </div>
                 </div>`;
         }
         if ((intel?.productCount ?? 0) > 0 && hosts.length === 0 && (summary?.openAlerts ?? 0) === 0) {
             return html`
-                <div class="alert alert-info d-flex align-items-start mb-3" role="alert">
-                    <i class="ti ti-info-circle me-2 fs-2"></i>
+                <div class="alert alert-success d-flex align-items-start mb-3" role="alert">
+                    <i class="ti ti-shield-check me-2 fs-2"></i>
                     <div>
-                        <strong>Pipeline healthy — no missing patches detected.</strong>
-                        MSRC intel covers ${intel.productCount} products / ${intel.leafPatchCount} KBs.
-                        If you expect findings here, confirm: (1) devices are running <strong>MagenSec build ≥ 26.31.x</strong> (which collects WUA + QFE installed-KB lists),
-                        (2) at least one heartbeat has shipped since they were upgraded, and
-                        (3) <em>Signal Assimilation</em> has run since the last heartbeat (Site Admin → Cron tasks).
+                        <strong>All monitored devices are up to date.</strong>
+                        No missing Microsoft security updates were found across your fleet. Keep your MagenSec agent current so newly published Microsoft updates continue to be evaluated automatically.
                     </div>
                 </div>`;
         }
@@ -186,6 +184,30 @@ export class PatchPosturePage extends Component {
         } catch (err) {
             console.error('[PatchPosture] print report failed', err);
             window.toast?.show?.(err.message || 'Failed to open printable report', 'danger', 5000);
+        }
+    }
+
+    /**
+     * Emails the Patch Posture HTML report to the org owner (default) or a custom address.
+     * Same UX as the review-report send button.
+     */
+    async emailReport() {
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId) return;
+        const target = window.prompt('Send Patch Posture report to (leave blank to send to org owner):', '') || '';
+        const trimmed = target.trim();
+        const recipient = trimmed ? 'custom' : 'owner';
+        try {
+            window.toast?.show?.('Sending patch posture report…', 'info', 3000);
+            const res = await api.sendPatchPostureReport(org.orgId, recipient, trimmed);
+            if (res?.success) {
+                window.toast?.show?.(res.message || `Report sent to ${res.data?.recipient || 'owner'}`, 'success', 5000);
+            } else {
+                window.toast?.show?.(res?.message || 'Failed to send report', 'danger', 5000);
+            }
+        } catch (err) {
+            console.error('[PatchPosture] email report failed', err);
+            window.toast?.show?.(err.message || 'Failed to send report', 'danger', 5000);
         }
     }
 
@@ -220,7 +242,7 @@ export class PatchPosturePage extends Component {
                 </div>
                 <div class="col-sm-6 col-lg-3">
                     <div class="card"><div class="card-body">
-                        <div class="subheader">MSRC intel index</div>
+                        <div class="subheader">Patch intelligence</div>
                         <div class="h3 mb-0">${intelStatus}</div>
                         <div class="text-muted small mt-1">
                             Built: ${builtAt}<br/>
@@ -335,6 +357,9 @@ export class PatchPosturePage extends Component {
                                 <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.openPrintReport(); }}>
                                     <i class="ti ti-printer me-2"></i>Printable PDF report
                                 </a></li>
+                                <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.emailReport(); }}>
+                                    <i class="ti ti-mail me-2"></i>Email me the report
+                                </a></li>
                             </ul>
                         </div>
                         <button class="btn btn-outline-primary" onClick=${() => this.load()} disabled=${refreshing}>
@@ -417,8 +442,8 @@ export class PatchPosturePage extends Component {
                             <div class="empty-icon"><i class="ti ti-shield-check" style="font-size: 48px; color: #2fb344;"></i></div>
                             <p class="empty-title">All patched</p>
                             <p class="empty-subtitle text-muted">
-                                No devices have open KB-MISSING alerts for this organization.
-                                ${!intel?.loaded ? html` The MSRC intel index is not yet built — run "MSRC Patch Sync" from Site Admin → Manage → Admin Actions.` : null}
+                                No devices have open missing-patch findings for this organization.
+                                ${!intel?.loaded ? html` Patch intelligence is still being prepared — please check back shortly.` : null}
                             </p>
                         </div>
                     ` : html`
