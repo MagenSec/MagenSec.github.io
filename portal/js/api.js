@@ -541,6 +541,24 @@ export class ApiClient {
         return this.get(`/api/v1/devices/${deviceId}`);
     }
 
+    // === PATCH POSTURE ===
+    async getPatchPosture(orgId, options = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/patch-posture`, null, options);
+    }
+
+    async getPatchPostureIntel(orgId, options = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/patch-posture/intel`, null, options);
+    }
+
+    async getPatchPostureDiff(orgId, from, to, options = {}) {
+        const params = new URLSearchParams();
+        if (from) params.append('from', new Date(from).toISOString());
+        if (to) params.append('to', new Date(to).toISOString());
+        const qs = params.toString();
+        const url = `/api/v1/orgs/${orgId}/patch-posture/diff${qs ? '?' + qs : ''}`;
+        return this.get(url, null, options);
+    }
+
     // Consolidated device state update (replaces separate block/enable endpoints)
     async updateDeviceState(orgId, deviceId, state, options = {}) {
         const { deleteTelemetry = false, reason } = options;

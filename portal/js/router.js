@@ -237,6 +237,15 @@ export function initRouter(renderApp) {
         renderApp({ page: 'posture', ctx });
     });
 
+    // Patch Posture - Missing-patch rollup from MSRC KB catalog (protected)
+    page('/patch-posture', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        renderApp({ page: 'patch-posture', ctx });
+    });
+
     // Mission Briefing - AI reports command page (protected, add-on gated)
     page('/mission-brief', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }

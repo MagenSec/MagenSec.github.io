@@ -21,6 +21,7 @@ import { AnalystPage } from './pages/analyst/Analyst.js';
 import AIAnalystChatPage from './pages/ai/aiAnalystChat.js';
 import AIReportsPage from './pages/ai/aiReports.js';
 import { PosturePage } from './pages/posture/Posture.js';
+import { PatchPosturePage } from './pages/posture/PatchPosture.js';
 import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
 import { AssetsPage } from './pages/inventory/Assets.js';
 import { SoftwareInventoryPage } from './pages/inventory/SoftwareInventory.js';
@@ -288,6 +289,8 @@ function App() {
             return html`<${AnalystPage} />`;
         case 'posture':
             return html`<${PosturePage} />`;
+        case 'patch-posture':
+            return html`<${PatchPosturePage} />`;
         case 'mission-brief':
             return html`<${AIPosturePage} />`;
         case 'posture-ai':

@@ -55,6 +55,11 @@ function getAlertTitle(alert) {
     const controlId = (alert?.controlId || '').toUpperCase();
     if (controlId === 'SYNC-CONFIG') return 'Configuration Out-of-Sync';
     if (controlId === 'VERSION-CLIENT') return 'Client App Update Required';
+    if (controlId === 'KB-MISSING') {
+        const kb = alert?.detailJson?.kb || alert?.detailJson?.Kb;
+        const prod = alert?.detailJson?.productName || alert?.detailJson?.ProductName;
+        return prod && kb ? `Missing ${kb} for ${prod}` : 'Missing Security Patch';
+    }
     if (isSyncControl(alert)) return 'Configuration Out-of-Sync';
     return alert?.controlName || alert?.controlId || 'Unknown Alert';
 }
@@ -64,6 +69,7 @@ function getRiskTag(alert) {
     const actual = (alert?.actual || '').toUpperCase();
 
     if (controlId === 'VERSION-CLIENT') return 'Version Risk';
+    if (controlId === 'KB-MISSING') return 'Patch Risk';
     if (isSyncControl(alert)) return 'Sync Risk';
     if (controlId.includes('OFFLINE') || controlId.includes('STALE') || controlId.includes('GHOST') || actual.includes('OFFLINE')) {
         return 'Health Risk';

@@ -274,7 +274,8 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                     mkJob({ groupId: 'intel', jobId: 'cve-feed-sync', title: 'CVE Feed Sync', description: 'Sync NVD CVE feeds and refresh enriched CVE intelligence snapshots.', taskId: 'CVE Sync' }),
                     mkJob({ groupId: 'intel', jobId: 'cpe-dictionary-sync', title: 'CPE Dictionary Sync', description: 'Sync NVD/TIIUAE/Microsoft CPE dictionaries and vendor-product mappings.', taskId: 'CPE Sync' }),
                     mkJob({ groupId: 'intel', jobId: 'threat-intel', title: 'Threat Intel', description: 'Refresh exploitability and KEV/EPSS intelligence feeds.', taskId: 'ThreatIntel Enrichment' }),
-                    mkJob({ groupId: 'intel', jobId: 'vulnerability-match', title: 'Vulnerability Match', description: 'Correlate installed apps against NVD CVEs. Re-evaluates cached results and writes vulnerability alerts.', taskId: 'Vuln Detection' })
+                    mkJob({ groupId: 'intel', jobId: 'vulnerability-match', title: 'Vulnerability Match', description: 'Correlate installed apps against NVD CVEs. Re-evaluates cached results and writes vulnerability alerts.', taskId: 'Vuln Detection' }),
+                    mkJob({ groupId: 'intel', jobId: 'msrc-patch-sync', title: 'MSRC Patch Sync', description: 'Download MSRC CVRF documents (parallel fetch) and rebuild the patch posture index blob used to detect missing security KBs per device.', taskId: 'MSRC Patch Sync' })
                 ]
             },
             {
