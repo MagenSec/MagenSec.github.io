@@ -340,7 +340,7 @@ export class PatchPosturePage extends Component {
                             Patch Posture
                             ${refreshing ? html`<span class="badge bg-info-lt text-info ms-2"><i class="ti ti-refresh me-1"></i>Refreshing…</span>` : null}
                         </h2>
-                        <div class="text-muted">Missing-patch rollup from MSRC KB catalog. Driven by KB-MISSING alerts.</div>
+                        <div class="text-muted">Missing Microsoft security updates across your fleet, refreshed daily.</div>
                     </div>
                     <div class="ms-auto">
                         <div class="btn-group me-2">
@@ -375,7 +375,7 @@ export class PatchPosturePage extends Component {
                 <div class="card mb-3">
                     <div class="card-header">
                         <h3 class="card-title">What changed</h3>
-                        <div class="card-subtitle text-muted">Newly-opened vs newly-resolved KB-MISSING alerts in a window.</div>
+                        <div class="card-subtitle text-muted">Newly discovered vs newly resolved missing-patch findings in the selected window.</div>
                     </div>
                     <div class="card-body">
                         <div class="row g-2 align-items-end">
