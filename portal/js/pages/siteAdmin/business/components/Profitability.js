@@ -30,7 +30,7 @@ const DEFAULT_BILLING_MODEL = {
 const DEFAULT_PRICING_GUIDANCE = [
     { key: 'Personal', label: 'Personal', devicesIncluded: 5, listAnnualUsd: 29, discountedAnnualUsd: 20, packageKey: 'Business', seatTier: 'Team', useObservedCohort: false },
     { key: 'Education', label: 'Education', devicesIncluded: 25, listAnnualUsd: 360, discountedAnnualUsd: 270, packageKey: 'Business', seatTier: 'Department', useObservedCohort: false },
-    { key: 'Business', label: 'Business Basic', devicesIncluded: 10, listAnnualUsdPerDevice: 24, discountedAnnualUsdPerDevice: 24, packageKey: 'Business', seatTier: 'Team' },
+    { key: 'Business', label: 'Business Foundation', devicesIncluded: 10, listAnnualUsdPerDevice: 24, discountedAnnualUsdPerDevice: 24, packageKey: 'Business', seatTier: 'Team' },
     { key: 'BusinessPlus', label: 'Business Premium', devicesIncluded: 25, listAnnualUsdPerDevice: 36, discountedAnnualUsdPerDevice: 36, packageKey: 'BusinessPlus', seatTier: 'Department' },
     { key: 'BusinessUltimate', label: 'Business Ultimate', devicesIncluded: 50, listAnnualUsdPerDevice: 48, discountedAnnualUsdPerDevice: 48, packageKey: 'BusinessUltimate', seatTier: 'Division' },
 ];
@@ -641,7 +641,7 @@ export function ProfitabilityPage({ snapshot, catalog, displayCcy, billingCcy, c
                         <div class="card h-100">
                             <div class="card-header">
                                 <div class="card-title">Scale economics by footprint</div>
-                                <div class="card-options text-muted small">Business Basic economics from 10 devices to 100k devices</div>
+                                <div class="card-options text-muted small">Business Foundation economics from 10 devices to 100k devices</div>
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-vcenter card-table table-sm mb-0">

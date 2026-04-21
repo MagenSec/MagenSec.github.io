@@ -10,7 +10,12 @@ function isPersonalOrg() {
 }
 
 function getHomeRoute() {
-    return isPersonalOrg() ? '/security' : '/dashboard';
+    if (isPersonalOrg()) return '/security';
+    // Business Foundation (Business type, no Compliance add-on) also uses the Security overview as home
+    const orgType = window.orgContext?.getCurrentOrg?.()?.type;
+    const hasCompliance = window.orgContext?.hasAddOn?.('Compliance');
+    if (orgType === 'Business' && !hasCompliance) return '/security';
+    return '/dashboard';
 }
 
 function redirectToHome(page) {
@@ -306,6 +311,13 @@ export function initRouter(renderApp) {
         if (guardPersonalRestrictedRoute(ctx, page)) return;
         if (guardAddOnRoute(page, 'AttackChain')) return;
         renderApp({ page: 'attack-chain', ctx });
+    });
+
+    // Reports Preview - exposed to business users (org-scoped endpoint)
+    page('/reports/preview', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        renderApp({ page: 'reports/preview', ctx });
     });
 
     // Reports (protected)

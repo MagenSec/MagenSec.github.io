@@ -136,9 +136,14 @@ class OrgContext {
                 role: org.role,
                 deviceCount: org.deviceCount,
                 totalSeats: org.totalSeats,
+                ownerEmail: org.ownerEmail || null,
                 isEnabled: org.isEnabled !== false,
                 remainingCredits: org.remainingCredits ?? -1,
                 totalCredits: org.totalCredits ?? -1,
+                licenseType: org.licenseType || null,
+                licenseTier: org.licenseTier || null,
+                packageKey: org.packageKey || null,
+                planKey: org.planKey || org.packageKey || org.licenseTier || null,
                 addOns: Array.isArray(org.addOns) ? org.addOns : []
             }));
 

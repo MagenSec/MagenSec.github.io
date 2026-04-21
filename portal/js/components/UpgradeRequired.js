@@ -4,19 +4,19 @@
 const { html } = window;
 
 const ADD_ON_INFO = {
-    MAGI:              { label: 'Officer MAGI',           icon: 'ti-message-chatbot',     plan: 'Business Basic' },
-    Compliance:        { label: 'Compliance',             icon: 'ti-certificate',         plan: 'Business Basic' },
-    Audit:             { label: 'Audit',                  icon: 'ti-file-search',         plan: 'Business Basic' },
-    ThreatIntel:       { label: 'Threat Intelligence',    icon: 'ti-shield-bolt',         plan: 'Business Pro' },
-    PeerBenchmark:     { label: 'Peer Benchmarking',      icon: 'ti-chart-dots-3',        plan: 'Business Pro' },
-    HygieneCoach:      { label: 'Hygiene Coach',          icon: 'ti-heart-rate-monitor',  plan: 'Business Pro' },
-    InsuranceReadiness: { label: 'Insurance Readiness',   icon: 'ti-shield-lock',         plan: 'Business Pro' },
-    CompliancePlus:    { label: 'Compliance Plus',        icon: 'ti-certificate-2',       plan: 'Business Pro' },
-    SupplyChainIntel:  { label: 'Supply Chain Intel',     icon: 'ti-building-factory',    plan: 'Business Ultimate' },
-    Rewind:            { label: 'Time Warp',              icon: 'ti-clock-rewind',        plan: 'Business Pro' },
-    LicenseManagement: { label: 'License Management',     icon: 'ti-license',             plan: 'Business Basic' },
-    AttackChain:       { label: 'Attack Chain',           icon: 'ti-route',               plan: 'Business Ultimate' },
-    AuditorDashboard:  { label: 'Auditor Dashboard',      icon: 'ti-file-search',         plan: 'Business Ultimate' },
+    MAGI:               { label: 'Officer MAGI',            icon: 'ti-message-chatbot',     plan: 'Business Premium' },
+    Compliance:         { label: 'Compliance',              icon: 'ti-certificate',         plan: 'Business Premium' },
+    Audit:              { label: 'Audit',                   icon: 'ti-file-search',         plan: 'Business Premium' },
+    ThreatIntel:        { label: 'Threat Intelligence',     icon: 'ti-shield-bolt',         plan: 'Business Premium' },
+    PeerBenchmark:      { label: 'Peer Benchmarking',       icon: 'ti-chart-dots-3',        plan: 'Business Ultimate' },
+    HygieneCoach:       { label: 'Hygiene Coach',           icon: 'ti-heart-rate-monitor',  plan: 'Business Ultimate' },
+    InsuranceReadiness: { label: 'Insurance Readiness',     icon: 'ti-shield-lock',         plan: 'Business Ultimate' },
+    CompliancePlus:     { label: 'Compliance Plus',         icon: 'ti-certificate-2',       plan: 'Business Ultimate' },
+    SupplyChainIntel:   { label: 'Supply Chain Intel',      icon: 'ti-building-factory',    plan: 'Business Ultimate' },
+    Rewind:             { label: 'Time Warp',               icon: 'ti-clock-rewind',        plan: 'Business Ultimate' },
+    LicenseManagement:  { label: 'License Management',      icon: 'ti-license',             plan: 'Business Premium' },
+    AttackChain:        { label: 'Attack Chain',            icon: 'ti-route',               plan: 'Business Ultimate' },
+    AuditorDashboard:   { label: 'Auditor Dashboard',       icon: 'ti-file-search',         plan: 'Business Premium' },
 };
 
 function UpgradeRequired({ feature }) {

@@ -600,6 +600,10 @@ export class ApiClient {
         return this.get('/api/v1/licenses/action', { operation: 'list', orgId });
     }
 
+    async getLicenseCatalog() {
+        return this.get('/api/v1/catalog/licenses');
+    }
+
     async getLicense(licenseId, orgId) {
         return this.get('/api/v1/licenses/action', { operation: 'get', orgId, licenseId });
     }

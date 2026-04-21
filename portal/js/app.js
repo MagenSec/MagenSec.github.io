@@ -13,7 +13,6 @@ import { logger } from './config.js';
 import keyboardShortcuts from './services/keyboardShortcuts.js';
 import themeService from './services/themeService.js';
 import { LoginPage } from './pages/login.js';
-import { DashboardPage } from './pages/dashboard/Dashboard.js';
 import UnifiedDashboard from './pages/dashboard/UnifiedDashboard.js';
 import DevicesPage from './pages/devices/Devices.js';
 import { DeviceDetailPage } from './pages/device-detail/DeviceDetail.js';
@@ -51,7 +50,8 @@ import { HygieneCoachPage }       from './pages/add-ons/HygieneCoach.js';
 import { InsuranceReadinessPage } from './pages/add-ons/InsuranceReadiness.js';
 import { CompliancePlusPage }     from './pages/add-ons/CompliancePlus.js';
 import { SupplyChainPage }        from './pages/add-ons/SupplyChain.js';
-import { UpgradeRequired }        from './components/UpgradeRequired.js';
+import { SecurityOverview }       from './pages/security/SecurityOverview.js';
+import { Upgrade }                from './pages/upgrade/Upgrade.js';
 import { AttackChainPage }        from './pages/attack-chain/AttackChain.js';
 import { AiResponsesAdminPage }   from './pages/siteAdmin/ai-responses/AiResponsesAdmin.js';
 
@@ -190,14 +190,22 @@ function applyOrgUiRestrictions() {
     // Personal org: hide nav items that are business-only
     const hideForPersonalNonAdmin = isPersonal && !isSiteAdminUser;
     const personalNavHideMap = {
-        'nav-home-item':     hideForPersonalNonAdmin,
-        'nav-prove-item':    hideForPersonalNonAdmin,
-        'nav-magi-item':     hideForPersonalNonAdmin,
+        'nav-home-item':           false,
+        'nav-prove-item':          hideForPersonalNonAdmin,
+        'nav-audit-item':          hideForPersonalNonAdmin,
+        'nav-insure-item':         hideForPersonalNonAdmin,
+        'nav-magi-item':           hideForPersonalNonAdmin,
+        'required-actions-nav':    hideForPersonalNonAdmin,
     };
     if (auth.isAuthenticated()) {
         for (const [id, hide] of Object.entries(personalNavHideMap)) {
             const el = document.getElementById(id);
             if (el) el.style.display = hide ? 'none' : '';
+        }
+
+        const homeLink = document.querySelector('#nav-home-item a.nav-link');
+        if (homeLink) {
+            homeLink.setAttribute('href', isPersonal ? '#!/security' : '#!/dashboard');
         }
     }
 
@@ -259,7 +267,7 @@ function App() {
         case 'security':
             return html`
                 <div>
-                    <${DashboardPage} />
+                    <${SecurityOverview} />
                     ${orgContext.getCurrentOrg()?.type === 'Personal'
                         ? null
                         : html`<${ChatDrawer} contextHint="security threats and vulnerabilities" persona="secops" />`}
@@ -355,6 +363,8 @@ function App() {
             return html`<${ActivityPage} />`;
         case 'siteadmin/preview':
             return html`<${PreviewPage} />`;
+        case 'reports/preview':
+            return html`<${PreviewPage} />`;
         case 'compliance':
             return html`<${CompliancePage} />`;
         case 'auditor':
@@ -388,7 +398,7 @@ function App() {
         case 'siteadmin/ai-responses':
             return html`<${AiResponsesAdminPage} />`;
         case 'upgrade':
-            return html`<${UpgradeRequired} feature=${currentParams?.feature} />`;
+            return html`<${Upgrade} feature=${currentParams?.feature} />`;
         default:
             return html`<${LoginPage} />`;
     }
@@ -704,7 +714,86 @@ async function init() {
 
     orgContext.onChange(() => {
         applyOrgUiRestrictions();
+        refreshActionsBadge();
     });
+
+    // ── Required Actions badge ─────────────────────────────────────────────────
+    // Poll alert summary on org change and every 5 minutes.
+    // Updates the inline Actions pill: count, colour, and overdue glow.
+    let _badgePollTimer = null;
+
+    function updateActionsBadgeUi(totalOpen, hasOverdue) {
+        const badge = document.getElementById('required-actions-badge');
+        const btn = document.getElementById('required-actions-btn');
+        const wrapper = document.getElementById('required-actions-nav');
+        if (!badge || !btn || !wrapper) return;
+
+        const isPersonalOrg = orgContext.getCurrentOrg()?.type === 'Personal';
+        wrapper.style.display = auth.isAuthenticated() && !isPersonalOrg ? '' : 'none';
+        btn.classList.remove('alert-active', 'alert-overdue');
+
+        if (totalOpen > 0) {
+            badge.textContent = totalOpen > 99 ? '99+' : String(totalOpen);
+            badge.style.removeProperty('display');
+            badge.className = `badge ms-1 ${hasOverdue ? 'bg-danger' : 'bg-warning'} text-white`;
+            btn.classList.add('alert-active');
+            if (hasOverdue) btn.classList.add('alert-overdue');
+        } else {
+            badge.style.setProperty('display', 'none', 'important');
+        }
+    }
+
+    async function refreshActionsBadge() {
+        const org = orgContext.getCurrentOrg();
+        if (!org) {
+            updateActionsBadgeUi(0, false);
+            return;
+        }
+
+        const orgId = org.orgId;
+        try {
+            const [summaryResp, alertsResp] = await Promise.all([
+                api.getAlertSummary(orgId, { include: 'cached-summary' }),
+                api.getAlerts(orgId, { state: 'OPEN', limit: 100 })
+            ]);
+
+            if (!summaryResp?.success) return;
+
+            const totalOpen = summaryResp.data?.totalOpen || 0;
+            const openAlerts = Array.isArray(alertsResp?.data?.alerts)
+                ? alertsResp.data.alerts
+                : (Array.isArray(alertsResp?.data) ? alertsResp.data : []);
+
+            const SLA_DAYS = { 4: 2, 3: 7, 2: 30, 1: 90 };
+            const hasOverdue = openAlerts.some(a => {
+                const severity = Number(a?.severity ?? a?.severityInt ?? 0);
+                const slaDays = SLA_DAYS[severity];
+                if (!slaDays || !a?.openedAt) return false;
+                const deadline = new Date(a.openedAt).getTime() + slaDays * 86400000;
+                return Number.isFinite(deadline) && Date.now() > deadline;
+            });
+
+            updateActionsBadgeUi(totalOpen, hasOverdue);
+        } catch {
+            // Badge is best-effort and should never break portal rendering.
+        }
+    }
+
+    function scheduleActionsBadgePoll() {
+        if (_badgePollTimer) clearInterval(_badgePollTimer);
+        refreshActionsBadge();
+        _badgePollTimer = setInterval(refreshActionsBadge, 5 * 60 * 1000); // every 5 min
+    }
+
+    // Start polling once authenticated
+    auth.onChange((session) => {
+        if (session) scheduleActionsBadgePoll();
+        else {
+            if (_badgePollTimer) { clearInterval(_badgePollTimer); _badgePollTimer = null; }
+            updateActionsBadgeUi(0, false);
+        }
+    });
+    if (auth.isAuthenticated()) scheduleActionsBadgePoll();
 
     // Re-render current page whenever rewind context changes (pages check rewindContext at render time)
     window.addEventListener('rewindChanged', () => {
