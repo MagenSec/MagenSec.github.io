@@ -29,8 +29,8 @@ class ReportPreviewPage extends Component {
 
     componentDidMount() {
         // Subscribe to org changes
-        this.orgUnsubscribe = window.orgContext.onChange(() => this.loadReportData());
-        this.loadReportData();
+        this.orgUnsubscribe = window.orgContext.onChange(() => this.loadReportData(true));
+        this.loadReportData(true);
     }
 
     componentWillUnmount() {
