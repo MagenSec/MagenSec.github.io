@@ -257,62 +257,62 @@ export class PatchPosturePage extends Component {
     renderHostRow(host) {
         const expanded = this.state.expanded.has(host.deviceId);
         const total = (host.critical || 0) + (host.high || 0) + (host.other || 0);
-        return html`
-            <>
-                <tr class="cursor-pointer" onClick=${() => this.toggleDevice(host.deviceId)}>
-                    <td>
-                        <i class="ti ${expanded ? 'ti-chevron-down' : 'ti-chevron-right'} me-2 text-muted"></i>
-                        <strong>${host.deviceName}</strong>
-                        <div class="text-muted small">${host.deviceId}</div>
-                    </td>
-                    <td class="text-center">${total}</td>
-                    <td class="text-center">${host.critical > 0 ? html`<span class="badge bg-danger text-white">${host.critical}</span>` : '—'}</td>
-                    <td class="text-center">${host.high > 0 ? html`<span class="badge bg-warning text-white">${host.high}</span>` : '—'}</td>
-                    <td class="text-center">${host.other > 0 ? html`<span class="badge bg-secondary text-white">${host.other}</span>` : '—'}</td>
-                </tr>
-                ${expanded ? html`
-                    <tr>
-                        <td colspan="5" class="bg-light p-0">
-                            <div class="p-3">
-                                <table class="table table-sm mb-0">
-                                    <thead><tr>
-                                        <th>KB</th><th>Product</th><th>Severity</th>
-                                        <th class="text-end">CVSS</th><th class="text-center">Exploited</th>
-                                        <th class="text-end">Age (d)</th><th>CVEs</th><th>Advisory</th>
-                                    </tr></thead>
-                                    <tbody>
-                                        ${(host.missingPatches || []).map(p => html`
-                                            <tr key=${p.kb + '|' + p.productId}>
-                                                <td><code>${p.kb}</code></td>
-                                                <td>
-                                                    <div>${p.productName || p.productId}</div>
-                                                    <div class="text-muted small">${p.msrcSeverity || ''}</div>
-                                                </td>
-                                                <td>${this.severityBadge(p.severity)}</td>
-                                                <td class="text-end">${p.maxCvss != null ? p.maxCvss.toFixed(1) : '—'}</td>
-                                                <td class="text-center">${p.isExploited
-                                                    ? html`<span class="badge bg-danger text-white">Yes</span>`
-                                                    : html`<span class="text-muted">No</span>`}</td>
-                                                <td class="text-end">${p.daysSinceRelease ?? 0}</td>
-                                                <td>
-                                                    ${(p.cves || []).slice(0, 3).map(c => html`
-                                                        <a href="#!/cves/${c}" class="badge bg-blue-lt text-blue me-1">${c}</a>
-                                                    `)}
-                                                    ${(p.cves || []).length > 3 ? html`<span class="text-muted small">+${p.cves.length - 3}</span>` : null}
-                                                </td>
-                                                <td>${p.advisoryUrl
-                                                    ? html`<a href=${p.advisoryUrl} target="_blank" rel="noopener"><i class="ti ti-external-link"></i></a>`
-                                                    : '—'}</td>
-                                            </tr>
-                                        `)}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </td>
-                    </tr>
-                ` : null}
-            </>
-        `;
+        // Return an array of rows instead of a JSX fragment shorthand: htm does
+        // not parse `<>...</>` (it tries to createElement('') and crashes Preact).
+        const mainRow = html`
+            <tr key=${'h-' + host.deviceId} class="cursor-pointer" onClick=${() => this.toggleDevice(host.deviceId)}>
+                <td>
+                    <i class="ti ${expanded ? 'ti-chevron-down' : 'ti-chevron-right'} me-2 text-muted"></i>
+                    <strong>${host.deviceName}</strong>
+                    <div class="text-muted small">${host.deviceId}</div>
+                </td>
+                <td class="text-center">${total}</td>
+                <td class="text-center">${host.critical > 0 ? html`<span class="badge bg-danger text-white">${host.critical}</span>` : '—'}</td>
+                <td class="text-center">${host.high > 0 ? html`<span class="badge bg-warning text-white">${host.high}</span>` : '—'}</td>
+                <td class="text-center">${host.other > 0 ? html`<span class="badge bg-secondary text-white">${host.other}</span>` : '—'}</td>
+            </tr>`;
+        if (!expanded) return mainRow;
+        const detailRow = html`
+            <tr key=${'d-' + host.deviceId}>
+                <td colspan="5" class="bg-light p-0">
+                    <div class="p-3">
+                        <table class="table table-sm mb-0">
+                            <thead><tr>
+                                <th>KB</th><th>Product</th><th>Severity</th>
+                                <th class="text-end">CVSS</th><th class="text-center">Exploited</th>
+                                <th class="text-end">Age (d)</th><th>CVEs</th><th>Advisory</th>
+                            </tr></thead>
+                            <tbody>
+                                ${(host.missingPatches || []).map(p => html`
+                                    <tr key=${p.kb + '|' + p.productId}>
+                                        <td><code>${p.kb}</code></td>
+                                        <td>
+                                            <div>${p.productName || p.productId}</div>
+                                            <div class="text-muted small">${p.msrcSeverity || ''}</div>
+                                        </td>
+                                        <td>${this.severityBadge(p.severity)}</td>
+                                        <td class="text-end">${p.maxCvss != null ? p.maxCvss.toFixed(1) : '—'}</td>
+                                        <td class="text-center">${p.isExploited
+                                            ? html`<span class="badge bg-danger text-white">Yes</span>`
+                                            : html`<span class="text-muted">No</span>`}</td>
+                                        <td class="text-end">${p.daysSinceRelease ?? 0}</td>
+                                        <td>
+                                            ${(p.cves || []).slice(0, 3).map(c => html`
+                                                <a href="#!/cves/${c}" class="badge bg-blue-lt text-blue me-1">${c}</a>
+                                            `)}
+                                            ${(p.cves || []).length > 3 ? html`<span class="text-muted small">+${p.cves.length - 3}</span>` : null}
+                                        </td>
+                                        <td>${p.advisoryUrl
+                                            ? html`<a href=${p.advisoryUrl} target="_blank" rel="noopener"><i class="ti ti-external-link"></i></a>`
+                                            : '—'}</td>
+                                    </tr>
+                                `)}
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>`;
+        return [mainRow, detailRow];
     }
 
     render() {
