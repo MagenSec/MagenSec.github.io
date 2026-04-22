@@ -52,6 +52,21 @@ export function formatScore(score) {
     return typeof score === 'number' ? score.toFixed(1) : String(score);
 }
 
+/**
+ * Reverse-derive a severity label from a CVSS base score using the standard CVSS v3.x bands.
+ * Used when MSRC has CVSS but the org-scoped detail call has no severity (OS-level CVE, etc.).
+ */
+export function severityFromCvss(score) {
+    if (score === null || score === undefined || score === '') return 'Unknown';
+    const n = Number(score);
+    if (!Number.isFinite(n)) return 'Unknown';
+    if (n >= 9.0) return 'Critical';
+    if (n >= 7.0) return 'High';
+    if (n >= 4.0) return 'Medium';
+    if (n > 0) return 'Low';
+    return 'Unknown';
+}
+
 export function buildInventoryFilter(app) {
     const parts = [];
     if (app?.appName) parts.push(`app:${app.appName}`);
@@ -80,10 +95,18 @@ export async function loadCveDetailsData(orgId, cveId) {
         throw new Error('Organization or CVE identifier is missing');
     }
 
-    const [detailResp, nvdData, devicesResp] = await Promise.all([
+    // Four parallel calls:
+    //   1. Org-scoped CVE detail (apps + devices) — the historical 'application vuln' path
+    //   2. NVD cache lookup (CVSS/description/refs)
+    //   3. Devices list (for ID → name resolution)
+    //   4. MSRC enrichment (Microsoft-side context: title, impact types, fix matrix). This
+    //      lights up the modal for KB-MISSING / OS-level vulnerabilities that the application
+    //      scan path can't see.
+    const [detailResp, nvdData, devicesResp, msrcResp] = await Promise.all([
         api.get(`/api/v1/orgs/${orgId}/cve/${encodeURIComponent(cveId)}`).catch(() => null),
         nvdCveCache.get(cveId).catch(() => null),
-        api.getDevices(orgId).catch(() => ({ success: false, data: [] }))
+        api.getDevices(orgId).catch(() => ({ success: false, data: [] })),
+        api.getMsrcCveDetail?.(orgId, cveId).catch(() => null) ?? Promise.resolve(null)
     ]);
 
     let cveInfo = detailResp?.success && detailResp?.data ? detailResp.data : null;
@@ -93,6 +116,23 @@ export async function loadCveDetailsData(orgId, cveId) {
         if (fallbackResp.success && fallbackResp.data?.cves?.length > 0) {
             cveInfo = fallbackResp.data.cves[0];
         }
+    }
+
+    // MSRC fallback — if the org-scoped detail call returned nothing (typical for
+    // OS-level CVEs that never matched an installed application), we still want to
+    // open the modal as long as MSRC has SOMETHING to say about this CVE id.
+    const msrc = msrcResp?.success ? msrcResp.data : null;
+    if (!cveInfo && msrc?.found) {
+        cveInfo = {
+            cveId,
+            severity: severityFromCvss(msrc.maxCvss),
+            cvssScore: msrc.maxCvss,
+            description: msrc.title || '',
+            isKev: msrc.isExploited,
+            affectedApplications: [],
+            affectedDevices: [],
+            references: [{ source: 'MSRC', url: msrc.msrcUrl }]
+        };
     }
 
     if (!cveInfo) {
@@ -159,7 +199,8 @@ export async function loadCveDetailsData(orgId, cveId) {
         },
         remediationGuidance: cveInfo.remediationGuidance || '',
         references: mergedReferences,
-        patches: cveInfo.patches || []
+        patches: cveInfo.patches || [],
+        msrc: msrc && msrc.found ? msrc : null
     };
 }
 
@@ -271,6 +312,103 @@ export function CveDetailsContent({
                 <h5>Description</h5>
                 <p class="text-muted mb-0">${cveData.description || 'No description available'}</p>
             </div></div>
+
+            ${cveData.msrc ? html`
+                <div class="card mb-3 cve-msrc-card">
+                    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+                        <h3 class="card-title mb-0">
+                            <i class="ti ti-shield-lock me-1"></i>
+                            Microsoft Security Response Center
+                        </h3>
+                        ${cveData.msrc.isExploited ? html`
+                            <span class="badge bg-danger text-white">
+                                <i class="ti ti-flame me-1"></i>Exploited in the wild
+                            </span>
+                        ` : ''}
+                        <a href=${cveData.msrc.msrcUrl}
+                           target="_blank" rel="noopener"
+                           class="btn btn-sm btn-outline-primary ms-auto">
+                            <i class="ti ti-external-link me-1"></i>Open MSRC update guide
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        ${cveData.msrc.title ? html`
+                            <div class="mb-3">
+                                <div class="text-muted small text-uppercase fw-semibold mb-1">Vulnerability</div>
+                                <div class="fw-bold">${cveData.msrc.title}</div>
+                            </div>
+                        ` : ''}
+
+                        <div class="row row-cards mb-3">
+                            ${cveData.msrc.maxCvss ? html`
+                                <div class="col-sm-4">
+                                    <div class="text-muted small text-uppercase fw-semibold mb-1">CVSS</div>
+                                    <div class="fw-bold">${formatScore(cveData.msrc.maxCvss)}</div>
+                                    ${cveData.msrc.cvssVector ? html`<code class="small text-muted">${cveData.msrc.cvssVector}</code>` : ''}
+                                </div>
+                            ` : ''}
+                            ${cveData.msrc.impactTypes?.length ? html`
+                                <div class="col-sm-4">
+                                    <div class="text-muted small text-uppercase fw-semibold mb-1">Impact</div>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        ${cveData.msrc.impactTypes.map(impact => html`
+                                            <span class="badge bg-secondary-lt text-secondary">${impact}</span>
+                                        `)}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            <div class="col-sm-4">
+                                <div class="text-muted small text-uppercase fw-semibold mb-1">Affected products</div>
+                                <div class="fw-bold">${cveData.msrc.productCount ?? cveData.msrc.affected?.length ?? 0}</div>
+                                <div class="small text-muted">${cveData.msrc.affected?.length ?? 0} fix${(cveData.msrc.affected?.length ?? 0) === 1 ? '' : 'es'} available</div>
+                            </div>
+                        </div>
+
+                        ${(cveData.msrc.affected?.length || 0) > 0 ? html`
+                            <div class="table-responsive">
+                                <table class="table table-sm table-vcenter cve-msrc-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Product</th>
+                                            <th>Severity</th>
+                                            <th>KB</th>
+                                            <th>Fixed build</th>
+                                            <th>Released</th>
+                                            <th class="text-end">Links</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${cveData.msrc.affected.map(row => html`
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-medium">${row.productName || row.productId}</div>
+                                                    ${row.productId && row.productId !== row.productName ? html`<div class="small text-muted">${row.productId}</div>` : ''}
+                                                </td>
+                                                <td><span class="badge ${getSeverityBadgeClass(row.severity)}">${row.severity || 'Unknown'}</span></td>
+                                                <td><code>KB${String(row.kb || '').replace(/^kb/i, '')}</code></td>
+                                                <td>${row.fixedBuild || '—'}</td>
+                                                <td>${row.releaseDate ? formatFriendlyDate(row.releaseDate) : (row.monthId || '—')}</td>
+                                                <td class="text-end">
+                                                    ${row.advisoryUrl ? html`
+                                                        <a href=${row.advisoryUrl} target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary me-1" title="Microsoft Update Catalog">
+                                                            <i class="ti ti-package"></i>
+                                                        </a>
+                                                    ` : ''}
+                                                    ${row.catalogUrl && row.catalogUrl !== row.advisoryUrl ? html`
+                                                        <a href=${row.catalogUrl} target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Search the Update Catalog for this KB">
+                                                            <i class="ti ti-search"></i>
+                                                        </a>
+                                                    ` : ''}
+                                                </td>
+                                            </tr>
+                                        `)}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : html`<div class="text-muted small">MSRC has no fix matrix recorded for this CVE.</div>`}
+                    </div>
+                </div>
+            ` : ''}
 
             <div class="row row-cards">
                 <div class="col-md-6"><div class="card"><div class="card-body"><span class="text-muted">Published</span><div class="fw-bold">${formatFriendlyDate(cveData.published)}</div></div></div></div>

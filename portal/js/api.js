@@ -565,6 +565,15 @@ export class ApiClient {
     }
 
     /**
+     * MSRC enrichment for a single CVE — the same call the CveDetailsModal uses to
+     * decorate Microsoft-reported vulnerabilities with vendor context (title, impact,
+     * CVSS vector, exploit status, fix matrix). Pure index lookup, no live MSRC call.
+     */
+    async getMsrcCveDetail(orgId, cveId, options = {}) {
+        return this.get(`/api/v1/orgs/${orgId}/patch-posture/cve/${encodeURIComponent(cveId)}`, null, options);
+    }
+
+    /**
      * Downloads the Opened/Resolved/Stayed diff as CSV. Mirrors exportPatchPostureCsv
      * but hits /diff?format=csv so the file matches the unified table the user is looking at.
      */
