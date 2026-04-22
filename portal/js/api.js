@@ -1188,6 +1188,35 @@ export class ApiClient {
         return this.post(`/api/v1/orgs/${orgId}/reports/send`, { reportType, recipient, customEmail });
     }
 
+    /**
+     * Download the daily or weekly brief as a server-rendered PDF (QuestPDF). Triggers a real
+     * file download in the browser. Bearer-authenticated, so popup blockers and OAuth deep-link
+     * issues that affected the prior browser-print flow no longer apply.
+     */
+    async downloadBriefPdf(orgId, reportType = 'daily') {
+        const type = (reportType || 'daily').toLowerCase() === 'weekly' ? 'weekly' : 'daily';
+        const token = auth.getToken() || '';
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/reports/${type}/pdf`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            let msg = `PDF download failed (${res.status})`;
+            try { const body = await res.json(); if (body?.message) msg = body.message; } catch { /* noop */ }
+            throw new Error(msg);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+        const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `magensec-${type}-brief-${orgId}-${stamp}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
+
     // === TEST SEEDING ===
     async seedTestData(data) {
         return this.post('/api/v1/test/seed', data);

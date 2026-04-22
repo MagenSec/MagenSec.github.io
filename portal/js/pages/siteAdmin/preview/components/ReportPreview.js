@@ -31,40 +31,19 @@ class ReportPreviewPage extends Component {
         // Subscribe to org changes
         this.orgUnsubscribe = window.orgContext.onChange(() => this.loadReportData(true));
 
-        // Honor ?type=weekly|daily and ?print=1 URL params (used by email "Download as PDF" CTA)
+        // Honor ?type=weekly|daily URL param so deep links from notifications open the right
+        // tab. The ?print=1 / auto-print flow was removed in favour of an explicit
+        // "Download PDF" button (server-rendered QuestPDF), because the browser print path
+        // hit popup-blocker / OAuth-deep-link issues that confused customers.
         try {
             const params = new URLSearchParams((window.location.hash.split('?')[1]) || window.location.search.replace(/^\?/, ''));
             const t = params.get('type');
             if (t === 'weekly' || t === 'daily') {
                 this.setState({ reportType: t });
             }
-            this._autoPrint = params.get('print') === '1';
         } catch (_) { /* noop */ }
 
-        this.loadReportData(true).then(() => {
-            if (this._autoPrint) {
-                // Auto-print path (email CTA landed here with ?print=1). We can't use the
-                // popup window approach here because there is no fresh user gesture after
-                // the OAuth round-trip, so popup blockers will silently drop window.open.
-                // Calling print() directly on the iframe contentWindow does NOT need a
-                // popup and produces the same pixel-perfect output.
-                setTimeout(() => this.handleAutoPrint(), 1200);
-            }
-        });
-    }
-
-    handleAutoPrint = () => {
-        try {
-            const iframe = document.querySelector('.email-preview-iframe');
-            if (iframe && iframe.contentWindow) {
-                iframe.contentWindow.focus();
-                iframe.contentWindow.print();
-                return;
-            }
-        } catch (_) { /* fall through */ }
-        // Fallback: try the popup approach. May be blocked, but at least the user can
-        // click the visible 'Download PDF' button as a manual escape hatch.
-        this.handlePrintPdf();
+        this.loadReportData(true);
     }
 
     componentWillUnmount() {
@@ -131,29 +110,23 @@ class ReportPreviewPage extends Component {
     }
 
     /**
-     * Open the iframe contents in a new window and trigger the browser print dialog so the
-     * customer can save a pixel-perfect PDF of the report. We use window.open + document.write
-     * (rather than iframe.contentWindow.print()) because Gmail-style emails are constrained to
-     * narrow widths and the print dialog needs the document to own the page so margins behave.
+     * Download the report as a server-rendered PDF (QuestPDF). This is a real file download,
+     * not a print-dialog hack — the API returns a proper PDF blob with the correct
+     * Content-Disposition so the browser saves it directly.
      */
-    handlePrintPdf = () => {
-        const { rendered, reportType } = this.state;
-        const content = rendered && rendered[reportType];
-        if (!content) return;
-
-        const win = window.open('', '_blank');
-        if (!win) {
-            alert('Please allow popups to download the PDF.');
-            return;
+    handleDownloadPdf = async () => {
+        const { reportType } = this.state;
+        const currentOrg = window.orgContext.getCurrentOrg();
+        if (!currentOrg) return;
+        this.setState({ downloadingPdf: true, error: null });
+        try {
+            await window.api.downloadBriefPdf(currentOrg.orgId, reportType);
+        } catch (err) {
+            console.error('PDF download failed:', err);
+            this.setState({ error: err.message || 'Failed to download PDF' });
+        } finally {
+            this.setState({ downloadingPdf: false });
         }
-        win.document.open();
-        win.document.write(content);
-        win.document.close();
-        win.focus();
-        // Wait for resources, then invoke print
-        setTimeout(() => {
-            try { win.print(); } catch (_) { /* noop */ }
-        }, 500);
     }
 
     handleSendEmail = async (recipient = 'owner', customEmail = '') => {
@@ -352,11 +325,11 @@ class ReportPreviewPage extends Component {
                     </button>
                     <button
                         className="btn btn-outline"
-                        onClick=${this.handlePrintPdf}
-                        disabled=${!snapshot}
-                        title="Open the report in a new window and trigger the browser print dialog (Save as PDF)"
+                        onClick=${this.handleDownloadPdf}
+                        disabled=${!snapshot || this.state.downloadingPdf}
+                        title="Download a server-rendered PDF of this report"
                     >
-                        \u2B07\uFE0F Download PDF
+                        ${this.state.downloadingPdf ? 'Generating PDF\u2026' : '\u2B07\uFE0F Download PDF'}
                     </button>
                     ${emailSent && html`<span className="success-message">${emailMessage || '\u2713 Sent successfully'}</span>`}
                 </div>
