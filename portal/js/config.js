@@ -112,18 +112,18 @@ export const config = {
     // Client installers - Update these when new versions are released
     INSTALLERS: {
         X64: {
-            VERSION: '26.42.28369',
+            VERSION: '26.42.28991',
             FILE_SIZE_MB: 65.7,
-            DOWNLOAD_URL: 'https://github.com/MagenSec/MagenSec.github.io/releases/download/v26.42.28369/MagenSecBundle-26.42.28369-x64.exe',
+            DOWNLOAD_URL: 'https://github.com/MagenSec/MagenSec.github.io/releases/download/v26.42.28991/MagenSecBundle-26.42.28991-x64.exe',
             DISPLAY_NAME: 'MagenSec Bundle (x64)',
             DESCRIPTION: 'Complete installer package for 64-bit Windows systems (Engine + Hub)',
             ARCHITECTURE: 'x64',
             WARNING: 'Files are not digitally signed yet and may be flagged by Windows SmartScreen. Click "More info" then "Run anyway" to proceed with installation.'
         },
         ARM64: {
-            VERSION: '26.42.28369',
+            VERSION: '26.42.28991',
             FILE_SIZE_MB: 65.7,
-            DOWNLOAD_URL: 'https://github.com/MagenSec/MagenSec.github.io/releases/download/v26.42.28369/MagenSecBundle-26.42.28369-arm64.exe',
+            DOWNLOAD_URL: 'https://github.com/MagenSec/MagenSec.github.io/releases/download/v26.42.28991/MagenSecBundle-26.42.28991-arm64.exe',
             DISPLAY_NAME: 'MagenSec Bundle (ARM64)',
             DESCRIPTION: 'Complete installer package for ARM64 Windows systems (Engine + Hub)',
             ARCHITECTURE: 'ARM64',
@@ -131,7 +131,7 @@ export const config = {
         },
         // Legacy reference for version comparison
         ENGINE: {
-            VERSION: '26.42.28369'
+            VERSION: '26.42.28991'
         }
     }
 };
