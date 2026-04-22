@@ -43,10 +43,28 @@ class ReportPreviewPage extends Component {
 
         this.loadReportData(true).then(() => {
             if (this._autoPrint) {
-                // Wait one paint cycle for iframe to populate
-                setTimeout(() => this.handlePrintPdf(), 800);
+                // Auto-print path (email CTA landed here with ?print=1). We can't use the
+                // popup window approach here because there is no fresh user gesture after
+                // the OAuth round-trip, so popup blockers will silently drop window.open.
+                // Calling print() directly on the iframe contentWindow does NOT need a
+                // popup and produces the same pixel-perfect output.
+                setTimeout(() => this.handleAutoPrint(), 1200);
             }
         });
+    }
+
+    handleAutoPrint = () => {
+        try {
+            const iframe = document.querySelector('.email-preview-iframe');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                return;
+            }
+        } catch (_) { /* fall through */ }
+        // Fallback: try the popup approach. May be blocked, but at least the user can
+        // click the visible 'Download PDF' button as a manual escape hatch.
+        this.handlePrintPdf();
     }
 
     componentWillUnmount() {

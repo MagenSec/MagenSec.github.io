@@ -4170,6 +4170,45 @@ body.org-switcher-open .security-officer-top-note {
     background: rgba(255, 255, 255, 0.03);
 }
 
+/* Patch Posture — collapsible card sections */
+.pp-collapse-header {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease;
+}
+.pp-collapse-header:hover {
+    background: var(--tblr-bg-surface-secondary, rgba(0, 0, 0, 0.025));
+}
+[data-bs-theme="dark"] .pp-collapse-header:hover {
+    background: rgba(255, 255, 255, 0.025);
+}
+.pp-collapse-trigger {
+    cursor: pointer;
+    flex: 1 1 auto;
+}
+.pp-collapse-trigger:focus,
+.pp-collapse-header:focus { outline: 2px solid var(--tblr-primary, #0054a6); outline-offset: -2px; }
+.pp-collapse-chevron {
+    transition: transform 0.2s ease;
+    color: var(--tblr-secondary, #6b7280);
+    font-size: 1rem;
+    vertical-align: middle;
+}
+.pp-collapse-body {
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+    max-height: 4000px;
+    opacity: 1;
+}
+.pp-collapse-body--hidden {
+    max-height: 0 !important;
+    opacity: 0;
+    pointer-events: none;
+}
+.pp-host-actions { white-space: nowrap; }
+
 
 /* CVE modal: MSRC enrichment card (Microsoft-side context) */
 .cve-msrc-card .card-header { background: rgba(13, 110, 253, 0.05); }

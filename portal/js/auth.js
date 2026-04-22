@@ -74,7 +74,17 @@ export class Auth {
         sessionStorage.setItem('oauth_code_verifier', codeVerifier);
         sessionStorage.setItem('oauth_state', this.generateState());
         sessionStorage.setItem('oauth_redirect_uri', redirectUri);
-        
+
+        // Preserve the deep-link the user was trying to reach (e.g., from an email
+        // CTA like '#!/reports/preview?type=weekly&print=1') so we can restore it
+        // after the OAuth round-trip strips the hash.
+        try {
+            const currentHash = window.location.hash || '';
+            if (currentHash && currentHash.startsWith('#!') && !currentHash.startsWith('#!/login')) {
+                sessionStorage.setItem('post_login_redirect', currentHash);
+            }
+        } catch (_) { /* noop */ }
+
         console.log('[Auth] Starting OAuth with redirect:', redirectUri);
         
         // Build OAuth URL

@@ -651,10 +651,22 @@ async function init() {
 
             maybeShowMissingPhoneToast(1200);
 
-            // Use hash navigation instead of full page redirect
-            window.location.hash = hasOrgsAfterOAuth
-                ? (isPersonalOrg ? '#!/security' : '#!/dashboard')
-                : '#!/getting-started';
+            // Restore the pre-login deep link if one was captured (e.g., user followed
+            // an email CTA like '#!/reports/preview?type=weekly&print=1'). Otherwise
+            // fall back to the role-appropriate home route.
+            let postLoginRedirect = null;
+            try {
+                postLoginRedirect = sessionStorage.getItem('post_login_redirect');
+                if (postLoginRedirect) sessionStorage.removeItem('post_login_redirect');
+            } catch (_) { /* noop */ }
+
+            if (postLoginRedirect && postLoginRedirect.startsWith('#!')) {
+                window.location.hash = postLoginRedirect;
+            } else {
+                window.location.hash = hasOrgsAfterOAuth
+                    ? (isPersonalOrg ? '#!/security' : '#!/dashboard')
+                    : '#!/getting-started';
+            }
             // Clear query params
             window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             // Initialize router after callback

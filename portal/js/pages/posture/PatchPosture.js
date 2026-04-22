@@ -59,6 +59,7 @@ export class PatchPosturePage extends Component {
             diffFilters: { opened: true, resolved: true, stayed: true },
             emailState: 'idle',     // idle | sending | sent | failed
             emailDiffState: 'idle', // idle | sending | sent | failed
+            sectionsCollapsed: { whatChanged: false, hosts: false },
         };
         this._orgUnsub = null;
     }
@@ -444,6 +445,11 @@ export class PatchPosturePage extends Component {
         this.setState({ diffFilters: next });
     }
 
+    toggleSection(key) {
+        const next = { ...this.state.sectionsCollapsed, [key]: !this.state.sectionsCollapsed[key] };
+        this.setState({ sectionsCollapsed: next });
+    }
+
     renderDiffRows() {
         const d = this.state.diff;
         if (!d) return null;
@@ -672,31 +678,6 @@ export class PatchPosturePage extends Component {
                         <div class="text-muted">Missing Microsoft security updates across your fleet, refreshed daily.</div>
                     </div>
                     <div class="ms-auto">
-                        <div class="btn-group me-2">
-                            <button class="btn btn-primary ${this.state.emailState === 'sending' ? 'disabled' : ''}"
-                                    onClick=${() => { if (this.state.emailState !== 'sending') this.emailReport(); }}
-                                    disabled=${!summary?.openAlerts || this.state.emailState === 'sending'}
-                                    title="Email a branded PDF of the full report">
-                                ${this.state.emailState === 'sending'
-                                    ? html`<span class="spinner-border spinner-border-sm me-1" role="status"></span>Sending…`
-                                    : this.state.emailState === 'sent'
-                                        ? html`<i class="ti ti-circle-check me-1"></i>Report sent`
-                                        : this.state.emailState === 'failed'
-                                            ? html`<i class="ti ti-alert-circle me-1"></i>Retry email`
-                                            : html`<i class="ti ti-mail me-1"></i>Email PDF report`}
-                            </button>
-                            <button class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" disabled=${!summary?.openAlerts}>
-                                <span class="visually-hidden">Toggle dropdown</span>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.openPrintReport(); }}>
-                                    <i class="ti ti-file-type-pdf me-2"></i>Open PDF report
-                                </a></li>
-                                <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.exportCsv(); }}>
-                                    <i class="ti ti-file-spreadsheet me-2"></i>Download CSV (Excel / SIEM)
-                                </a></li>
-                            </ul>
-                        </div>
                         <button class="btn btn-outline-primary" onClick=${() => this.load()} disabled=${refreshing}>
                             <i class="ti ti-refresh me-1"></i>${refreshing ? 'Refreshing…' : 'Refresh'}
                         </button>
@@ -708,10 +689,17 @@ export class PatchPosturePage extends Component {
                 ${this.renderKpis(summary, intel)}
 
                 <div class="card mb-3">
-                    <div class="card-header">
-                        <h3 class="card-title">What changed</h3>
-                        <div class="card-subtitle text-muted">Newly discovered vs newly resolved missing-patch findings in the selected window.</div>
+                    <div class="card-header pp-collapse-header" role="button" tabindex="0"
+                        onClick=${() => this.toggleSection('whatChanged')}
+                        onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.toggleSection('whatChanged'); } }}>
+                        <div>
+                            <h3 class="card-title mb-0">
+                                <i class="ti ti-chevron-${this.state.sectionsCollapsed.whatChanged ? 'right' : 'down'} me-2 pp-collapse-chevron"></i>What changed
+                            </h3>
+                            <div class="card-subtitle text-muted">Newly discovered vs newly resolved missing-patch findings in the selected window.</div>
+                        </div>
                     </div>
+                    <div class="pp-collapse-body ${this.state.sectionsCollapsed.whatChanged ? 'pp-collapse-body--hidden' : ''}">
                     <div class="card-body">
                         <div class="row g-2 align-items-end">
                             <div class="col-auto">
@@ -792,12 +780,46 @@ export class PatchPosturePage extends Component {
                             </div>
                         ` : (this.state.diff ? html`<div class="text-muted small mt-3">No changes in this window. Pick a different range above.</div>` : null)}
                     </div>
+                    </div>
                 </div>
 
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Hosts with missing patches</h3>
+                    <div class="card-header pp-collapse-header">
+                        <div role="button" tabindex="0" class="pp-collapse-trigger"
+                            onClick=${() => this.toggleSection('hosts')}
+                            onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.toggleSection('hosts'); } }}>
+                            <h3 class="card-title mb-0">
+                                <i class="ti ti-chevron-${this.state.sectionsCollapsed.hosts ? 'right' : 'down'} me-2 pp-collapse-chevron"></i>Hosts with missing patches
+                            </h3>
+                        </div>
+                        <div class="ms-auto pp-host-actions" onClick=${(e) => e.stopPropagation()}>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Full report actions">
+                                <button class="btn btn-outline-secondary" onClick=${() => this.openPrintReport()}
+                                    disabled=${!summary?.openAlerts}
+                                    title="Open the full Patch Status PDF report in a new tab">
+                                    <i class="ti ti-file-type-pdf me-1"></i>PDF
+                                </button>
+                                <button class="btn btn-outline-secondary" onClick=${() => this.exportCsv()}
+                                    disabled=${!summary?.openAlerts}
+                                    title="Download the full Patch Status data as CSV">
+                                    <i class="ti ti-download me-1"></i>CSV
+                                </button>
+                                <button class="btn ${this.state.emailState === 'sent' ? 'btn-success' : this.state.emailState === 'failed' ? 'btn-danger' : 'btn-outline-secondary'}"
+                                    onClick=${() => { if (this.state.emailState !== 'sending') this.emailReport(); }}
+                                    disabled=${!summary?.openAlerts || this.state.emailState === 'sending'}
+                                    title="Email a branded PDF of the full report">
+                                    ${this.state.emailState === 'sending'
+                                        ? html`<span class="spinner-border spinner-border-sm me-1" role="status"></span>Sending…`
+                                        : this.state.emailState === 'sent'
+                                            ? html`<i class="ti ti-circle-check me-1"></i>Sent`
+                                            : this.state.emailState === 'failed'
+                                                ? html`<i class="ti ti-alert-circle me-1"></i>Retry`
+                                                : html`<i class="ti ti-mail me-1"></i>Email`}
+                                </button>
+                            </div>
+                        </div>
                     </div>
+                    <div class="pp-collapse-body ${this.state.sectionsCollapsed.hosts ? 'pp-collapse-body--hidden' : ''}">
                     ${hosts.length === 0 ? html`
                         <div class="empty">
                             <div class="empty-icon"><i class="ti ti-shield-check" style="font-size: 48px; color: #2fb344;"></i></div>
@@ -823,6 +845,7 @@ export class PatchPosturePage extends Component {
                             </table>
                         </div>
                     `}
+                    </div>
                 </div>
             </div></div>
             <${CveDetailsModal}
