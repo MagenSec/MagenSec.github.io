@@ -1,5 +1,6 @@
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { CveDetailsModal } from '@components/CveDetailsModal.js';
 
 const { html, Component } = window;
 
@@ -48,6 +49,7 @@ export class PatchPosturePage extends Component {
             error: null,
             data: null,
             expanded: new Set(),
+            selectedCveId: null,
             diffFrom: from.toISOString().substring(0, 10),
             diffTo: to.toISOString().substring(0, 10),
             diffLoading: false,
@@ -128,6 +130,66 @@ export class PatchPosturePage extends Component {
         if (sev >= 2) return html`<span class="badge bg-warning text-white">High</span>`;
         if (sev >= 1) return html`<span class="badge bg-info text-white">Medium</span>`;
         return html`<span class="badge bg-secondary text-white">Low</span>`;
+    }
+
+    /**
+     * Nessus-style severity column — a coloured pill that shows the qualitative
+     * severity AND the CVSS base score in a single glance. Doubles as the row's
+     * visual anchor when scanning a long table.
+     */
+    severityPill(sev, cvss) {
+        const score = (cvss != null) ? cvss.toFixed(1) : '—';
+        const cls = sev >= 3 ? 'pp-sev pp-sev--crit'
+            : sev >= 2 ? 'pp-sev pp-sev--high'
+            : sev >= 1 ? 'pp-sev pp-sev--med'
+            : 'pp-sev pp-sev--low';
+        const label = sev >= 3 ? 'Critical' : sev >= 2 ? 'High' : sev >= 1 ? 'Medium' : 'Low';
+        return html`<span class=${cls}><span class="pp-sev__label">${label}</span><span class="pp-sev__score">${score}</span></span>`;
+    }
+
+    /**
+     * Convert an MSRC CVSS3 vector string (e.g. CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H)
+     * into a compact set of human-readable chips that reproduce the Tenable plugin-detail look.
+     */
+    cvssVectorChips(vector) {
+        if (!vector || typeof vector !== 'string') return null;
+        const map = {
+            'AV:N': { label: 'Network', cls: 'pp-vec--bad' },
+            'AV:A': { label: 'Adjacent', cls: 'pp-vec--warn' },
+            'AV:L': { label: 'Local', cls: 'pp-vec--ok' },
+            'AV:P': { label: 'Physical', cls: 'pp-vec--ok' },
+            'AC:L': { label: 'Low complexity', cls: 'pp-vec--bad' },
+            'AC:H': { label: 'High complexity', cls: 'pp-vec--ok' },
+            'PR:N': { label: 'No privs', cls: 'pp-vec--bad' },
+            'PR:L': { label: 'Low privs', cls: 'pp-vec--warn' },
+            'PR:H': { label: 'High privs', cls: 'pp-vec--ok' },
+            'UI:N': { label: 'No user action', cls: 'pp-vec--bad' },
+            'UI:R': { label: 'User action req.', cls: 'pp-vec--ok' },
+            'C:H':  { label: 'Confidentiality H', cls: 'pp-vec--bad' },
+            'I:H':  { label: 'Integrity H', cls: 'pp-vec--bad' },
+            'A:H':  { label: 'Availability H', cls: 'pp-vec--bad' }
+        };
+        const chips = [];
+        for (const tok of vector.split('/')) {
+            if (map[tok]) chips.push(html`<span class="pp-vec ${map[tok].cls}">${map[tok].label}</span>`);
+        }
+        return chips.length ? html`<div class="pp-vec-row">${chips}</div>` : null;
+    }
+
+    openCve(cveId) {
+        if (!cveId) return;
+        this.setState({ selectedCveId: cveId });
+    }
+
+    /**
+     * Tenable surfaces remediation in two clicks ("Solution" + advisory link).
+     * We give one-click access to BOTH the MSRC advisory and the Microsoft Update
+     * Catalog search for the KB — admins on a maintenance window need to grab the
+     * MSU/CAB and push it without leaving the page.
+     */
+    catalogUrl(kb) {
+        const k = (kb || '').replace(/^kb/i, '');
+        return `https://catalog.update.microsoft.com/v7/site/Search.aspx?q=${encodeURIComponent('KB' + k)}`;
     }
 
     /**
@@ -257,10 +319,17 @@ export class PatchPosturePage extends Component {
     renderHostRow(host) {
         const expanded = this.state.expanded.has(host.deviceId);
         const total = (host.critical || 0) + (host.high || 0) + (host.other || 0);
-        // Return an array of rows instead of a JSX fragment shorthand: htm does
-        // not parse `<>...</>` (it tries to createElement('') and crashes Preact).
+        // Sort missing patches the way Nessus does — critical first, then by
+        // CVSS desc, then by oldest unpatched. This puts the must-fix item at
+        // the top regardless of which product flavour produced the alert.
+        const sortedPatches = [...(host.missingPatches || [])].sort((a, b) => {
+            if ((b.severity || 0) !== (a.severity || 0)) return (b.severity || 0) - (a.severity || 0);
+            if ((b.maxCvss || 0) !== (a.maxCvss || 0)) return (b.maxCvss || 0) - (a.maxCvss || 0);
+            return (b.daysSinceRelease || 0) - (a.daysSinceRelease || 0);
+        });
+
         const mainRow = html`
-            <tr key=${'h-' + host.deviceId} class="cursor-pointer" onClick=${() => this.toggleDevice(host.deviceId)}>
+            <tr key=${'h-' + host.deviceId} class="pp-host-row" onClick=${() => this.toggleDevice(host.deviceId)}>
                 <td>
                     <i class="ti ${expanded ? 'ti-chevron-down' : 'ti-chevron-right'} me-2 text-muted"></i>
                     <strong>${host.deviceName}</strong>
@@ -272,47 +341,88 @@ export class PatchPosturePage extends Component {
                 <td class="text-center">${host.other > 0 ? html`<span class="badge bg-secondary text-white">${host.other}</span>` : '—'}</td>
             </tr>`;
         if (!expanded) return mainRow;
+
         const detailRow = html`
             <tr key=${'d-' + host.deviceId}>
-                <td colspan="5" class="bg-light p-0">
-                    <div class="p-3">
-                        <table class="table table-sm mb-0">
+                <td colspan="5" class="pp-detail-cell p-0">
+                    <div class="pp-detail-wrap">
+                        <div class="pp-detail-header">
+                            <div class="pp-detail-title">
+                                <i class="ti ti-bug me-2"></i>
+                                ${sortedPatches.length} missing security update${sortedPatches.length === 1 ? '' : 's'}
+                            </div>
+                            <div class="pp-detail-sub text-muted small">
+                                Findings sourced from MSRC CVRF, ranked by severity then CVSS.
+                            </div>
+                        </div>
+                        <table class="table table-sm pp-detail-table mb-0">
                             <thead><tr>
-                                <th>KB</th><th>Product</th><th>Severity</th>
-                                <th class="text-end">CVSS</th><th class="text-center">Exploited</th>
-                                <th class="text-end">Age (d)</th><th>CVEs</th><th>Advisory</th>
+                                <th style="width:104px">Severity</th>
+                                <th style="width:128px">KB</th>
+                                <th>Vulnerability</th>
+                                <th class="text-center" style="width:72px">Age</th>
+                                <th>CVEs</th>
+                                <th class="text-end" style="width:170px">Remediation</th>
                             </tr></thead>
                             <tbody>
-                                ${(host.missingPatches || []).map(p => html`
-                                    <tr key=${p.kb + '|' + p.productId}>
-                                        <td><code>${p.kb}</code></td>
-                                        <td>
-                                            <div>${p.productName || p.productId}</div>
-                                            <div class="text-muted small">${p.msrcSeverity || ''}</div>
-                                        </td>
-                                        <td>${this.severityBadge(p.severity)}</td>
-                                        <td class="text-end">${p.maxCvss != null ? p.maxCvss.toFixed(1) : '—'}</td>
-                                        <td class="text-center">${p.isExploited
-                                            ? html`<span class="badge bg-danger text-white">Yes</span>`
-                                            : html`<span class="text-muted">No</span>`}</td>
-                                        <td class="text-end">${p.daysSinceRelease ?? 0}</td>
-                                        <td>
-                                            ${(p.cves || []).slice(0, 3).map(c => html`
-                                                <a href="#!/cves/${c}" class="badge bg-blue-lt text-blue me-1">${c}</a>
-                                            `)}
-                                            ${(p.cves || []).length > 3 ? html`<span class="text-muted small">+${p.cves.length - 3}</span>` : null}
-                                        </td>
-                                        <td>${p.advisoryUrl
-                                            ? html`<a href=${p.advisoryUrl} target="_blank" rel="noopener"><i class="ti ti-external-link"></i></a>`
-                                            : '—'}</td>
-                                    </tr>
-                                `)}
+                                ${sortedPatches.map(p => this.renderPatchDetailRow(p))}
                             </tbody>
                         </table>
                     </div>
                 </td>
             </tr>`;
         return [mainRow, detailRow];
+    }
+
+    /**
+     * One row of the Nessus-style finding table. Each row reads top-to-bottom like
+     * a Tenable plugin entry: severity pill (with CVSS score), KB id (with the
+     * MSRC impact-type tag), one-line vulnerability title, CVE chips that open the
+     * shared CveDetailsModal in-place, and a remediation button group that takes
+     * the admin straight to either the MSRC advisory or the Microsoft Update
+     * Catalog search for the KB.
+     */
+    renderPatchDetailRow(p) {
+        const impacts = (p.impactTypes || []).filter(Boolean);
+        const cves = (p.cves || []).filter(Boolean);
+        return html`
+            <tr key=${p.kb + '|' + p.productId} class="pp-finding pp-finding--sev${p.severity || 0}">
+                <td class="pp-finding__sev">${this.severityPill(p.severity, p.maxCvss)}</td>
+                <td class="pp-finding__kb">
+                    <code class="pp-kb">${p.kb}</code>
+                    ${p.isExploited ? html`<span class="pp-flag pp-flag--exploited" title="Microsoft confirms in-the-wild exploitation"><i class="ti ti-bolt me-1"></i>Exploited</span>` : null}
+                </td>
+                <td class="pp-finding__vuln">
+                    ${p.vulnTitle ? html`<div class="pp-vuln-title">${p.vulnTitle}</div>` : null}
+                    <div class="pp-vuln-product text-muted small">${p.productName || p.productId}</div>
+                    ${impacts.length ? html`<div class="pp-impact-row">
+                        ${impacts.map(i => html`<span class="pp-impact">${i}</span>`)}
+                    </div>` : null}
+                    ${this.cvssVectorChips(p.cvssVector)}
+                </td>
+                <td class="text-center pp-finding__age">
+                    <span class="pp-age ${(p.daysSinceRelease || 0) >= 30 ? 'pp-age--old' : ''}">${p.daysSinceRelease ?? 0}d</span>
+                </td>
+                <td class="pp-finding__cves">
+                    ${cves.slice(0, 4).map(c => html`
+                        <button type="button" class="btn btn-sm pp-cve-chip" onClick=${() => this.openCve(c)} title="Open ${c} details">
+                            ${c}
+                        </button>
+                    `)}
+                    ${cves.length > 4 ? html`<span class="text-muted small ms-1">+${cves.length - 4} more</span>` : null}
+                </td>
+                <td class="text-end pp-finding__fix">
+                    <div class="btn-group btn-group-sm" role="group">
+                        ${p.advisoryUrl ? html`
+                            <a class="btn btn-outline-primary" href=${p.advisoryUrl} target="_blank" rel="noopener" title="Microsoft Security Response Center advisory">
+                                <i class="ti ti-shield-lock me-1"></i>MSRC
+                            </a>` : null}
+                        <a class="btn btn-outline-secondary" href=${this.catalogUrl(p.kb)} target="_blank" rel="noopener" title="Download from Microsoft Update Catalog">
+                            <i class="ti ti-download me-1"></i>Catalog
+                        </a>
+                    </div>
+                </td>
+            </tr>`;
     }
 
     render() {
@@ -464,6 +574,12 @@ export class PatchPosturePage extends Component {
                     `}
                 </div>
             </div></div>
+            <${CveDetailsModal}
+                cveId=${this.state.selectedCveId}
+                orgId=${orgContext.getCurrentOrg()?.orgId}
+                isOpen=${!!this.state.selectedCveId}
+                onClose=${() => this.setState({ selectedCveId: null })}
+            />
         `;
     }
 }

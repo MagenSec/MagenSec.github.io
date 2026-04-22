@@ -3969,3 +3969,174 @@ body.org-switcher-open .security-officer-top-note {
     color: var(--tblr-warning, #f59f00);
     font-weight: bold;
 }
+
+/* ============================================================================
+   Patch Posture report (Nessus-style host/finding drilldown)
+   ============================================================================
+   Theme-aware: every color resolves to a Bootstrap CSS variable so the dark
+   mode flip via data-bs-theme=dark on <html> picks the contrasting palette
+   for free. Hard-coded greys are AVOIDED — they're the #1 cause of unreadable
+   chips on the dark theme.
+   ========================================================================= */
+
+.pp-host-row { cursor: pointer; }
+.pp-host-row:hover {
+    background: var(--tblr-bg-surface-secondary, rgba(0, 0, 0, 0.03));
+}
+
+/* Detail container (the drilldown that opens when a host row is clicked) */
+.pp-detail-cell {
+    background: var(--tblr-bg-surface-tertiary, rgba(0, 0, 0, 0.015));
+    border-top: 1px solid var(--tblr-border-color, #e5e7eb);
+}
+[data-bs-theme="dark"] .pp-detail-cell {
+    background: rgba(255, 255, 255, 0.025);
+}
+.pp-detail-wrap { padding: 14px 16px 6px 16px; }
+.pp-detail-header {
+    display: flex; flex-direction: column;
+    margin-bottom: 10px;
+}
+.pp-detail-title {
+    font-weight: 600; font-size: 13px;
+    color: var(--tblr-body-color, #1f2937);
+}
+
+/* The finding table itself */
+.pp-detail-table { background: transparent; }
+.pp-detail-table thead th {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--tblr-secondary, #6b7280);
+    border-color: var(--tblr-border-color, #e5e7eb);
+    background: transparent;
+}
+.pp-detail-table tbody tr {
+    border-color: var(--tblr-border-color, #e5e7eb);
+}
+
+/* Severity stripe on the left edge of each finding row */
+.pp-finding { position: relative; }
+.pp-finding > td:first-child { position: relative; }
+.pp-finding > td:first-child::before {
+    content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
+    width: 3px; border-radius: 2px;
+}
+.pp-finding--sev3 > td:first-child::before { background: var(--tblr-red, #d63939); }
+.pp-finding--sev2 > td:first-child::before { background: var(--tblr-orange, #f76707); }
+.pp-finding--sev1 > td:first-child::before { background: var(--tblr-yellow, #f59f00); }
+.pp-finding--sev0 > td:first-child::before { background: var(--tblr-secondary, #6b7280); }
+
+/* Severity pill — qualitative label + CVSS score in one element. Mirrors the
+   Tenable/Nessus 'Critical (10.0)' pill. */
+.pp-sev {
+    display: inline-flex; align-items: stretch; overflow: hidden;
+    border-radius: 4px; font-size: 11px; font-weight: 700;
+    line-height: 1; min-width: 88px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
+}
+.pp-sev__label { padding: 5px 8px; color: #fff; flex: 1; text-align: center; }
+.pp-sev__score { padding: 5px 7px; background: rgba(0, 0, 0, 0.18); color: #fff; }
+.pp-sev--crit .pp-sev__label { background: var(--tblr-red, #d63939); }
+.pp-sev--high .pp-sev__label { background: var(--tblr-orange, #f76707); }
+.pp-sev--med  .pp-sev__label { background: var(--tblr-yellow, #f59f00); color: #1f2937; }
+.pp-sev--low  .pp-sev__label { background: var(--tblr-secondary, #6b7280); }
+.pp-sev--med .pp-sev__score { background: rgba(0, 0, 0, 0.12); color: #1f2937; }
+
+/* KB code chip */
+.pp-kb {
+    background: var(--tblr-bg-surface, #f3f4f6);
+    border: 1px solid var(--tblr-border-color, #e5e7eb);
+    color: var(--tblr-body-color, #1f2937);
+    padding: 2px 6px; border-radius: 3px;
+    font-size: 12px; font-weight: 600;
+}
+[data-bs-theme="dark"] .pp-kb {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+/* Exploited flag — small, loud, sits next to the KB */
+.pp-flag {
+    display: inline-flex; align-items: center;
+    margin-left: 6px;
+    padding: 2px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.pp-flag--exploited {
+    background: rgba(214, 57, 57, 0.12); color: var(--tblr-red, #d63939);
+    border: 1px solid rgba(214, 57, 57, 0.3);
+}
+
+/* Vulnerability headline (MSRC CVE Title) */
+.pp-vuln-title {
+    font-weight: 600; font-size: 13px;
+    color: var(--tblr-body-color, #1f2937);
+    margin-bottom: 2px; line-height: 1.35;
+}
+.pp-vuln-product { font-size: 12px; line-height: 1.35; }
+
+/* MSRC impact-type tags (Remote Code Execution, EoP, etc.) */
+.pp-impact-row { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.pp-impact {
+    display: inline-block; padding: 2px 7px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(0, 84, 166, 0.10); color: var(--tblr-primary, #0054a6);
+    border: 1px solid rgba(0, 84, 166, 0.18);
+}
+[data-bs-theme="dark"] .pp-impact {
+    background: rgba(120, 175, 255, 0.14); color: #79b8ff;
+    border-color: rgba(120, 175, 255, 0.28);
+}
+
+/* CVSS vector chips (Network, Low complexity, No privs, etc.) */
+.pp-vec-row { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+.pp-vec {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 500;
+    background: var(--tblr-bg-surface, #f3f4f6);
+    color: var(--tblr-secondary, #6b7280);
+    border: 1px solid var(--tblr-border-color, #e5e7eb);
+}
+[data-bs-theme="dark"] .pp-vec { background: rgba(255, 255, 255, 0.04); }
+.pp-vec--bad { color: var(--tblr-red, #d63939); border-color: rgba(214, 57, 57, 0.3); }
+.pp-vec--warn { color: var(--tblr-orange, #f76707); border-color: rgba(247, 103, 7, 0.3); }
+.pp-vec--ok { color: var(--tblr-green, #2fb344); border-color: rgba(47, 179, 68, 0.3); }
+
+/* Age column — old findings get a warning ring */
+.pp-age {
+    display: inline-block; padding: 2px 7px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+    background: var(--tblr-bg-surface, #f3f4f6);
+    color: var(--tblr-secondary, #6b7280);
+}
+.pp-age--old {
+    background: rgba(247, 103, 7, 0.12); color: var(--tblr-orange, #f76707);
+}
+
+/* CVE chip button — clicking opens CveDetailsModal in-place */
+.pp-cve-chip {
+    background: rgba(0, 84, 166, 0.10);
+    color: var(--tblr-primary, #0054a6);
+    border: 1px solid rgba(0, 84, 166, 0.2);
+    font-family: var(--tblr-font-monospace, monospace);
+    font-size: 11px; font-weight: 600;
+    padding: 2px 7px;
+    margin: 1px 2px 1px 0;
+    border-radius: 3px;
+    line-height: 1.4;
+}
+.pp-cve-chip:hover {
+    background: rgba(0, 84, 166, 0.18);
+    color: var(--tblr-primary, #0054a6);
+    border-color: rgba(0, 84, 166, 0.4);
+}
+[data-bs-theme="dark"] .pp-cve-chip {
+    background: rgba(120, 175, 255, 0.14);
+    color: #79b8ff;
+    border-color: rgba(120, 175, 255, 0.28);
+}
+[data-bs-theme="dark"] .pp-cve-chip:hover {
+    background: rgba(120, 175, 255, 0.24);
+    color: #a3cdff;
+    border-color: rgba(120, 175, 255, 0.5);
+}
