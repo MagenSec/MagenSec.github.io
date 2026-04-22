@@ -4183,3 +4183,81 @@ body.org-switcher-open .security-officer-top-note {
 .cve-msrc-table tbody tr:hover { background: rgba(13, 110, 253, 0.04); }
 [data-bs-theme="dark"] .cve-msrc-card .card-header { background: rgba(120, 184, 255, 0.08); }
 [data-bs-theme="dark"] .cve-msrc-table tbody tr:hover { background: rgba(120, 184, 255, 0.06); }
+
+/* ========================================
+   MAGI Chat Drawer (light + dark)
+   ======================================== */
+.magi-chat-panel {
+  --magi-bg: #f6f2ff;
+  --magi-text: #1f2937;
+  --magi-text-muted: #6b7280;
+  --magi-text-soft: #4b5563;
+  --magi-border: #c7bde6;
+  --magi-border-soft: #b8acdc;
+  --magi-header-bg: linear-gradient(135deg, #b9a8f0 0%, #8b7ce0 100%);
+  --magi-msg-bg: #f0eafc;
+  --magi-assistant-bg: #ffffff;
+  --magi-assistant-border: #d8cef0;
+  --magi-input-bg: #ffffff;
+  --magi-input-border: #c7bde6;
+  --magi-input-footer-bg: #f6f2ff;
+  --magi-pill-bg: rgba(255, 255, 255, 0.45);
+  --magi-pill-text: #2e1b6b;
+  --magi-system-bg: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  --magi-system-border: #c7d2fe;
+  --magi-system-text: #3730a3;
+  --magi-system-label: #6366f1;
+  --magi-error-bg: #fee2e2;
+  --magi-error-text: #b91c1c;
+  --magi-shadow: 0 0 0 1px rgba(139, 92, 246, 0.18), 0 24px 60px rgba(76, 29, 149, 0.28), 0 4px 12px rgba(76, 29, 149, 0.12);
+  --magi-empty-text: #6b7280;
+  --magi-empty-icon: #c4b5fd;
+  --magi-footer-text: #9ca3af;
+  --magi-link: #4f46e5;
+}
+
+[data-bs-theme="dark"] .magi-chat-panel {
+  --magi-bg: #161329;
+  --magi-text: #e5e7eb;
+  --magi-text-muted: #94a3b8;
+  --magi-text-soft: #cbd5e1;
+  --magi-border: #4a3f7a;
+  --magi-border-soft: #2f2756;
+  --magi-header-bg: linear-gradient(135deg, #3d2f7a 0%, #261f50 100%);
+  --magi-msg-bg: #110e22;
+  --magi-assistant-bg: #20193d;
+  --magi-assistant-border: #3b3360;
+  --magi-input-bg: #20193d;
+  --magi-input-border: #3b3360;
+  --magi-input-footer-bg: #161329;
+  --magi-pill-bg: rgba(167, 139, 250, 0.20);
+  --magi-pill-text: #e0d9f5;
+  --magi-system-bg: linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(139, 92, 246, 0.22) 100%);
+  --magi-system-border: rgba(165, 180, 252, 0.45);
+  --magi-system-text: #e0e7ff;
+  --magi-system-label: #a5b4fc;
+  --magi-error-bg: rgba(239, 68, 68, 0.18);
+  --magi-error-text: #fecaca;
+  --magi-shadow: 0 0 0 1px rgba(167, 139, 250, 0.35), 0 0 40px rgba(139, 92, 246, 0.28), 0 24px 70px rgba(0, 0, 0, 0.7), 0 4px 14px rgba(0, 0, 0, 0.45);
+  --magi-empty-text: #94a3b8;
+  --magi-empty-icon: #8b5cf6;
+  --magi-footer-text: #7c759a;
+  --magi-link: #a5b4fc;
+}
+
+/* Force input/button to honour theme even when Tabler form-control intercepts */
+.magi-chat-panel .magi-input.form-control {
+  background: var(--magi-input-bg) !important;
+  color: var(--magi-text) !important;
+  border-color: var(--magi-input-border) !important;
+}
+.magi-chat-panel .magi-input.form-control:focus {
+  background: var(--magi-input-bg) !important;
+  color: var(--magi-text) !important;
+  border-color: var(--magi-link) !important;
+  box-shadow: 0 0 0 0.15rem rgba(99, 102, 241, 0.25) !important;
+}
+.magi-chat-panel .magi-input.form-control::placeholder {
+  color: var(--magi-text-muted) !important;
+  opacity: 0.7;
+}

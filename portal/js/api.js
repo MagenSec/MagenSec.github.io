@@ -624,13 +624,13 @@ export class ApiClient {
     }
 
     /**
-     * Open the printable HTML patch posture report in a new tab.
-     * The bearer-protected report is fetched as a blob, then opened so the
-     * browser's native print dialog can render it as PDF.
+     * Downloads the patch posture report as a server-rendered PDF.
+     * Falls back to opening as a blob in a new tab so the user gets the same
+     * UX whether their browser inlines PDFs (Chrome) or downloads them (some Edge configs).
      */
     async openPatchPosturePrintReport(orgId) {
         const token = auth.getToken() || '';
-        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/export?format=html`, {
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/export?format=pdf&inline=true`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -638,13 +638,23 @@ export class ApiClient {
             const body = await res.json().catch(() => null);
             throw new Error(body?.message || `Print report failed (${res.status})`);
         }
+        const ctype = (res.headers.get('content-type') || '').toLowerCase();
         const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
+        // Build a typed blob so window.open knows it is a PDF (or HTML fallback) regardless of
+        // the server-side disposition header.
+        const finalType = ctype.includes('pdf') ? 'application/pdf'
+            : ctype.includes('html') ? 'text/html'
+            : (blob.type || 'application/octet-stream');
+        const url = URL.createObjectURL(new Blob([blob], { type: finalType }));
         const win = window.open(url, '_blank');
         if (!win) {
-            throw new Error('Popup blocked — please allow popups for this site to view the printable report.');
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            // Only force a download when we definitely have a PDF; otherwise let the new tab open as HTML.
+            if (finalType === 'application/pdf') a.download = `patch-status-${orgId}.pdf`;
+            a.click();
         }
-        // Don't revoke immediately — let the new tab finish loading. Browsers usually GC after page navigation.
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
     }
 
@@ -656,6 +666,50 @@ export class ApiClient {
      */
     async sendPatchPostureReport(orgId, recipient = 'owner', customEmail = '') {
         return this.post(`/api/v1/orgs/${orgId}/patch-posture/send-report`, { recipient, customEmail });
+    }
+
+    /**
+     * Downloads the What-Changed (diff) report as a server-rendered PDF for the given window.
+     */
+    async openPatchPostureDiffPrintReport(orgId, fromIsoDate, toIsoDate) {
+        const token = auth.getToken() || '';
+        const fromIso = new Date(`${fromIsoDate}T00:00:00Z`).toISOString();
+        const toIso = new Date(`${toIsoDate}T23:59:59Z`).toISOString();
+        const params = new URLSearchParams({ from: fromIso, to: toIso, format: 'pdf', inline: 'true' });
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/diff?${params}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => null);
+            throw new Error(body?.message || `Diff PDF failed (${res.status})`);
+        }
+        const ctype = (res.headers.get('content-type') || '').toLowerCase();
+        const blob = await res.blob();
+        const finalType = ctype.includes('pdf') ? 'application/pdf'
+            : ctype.includes('html') ? 'text/html'
+            : (blob.type || 'application/octet-stream');
+        const url = URL.createObjectURL(new Blob([blob], { type: finalType }));
+        const win = window.open(url, '_blank');
+        if (!win) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            if (finalType === 'application/pdf') a.download = `patch-status-diff-${orgId}.pdf`;
+            a.click();
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
+
+    /**
+     * Emails the What-Changed (diff) PDF report for the given window.
+     */
+    async sendPatchPostureDiffReport(orgId, fromIsoDate, toIsoDate, recipient = 'owner', customEmail = '') {
+        const fromIso = new Date(`${fromIsoDate}T00:00:00Z`).toISOString();
+        const toIso = new Date(`${toIsoDate}T23:59:59Z`).toISOString();
+        return this.post(`/api/v1/orgs/${orgId}/patch-posture/diff/send-report`, {
+            recipient, customEmail, from: fromIso, to: toIso
+        });
     }
 
     // Consolidated device state update (replaces separate block/enable endpoints)

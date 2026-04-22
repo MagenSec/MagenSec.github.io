@@ -175,6 +175,31 @@ export default class AIAnalystChatPage extends Component {
     }
 
     loadPrefill() {
+        // Multi-turn handoff (e.g. from the in-place ChatDrawer "Continue in MAGI" link).
+        // Carries the full conversation so the user can pick up where they left off.
+        try {
+            const rawMulti = sessionStorage.getItem('ai_analyst_prefill_messages');
+            if (rawMulti) {
+                sessionStorage.removeItem('ai_analyst_prefill_messages');
+                const payload = JSON.parse(rawMulti);
+                const turns = Array.isArray(payload?.messages) ? payload.messages : [];
+                if (turns.length > 0) {
+                    const now = new Date().toISOString();
+                    return {
+                        conversationId: payload.conversationId || this.generateConversationId(),
+                        messages: turns
+                            .filter(t => t && t.content && (t.role === 'user' || t.role === 'assistant'))
+                            .map((t, i) => ({
+                                id: `prefill_${i}`,
+                                role: t.role,
+                                content: t.content,
+                                timestamp: t.timestamp || now
+                            }))
+                    };
+                }
+            }
+        } catch (_) { /* fall through to single-turn handoff */ }
+
         try {
             const raw = sessionStorage.getItem('ai_analyst_prefill');
             if (!raw) return null;

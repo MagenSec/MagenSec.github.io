@@ -1,5 +1,6 @@
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { magiContext } from '@magiContext';
 import { CveDetailsModal } from '@components/CveDetailsModal.js';
 
 const { html, Component } = window;
@@ -54,7 +55,10 @@ export class PatchPosturePage extends Component {
             diffTo: to.toISOString().substring(0, 10),
             diffLoading: false,
             diffError: null,
-            diff: null
+            diff: null,
+            diffFilters: { opened: true, resolved: true, stayed: true },
+            emailState: 'idle',     // idle | sending | sent | failed
+            emailDiffState: 'idle', // idle | sending | sent | failed
         };
         this._orgUnsub = null;
     }
@@ -64,8 +68,44 @@ export class PatchPosturePage extends Component {
         this.load();
     }
 
+    componentDidUpdate(_prevProps, prevState) {
+        if (prevState.data !== this.state.data) {
+            this.publishMagiContext();
+        }
+    }
+
     componentWillUnmount() {
         if (this._orgUnsub) this._orgUnsub();
+        magiContext.clear();
+    }
+
+    /**
+     * Push the current Patch Status snapshot to the global Officer MAGI ChatDrawer
+     * so its answers stay grounded in the data the user is looking at and the
+     * opening greeting reflects the live numbers.
+     */
+    publishMagiContext() {
+        const snapshot = this.buildMagiSnapshot();
+        const greeting = snapshot.openAlerts === 0
+            ? `Hi — your Patch Status report is clean (no missing Microsoft updates across ${snapshot.hostsAffected || 0} device${(snapshot.hostsAffected || 0) === 1 ? '' : 's'}). Ask me about hardening tips, patch cadence, or compliance evidence.`
+            : `Hi — I have your current Patch Status loaded: **${snapshot.openAlerts} open update${snapshot.openAlerts === 1 ? '' : 's'}** across **${snapshot.hostsAffected} device${snapshot.hostsAffected === 1 ? '' : 's'}** (${snapshot.critical} critical, ${snapshot.high} high, ${snapshot.exploited} actively exploited). Ask what to patch first, how to plan a maintenance window, or for exec-ready impact wording.`;
+        const suggestions = (snapshot.openAlerts || 0) > 0
+            ? [
+                'What should I patch first this week?',
+                'Draft a maintenance window plan',
+                'Explain the business impact for my exec team',
+            ]
+            : [
+                'How do I keep this clean?',
+                'Recommend a patch cadence',
+                'What evidence should I keep for compliance?',
+            ];
+        magiContext.set({
+            hint: 'patch status report',
+            greeting,
+            snapshot,
+            suggestions,
+        });
     }
 
     async load() {
@@ -250,26 +290,77 @@ export class PatchPosturePage extends Component {
     }
 
     /**
+     * Builds a compact, deterministic snapshot of the current Patch Status page that we
+     * pass to MAGI as the conversation's grounding context. The snapshot is sent as the
+     * `context.snapshot` field on every /ai-analyst/ask call so follow-up questions stay
+     * grounded in the same report the user is looking at.
+     */
+    buildMagiSnapshot() {
+        const summary = this.state.data?.summary || {};
+        const intel = this.state.data?.intel || {};
+        const hosts = this.state.data?.hosts || [];
+        const topKbs = (intel.topKbs || []).slice(0, 8).map(k => ({
+            kb: k.kb || k.Kb,
+            product: k.product || k.ProductName,
+            devices: k.devices || k.Devices || 0,
+            severity: k.severity || k.Severity,
+            maxCvss: k.maxCvss || k.MaxCvss,
+            exploited: k.exploited || k.Exploited || false,
+        }));
+        const topHosts = hosts
+            .slice()
+            .sort((a, b) => (b.critical || 0) - (a.critical || 0) || (b.high || 0) - (a.high || 0))
+            .slice(0, 8)
+            .map(h => ({
+                deviceName: h.deviceName,
+                critical: h.critical || 0,
+                high: h.high || 0,
+                other: h.other || 0,
+                oldestDays: h.maxAge || h.oldestDays || 0,
+            }));
+        return {
+            page: 'patch-status',
+            openAlerts: summary.openAlerts || 0,
+            hostsAffected: summary.hostsAffected || hosts.length || 0,
+            critical: summary.critical || 0,
+            high: summary.high || 0,
+            exploited: summary.exploited || 0,
+            distinctKbs: summary.distinctKbs || (intel.topKbs?.length || 0),
+            topKbs,
+            topHosts,
+        };
+    }
+
+    /**
      * Emails the Patch Posture HTML report to the org owner (default) or a custom address.
-     * Same UX as the review-report send button.
+     * Inline button state + toast so the click always produces visible feedback.
      */
     async emailReport() {
+        if (this.state.emailState === 'sending') return;
         const org = orgContext.getCurrentOrg();
         if (!org?.orgId) return;
-        const target = window.prompt('Send Patch Posture report to (leave blank to send to org owner):', '') || '';
+        const target = window.prompt('Send Patch Status report to (leave blank to send to org owner):', '');
+        if (target === null) return; // user cancelled the prompt
         const trimmed = target.trim();
         const recipient = trimmed ? 'custom' : 'owner';
+        this.setState({ emailState: 'sending' });
+        window.toast?.show?.('Sending Patch Status report…', 'info', 3000);
         try {
-            window.toast?.show?.('Sending patch posture report…', 'info', 3000);
             const res = await api.sendPatchPostureReport(org.orgId, recipient, trimmed);
             if (res?.success) {
+                this.setState({ emailState: 'sent' });
                 window.toast?.show?.(res.message || `Report sent to ${res.data?.recipient || 'owner'}`, 'success', 5000);
+                setTimeout(() => { if (this.state.emailState === 'sent') this.setState({ emailState: 'idle' }); }, 4000);
             } else {
-                window.toast?.show?.(res?.message || 'Failed to send report', 'danger', 5000);
+                this.setState({ emailState: 'failed' });
+                window.toast?.show?.(res?.message || 'Failed to send report', 'danger', 6000);
+                setTimeout(() => { if (this.state.emailState === 'failed') this.setState({ emailState: 'idle' }); }, 5000);
             }
         } catch (err) {
             console.error('[PatchPosture] email report failed', err);
-            window.toast?.show?.(err.message || 'Failed to send report', 'danger', 5000);
+            this.setState({ emailState: 'failed' });
+            window.toast?.show?.(err.message || 'Failed to send report', 'danger', 6000);
+            setTimeout(() => { if (this.state.emailState === 'failed') this.setState({ emailState: 'idle' }); }, 5000);
         }
     }
 
@@ -291,11 +382,54 @@ export class PatchPosturePage extends Component {
     }
 
     /**
-     * Reuses the existing Patch Posture email pathway for the diff report. The recipient
-     * still gets the full HTML report; the diff window is informational metadata.
+     * Emails the What-Changed (diff) report as a branded PDF for the selected window.
+     * Tracks its own button state so the diff toolbar shows independent send progress.
      */
     async emailDiffReport() {
-        return this.emailReport();
+        if (this.state.emailDiffState === 'sending') return;
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId) return;
+        const { diffFrom, diffTo } = this.state;
+        if (!diffFrom || !diffTo) return;
+        const target = window.prompt('Send Patch Status diff report to (leave blank to send to org owner):', '');
+        if (target === null) return;
+        const trimmed = target.trim();
+        const recipient = trimmed ? 'custom' : 'owner';
+        this.setState({ emailDiffState: 'sending' });
+        window.toast?.show?.('Sending Patch Status diff report…', 'info', 3000);
+        try {
+            const res = await api.sendPatchPostureDiffReport(org.orgId, diffFrom, diffTo, recipient, trimmed);
+            if (res?.success) {
+                this.setState({ emailDiffState: 'sent' });
+                window.toast?.show?.(res.message || `Diff report sent to ${res.data?.recipient || 'owner'}`, 'success', 5000);
+                setTimeout(() => { if (this.state.emailDiffState === 'sent') this.setState({ emailDiffState: 'idle' }); }, 4000);
+            } else {
+                this.setState({ emailDiffState: 'failed' });
+                window.toast?.show?.(res?.message || 'Failed to send diff report', 'danger', 6000);
+                setTimeout(() => { if (this.state.emailDiffState === 'failed') this.setState({ emailDiffState: 'idle' }); }, 5000);
+            }
+        } catch (err) {
+            console.error('[PatchPosture] email diff report failed', err);
+            this.setState({ emailDiffState: 'failed' });
+            window.toast?.show?.(err.message || 'Failed to send diff report', 'danger', 6000);
+            setTimeout(() => { if (this.state.emailDiffState === 'failed') this.setState({ emailDiffState: 'idle' }); }, 5000);
+        }
+    }
+
+    /**
+     * Opens the What-Changed PDF report in a new tab.
+     */
+    async openDiffPdf() {
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId) return;
+        const { diffFrom, diffTo } = this.state;
+        if (!diffFrom || !diffTo) return;
+        try {
+            await api.openPatchPostureDiffPrintReport(org.orgId, diffFrom, diffTo);
+        } catch (err) {
+            console.error('[PatchPosture] diff PDF failed', err);
+            window.toast?.show?.(err.message || 'Diff PDF failed', 'danger', 5000);
+        }
     }
 
     /**
@@ -303,13 +437,27 @@ export class PatchPosturePage extends Component {
      * Order: Opened first (most actionable), then Stayed (the persistent backlog),
      * then Resolved (good news at the bottom). Mirrors how Tenable displays diff exports.
      */
+    toggleDiffFilter(key) {
+        const next = { ...this.state.diffFilters, [key]: !this.state.diffFilters[key] };
+        // Don't allow turning everything off — re-enable the just-clicked one.
+        if (!next.opened && !next.resolved && !next.stayed) next[key] = true;
+        this.setState({ diffFilters: next });
+    }
+
     renderDiffRows() {
         const d = this.state.diff;
         if (!d) return null;
-        const rows = []
-            .concat((d.opened || []).map(x => ({ ...x, _status: 'Opened', _badge: 'bg-danger', _icon: 'ti-circle-plus', _when: x.openedAt || x.OpenedAt }))) 
-            .concat((d.stayed || []).map(x => ({ ...x, _status: 'Stayed open', _badge: 'bg-warning', _icon: 'ti-clock-exclamation', _when: x.openedAt || x.OpenedAt })))
-            .concat((d.resolved || []).map(x => ({ ...x, _status: 'Resolved', _badge: 'bg-success', _icon: 'ti-circle-check', _when: x.closedAt || x.ClosedAt || x.openedAt || x.OpenedAt })));
+        const f = this.state.diffFilters || { opened: true, resolved: true, stayed: true };
+        const rows = [];
+        if (f.opened) {
+            for (const x of (d.opened || [])) rows.push({ ...x, _status: 'Opened', _badge: 'bg-danger', _icon: 'ti-circle-plus', _when: x.openedAt || x.OpenedAt });
+        }
+        if (f.stayed) {
+            for (const x of (d.stayed || [])) rows.push({ ...x, _status: 'Stayed open', _badge: 'bg-warning', _icon: 'ti-clock-exclamation', _when: x.openedAt || x.OpenedAt });
+        }
+        if (f.resolved) {
+            for (const x of (d.resolved || [])) rows.push({ ...x, _status: 'Resolved', _badge: 'bg-success', _icon: 'ti-circle-check', _when: x.closedAt || x.ClosedAt || x.openedAt || x.OpenedAt });
+        }
         return rows.map((r, idx) => {
             const kb = r.kb || r.Kb || '';
             const product = r.productName || r.ProductName || '';
@@ -317,20 +465,24 @@ export class PatchPosturePage extends Component {
             const sev = r.severity || r.Severity || 0;
             const cvss = r.maxCvss || r.MaxCvss;
             const cves = r.cves || r.Cves || [];
-            const sevLabel = sev >= 3 ? 'Critical' : sev >= 2 ? 'High' : sev >= 1 ? 'Medium' : 'Low';
-            const sevClass = sev >= 3 ? 'bg-danger' : sev >= 2 ? 'bg-warning' : sev >= 1 ? 'bg-info' : 'bg-secondary';
             const when = r._when ? new Date(r._when).toLocaleDateString() : '—';
             return html`
-                <tr key=${'diff-' + idx}>
-                    <td><span class="badge ${r._badge} text-white"><i class="ti ${r._icon} me-1"></i>${r._status}</span></td>
-                    <td>
-                        <div class="pp-vuln-title"><span class="pp-vuln-prefix">${kb}:</span> ${title || `Security update for ${product}`}</div>
-                        <div class="text-muted small">${product}${cves[0] ? html` &middot; <span class="pp-vuln-cve">${cves[0]}</span>` : null}</div>
+                <tr key=${'diff-' + idx} class="pp-finding pp-finding--sev${sev}">
+                    <td class="pp-finding__sev">${this.severityPill(sev, cvss)}</td>
+                    <td class="pp-finding__kb"><code class="pp-kb">${kb}</code></td>
+                    <td class="pp-finding__vuln">
+                        <div class="pp-vuln-title">${title || `Security update for ${product}`}</div>
+                        <div class="pp-vuln-product text-muted small">${product}</div>
+                    </td>
+                    <td class="pp-finding__cves">
+                        ${cves.slice(0, 3).map(c => html`
+                            <button type="button" class="btn btn-sm pp-cve-chip" onClick=${() => this.openCve(c)} title="Open ${c} details">${c}</button>
+                        `)}
+                        ${cves.length > 3 ? html`<span class="text-muted small ms-1">+${cves.length - 3}</span>` : null}
                     </td>
                     <td class="text-muted small">${r.deviceName || r.DeviceName || ''}</td>
-                    <td class="text-center"><span class="badge ${sevClass} text-white">${sevLabel}</span></td>
-                    <td class="text-center">${cvss != null ? cvss.toFixed(1) : '—'}</td>
                     <td class="text-end text-muted small">${when}</td>
+                    <td class="text-center"><span class="badge ${r._badge} text-white"><i class="ti ${r._icon} me-1"></i>${r._status}</span></td>
                 </tr>`;
         });
     }
@@ -456,9 +608,9 @@ export class PatchPosturePage extends Component {
                 </td>
                 <td class="pp-finding__vuln">
                     ${p.vulnTitle
-                        ? html`<div class="pp-vuln-title"><span class="pp-vuln-prefix">${p.kb}:</span> ${p.vulnTitle}</div>`
-                        : html`<div class="pp-vuln-title"><span class="pp-vuln-prefix">${p.kb}:</span> Security update for ${p.productName || p.productId}</div>`}
-                    <div class="pp-vuln-product text-muted small">${p.productName || p.productId}${(cves[0]) ? html` &middot; <span class="pp-vuln-cve">${cves[0]}</span>` : null}</div>
+                        ? html`<div class="pp-vuln-title">${p.vulnTitle}</div>`
+                        : html`<div class="pp-vuln-title">Security update for ${p.productName || p.productId}</div>`}
+                    <div class="pp-vuln-product text-muted small">${p.productName || p.productId}</div>
                     ${impacts.length ? html`<div class="pp-impact-row">
                         ${impacts.map(i => html`<span class="pp-impact">${i}</span>`)}
                     </div>` : null}
@@ -514,28 +666,34 @@ export class PatchPosturePage extends Component {
                 <div class="d-flex align-items-center mb-3">
                     <div>
                         <h2 class="page-title mb-1">
-                            Patch Posture
+                            Patch Status
                             ${refreshing ? html`<span class="badge bg-info-lt text-info ms-2"><i class="ti ti-refresh me-1"></i>Refreshing…</span>` : null}
                         </h2>
                         <div class="text-muted">Missing Microsoft security updates across your fleet, refreshed daily.</div>
                     </div>
                     <div class="ms-auto">
                         <div class="btn-group me-2">
-                            <button class="btn btn-outline-secondary" onClick=${() => this.exportCsv()} disabled=${!summary?.openAlerts}>
-                                <i class="ti ti-download me-1"></i>Download CSV
+                            <button class="btn btn-primary ${this.state.emailState === 'sending' ? 'disabled' : ''}"
+                                    onClick=${() => { if (this.state.emailState !== 'sending') this.emailReport(); }}
+                                    disabled=${!summary?.openAlerts || this.state.emailState === 'sending'}
+                                    title="Email a branded PDF of the full report">
+                                ${this.state.emailState === 'sending'
+                                    ? html`<span class="spinner-border spinner-border-sm me-1" role="status"></span>Sending…`
+                                    : this.state.emailState === 'sent'
+                                        ? html`<i class="ti ti-circle-check me-1"></i>Report sent`
+                                        : this.state.emailState === 'failed'
+                                            ? html`<i class="ti ti-alert-circle me-1"></i>Retry email`
+                                            : html`<i class="ti ti-mail me-1"></i>Email PDF report`}
                             </button>
-                            <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" disabled=${!summary?.openAlerts}>
+                            <button class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" disabled=${!summary?.openAlerts}>
                                 <span class="visually-hidden">Toggle dropdown</span>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.exportCsv(); }}>
-                                    <i class="ti ti-file-spreadsheet me-2"></i>CSV (Excel / SIEM)
-                                </a></li>
                                 <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.openPrintReport(); }}>
-                                    <i class="ti ti-printer me-2"></i>Printable PDF report
+                                    <i class="ti ti-file-type-pdf me-2"></i>Open PDF report
                                 </a></li>
-                                <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.emailReport(); }}>
-                                    <i class="ti ti-mail me-2"></i>Email me the report
+                                <li><a class="dropdown-item" href="#" onClick=${(e) => { e.preventDefault(); this.exportCsv(); }}>
+                                    <i class="ti ti-file-spreadsheet me-2"></i>Download CSV (Excel / SIEM)
                                 </a></li>
                             </ul>
                         </div>
@@ -573,14 +731,43 @@ export class PatchPosturePage extends Component {
                             </div>
                             ${this.state.diff ? html`
                                 <div class="col-auto ms-auto">
-                                    <span class="badge bg-danger text-white me-1" title="First seen inside this window">Opened: ${this.state.diff.counts?.opened ?? 0}</span>
-                                    <span class="badge bg-success text-white me-1" title="Closed inside this window">Resolved: ${this.state.diff.counts?.resolved ?? 0}</span>
-                                    <span class="badge bg-warning text-white me-2" title="Open before AND still open at end of window">Stayed: ${this.state.diff.counts?.stayed ?? 0}</span>
-                                    <button class="btn btn-sm btn-outline-secondary" onClick=${() => this.exportDiffCsv()} title="Download this diff as CSV">
+                                    <div class="btn-group btn-group-sm me-2" role="group" aria-label="Filter diff rows">
+                                        <button type="button"
+                                            class="btn ${this.state.diffFilters.opened ? 'btn-danger' : 'btn-outline-danger'}"
+                                            onClick=${() => this.toggleDiffFilter('opened')}
+                                            title="First seen inside this window">
+                                            <i class="ti ti-circle-plus me-1"></i>Opened: ${this.state.diff.counts?.opened ?? 0}
+                                        </button>
+                                        <button type="button"
+                                            class="btn ${this.state.diffFilters.stayed ? 'btn-warning' : 'btn-outline-warning'}"
+                                            onClick=${() => this.toggleDiffFilter('stayed')}
+                                            title="Open before AND still open at end of window">
+                                            <i class="ti ti-clock-exclamation me-1"></i>Stayed: ${this.state.diff.counts?.stayed ?? 0}
+                                        </button>
+                                        <button type="button"
+                                            class="btn ${this.state.diffFilters.resolved ? 'btn-success' : 'btn-outline-success'}"
+                                            onClick=${() => this.toggleDiffFilter('resolved')}
+                                            title="Closed inside this window">
+                                            <i class="ti ti-circle-check me-1"></i>Resolved: ${this.state.diff.counts?.resolved ?? 0}
+                                        </button>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" onClick=${() => this.openDiffPdf()} title="Open this diff as a PDF">
+                                        <i class="ti ti-file-type-pdf me-1"></i>PDF
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary ms-1" onClick=${() => this.exportDiffCsv()} title="Download this diff as CSV">
                                         <i class="ti ti-download me-1"></i>CSV
                                     </button>
-                                    <button class="btn btn-sm btn-outline-secondary ms-1" onClick=${() => this.emailDiffReport()} title="Email this diff as a report">
-                                        <i class="ti ti-mail me-1"></i>Email
+                                    <button class="btn btn-sm ${this.state.emailDiffState === 'sent' ? 'btn-success' : this.state.emailDiffState === 'failed' ? 'btn-danger' : 'btn-outline-secondary'} ms-1"
+                                            onClick=${() => this.emailDiffReport()}
+                                            disabled=${this.state.emailDiffState === 'sending'}
+                                            title="Email this diff as a report">
+                                        ${this.state.emailDiffState === 'sending'
+                                            ? html`<span class="spinner-border spinner-border-sm me-1" role="status"></span>Sending…`
+                                            : this.state.emailDiffState === 'sent'
+                                                ? html`<i class="ti ti-circle-check me-1"></i>Sent`
+                                                : this.state.emailDiffState === 'failed'
+                                                    ? html`<i class="ti ti-alert-circle me-1"></i>Retry`
+                                                    : html`<i class="ti ti-mail me-1"></i>Email`}
                                     </button>
                                 </div>
                             ` : null}
@@ -590,12 +777,13 @@ export class PatchPosturePage extends Component {
                             <div class="table-responsive mt-3">
                                 <table class="table table-sm table-vcenter pp-diff-table mb-0">
                                     <thead><tr>
-                                        <th style="width:120px">Status</th>
+                                        <th style="width:104px">Severity</th>
+                                        <th style="width:128px">KB</th>
                                         <th>Vulnerability</th>
+                                        <th>CVE</th>
                                         <th>Device</th>
-                                        <th class="text-center" style="width:88px">Severity</th>
-                                        <th class="text-center" style="width:72px">CVSS</th>
-                                        <th class="text-end" style="width:130px">When</th>
+                                        <th class="text-end" style="width:120px">When</th>
+                                        <th class="text-center" style="width:140px">Status</th>
                                     </tr></thead>
                                     <tbody>
                                         ${this.renderDiffRows()}

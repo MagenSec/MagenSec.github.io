@@ -290,7 +290,14 @@ function App() {
         case 'posture':
             return html`<${PosturePage} />`;
         case 'patch-posture':
-            return html`<${PatchPosturePage} />`;
+            return html`
+                <div>
+                    <${PatchPosturePage} />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="patch status report" persona="ciso" />`
+                        : null}
+                </div>
+            `;
         case 'mission-brief':
             return html`<${AIPosturePage} />`;
         case 'posture-ai':
