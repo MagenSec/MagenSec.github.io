@@ -560,7 +560,8 @@ export class ApiClient {
         if (from) params.append('from', new Date(from).toISOString());
         if (to) params.append('to', new Date(to).toISOString());
         const qs = params.toString();
-        const url = `/api/v1/orgs/${orgId}/patch-posture/diff${qs ? '?' + qs : ''}`;
+        // Unified contract (Q0): /reports/patch-diff/json (was /patch-posture/diff)
+        const url = `/api/v1/orgs/${orgId}/reports/patch-diff/json${qs ? '?' + qs : ''}`;
         return this.get(url, null, options);
     }
 
@@ -579,10 +580,11 @@ export class ApiClient {
      */
     async exportPatchPostureDiffCsv(orgId, from, to) {
         const token = auth.getToken() || '';
-        const params = new URLSearchParams({ format: 'csv' });
+        const params = new URLSearchParams();
         if (from) params.append('from', new Date(`${from}T00:00:00Z`).toISOString());
         if (to) params.append('to', new Date(`${to}T23:59:59Z`).toISOString());
-        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/diff?${params}`, {
+        // Unified contract (Q0): /reports/patch-diff/csv
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/reports/patch-diff/csv?${params}`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -605,7 +607,8 @@ export class ApiClient {
      */
     async exportPatchPostureCsv(orgId) {
         const token = auth.getToken() || '';
-        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/export?format=csv`, {
+        // Unified contract (Q0): /reports/patch-posture/csv
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/reports/patch-posture/csv`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -630,7 +633,8 @@ export class ApiClient {
      */
     async openPatchPosturePrintReport(orgId) {
         const token = auth.getToken() || '';
-        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/export?format=pdf&inline=true`, {
+        // Unified contract (Q0): /reports/patch-posture/pdf?inline=true
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/reports/patch-posture/pdf?inline=true`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -665,7 +669,8 @@ export class ApiClient {
      * @param {string} [customEmail]
      */
     async sendPatchPostureReport(orgId, recipient = 'owner', customEmail = '') {
-        return this.post(`/api/v1/orgs/${orgId}/patch-posture/send-report`, { recipient, customEmail });
+        // Unified contract (Q0): POST /reports/patch-posture/send
+        return this.post(`/api/v1/orgs/${orgId}/reports/patch-posture/send`, { recipient, customEmail });
     }
 
     /**
@@ -675,8 +680,9 @@ export class ApiClient {
         const token = auth.getToken() || '';
         const fromIso = new Date(`${fromIsoDate}T00:00:00Z`).toISOString();
         const toIso = new Date(`${toIsoDate}T23:59:59Z`).toISOString();
-        const params = new URLSearchParams({ from: fromIso, to: toIso, format: 'pdf', inline: 'true' });
-        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/diff?${params}`, {
+        const params = new URLSearchParams({ from: fromIso, to: toIso, inline: 'true' });
+        // Unified contract (Q0): /reports/patch-diff/pdf
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/reports/patch-diff/pdf?${params}`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -707,7 +713,8 @@ export class ApiClient {
     async sendPatchPostureDiffReport(orgId, fromIsoDate, toIsoDate, recipient = 'owner', customEmail = '') {
         const fromIso = new Date(`${fromIsoDate}T00:00:00Z`).toISOString();
         const toIso = new Date(`${toIsoDate}T23:59:59Z`).toISOString();
-        return this.post(`/api/v1/orgs/${orgId}/patch-posture/diff/send-report`, {
+        // Unified contract (Q0): POST /reports/patch-diff/send
+        return this.post(`/api/v1/orgs/${orgId}/reports/patch-diff/send`, {
             recipient, customEmail, from: fromIso, to: toIso
         });
     }
@@ -1178,14 +1185,17 @@ export class ApiClient {
     }
 
     async getReportPreview(orgId, refresh = false) {
-        // Get report preview data. Pass ?refresh=true to bypass cached email HTML and regenerate.
+        // Unified contract (Q0): /reports/{type}/json. The dispatcher returns the same envelope for
+        // either type (with both daily+weekly rendered together for cache parity), so calling /daily/json
+        // is sufficient to populate the preview surface that shows both tabs.
         const qs = refresh ? '?refresh=true' : '';
-        return this.get(`/api/v1/orgs/${orgId}/reports/preview${qs}`);
+        return this.get(`/api/v1/orgs/${orgId}/reports/daily/json${qs}`);
     }
 
     async sendReport(orgId, reportType, recipient = 'owner', customEmail = '') {
-        // Send security report email to selected recipient (owner/admin/custom)
-        return this.post(`/api/v1/orgs/${orgId}/reports/send`, { reportType, recipient, customEmail });
+        // Unified contract (Q0): POST /reports/{type}/send.
+        const type = (reportType || 'daily').toLowerCase() === 'weekly' ? 'weekly' : 'daily';
+        return this.post(`/api/v1/orgs/${orgId}/reports/${type}/send`, { recipient, customEmail });
     }
 
     /**
