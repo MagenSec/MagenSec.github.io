@@ -4140,3 +4140,32 @@ body.org-switcher-open .security-officer-top-note {
     color: #a3cdff;
     border-color: rgba(120, 175, 255, 0.5);
 }
+
+/* === Patch Posture: Nessus-style headline + diff table additions === */
+.pp-vuln-prefix {
+    color: var(--tblr-secondary, #6b7280);
+    font-weight: 700;
+    font-family: var(--tblr-font-monospace, monospace);
+    font-size: 12px;
+    margin-right: 4px;
+}
+.pp-vuln-cve {
+    color: var(--tblr-primary, #0054a6);
+    font-family: var(--tblr-font-monospace, monospace);
+    font-weight: 600;
+}
+[data-bs-theme="dark"] .pp-vuln-cve { color: #79b8ff; }
+
+.pp-diff-table thead th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--tblr-secondary, #6b7280);
+    background: transparent;
+}
+.pp-diff-table tbody tr:hover {
+    background: var(--tblr-bg-surface-secondary, rgba(0, 0, 0, 0.02));
+}
+[data-bs-theme="dark"] .pp-diff-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}

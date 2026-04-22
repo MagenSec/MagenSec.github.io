@@ -565,6 +565,33 @@ export class ApiClient {
     }
 
     /**
+     * Downloads the Opened/Resolved/Stayed diff as CSV. Mirrors exportPatchPostureCsv
+     * but hits /diff?format=csv so the file matches the unified table the user is looking at.
+     */
+    async exportPatchPostureDiffCsv(orgId, from, to) {
+        const token = auth.getToken() || '';
+        const params = new URLSearchParams({ format: 'csv' });
+        if (from) params.append('from', new Date(`${from}T00:00:00Z`).toISOString());
+        if (to) params.append('to', new Date(`${to}T23:59:59Z`).toISOString());
+        const res = await fetch(`${config.API_BASE}/api/v1/orgs/${orgId}/patch-posture/diff?${params}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => null);
+            throw new Error(body?.message || `Diff CSV failed (${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const stamp = new Date().toISOString().slice(0, 10);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `patch-posture-diff-${orgId}-${stamp}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    /**
      * Download patch posture as CSV. Server streams the file, browser saves it.
      */
     async exportPatchPostureCsv(orgId) {

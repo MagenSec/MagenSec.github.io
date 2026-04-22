@@ -273,6 +273,68 @@ export class PatchPosturePage extends Component {
         }
     }
 
+    /**
+     * Downloads the unified Opened/Resolved/Stayed diff as CSV.
+     * Hits /diff?format=csv which streams the same dataset rendered in the table.
+     */
+    async exportDiffCsv() {
+        const org = orgContext.getCurrentOrg();
+        if (!org?.orgId) return;
+        const { diffFrom, diffTo } = this.state;
+        if (!diffFrom || !diffTo) return;
+        try {
+            await api.exportPatchPostureDiffCsv(org.orgId, diffFrom, diffTo);
+        } catch (err) {
+            console.error('[PatchPosture] diff CSV failed', err);
+            window.toast?.show?.(err.message || 'Diff CSV export failed', 'danger', 5000);
+        }
+    }
+
+    /**
+     * Reuses the existing Patch Posture email pathway for the diff report. The recipient
+     * still gets the full HTML report; the diff window is informational metadata.
+     */
+    async emailDiffReport() {
+        return this.emailReport();
+    }
+
+    /**
+     * Renders the unified Opened/Resolved/Stayed diff body as a single sortable table.
+     * Order: Opened first (most actionable), then Stayed (the persistent backlog),
+     * then Resolved (good news at the bottom). Mirrors how Tenable displays diff exports.
+     */
+    renderDiffRows() {
+        const d = this.state.diff;
+        if (!d) return null;
+        const rows = []
+            .concat((d.opened || []).map(x => ({ ...x, _status: 'Opened', _badge: 'bg-danger', _icon: 'ti-circle-plus', _when: x.openedAt || x.OpenedAt }))) 
+            .concat((d.stayed || []).map(x => ({ ...x, _status: 'Stayed open', _badge: 'bg-warning', _icon: 'ti-clock-exclamation', _when: x.openedAt || x.OpenedAt })))
+            .concat((d.resolved || []).map(x => ({ ...x, _status: 'Resolved', _badge: 'bg-success', _icon: 'ti-circle-check', _when: x.closedAt || x.ClosedAt || x.openedAt || x.OpenedAt })));
+        return rows.map((r, idx) => {
+            const kb = r.kb || r.Kb || '';
+            const product = r.productName || r.ProductName || '';
+            const title = r.vulnTitle || r.VulnTitle || '';
+            const sev = r.severity || r.Severity || 0;
+            const cvss = r.maxCvss || r.MaxCvss;
+            const cves = r.cves || r.Cves || [];
+            const sevLabel = sev >= 3 ? 'Critical' : sev >= 2 ? 'High' : sev >= 1 ? 'Medium' : 'Low';
+            const sevClass = sev >= 3 ? 'bg-danger' : sev >= 2 ? 'bg-warning' : sev >= 1 ? 'bg-info' : 'bg-secondary';
+            const when = r._when ? new Date(r._when).toLocaleDateString() : '—';
+            return html`
+                <tr key=${'diff-' + idx}>
+                    <td><span class="badge ${r._badge} text-white"><i class="ti ${r._icon} me-1"></i>${r._status}</span></td>
+                    <td>
+                        <div class="pp-vuln-title"><span class="pp-vuln-prefix">${kb}:</span> ${title || `Security update for ${product}`}</div>
+                        <div class="text-muted small">${product}${cves[0] ? html` &middot; <span class="pp-vuln-cve">${cves[0]}</span>` : null}</div>
+                    </td>
+                    <td class="text-muted small">${r.deviceName || r.DeviceName || ''}</td>
+                    <td class="text-center"><span class="badge ${sevClass} text-white">${sevLabel}</span></td>
+                    <td class="text-center">${cvss != null ? cvss.toFixed(1) : '—'}</td>
+                    <td class="text-end text-muted small">${when}</td>
+                </tr>`;
+        });
+    }
+
     renderKpis(summary, intel) {
         const builtAt = intel?.builtAt ? new Date(intel.builtAt).toLocaleString() : '—';
         const intelStatus = intel?.loaded
@@ -393,8 +455,10 @@ export class PatchPosturePage extends Component {
                     ${p.isExploited ? html`<span class="pp-flag pp-flag--exploited" title="Microsoft confirms in-the-wild exploitation"><i class="ti ti-bolt me-1"></i>Exploited</span>` : null}
                 </td>
                 <td class="pp-finding__vuln">
-                    ${p.vulnTitle ? html`<div class="pp-vuln-title">${p.vulnTitle}</div>` : null}
-                    <div class="pp-vuln-product text-muted small">${p.productName || p.productId}</div>
+                    ${p.vulnTitle
+                        ? html`<div class="pp-vuln-title"><span class="pp-vuln-prefix">${p.kb}:</span> ${p.vulnTitle}</div>`
+                        : html`<div class="pp-vuln-title"><span class="pp-vuln-prefix">${p.kb}:</span> Security update for ${p.productName || p.productId}</div>`}
+                    <div class="pp-vuln-product text-muted small">${p.productName || p.productId}${(cves[0]) ? html` &middot; <span class="pp-vuln-cve">${cves[0]}</span>` : null}</div>
                     ${impacts.length ? html`<div class="pp-impact-row">
                         ${impacts.map(i => html`<span class="pp-impact">${i}</span>`)}
                     </div>` : null}
@@ -413,11 +477,14 @@ export class PatchPosturePage extends Component {
                 </td>
                 <td class="text-end pp-finding__fix">
                     <div class="btn-group btn-group-sm" role="group">
-                        ${p.advisoryUrl ? html`
-                            <a class="btn btn-outline-primary" href=${p.advisoryUrl} target="_blank" rel="noopener" title="Microsoft Security Response Center advisory">
-                                <i class="ti ti-shield-lock me-1"></i>MSRC
-                            </a>` : null}
-                        <a class="btn btn-outline-secondary" href=${this.catalogUrl(p.kb)} target="_blank" rel="noopener" title="Download from Microsoft Update Catalog">
+                        <a class="btn btn-outline-primary"
+                           href=${p.msrcUrl || p.advisoryUrl || (cves[0] ? `https://msrc.microsoft.com/update-guide/vulnerability/${cves[0]}` : '#')}
+                           target="_blank" rel="noopener"
+                           title="Microsoft Security Response Center vulnerability page"
+                           ?disabled=${!p.msrcUrl && !p.advisoryUrl && !cves[0]}>
+                            <i class="ti ti-shield-lock me-1"></i>MSRC
+                        </a>
+                        <a class="btn btn-outline-secondary" href=${this.catalogUrl(p.kb)} target="_blank" rel="noopener" title="Download the update package from the Microsoft Update Catalog">
                             <i class="ti ti-download me-1"></i>Catalog
                         </a>
                     </div>
@@ -506,40 +573,36 @@ export class PatchPosturePage extends Component {
                             </div>
                             ${this.state.diff ? html`
                                 <div class="col-auto ms-auto">
-                                    <span class="badge bg-danger text-white me-1">Opened: ${this.state.diff.counts?.opened ?? 0}</span>
-                                    <span class="badge bg-success text-white">Resolved: ${this.state.diff.counts?.resolved ?? 0}</span>
+                                    <span class="badge bg-danger text-white me-1" title="First seen inside this window">Opened: ${this.state.diff.counts?.opened ?? 0}</span>
+                                    <span class="badge bg-success text-white me-1" title="Closed inside this window">Resolved: ${this.state.diff.counts?.resolved ?? 0}</span>
+                                    <span class="badge bg-warning text-white me-2" title="Open before AND still open at end of window">Stayed: ${this.state.diff.counts?.stayed ?? 0}</span>
+                                    <button class="btn btn-sm btn-outline-secondary" onClick=${() => this.exportDiffCsv()} title="Download this diff as CSV">
+                                        <i class="ti ti-download me-1"></i>CSV
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary ms-1" onClick=${() => this.emailDiffReport()} title="Email this diff as a report">
+                                        <i class="ti ti-mail me-1"></i>Email
+                                    </button>
                                 </div>
                             ` : null}
                         </div>
                         ${this.state.diffError ? html`<div class="alert alert-danger mt-3 mb-0">${this.state.diffError}</div>` : null}
-                        ${this.state.diff && (this.state.diff.counts?.opened || this.state.diff.counts?.resolved) ? html`
-                            <div class="row mt-3">
-                                <div class="col-md-6">
-                                    <h4 class="text-danger">Newly opened</h4>
-                                    ${(this.state.diff.opened || []).length === 0
-                                        ? html`<div class="text-muted small">None.</div>`
-                                        : html`<ul class="list-unstyled mb-0">
-                                            ${this.state.diff.opened.map(o => html`
-                                                <li class="small py-1 border-bottom">
-                                                    <code>${o.kb}</code> · ${o.productName} · <span class="text-muted">${o.deviceName}</span>
-                                                </li>
-                                            `)}
-                                        </ul>`}
-                                </div>
-                                <div class="col-md-6">
-                                    <h4 class="text-success">Newly resolved</h4>
-                                    ${(this.state.diff.resolved || []).length === 0
-                                        ? html`<div class="text-muted small">None.</div>`
-                                        : html`<ul class="list-unstyled mb-0">
-                                            ${this.state.diff.resolved.map(o => html`
-                                                <li class="small py-1 border-bottom">
-                                                    <code>${o.kb}</code> · ${o.productName} · <span class="text-muted">${o.deviceName}</span>
-                                                </li>
-                                            `)}
-                                        </ul>`}
-                                </div>
+                        ${this.state.diff && (this.state.diff.counts?.opened + this.state.diff.counts?.resolved + this.state.diff.counts?.stayed > 0) ? html`
+                            <div class="table-responsive mt-3">
+                                <table class="table table-sm table-vcenter pp-diff-table mb-0">
+                                    <thead><tr>
+                                        <th style="width:120px">Status</th>
+                                        <th>Vulnerability</th>
+                                        <th>Device</th>
+                                        <th class="text-center" style="width:88px">Severity</th>
+                                        <th class="text-center" style="width:72px">CVSS</th>
+                                        <th class="text-end" style="width:130px">When</th>
+                                    </tr></thead>
+                                    <tbody>
+                                        ${this.renderDiffRows()}
+                                    </tbody>
+                                </table>
                             </div>
-                        ` : null}
+                        ` : (this.state.diff ? html`<div class="text-muted small mt-3">No changes in this window. Pick a different range above.</div>` : null)}
                     </div>
                 </div>
 
