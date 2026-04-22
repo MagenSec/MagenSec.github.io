@@ -688,7 +688,7 @@ export class PatchPosturePage extends Component {
 
                 ${this.renderKpis(summary, intel)}
 
-                ${orgContext.hasAddOn('Audit') ? html`
+                ${(orgContext.hasAddOnForOrg ? orgContext.hasAddOnForOrg('Audit') : orgContext.hasAddOn('Audit')) ? html`
                 <div class="card mb-3">
                     <div class="card-header pp-collapse-header" role="button" tabindex="0"
                         onClick=${() => this.toggleSection('whatChanged')}
@@ -802,9 +802,15 @@ export class PatchPosturePage extends Component {
                             </div>
                         </div>
                         <div class="flex-shrink-0 align-self-center">
-                            <a href="#!/upgrade" class="btn btn-primary btn-sm">
-                                <i class="ti ti-arrow-up-right me-1"></i>Upgrade
-                            </a>
+                            ${orgContext.hasAddOn('Audit') ? html`
+                                <span class="badge bg-secondary-lt text-secondary" title="Site Admin preview of the customer view">
+                                    <i class="ti ti-eye me-1"></i>Customer view
+                                </span>
+                            ` : html`
+                                <a href="#!/upgrade" class="btn btn-primary btn-sm">
+                                    <i class="ti ti-arrow-up-right me-1"></i>Upgrade
+                                </a>
+                            `}
                         </div>
                     </div>
                 </div>
