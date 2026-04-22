@@ -30,7 +30,23 @@ class ReportPreviewPage extends Component {
     componentDidMount() {
         // Subscribe to org changes
         this.orgUnsubscribe = window.orgContext.onChange(() => this.loadReportData(true));
-        this.loadReportData(true);
+
+        // Honor ?type=weekly|daily and ?print=1 URL params (used by email "Download as PDF" CTA)
+        try {
+            const params = new URLSearchParams((window.location.hash.split('?')[1]) || window.location.search.replace(/^\?/, ''));
+            const t = params.get('type');
+            if (t === 'weekly' || t === 'daily') {
+                this.setState({ reportType: t });
+            }
+            this._autoPrint = params.get('print') === '1';
+        } catch (_) { /* noop */ }
+
+        this.loadReportData(true).then(() => {
+            if (this._autoPrint) {
+                // Wait one paint cycle for iframe to populate
+                setTimeout(() => this.handlePrintPdf(), 800);
+            }
+        });
     }
 
     componentWillUnmount() {
@@ -94,6 +110,32 @@ class ReportPreviewPage extends Component {
 
     handleRefreshPreview = () => {
         this.loadReportData(true);
+    }
+
+    /**
+     * Open the iframe contents in a new window and trigger the browser print dialog so the
+     * customer can save a pixel-perfect PDF of the report. We use window.open + document.write
+     * (rather than iframe.contentWindow.print()) because Gmail-style emails are constrained to
+     * narrow widths and the print dialog needs the document to own the page so margins behave.
+     */
+    handlePrintPdf = () => {
+        const { rendered, reportType } = this.state;
+        const content = rendered && rendered[reportType];
+        if (!content) return;
+
+        const win = window.open('', '_blank');
+        if (!win) {
+            alert('Please allow popups to download the PDF.');
+            return;
+        }
+        win.document.open();
+        win.document.write(content);
+        win.document.close();
+        win.focus();
+        // Wait for resources, then invoke print
+        setTimeout(() => {
+            try { win.print(); } catch (_) { /* noop */ }
+        }, 500);
     }
 
     handleSendEmail = async (recipient = 'owner', customEmail = '') => {
@@ -289,6 +331,14 @@ class ReportPreviewPage extends Component {
                         title="Regenerate preview from current backend logic (does not overwrite cached sent email)"
                     >
                         ${refreshing ? 'Refreshing\u2026' : '\u21ba Refresh Preview'}
+                    </button>
+                    <button
+                        className="btn btn-outline"
+                        onClick=${this.handlePrintPdf}
+                        disabled=${!snapshot}
+                        title="Open the report in a new window and trigger the browser print dialog (Save as PDF)"
+                    >
+                        \u2B07\uFE0F Download PDF
                     </button>
                     ${emailSent && html`<span className="success-message">${emailMessage || '\u2713 Sent successfully'}</span>`}
                 </div>
