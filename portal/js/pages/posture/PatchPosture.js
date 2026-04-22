@@ -688,6 +688,7 @@ export class PatchPosturePage extends Component {
 
                 ${this.renderKpis(summary, intel)}
 
+                ${orgContext.hasAddOn('Audit') ? html`
                 <div class="card mb-3">
                     <div class="card-header pp-collapse-header" role="button" tabindex="0"
                         onClick=${() => this.toggleSection('whatChanged')}
@@ -782,6 +783,32 @@ export class PatchPosturePage extends Component {
                     </div>
                     </div>
                 </div>
+                ` : html`
+                <div class="card mb-3 patch-diff-upsell" style="border:1px dashed var(--tblr-border-color); background:linear-gradient(135deg, rgba(102,126,234,0.04), rgba(118,75,162,0.04));">
+                    <div class="card-body d-flex align-items-start gap-3">
+                        <div class="flex-shrink-0" style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:#fff;">
+                            <i class="ti ti-git-compare" style="font-size:20px;"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h3 class="card-title mb-1 d-flex align-items-center gap-2">
+                                What changed (Patch diff & trend reports)
+                                <i class="ti ti-lock text-muted" style="font-size:14px;"></i>
+                            </h3>
+                            <div class="text-muted small mb-2">
+                                Compare patch posture between any two dates &mdash; see what was opened, resolved, or stayed open during the window. Generate audit-grade PDFs and schedule compliance email so you have evidence for every Patch Tuesday.
+                            </div>
+                            <div class="text-muted small">
+                                Available in <strong>Business Plus</strong> and <strong>Business Ultimate</strong> as part of the <strong>Audit &amp; Evidence</strong> add-on.
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0 align-self-center">
+                            <a href="#!/upgrade" class="btn btn-primary btn-sm">
+                                <i class="ti ti-arrow-up-right me-1"></i>Upgrade
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                `}
 
                 <div class="card">
                     <div class="card-header pp-collapse-header">
