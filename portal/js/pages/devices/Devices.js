@@ -97,6 +97,26 @@ class DevicesPage extends window.Component {
     }
 
     componentDidUpdate(prevProps, prevState) {
+        // One-time per org-load toast when one or more devices are running an outdated client.
+        // Surfaces the action without nagging on every re-render. Cleared when the org changes.
+        try {
+            const devicesChanged = prevState.devices !== this.state.devices;
+            const installerLoaded = prevState.installers?.ENGINE?.VERSION !== this.state.installers?.ENGINE?.VERSION;
+            if ((devicesChanged || installerLoaded) && Array.isArray(this.state.devices) && this.state.devices.length > 0) {
+                const outdatedCount = this.state.devices.filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
+                const orgKey = orgContext.getCurrentOrg()?.orgId || 'none';
+                const noticeKey = `outdated-clients-notice:${orgKey}`;
+                if (outdatedCount > 0 && sessionStorage.getItem(noticeKey) !== '1') {
+                    sessionStorage.setItem(noticeKey, '1');
+                    const latest = this.state.installers?.ENGINE?.VERSION || '';
+                    const msg = outdatedCount === 1
+                        ? `1 device is running an outdated agent${latest ? ` (latest v${latest})` : ''}. Use Check Updates to push the new build.`
+                        : `${outdatedCount} devices are running outdated agents${latest ? ` (latest v${latest})` : ''}. Use Check Updates to push the new build.`;
+                    this.showToast(msg, 'warning');
+                }
+            }
+        } catch (_) { /* non-fatal */ }
+
         const modalOpened = this.state.showDeviceModal && this.state.selectedDevice;
         const modalClosed = prevState.showDeviceModal && !this.state.showDeviceModal;
 
@@ -2476,10 +2496,15 @@ class DevicesPage extends window.Component {
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
                             Scan All
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick=${() => this.queueOrgCommand('CheckUpdates')} title="Check for updates on all devices">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
-                            Check Updates
-                        </button>
+                        ${(() => {
+                            const outdatedCount = (this.state.devices || []).filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
+                            const hasOutdated = outdatedCount > 0;
+                            return html`<button type="button" class="btn btn-sm ${hasOutdated ? 'btn-warning update-glow' : 'btn-outline-secondary'} d-inline-flex align-items-center gap-1" onclick=${() => this.queueOrgCommand('CheckUpdates')} title=${hasOutdated ? `${outdatedCount} device${outdatedCount === 1 ? '' : 's'} running outdated agent — push update now` : 'Check for updates on all devices'}>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                                Check Updates
+                                ${hasOutdated ? html`<span class="badge bg-white text-warning ms-1" style="font-size:10px;">${outdatedCount}</span>` : ''}
+                            </button>`;
+                        })()}
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick=${() => this.queueOrgCommand('RefreshInventory')} title="Refresh software inventory on all devices">
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74" /><path d="M3 4v4h4" /></svg>
                             Refresh Inventory

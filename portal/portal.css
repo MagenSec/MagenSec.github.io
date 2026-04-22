@@ -3794,6 +3794,25 @@ body.rewind-active .rewind-blocked {
     cursor: not-allowed !important;
 }
 
+/* Update-glow: amber breathing animation on the org-level "Check Updates" button when one or
+   more agents are running an outdated client version. Modeled on twIdleGlow but tuned for the
+   warning palette so it reads as "action recommended" rather than "operation in progress". */
+.update-glow {
+    animation: updateBreathe 2.6s ease-in-out infinite;
+    box-shadow: 0 0 0 rgba(245, 159, 0, 0);
+}
+@keyframes updateBreathe {
+    0%, 100% {
+        box-shadow: 0 0 4px rgba(245, 159, 0, 0.45),
+                    inset 0 1px 0 rgba(255, 220, 130, 0.18);
+    }
+    50% {
+        box-shadow: 0 0 14px rgba(245, 159, 0, 0.85),
+                    0 0 22px rgba(247, 103, 7, 0.40),
+                    inset 0 1px 0 rgba(255, 220, 130, 0.30);
+    }
+}
+
 /* Warp-flash: brief visual effect when stepping earlier/later */
 @keyframes twWarpFlash {
     0%   { opacity: 1; filter: brightness(1) saturate(1); }

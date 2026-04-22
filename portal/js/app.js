@@ -218,11 +218,15 @@ function applyOrgUiRestrictions() {
             const addOnKey = el.getAttribute('data-addon');
             if (!addOnKey) return;
             const hasIt = isSiteAdminUser || (orgContext.hasAddOn?.(addOnKey) ?? false);
+            // The static markup ships with a `ti-lock` glyph on every gated item; toggle its
+            // visibility based on entitlement so an Ultimate/Site-Admin user does not see padlocks.
+            const lockIcon = el.querySelector('.ti-lock');
             if (hasIt) {
                 el.style.display = '';
                 el.classList.remove('disabled');
                 el.removeAttribute('aria-disabled');
                 el.removeAttribute('title');
+                if (lockIcon) lockIcon.style.display = 'none';
             } else if (hideForPersonalNonAdmin) {
                 // Already hidden by personal-org logic above
                 el.style.display = 'none';
@@ -231,6 +235,7 @@ function applyOrgUiRestrictions() {
                 el.classList.add('disabled');
                 el.setAttribute('aria-disabled', 'true');
                 el.setAttribute('title', 'Not included in your current plan');
+                if (lockIcon) lockIcon.style.display = '';
             }
         });
 
