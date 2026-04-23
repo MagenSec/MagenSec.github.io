@@ -1100,6 +1100,11 @@ export class ClientDevicePage extends window.Component {
             window.chrome.webview.postMessage({ type: 'msec-client-ready' });
         } else if (bridgeWsUrl) {
             this.connectWebSocketBridge(bridgeWsUrl);
+        } else {
+            // No bridgeWs URL was passed and we are not running inside the WebView2 host
+            // (i.e. the page was opened directly in a browser). Probe the engine's candidate
+            // port range; the engine listens on the first available port in 58439..58448.
+            this.probeBridgePorts();
         }
 
         if (!debugMode && window.auth?.isAuthenticated?.()) {
@@ -1199,6 +1204,33 @@ export class ClientDevicePage extends window.Component {
         document.documentElement.setAttribute('data-bs-theme', normalized);
         safeStorageSet(localStorage, 'msec-cd-theme', normalized);
         this.setState({ theme: normalized });
+    }
+
+    // Probe the engine's candidate port range when no explicit bridgeWs URL was passed
+    // (i.e. user opened device-hub.html in a regular browser, not via the WebView2 host).
+    // The engine listens on the first available port in [58439..58448].
+    async probeBridgePorts() {
+        const ports = [58439, 58440, 58441, 58442, 58443, 58444, 58445, 58446, 58447, 58448];
+        for (const port of ports) {
+            try {
+                const res = await fetch(`http://127.0.0.1:${port}/bridge/`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-store',
+                    signal: AbortSignal.timeout ? AbortSignal.timeout(800) : undefined
+                });
+                if (!res.ok) continue;
+                const body = await res.json().catch(() => null);
+                if (body && body.service === 'engine-ui-bridge') {
+                    const wsUrl = `ws://127.0.0.1:${port}/bridge/`;
+                    this.bridgeWsUrl = wsUrl;
+                    this.connectWebSocketBridge(wsUrl);
+                    return;
+                }
+            } catch (_) {
+                // try next port
+            }
+        }
     }
 
     connectWebSocketBridge(url) {
