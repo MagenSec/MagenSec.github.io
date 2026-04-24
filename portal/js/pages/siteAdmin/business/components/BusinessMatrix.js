@@ -11,7 +11,19 @@ export function BusinessMatrixPage() {
     const [error, setError] = useState(null);
     const [expandedOrgs, setExpandedOrgs] = useState(new Set());
     const billingCurrencyCode = metrics?.platformSummary?.billingCurrencyCode || 'USD';
-    const [displayCurrencyCode, setDisplayCurrencyCode] = useState(localStorage.getItem('businessMatrixCurrency') || 'USD');
+    // Default display currency to billing currency on first load (no user override saved).
+    // This prevents the dashboard from labelling INR amounts as USD when localStorage is empty.
+    const [displayCurrencyCode, setDisplayCurrencyCode] = useState(localStorage.getItem('businessMatrixCurrency') || billingCurrencyCode || 'USD');
+
+    // Once metrics arrive, if the user has never made an explicit choice, follow the
+    // backend-reported billing currency so symbols and totals match the source data.
+    useEffect(() => {
+        if (!metrics) return;
+        const saved = localStorage.getItem('businessMatrixCurrency');
+        if (!saved && billingCurrencyCode && billingCurrencyCode !== displayCurrencyCode) {
+            setDisplayCurrencyCode(billingCurrencyCode);
+        }
+    }, [billingCurrencyCode, metrics]);
     const [kpiWindowDays, setKpiWindowDays] = useState(7);
     const [serviceCostDays, setServiceCostDays] = useState(30); // 7, 30, or 90 days
     const [costTrendDays, setCostTrendDays] = useState(30);          // 7, 14, 30
