@@ -2,7 +2,7 @@
 // Consumes the ApiFreshness contract: { status, source, generatedAt, ageSeconds, expiresAt }
 // status: "fresh" | "stale" | "live"
 // source: "snapshot" | "live"
-const { html } = window.htm;
+const html = window.html || (window.htm && window.preact ? window.htm.bind(window.preact.h) : null);
 
 function formatAge(seconds) {
   if (seconds == null || seconds < 0) return '';
