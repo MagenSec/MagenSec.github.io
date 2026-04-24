@@ -7,11 +7,24 @@ import { auth } from '@auth';
 
 export function LoginPage({ authenticating = false }) {
     const { html, preactHooks } = window;
-    const { useState } = preactHooks;
+    const { useState, useEffect } = preactHooks;
     const [loading, setLoading] = useState(false);
+    const [msLoading, setMsLoading] = useState(false);
+    const [msAvailable, setMsAvailable] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const cfg = await auth.getMicrosoftOAuthConfig();
+                if (!cancelled && cfg?.clientId) setMsAvailable(true);
+            } catch (_) { /* noop */ }
+        })();
+        return () => { cancelled = true; };
+    }, []);
 
     const handleLogin = async () => {
-        if (loading || authenticating) return;
+        if (loading || msLoading || authenticating) return;
         try {
             setLoading(true);
             await auth.startOAuth();
@@ -21,8 +34,20 @@ export function LoginPage({ authenticating = false }) {
             setLoading(false);
         }
     };
+
+    const handleMicrosoftLogin = async () => {
+        if (loading || msLoading || authenticating) return;
+        try {
+            setMsLoading(true);
+            await auth.startMicrosoftOAuth();
+        } catch (err) {
+            console.error('[Login] Microsoft OAuth start failed:', err);
+            alert('Unable to start Microsoft sign-in. Please try again.');
+            setMsLoading(false);
+        }
+    };
     
-    const isBusy = loading || authenticating;
+    const isBusy = loading || msLoading || authenticating;
     const buttonLabel = authenticating ? 'Completing sign-in…' : 'Sign in with Google';
 
     return html`
@@ -76,6 +101,29 @@ export function LoginPage({ authenticating = false }) {
                             `}
                             ${buttonLabel}
                         </button>
+
+                        ${msAvailable ? html`
+                            <div class="hr-text my-3">or</div>
+                            <button
+                                onclick=${handleMicrosoftLogin}
+                                class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center"
+                                disabled=${isBusy}
+                                aria-label="Sign in with Microsoft"
+                                aria-busy=${isBusy}
+                            >
+                                ${msLoading ? html`
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                ` : html`
+                                    <svg class="me-2" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true">
+                                        <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
+                                        <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
+                                        <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
+                                        <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
+                                    </svg>
+                                `}
+                                Sign in with Microsoft
+                            </button>
+                        ` : null}
                         
                         <div class="text-center text-muted mt-3">
                             <small>

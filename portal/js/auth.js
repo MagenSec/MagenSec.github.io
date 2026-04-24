@@ -71,6 +71,7 @@ export class Auth {
         const redirectUri = window.location.origin + '/portal/';
         
         // Store for callback
+        sessionStorage.setItem('oauth_provider', 'google');
         sessionStorage.setItem('oauth_code_verifier', codeVerifier);
         sessionStorage.setItem('oauth_state', this.generateState());
         sessionStorage.setItem('oauth_redirect_uri', redirectUri);
@@ -102,6 +103,62 @@ export class Auth {
         window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
     }
 
+    /**
+     * Get Microsoft OAuth config from backend (KV-backed Entra clientId).
+     * Returns null if Microsoft SSO is not configured server-side.
+     */
+    async getMicrosoftOAuthConfig() {
+        try {
+            const response = await fetch(`${config.API_BASE}/api/v1/oauth/microsoft/config`);
+            const data = await response.json();
+            if (data.success) return data.data;
+            return null;
+        } catch (e) {
+            logger.warn('[Auth] Microsoft OAuth config unavailable:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Initiate Microsoft Entra ID OAuth (PKCE flow, work/school + personal MSA).
+     * Mirrors startOAuth() but targets login.microsoftonline.com/common.
+     */
+    async startMicrosoftOAuth() {
+        const msConfig = await this.getMicrosoftOAuthConfig();
+        if (!msConfig?.clientId) {
+            throw new Error('Microsoft SSO is not configured on this server');
+        }
+
+        const codeVerifier = this.generateCodeVerifier();
+        const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+        const redirectUri = window.location.origin + '/portal/';
+
+        sessionStorage.setItem('oauth_provider', 'microsoft');
+        sessionStorage.setItem('oauth_code_verifier', codeVerifier);
+        sessionStorage.setItem('oauth_state', this.generateState());
+        sessionStorage.setItem('oauth_redirect_uri', redirectUri);
+
+        try {
+            const currentHash = window.location.hash || '';
+            if (currentHash && currentHash.startsWith('#!') && !currentHash.startsWith('#!/login')) {
+                sessionStorage.setItem('post_login_redirect', currentHash);
+            }
+        } catch (_) { /* noop */ }
+
+        const params = new URLSearchParams({
+            client_id: msConfig.clientId,
+            redirect_uri: redirectUri,
+            response_type: 'code',
+            response_mode: 'query',
+            scope: 'openid email profile',
+            state: sessionStorage.getItem('oauth_state'),
+            code_challenge: codeChallenge,
+            code_challenge_method: 'S256'
+        });
+
+        window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+    }
+
     // Handle OAuth callback
     async handleCallback() {
         const params = new URLSearchParams(window.location.search);
@@ -118,8 +175,9 @@ export class Auth {
         
         // Get the redirect URI we used for the OAuth request
         const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || (window.location.origin + '/portal/');
+        const provider = sessionStorage.getItem('oauth_provider') || 'google';
         
-        console.log('[Auth] Handling callback with redirect:', redirectUri);
+        console.log(`[Auth] Handling callback (provider=${provider}) with redirect:`, redirectUri);
         
         // Exchange code for tokens using form data
         const codeVerifier = sessionStorage.getItem('oauth_code_verifier');
@@ -129,7 +187,11 @@ export class Auth {
         formData.append('code_verifier', codeVerifier);
         formData.append('state', state);
         
-        const response = await fetch(`${config.API_BASE}/api/v1/oauth/callback`, {
+        const callbackPath = provider === 'microsoft'
+            ? '/api/v1/oauth/microsoft/callback'
+            : '/api/v1/oauth/callback';
+
+        const response = await fetch(`${config.API_BASE}${callbackPath}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: formData.toString()
@@ -158,6 +220,7 @@ export class Auth {
             this.saveSession(session);
             
             // Clean up
+            sessionStorage.removeItem('oauth_provider');
             sessionStorage.removeItem('oauth_code_verifier');
             sessionStorage.removeItem('oauth_state');
             sessionStorage.removeItem('oauth_redirect_uri');
