@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://api.magensec.gigabits.co.in https://magensec.short.gy https://*.azurecontainerapps.io; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; worker-src 'self' blob:">
   <title>MagenSec Hub</title>
 
   <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-GgnF119bh9fxkKuWHRQYSgEe1rSp5jB0EJ2W8eMf8mjowfwhZP2H1u8n8xJUW3FQ">
@@ -108,70 +109,8 @@
 
 <div id="root"></div>
 
-<script>
-    window.html = window.htm.bind(window.preact.h);
-    window.render = window.preact.render;
-    window.Component = window.preact.Component;
-    window.useState = window.preactHooks.useState;
-    window.useEffect = window.preactHooks.useEffect;
-    window.useMemo = window.preactHooks.useMemo;
-
-    const bootOverlay = document.getElementById('boot-overlay');
-    const bootTitle = document.getElementById('boot-title');
-    const bootBody = document.getElementById('boot-body');
-    const bootActions = document.getElementById('boot-actions');
-    const bootRetry = document.getElementById('boot-retry');
-
-    window.hideHubBootOverlay = function () {
-      if (!bootOverlay) return;
-      bootOverlay.classList.add('hide');
-      setTimeout(() => {
-        if (bootOverlay && bootOverlay.parentNode) {
-          bootOverlay.parentNode.removeChild(bootOverlay);
-        }
-      }, 420);
-    };
-
-    window.showHubBootOffline = function () {
-      if (!bootOverlay) return;
-      bootTitle.textContent = 'Connection needed';
-      bootBody.textContent = 'MagenSec Hub requires internet access to load the latest security context. Please check your connection and retry.';
-      bootActions.classList.add('show');
-    };
-
-    bootRetry?.addEventListener('click', () => {
-      window.location.reload();
-    });
-
-    if (!navigator.onLine) {
-      window.showHubBootOffline();
-    }
-
-    window.addEventListener('offline', () => {
-      window.showHubBootOffline();
-    });
-</script>
-
-<script type="module">
-    import { config } from './portal/js/config.js';
-    import { ClientDevicePage } from './portal/js/pages/client-device/ClientDevicePage.js?v=2.1';
-
-    window.config = {
-        API_BASE: config.API_BASE || localStorage.getItem('msec-api-url') || 'https://api.magensec.gigabits.co.in'
-    };
-
-    window.auth = {
-        isAuthenticated: () => !!localStorage.getItem('msec-portal-token'),
-        getToken: () => localStorage.getItem('msec-portal-token') || ''
-    };
-
-    document.addEventListener('DOMContentLoaded', () => {
-        window.render(
-            window.html`<${ClientDevicePage} />`,
-            document.getElementById('root')
-        );
-    });
-</script>
+<script src="./js/device-hub-boot.js"></script>
+<script type="module" src="./js/device-hub-entry.js"></script>
 
 </body>
 </html>
