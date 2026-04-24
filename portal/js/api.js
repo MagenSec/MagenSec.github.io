@@ -1018,6 +1018,17 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/vulnerabilities`, date ? { ...(params || {}), date } : params);
     }
 
+    /**
+     * Composite vulnerabilities endpoint: returns vulnerabilities + reviewItems +
+     * summary + lightweight device map + freshness in one round-trip.
+     * Replaces the legacy pattern of getVulnerabilities + getDevices + N+1
+     * getAlerts enrichment loop.
+     */
+    async getVulnerabilitiesFull(orgId, params) {
+        const date = this.getEffectiveDate();
+        return this.get(`/api/v1/orgs/${orgId}/vulnerabilities/full`, date ? { ...(params || {}), date } : params);
+    }
+
     async submitVulnerabilityReview(orgId, data) {
         return this.post(`/api/v1/orgs/${orgId}/vulnerabilities/review-request`, data);
     }

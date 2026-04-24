@@ -229,21 +229,20 @@ export class VulnerabilitiesPage extends Component {
         }
 
         try {
-            // Step 3: Fetch fresh data (with Time Warp date if active)
-            const [response, devicesResp] = await Promise.all([
-                api.getVulnerabilities(orgId, { include: 'cached-summary' }),
-                api.getDevices(orgId).catch(() => ({ success: false, data: [] }))
-            ]);
+            // Step 3: Fetch fresh data (with Time Warp date if active).
+            // Single composite call returns vulnerabilities + reviewItems + devices + freshness.
+            // Replaces the old getVulnerabilities + getDevices + N+1 enrichDeviceAttribution loop.
+            const response = await api.getVulnerabilitiesFull(orgId);
 
             if (response.success) {
+                const deviceRows = response.data?.devices || [];
                 const deviceMap = {};
-                const deviceRows = devicesResp?.data?.devices || devicesResp?.data || [];
                 for (const device of (Array.isArray(deviceRows) ? deviceRows : [])) {
                     if (device?.deviceId) deviceMap[device.deviceId] = device.deviceName || device.deviceId;
                 }
 
                 const data = {
-                    vulnerabilities: await this.enrichDeviceAttribution(orgId, response.data?.vulnerabilities || [], deviceRows),
+                    vulnerabilities: response.data?.vulnerabilities || [],
                     reviewItems: response.data?.reviewItems || [],
                     summary: response.data?.summary
                 };
@@ -257,12 +256,13 @@ export class VulnerabilitiesPage extends Component {
                     reviewItems: data.reviewItems,
                     summary: data.summary,
                     deviceMap,
+                    freshness: response.freshness || null,
                     loading: false,
                     isRefreshingInBackground: false,
                     error: null
                 });
 
-                console.log('[Vulnerabilities] ✅ Fresh data loaded from API');
+                console.log('[Vulnerabilities] ✅ Fresh data loaded from API (composite)', response.freshness);
             } else {
                 throw new Error(response.message || 'Failed to load vulnerabilities');
             }
