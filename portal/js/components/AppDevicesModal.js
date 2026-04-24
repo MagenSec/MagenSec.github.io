@@ -98,7 +98,7 @@ export function AppDevicesModal({ appName, orgId, isOpen, onClose, graphContext 
                 new Promise((resolve) => setTimeout(() => resolve(null), ms))
             ]);
 
-            const vulnResp = await withTimeout(api.getVulnerabilities(orgId, { include: 'cached-summary' }).catch(() => null), 3500);
+            const vulnResp = await withTimeout(api.getVulnerabilitiesFull(orgId).catch(() => null), 3500);
 
             const vulnerabilities = vulnResp?.data?.vulnerabilities || [];
             const requested = normalizeAppName(appName);
