@@ -2460,11 +2460,7 @@ export class DeviceDetailPage extends window.Component {
                                 ? 'bg-dark-lt text-dark'
                                 : 'bg-secondary-lt text-secondary';
         const patch = renderPatchStatus(device);
-        const patchBadgeClass = patch.badge === 'bg-success-lt' ? 'bg-success-lt text-success'
-            : patch.badge === 'bg-info-lt' ? 'bg-info-lt text-info'
-            : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
-            : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
-            : patch.badge;
+        const patchBadgeClass = patch.badge;
         const registeredAt = device.FirstHeartbeat || device.firstSeen || device.createdAt || null;
         const lastSeenAt = this.state.telemetryDetail?.latest?.timestamp || device.LastHeartbeat || device.lastHeartbeat || device.LastSeen || device.lastSeen || null;
         const displayUser = (() => {

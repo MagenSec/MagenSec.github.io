@@ -98,11 +98,7 @@ export function renderDeviceModal(component) {
                                         const health = renderHealthStatus(component.state.selectedDevice);
                                         const risk = renderRiskIndicator(component.state.selectedDevice);
                                         const patch = renderPatchStatus(component.state.selectedDevice);
-                                        const patchBadgeClass = patch.badge === 'bg-success-lt' ? 'bg-success-lt text-success'
-                                            : patch.badge === 'bg-info-lt' ? 'bg-info-lt text-info'
-                                            : patch.badge === 'bg-warning-lt' ? 'bg-warning-lt text-warning'
-                                            : patch.badge === 'bg-danger-lt' ? 'bg-danger-lt text-danger'
-                                            : patch.badge;
+                                        const patchBadgeClass = patch.badge;
                                         const riskTrend = Number.isFinite(risk.trend7d) ? risk.trend7d : 0;
                                         const summary = component.state.deviceSummaries[component.state.selectedDevice.id] || { apps: 0, cves: 0, vulnerableApps: 0, criticalCves: 0, highCves: 0, mediumCves: 0, lowCves: 0, worstSeverity: 'LOW', score: 0 };
                                         const displayScore = (component.state.enrichedScores[component.state.selectedDevice.id]?.score ?? summary.score ?? 0);

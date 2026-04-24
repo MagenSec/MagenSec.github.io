@@ -226,10 +226,10 @@ export function renderPatchStatus(device) {
     const cvePenalty = Math.min(30, cveDensity * 10); // Up to 30% penalty
     const patchPercent = Math.max(0, Math.round(baseCompliance - cvePenalty));
     
-    const badge = patchPercent >= 90 ? 'bg-success-lt' :
-                 patchPercent >= 75 ? 'bg-info-lt' :
-                 patchPercent >= 50 ? 'bg-warning-lt' :
-                 'bg-danger-lt';
+    const badge = patchPercent >= 90 ? 'bg-success-lt text-success' :
+                 patchPercent >= 75 ? 'bg-info-lt text-info' :
+                 patchPercent >= 50 ? 'bg-warning-lt text-warning' :
+                 'bg-danger-lt text-danger';
 
     return {
         compliant: patchPercent >= 90,

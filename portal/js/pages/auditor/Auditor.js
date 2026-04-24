@@ -1205,7 +1205,7 @@ export class AuditorPage extends Component {
                 <div class="col-4">
                   <div class="h2 mb-0">${deltaData.score?.from ?? '—'}</div>
                   <div class="text-muted small mt-1">Score on ${deltaFrom}</div>
-                  ${deltaData.score?.gradeFrom ? html`<span class="badge bg-secondary-lt">${deltaData.score.gradeFrom}</span>` : ''}
+                  ${deltaData.score?.gradeFrom ? html`<span class="badge bg-secondary-lt text-secondary">${deltaData.score.gradeFrom}</span>` : ''}
                 </div>
                 <div class="col-4 d-flex flex-column align-items-center justify-content-center">
                   ${this.renderDeltaArrow(deltaData.score?.change)}
@@ -1214,7 +1214,7 @@ export class AuditorPage extends Component {
                 <div class="col-4">
                   <div class="h2 mb-0">${deltaData.score?.to ?? '—'}</div>
                   <div class="text-muted small mt-1">Score on ${deltaTo}</div>
-                  ${deltaData.score?.gradeTo ? html`<span class="badge bg-secondary-lt">${deltaData.score.gradeTo}</span>` : ''}
+                  ${deltaData.score?.gradeTo ? html`<span class="badge bg-secondary-lt text-secondary">${deltaData.score.gradeTo}</span>` : ''}
                 </div>
               </div>
             </div>
