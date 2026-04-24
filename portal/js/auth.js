@@ -151,7 +151,7 @@ export class Auth {
                 userType: data.data.userType,
                 maxDevices: data.data.maxDevices,
                 isNewUser: data.data.isNewUser,
-                expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+                expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days (matches server-issued HMAC token lifetime)
             };
             
             console.log('[Auth] Transformed session:', session.user.email);
