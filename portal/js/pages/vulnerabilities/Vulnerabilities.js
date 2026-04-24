@@ -682,12 +682,12 @@ export class VulnerabilitiesPage extends Component {
                         <div class="col">
                             <div class="d-flex align-items-center gap-2">
                                 <h2 class="page-title mb-0">Your Risk Map</h2>
-                                ${isRefreshingInBackground ? html`
+                                ${window.FreshnessBadge ? html`<${window.FreshnessBadge} freshness=${this.state.freshness} refreshing=${isRefreshingInBackground} />` : (isRefreshingInBackground ? html`
                                     <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
                                         <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
                                         Refreshing...
                                     </span>
-                                ` : ''}
+                                ` : '')}
                             </div>
                             <div class="page-subtitle mt-2">
                                 <div class="d-flex gap-2 flex-wrap align-items-center">

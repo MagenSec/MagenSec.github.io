@@ -41,7 +41,8 @@ async function init() {
             loadModule('./js/components/ChartRenderer.js'),
             loadModule('./js/components/PromptSuggestions.js'),
             loadModule('./js/components/SearchableOrgSwitcher.js'),
-            loadModule('./js/components/ErrorBoundary.js')
+            loadModule('./js/components/ErrorBoundary.js'),
+            loadModule('./js/components/FreshnessBadge.js')
         ]);
 
         // Note: Page modules (Login, Dashboard, Devices, SiteAdmin, etc.) are NOT
