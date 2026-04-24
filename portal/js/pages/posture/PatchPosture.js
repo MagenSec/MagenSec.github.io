@@ -795,10 +795,10 @@ export class PatchPosturePage extends Component {
                                 <i class="ti ti-lock text-muted" style="font-size:14px;"></i>
                             </h3>
                             <div class="text-muted small mb-2">
-                                Compare patch posture between any two dates &mdash; see what was opened, resolved, or stayed open during the window. Generate audit-grade PDFs and schedule compliance email so you have evidence for every Patch Tuesday.
+                                Compare patch posture between any two dates — see what was opened, resolved, or stayed open during the window. Generate audit-grade PDFs and schedule compliance email so you have evidence for every Patch Tuesday.
                             </div>
                             <div class="text-muted small">
-                                Available in <strong>Business Plus</strong> and <strong>Business Ultimate</strong> as part of the <strong>Audit &amp; Evidence</strong> add-on.
+                                Available in <strong>Business Plus</strong> and <strong>Business Ultimate</strong> as part of the <strong>Audit & Evidence</strong> add-on.
                             </div>
                         </div>
                         <div class="flex-shrink-0 align-self-center">

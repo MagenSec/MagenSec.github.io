@@ -336,13 +336,13 @@ export function initRouter(renderApp) {
         renderApp({ page: 'reports', ctx });
     });
 
-    // Review - dead pages catalog (protected)
+    // Review - app vulnerability review (protected)
     page('/review', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'review', ctx });
+        renderApp({ page: 'siteadmin/review', ctx });
     });
 
     page('/vulnerabilities', (ctx) => {

@@ -1,6 +1,6 @@
 // Toasts region (Tabler toasts skeleton)
 // TODO: Wire to notification state
-const { html } = window.htm;
+const html = window.html || (window.htm && window.preact ? window.htm.bind(window.preact.h) : null);
 function Toasts({ toasts = [] }) {
   return html`
     <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">

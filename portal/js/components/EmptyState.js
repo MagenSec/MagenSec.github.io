@@ -1,5 +1,5 @@
 // EmptyState component for 404/empty dashboard
-const { html } = window.htm;
+const html = window.html || (window.htm && window.preact ? window.htm.bind(window.preact.h) : null);
 function EmptyState({ message = 'No data available', actionLabel, onAction }) {
   return html`
     <div class="card text-center">

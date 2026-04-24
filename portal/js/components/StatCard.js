@@ -1,5 +1,5 @@
 // StatCard component (Tabler KPI card)
-const { html } = window.htm;
+const html = window.html || (window.htm && window.preact ? window.htm.bind(window.preact.h) : null);
 function StatCard({ icon, label, value, delta, color = 'primary' }) {
   return html`
     <div class="card card-sm card-status-top bg-${color}">
