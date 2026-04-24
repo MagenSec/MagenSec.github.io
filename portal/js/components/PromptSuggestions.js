@@ -1,4 +1,5 @@
-import { html } from 'https://unpkg.com/htm/preact/standalone.module.js';
+// Use HTM global initialized in inline/htm-globals.js (CSP-friendly, no external CDN import)
+const { html } = window;
 
 /**
  * Curated prompt suggestions categorized by user type

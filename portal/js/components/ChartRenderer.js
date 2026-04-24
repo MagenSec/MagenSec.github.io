@@ -1,4 +1,6 @@
-import { html, useEffect, useRef } from 'https://unpkg.com/htm/preact/standalone.module.js';
+// Use HTM/Preact globals initialized in inline/htm-globals.js (CSP-friendly, no external CDN import)
+const { html } = window;
+const { useEffect, useRef } = window.preactHooks || {};
 
 /**
  * ChartRenderer - Renders charts using ApexCharts (bundled with Tabler)
