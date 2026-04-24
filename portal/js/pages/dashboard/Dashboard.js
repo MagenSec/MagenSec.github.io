@@ -465,6 +465,7 @@ export class DashboardPage extends Component {
                 this.setState({
                     ...this.buildDashboardState(dashboard),
                     trendSnapshots,
+                    freshness: dashboardRes.freshness || null,
                     loading: false,
                     isRefreshingInBackground: false,
                     officerNoteDismissed
@@ -500,6 +501,7 @@ export class DashboardPage extends Component {
                 this.setState({
                     ...this.buildDashboardState(dashboard),
                     trendSnapshots,
+                    freshness: dashboardRes.freshness || null,
                     isRefreshingInBackground: false,
                     officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
                 });
@@ -2027,12 +2029,12 @@ export class DashboardPage extends Component {
                             <div class="page-pretitle">Security Command Center</div>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
                                 <h2 class="page-title mb-0">${orgName}</h2>
-                                ${this.state.isRefreshingInBackground ? html`
+                                ${window.FreshnessBadge ? html`<${window.FreshnessBadge} freshness=${this.state.freshness} refreshing=${this.state.isRefreshingInBackground} />` : (this.state.isRefreshingInBackground ? html`
                                     <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
                                         <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
                                         Refreshing...
                                     </span>
-                                ` : null}
+                                ` : null)}
                             </div>
                         </div>
                         <div class="col-auto ms-auto d-flex gap-2">

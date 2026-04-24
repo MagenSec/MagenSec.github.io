@@ -2484,12 +2484,12 @@ class DevicesPage extends window.Component {
         </h2>
     </div>
     <div class="col-auto ms-auto d-print-none d-flex align-items-center gap-2">
-        ${this.state.isRefreshingInBackground ? html`
+        ${window.FreshnessBadge ? html`<${window.FreshnessBadge} freshness=${this.state.freshness} refreshing=${this.state.isRefreshingInBackground} />` : (this.state.isRefreshingInBackground ? html`
             <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" style="animation: pulse 1s infinite;">
                 <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px; border-width: 2px;"></span>
                 Refreshing...
             </span>
-        ` : ''}
+        ` : '')}
                 <div class="d-flex gap-2">
                     ${!orgContext.isReadOnly() ? html`
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick=${() => this.queueOrgCommand('TriggerScan')} title="Trigger scan on all devices">
