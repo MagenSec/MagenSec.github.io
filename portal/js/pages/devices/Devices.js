@@ -1366,13 +1366,16 @@ class DevicesPage extends window.Component {
     }
 
     canEnableDevice(state) {
+        // Any non-active state can be re-enabled (DISABLED, BLOCKED, DELETED).
+        // BlockedReason is enforced server-side; UI just offers the menu item.
         const s = (state || '').toLowerCase();
-        return s === 'blocked' || s === 'deleted';
+        return s === 'blocked' || s === 'deleted' || s === 'disabled';
     }
 
     canBlockDevice(state) {
+        // Active or disabled devices can be blocked. Already-blocked / deleted hide the option.
         const s = (state || '').toLowerCase();
-        return s === 'active' || s === 'enabled' || s === 'inactive';
+        return s === 'active' || s === 'enabled' || s === 'inactive' || s === 'disabled';
     }
 
     computeSecuritySummary(cves) {
