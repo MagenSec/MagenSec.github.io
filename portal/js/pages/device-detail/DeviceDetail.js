@@ -2562,12 +2562,33 @@ export class DeviceDetailPage extends window.Component {
                                     </div>
                                 </div>
                                 <div class="col-auto ms-auto d-print-none">
+                                    ${(() => {
+                                        const s = String(device.State || device.state || '').toLowerCase();
+                                        const agentBlock =
+                                            s === 'disabled' ? 'Device is disabled — agent is muted and will not run remote commands. Enable the device first.' :
+                                            s === 'blocked'  ? 'Device is blocked — agent has removed itself. Enable the device to allow remote commands.' :
+                                            s === 'deleted'  ? 'Device has been deleted — no agent is available to receive commands.' :
+                                            null;
+                                        const agentDisabled = !!agentBlock;
+                                        const isReadOnly = orgContext.isReadOnly();
+                                        const canEnable = s === 'blocked' || s === 'disabled' || s === 'deleted';
+                                        const canBlock  = s === 'active' || s === 'enabled' || s === 'inactive' || s === 'disabled' || s === '';
+                                        const isDeleted = s === 'deleted';
+
+                                        // Tooltip + disabled flag for agent commands
+                                        const agentBtnTitle = agentBlock || 'Send command to the agent on this device';
+
+                                        return html`
                                     <div class="btn-list">
                                         <button class="btn btn-primary" title="Generate a device security report and save as PDF" onclick=${(e) => this.printDeviceReport(e)}>
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 17v-6" /><path d="M9.5 14.5l2.5 2.5l2.5 -2.5" /></svg>
                                             Save as PDF
                                         </button>
-                                        <button class=${`btn ${updateAvailable ? 'btn-warning' : ''}`} title="Check for Windows and client updates on this device" onclick=${() => this.queueDeviceCommand('CheckUpdates')}>
+                                        <button class=${`btn ${updateAvailable && !agentDisabled ? 'btn-warning' : ''}`}
+                                                title=${agentBtnTitle}
+                                                disabled=${agentDisabled || undefined}
+                                                aria-disabled=${agentDisabled ? 'true' : undefined}
+                                                onclick=${agentDisabled ? undefined : () => this.queueDeviceCommand('CheckUpdates')}>
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5.5l7 -1.5v8l-7 .5z" /><path d="M20 4l-7 1.5v7.5l7 -.5z" /><path d="M4 15l7 .5v5l-7 -1.5z" /><path d="M20 13l-7 .5v6.5l7 -1.5z" /></svg>
                                             Check Updates
                                         </button>
@@ -2576,6 +2597,7 @@ export class DeviceDetailPage extends window.Component {
                                                 More Actions
                                             </button>
                                             <div class="dropdown-menu dropdown-menu-end">
+                                                <div class="dropdown-header">Investigate</div>
                                                 <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.openAdvancedDetails('detailApps'); this.setState({ searchQuery: '' }); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" /><path d="M16 5l3 3" /></svg>
                                                     View Applications
@@ -2584,54 +2606,69 @@ export class DeviceDetailPage extends window.Component {
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" /></svg>
                                                     View Vulnerabilities
                                                 </a>
-                                                <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('CheckUpdates'); }}>
+                                                <a class="dropdown-item${agentDisabled ? ' disabled' : ''}"
+                                                   href="#"
+                                                   title=${agentBlock || 'Ask the agent to refresh update posture'}
+                                                   aria-disabled=${agentDisabled ? 'true' : undefined}
+                                                   onclick=${(e) => { e.preventDefault(); if (!agentDisabled) this.queueDeviceCommand('CheckUpdates'); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 9a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" /><path d="M7 14l-3 3l-1 -1" /><path d="M9 13l2 2l4 -4" /></svg>
                                                     Review update posture
                                                 </a>
                                                 <div class="dropdown-divider"></div>
-                                                <div class="dropdown-header">Response Actions</div>
-                                                ${orgContext.isReadOnly() ? html`
-                                                    <span class="dropdown-item text-muted disabled" style="cursor:default;">
+                                                <div class="dropdown-header">Operate ${agentDisabled ? html`<span class="text-muted small">(unavailable)</span>` : ''}</div>
+                                                ${isReadOnly ? html`
+                                                    <span class="dropdown-item text-muted disabled" style="cursor:default;" title="Auditor role cannot send remote commands">
                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M12 3a4 4 0 0 1 4 4v4h-8v-4a4 4 0 0 1 4 -4z"/></svg>
                                                         Auditor — no actions
                                                     </span>
                                                 ` : html`
-                                                <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('TriggerScan'); }}>
+                                                <a class="dropdown-item${agentDisabled ? ' disabled' : ''}"
+                                                   href="#"
+                                                   title=${agentBlock || 'Run an on-demand security scan on this device'}
+                                                   aria-disabled=${agentDisabled ? 'true' : undefined}
+                                                   onclick=${(e) => { e.preventDefault(); if (!agentDisabled) this.queueDeviceCommand('TriggerScan'); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
                                                     Trigger Scan
                                                 </a>
-                                                <a class="dropdown-item" href="#" onclick=${(e) => { e.preventDefault(); this.queueDeviceCommand('CollectLogs'); }}>
+                                                <a class="dropdown-item${agentDisabled ? ' disabled' : ''}"
+                                                   href="#"
+                                                   title=${agentBlock || 'Pull diagnostic logs from this device'}
+                                                   aria-disabled=${agentDisabled ? 'true' : undefined}
+                                                   onclick=${(e) => { e.preventDefault(); if (!agentDisabled) this.queueDeviceCommand('CollectLogs'); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>
                                                     Collect Logs
                                                 </a>
                                                 <div class="dropdown-divider"></div>
-                                                ${(() => {
-                                                    const s = String(device.State || device.state || '').toLowerCase();
-                                                    const canEnable = s === 'blocked' || s === 'disabled' || s === 'deleted';
-                                                    const canBlock  = s === 'active' || s === 'enabled' || s === 'inactive' || s === 'disabled' || s === '';
-                                                    return html`
-                                                        ${canEnable ? html`
-                                                            <a class="dropdown-item text-success" href="#" onclick=${(e) => { e.preventDefault(); this.enableDevice(); }}>
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
-                                                                Enable Device
-                                                            </a>
-                                                        ` : ''}
-                                                        ${canBlock ? html`
-                                                            <a class="dropdown-item text-danger" href="#" onclick=${(e) => { e.preventDefault(); this.blockDevice(false); }}>
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M5.7 5.7l12.6 12.6" /></svg>
-                                                                Block Device
-                                                            </a>
-                                                            <a class="dropdown-item text-danger" href="#" onclick=${(e) => { e.preventDefault(); this.blockDevice(true); }}>
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 6l3 18h12l3 -18h-18" /><path d="M8 6v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" /></svg>
-                                                                Block + Delete Telemetry
-                                                            </a>
-                                                        ` : ''}
-                                                    `;
-                                                })()}
+                                                <div class="dropdown-header">Lifecycle</div>
+                                                <a class="dropdown-item${canEnable ? ' text-success' : ' disabled'}"
+                                                   href="#"
+                                                   title=${canEnable ? 'Re-enable this device so the agent resumes telemetry' : 'Device is already active'}
+                                                   aria-disabled=${canEnable ? undefined : 'true'}
+                                                   onclick=${(e) => { e.preventDefault(); if (canEnable) this.enableDevice(); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
+                                                    Enable Device
+                                                </a>
+                                                <a class="dropdown-item${canBlock ? ' text-danger' : ' disabled'}"
+                                                   href="#"
+                                                   title=${canBlock ? 'Block device, keep telemetry data for analysis' : (s === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state')}
+                                                   aria-disabled=${canBlock ? undefined : 'true'}
+                                                   onclick=${(e) => { e.preventDefault(); if (canBlock) this.blockDevice(false); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M5.7 5.7l12.6 12.6" /></svg>
+                                                    Block Device
+                                                </a>
+                                                <a class="dropdown-item${canBlock ? ' text-danger' : ' disabled'}"
+                                                   href="#"
+                                                   title=${canBlock ? 'Block device and permanently delete all telemetry data' : (s === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state')}
+                                                   aria-disabled=${canBlock ? undefined : 'true'}
+                                                   onclick=${(e) => { e.preventDefault(); if (canBlock) this.blockDevice(true); }}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 6l3 18h12l3 -18h-18" /><path d="M8 6v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" /></svg>
+                                                    Block + Delete Telemetry
+                                                </a>
                                                 `}
                                             </div>
                                         </div>
-                                    </div>
+                                    </div>`;
+                                    })()}
                                 </div>
                             </div>
                         </div>

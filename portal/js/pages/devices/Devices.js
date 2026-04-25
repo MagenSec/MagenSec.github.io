@@ -1378,6 +1378,34 @@ class DevicesPage extends window.Component {
         return s === 'active' || s === 'enabled' || s === 'inactive' || s === 'disabled';
     }
 
+    /**
+     * Reason a remote-agent command (Trigger Scan, Trigger Update, Collect Logs)
+     * cannot be sent to a device, given its lifecycle state. Returns null when the
+     * command is honored, or a short human-readable reason otherwise so the menu
+     * item can be disabled with an explanatory tooltip rather than hidden.
+     */
+    getAgentCommandBlockReason(state) {
+        const s = (state || '').toLowerCase();
+        if (s === 'disabled') return 'Device is disabled — agent is muted and will not run remote commands. Enable the device first.';
+        if (s === 'blocked')  return 'Device is blocked — agent has removed itself. Enable the device to allow remote commands.';
+        if (s === 'deleted')  return 'Device has been deleted — no agent is available to receive commands.';
+        return null;
+    }
+
+    /**
+     * Reason a remote-agent command (Trigger Scan, Trigger Update, Collect Logs)
+     * cannot be sent to a device, given its lifecycle state. Returns null when the
+     * command is honored, or a short human-readable reason otherwise so the menu
+     * item can be disabled with an explanatory tooltip rather than hidden.
+     */
+    getAgentCommandBlockReason(state) {
+        const s = (state || '').toLowerCase();
+        if (s === 'disabled') return 'Device is disabled — agent is muted and will not run remote commands. Enable the device first.';
+        if (s === 'blocked')  return 'Device is blocked — agent has removed itself. Enable the device to allow remote commands.';
+        if (s === 'deleted')  return 'Device has been deleted — no agent is available to receive commands.';
+        return null;
+    }
+
     computeSecuritySummary(cves) {
         const counts = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 };
         for (const c of (cves || [])) {
@@ -2798,61 +2826,115 @@ class DevicesPage extends window.Component {
                                                             `;
                                                         })()}
                                                         <td>
-                                                            <div class="dropdown">
-                                                                <button class="btn btn-sm btn-secondary dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown">
-                                                                    Actions
-                                                                    ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? html`
-                                                                        <span class="badge bg-danger badge-notification badge-blink" style="position: absolute; top: -4px; right: -4px;"></span>
-                                                                    ` : ''}
-                                                                </button>
-                                                                <div class="dropdown-menu dropdown-menu-end" style="min-width: 240px;">
-                                                                    <!-- View Device (outside lifecycle) -->
-                                                                    <button type="button" class="dropdown-item" onclick=${() => { window.location.hash = `#!/devices/${device.id}`; }}>
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>
-                                                                        View Device
-                                                                    </button>
-                                                                    ${!orgContext.isIndividualUser() ? html`
-                                                                    <div class="dropdown-divider"></div>
-                                                                    <button type="button" class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'TriggerScan')}>
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
-                                                                        Trigger Scan
-                                                                    </button>
-                                                                    <button type="button" class="dropdown-item ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? 'bg-warning-lt' : ''}" onclick=${() => this.queueDeviceAction(device, 'CheckUpdates')}>
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
-                                                                        Trigger Update
-                                                                        ${device.clientVersion && this.isVersionOutdated(device.clientVersion) ? html`<span class="badge bg-danger ms-2">Update</span>` : ''}
-                                                                    </button>
-                                                                    <button type="button" class="dropdown-item" onclick=${() => this.queueDeviceAction(device, 'CollectLogs')}>
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>
-                                                                        Collect Logs
-                                                                    </button>
-                                                                    <div class="dropdown-divider"></div>
+                                                            ${(() => {
+                                                                const stateRaw = (device.state || '').toLowerCase();
+                                                                const agentBlock = this.getAgentCommandBlockReason(device.state);
+                                                                const agentDisabled = !!agentBlock;
+                                                                const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+                                                                const canEnable = this.canEnableDevice(device.state);
+                                                                const canBlock = this.canBlockDevice(device.state);
+                                                                const isDeleted = stateRaw === 'deleted';
+                                                                const isBusinessOrg = !orgContext.isIndividualUser();
 
-                                                                    <!-- Device Lifecycle -->
-                                                                    <div class="dropdown-header">Device Lifecycle</div>
-                                                                    ${this.canEnableDevice(device.state) ? html`
-                                                                        <button type="button" class="dropdown-item text-success" onclick=${() => this.enableDevice(device.id)}>
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
-                                                                            Enable Device
-                                                                        </button>
-                                                                    ` : ''}
-                                                                    ${this.canBlockDevice(device.state) ? html`
-                                                                        <button type="button" class="dropdown-item text-warning" onclick=${() => this.blockDevice(device.id, false)} title="Block device, keep telemetry data for analysis">
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                                                                            Block (Retain Data)
-                                                                        </button>
-                                                                        <button type="button" class="dropdown-item text-orange" onclick=${() => this.blockDevice(device.id, true)} title="Block device and permanently delete all telemetry data">
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="9" y1="12" x2="15" y2="12" /></svg>
-                                                                            Block (Purge Data)
-                                                                        </button>
-                                                                    ` : ''}
-                                                                    <button type="button" class="dropdown-item text-danger" title="Delete device and purge all associated data" onclick=${() => this.deleteDevice(device.id)}>
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
-                                                                        Delete Device
+                                                                // Helper: render a dropdown item that is either active or disabled with a tooltip.
+                                                                const item = ({ disabled, onClick, title, className = '', icon, label, badge }) => {
+                                                                    const cls = `dropdown-item${disabled ? ' disabled' : ''} ${className}`.trim();
+                                                                    return html`
+                                                                        <button type="button"
+                                                                                class=${cls}
+                                                                                disabled=${disabled || undefined}
+                                                                                aria-disabled=${disabled ? 'true' : undefined}
+                                                                                title=${title || ''}
+                                                                                onclick=${disabled ? undefined : onClick}>
+                                                                            ${icon}
+                                                                            ${label}
+                                                                            ${badge || ''}
+                                                                        </button>`;
+                                                                };
+
+                                                                return html`
+                                                                <div class="dropdown">
+                                                                    <button class="btn btn-sm btn-secondary dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown">
+                                                                        Actions
+                                                                        ${isOutdated && !agentDisabled ? html`
+                                                                            <span class="badge bg-danger badge-notification badge-blink" style="position: absolute; top: -4px; right: -4px;"></span>
+                                                                        ` : ''}
                                                                     </button>
-                                                                    ` : ''}
-                                                                </div>
-                                                            </div>
+                                                                    <div class="dropdown-menu dropdown-menu-end" style="min-width: 240px;">
+                                                                        <!-- Investigate -->
+                                                                        <div class="dropdown-header">Investigate</div>
+                                                                        ${item({
+                                                                            disabled: false,
+                                                                            onClick: () => { window.location.hash = `#!/devices/${device.id}`; },
+                                                                            icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12a10 10 0 1 0 -20 0a10 10 0 0 0 20 0" /></svg>`,
+                                                                            label: 'View Device'
+                                                                        })}
+
+                                                                        ${isBusinessOrg ? html`
+                                                                            <div class="dropdown-divider"></div>
+                                                                            <div class="dropdown-header">Operate ${agentDisabled ? html`<span class="text-muted small">(unavailable)</span>` : ''}</div>
+                                                                            ${item({
+                                                                                disabled: agentDisabled,
+                                                                                onClick: () => this.queueDeviceAction(device, 'TriggerScan'),
+                                                                                title: agentBlock || 'Run an on-demand security scan on this device',
+                                                                                icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>`,
+                                                                                label: 'Trigger Scan'
+                                                                            })}
+                                                                            ${item({
+                                                                                disabled: agentDisabled,
+                                                                                onClick: () => this.queueDeviceAction(device, 'CheckUpdates'),
+                                                                                title: agentBlock || 'Ask the agent to check for updates',
+                                                                                className: !agentDisabled && isOutdated ? 'bg-warning-lt' : '',
+                                                                                icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>`,
+                                                                                label: 'Trigger Update',
+                                                                                badge: !agentDisabled && isOutdated ? html`<span class="badge bg-danger ms-2">Update</span>` : ''
+                                                                            })}
+                                                                            ${item({
+                                                                                disabled: agentDisabled,
+                                                                                onClick: () => this.queueDeviceAction(device, 'CollectLogs'),
+                                                                                title: agentBlock || 'Pull diagnostic logs from this device',
+                                                                                icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>`,
+                                                                                label: 'Collect Logs'
+                                                                            })}
+                                                                        ` : ''}
+
+                                                                        <div class="dropdown-divider"></div>
+                                                                        <div class="dropdown-header">Lifecycle</div>
+                                                                        ${item({
+                                                                            disabled: !canEnable,
+                                                                            onClick: () => this.enableDevice(device.id),
+                                                                            title: canEnable ? 'Re-enable this device so the agent resumes telemetry' : 'Device is already active',
+                                                                            className: canEnable ? 'text-success' : '',
+                                                                            icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>`,
+                                                                            label: 'Enable Device'
+                                                                        })}
+                                                                        ${item({
+                                                                            disabled: !canBlock,
+                                                                            onClick: () => this.blockDevice(device.id, false),
+                                                                            title: canBlock ? 'Block device, keep telemetry data for analysis' : (stateRaw === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state'),
+                                                                            className: canBlock ? 'text-warning' : '',
+                                                                            icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>`,
+                                                                            label: 'Block (Retain Data)'
+                                                                        })}
+                                                                        ${item({
+                                                                            disabled: !canBlock,
+                                                                            onClick: () => this.blockDevice(device.id, true),
+                                                                            title: canBlock ? 'Block device and permanently delete all telemetry data' : (stateRaw === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state'),
+                                                                            className: canBlock ? 'text-orange' : '',
+                                                                            icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="9" y1="12" x2="15" y2="12" /></svg>`,
+                                                                            label: 'Block (Purge Data)'
+                                                                        })}
+                                                                        ${item({
+                                                                            disabled: isDeleted,
+                                                                            onClick: () => this.deleteDevice(device.id),
+                                                                            title: isDeleted ? 'Device is already deleted' : 'Delete device and purge all associated data',
+                                                                            className: isDeleted ? '' : 'text-danger',
+                                                                            icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>`,
+                                                                            label: 'Delete Device'
+                                                                        })}
+                                                                    </div>
+                                                                </div>`;
+                                                            })()}
                                                         </td>
                                                     </tr>
                                                 `)}
