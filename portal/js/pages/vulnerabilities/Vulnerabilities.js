@@ -673,6 +673,24 @@ export class VulnerabilitiesPage extends Component {
         const lowCount = Number(summary?.low ?? vulnerabilities.filter(v => v.severity === 'Low').length);
         const needsReviewCount = Number(summary?.needsReview ?? reviewItems.length);
 
+        // Compute distinct CVEs and affected devices client-side from the row payload so the
+        // header narrates the actionable story (which CVEs / which devices) instead of just
+        // the device×CVE×version exposure count which can balloon as NVD/CPE sync runs.
+        const uniqueCveSet = new Set();
+        const affectedDeviceSet = new Set();
+        const uniqueCveBySev = { Critical: new Set(), High: new Set(), Medium: new Set(), Low: new Set() };
+        for (const v of vulnerabilities) {
+            const cve = (v.cveId || '').toUpperCase();
+            if (cve) {
+                uniqueCveSet.add(cve);
+                if (uniqueCveBySev[v.severity]) uniqueCveBySev[v.severity].add(cve);
+            }
+            if (Array.isArray(v.deviceIds)) v.deviceIds.forEach(id => id && affectedDeviceSet.add(id));
+        }
+        const totalExposures = criticalCount + highCount + mediumCount + lowCount;
+        const uniqueCveTotal = uniqueCveSet.size;
+        const affectedDeviceTotal = affectedDeviceSet.size;
+
         const groupedView = this.buildGroupedViews(filtered, groupBy);
 
         return html`
@@ -690,13 +708,23 @@ export class VulnerabilitiesPage extends Component {
                                 ` : '')}
                             </div>
                             <div class="page-subtitle mt-2">
-                                <div class="d-flex gap-2 flex-wrap align-items-center">
-                                    <span class="badge bg-danger text-white" title="Open critical exposures (one per device + CVE + version)">${criticalCount} Critical</span>
-                                    <span class="badge bg-warning text-white" title="Open high-severity exposures">${highCount} High</span>
-                                    <span class="badge bg-info text-white" title="Open medium-severity exposures">${mediumCount} Medium</span>
-                                    <span class="badge bg-success text-white" title="Open low-severity exposures">${lowCount} Low</span>
-                                    ${needsReviewCount > 0 && orgContext.isSiteAdmin() ? html`<span class="badge bg-warning text-white">${needsReviewCount} Needs review</span>` : ''}
-                                    ${rewindContext.isActive() ? html`<span class="badge bg-azure-lt text-azure">As of ${api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
+                                <div class="d-flex flex-column gap-1">
+                                    ${uniqueCveTotal > 0 ? html`
+                                        <div class="text-muted small">
+                                            <strong class="text-body">${uniqueCveTotal.toLocaleString()}</strong> unique CVE${uniqueCveTotal === 1 ? '' : 's'}
+                                            \u00b7 <strong class="text-body">${affectedDeviceTotal.toLocaleString()}</strong> device${affectedDeviceTotal === 1 ? '' : 's'} affected
+                                            \u00b7 <strong class="text-body">${totalExposures.toLocaleString()}</strong> open exposure${totalExposures === 1 ? '' : 's'}
+                                            <span class="text-muted ms-1" title="An exposure = one device with one vulnerable app version. The same CVE on multiple devices counts as multiple exposures.">(?)</span>
+                                        </div>
+                                    ` : ''}
+                                    <div class="d-flex gap-2 flex-wrap align-items-center">
+                                        <span class="badge bg-danger text-white" title=${`${uniqueCveBySev.Critical.size} unique critical CVE${uniqueCveBySev.Critical.size === 1 ? '' : 's'} \u00b7 ${criticalCount} open exposure${criticalCount === 1 ? '' : 's'}`}>${criticalCount} Critical</span>
+                                        <span class="badge bg-warning text-white" title=${`${uniqueCveBySev.High.size} unique high CVE${uniqueCveBySev.High.size === 1 ? '' : 's'} \u00b7 ${highCount} open exposure${highCount === 1 ? '' : 's'}`}>${highCount} High</span>
+                                        <span class="badge bg-info text-white" title=${`${uniqueCveBySev.Medium.size} unique medium CVE${uniqueCveBySev.Medium.size === 1 ? '' : 's'} \u00b7 ${mediumCount} open exposure${mediumCount === 1 ? '' : 's'}`}>${mediumCount} Medium</span>
+                                        <span class="badge bg-success text-white" title=${`${uniqueCveBySev.Low.size} unique low CVE${uniqueCveBySev.Low.size === 1 ? '' : 's'} \u00b7 ${lowCount} open exposure${lowCount === 1 ? '' : 's'}`}>${lowCount} Low</span>
+                                        ${needsReviewCount > 0 && orgContext.isSiteAdmin() ? html`<span class="badge bg-warning text-white">${needsReviewCount} Needs review</span>` : ''}
+                                        ${rewindContext.isActive() ? html`<span class="badge bg-azure-lt text-azure">As of ${api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
+                                    </div>
                                 </div>
                             </div>
                         </div>
