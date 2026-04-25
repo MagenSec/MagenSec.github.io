@@ -300,7 +300,18 @@ export class SoftwareInventoryPage extends Component {
     _kpis() {
         const { apps, licenses } = this.state;
         const total    = apps.length;
+        // "vuln" = app/version rows with at least one CVE. Two further numbers operators
+        // care about: how many DISTINCT applications need attention (not just rows) and
+        // how many devices that touches.
         const vuln     = apps.filter(a => (a.cveCount || 0) > 0).length;
+        const vulnApps = new Set(
+            apps.filter(a => (a.cveCount || 0) > 0).map(a => (a.name || '').toLowerCase()).filter(Boolean)
+        ).size;
+        const vulnDevices = new Set(
+            apps.filter(a => (a.cveCount || 0) > 0)
+                .flatMap(a => (a.devices || []).map(d => d?.deviceId || d?.deviceName || ''))
+                .filter(Boolean)
+        ).size;
         const freeware = apps.filter(a => a.isFreeware).length;
         const manuallyTracked = apps.filter(a => !!licenses[this._appKey(a)]).length;
         const licensed = manuallyTracked + freeware; // Freeware is auto-classified
@@ -308,7 +319,7 @@ export class SoftwareInventoryPage extends Component {
         const deviceCoverage = new Set(
             apps.flatMap(a => (a.devices || []).map(d => d?.deviceId || d?.deviceName || '').filter(Boolean))
         ).size;
-        return { total, vuln, freeware, licensed, unlicensed, deviceCoverage };
+        return { total, vuln, vulnApps, vulnDevices, freeware, licensed, unlicensed, deviceCoverage };
     }
 
     _appKey(app) { return encodeURIComponent(app.name || ''); }
@@ -417,8 +428,16 @@ export class SoftwareInventoryPage extends Component {
 
     _renderKpiStrip(kpis) {
         const cards = [
-            { label: 'App Rows', value: kpis.total, cls: 'text-blue', bgCls: 'bg-blue-lt', hint: 'unique app/version records' },
-            { label: 'At Risk', value: kpis.vuln, cls: 'text-danger', bgCls: 'bg-danger-lt', hint: 'rows with linked CVEs' },
+            { label: 'App Rows', value: kpis.total, cls: 'text-blue', bgCls: 'bg-blue-lt', hint: 'unique app + version records' },
+            {
+                label: 'Apps to Patch',
+                value: kpis.vulnApps,
+                cls: kpis.vulnApps > 0 ? 'text-danger' : 'text-success',
+                bgCls: kpis.vulnApps > 0 ? 'bg-danger-lt' : 'bg-success-lt',
+                hint: kpis.vulnApps > 0
+                    ? `${kpis.vuln} version row${kpis.vuln === 1 ? '' : 's'} \u00b7 ${kpis.vulnDevices} device${kpis.vulnDevices === 1 ? '' : 's'} affected`
+                    : 'no apps with open CVEs'
+            },
             { label: 'Freeware', value: kpis.freeware, cls: 'text-success', bgCls: 'bg-success-lt', hint: 'clearly identified as free' },
             { label: 'Devices Reached', value: kpis.deviceCoverage, cls: 'text-azure', bgCls: 'bg-azure-lt', hint: 'endpoints represented here' },
         ];

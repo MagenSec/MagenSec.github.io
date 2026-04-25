@@ -2409,21 +2409,21 @@ class DevicesPage extends window.Component {
                             </span>
                             <div>
                                 <div class="d-flex align-items-baseline gap-2">
-                                    <div class="h1 mb-0 fw-bold">${needActionCount}</div>
-                                    <span class="text-muted">need action</span>
+                                    <div class="h1 mb-0 fw-bold" title="Devices flagged Critical or High by the latest risk scoring run.">${needActionCount}</div>
+                                    <span class="text-muted">device${needActionCount === 1 ? '' : 's'} need action</span>
                                 </div>
                                 <div class="mt-1">
                                     ${!hasVerifiedRiskSignal
                                         ? html`<span class="text-muted">Security signal pending</span>`
                                         : needActionCount > 0
-                                            ? html`<span class="text-danger">${stats.criticalRiskCount} critical · ${stats.highRiskCount} high risk</span>`
+                                            ? html`<span class="text-danger">${stats.criticalRiskCount} critical \u00b7 ${stats.highRiskCount} high risk</span>`
                                             : pendingSignalCount > 0
                                                 ? html`<span class="text-muted">All verified devices healthy · ${pendingSignalCount} pending refresh</span>`
                                                 : html`<span class="text-success">All verified devices healthy</span>`
                                     }
                                     ${this.state.summarySignalMessage
                                         ? html`<div class="text-warning small mt-1">${this.state.summarySignalMessage}</div>`
-                                        : totalVulnApps > 0 ? html`<div class="text-warning small mt-1">${totalVulnApps} vulnerable apps across fleet</div>` : ''}
+                                        : totalVulnApps > 0 ? html`<div class="text-warning small mt-1" title="Sum of vulnerable app instances across the fleet (one device + one app/version with an open CVE = one instance). Open the Apps page for distinct apps that need patching.">${totalVulnApps} vulnerable app instance${totalVulnApps === 1 ? '' : 's'} across fleet</div>` : ''}
                                 </div>
                             </div>
                         </div>

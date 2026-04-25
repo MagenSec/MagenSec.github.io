@@ -400,7 +400,7 @@ export class CompliancePage extends Component {
                         <span class="badge bg-light text-dark rounded-circle" style="width:24px;height:24px;line-height:24px;padding:0;text-align:center;">${i + 1}</span>
                         <div>
                           <div class="fw-semibold">${gap.controlName || gap.controlId || 'Control gap'}</div>
-                          <div class="small opacity-75">${gap.frameworkName || ''} · ${gap.affectedAssets || 0} affected</div>
+                          <div class="small opacity-75">${gap.frameworkName || ''} \u00b7 ${gap.affectedAssets || 0} device${(gap.affectedAssets || 0) === 1 ? '' : 's'} non-compliant</div>
                         </div>
                       </div>
                     `)}
