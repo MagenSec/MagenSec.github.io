@@ -691,10 +691,10 @@ export class VulnerabilitiesPage extends Component {
                             </div>
                             <div class="page-subtitle mt-2">
                                 <div class="d-flex gap-2 flex-wrap align-items-center">
-                                    <span class="badge bg-danger text-white">${criticalCount} Critical</span>
-                                    <span class="badge bg-warning text-white">${highCount} High</span>
-                                    <span class="badge bg-info text-white">${mediumCount} Medium</span>
-                                    <span class="badge bg-success text-white">${lowCount} Low</span>
+                                    <span class="badge bg-danger text-white" title="Open critical exposures (one per device + CVE + version)">${criticalCount} Critical</span>
+                                    <span class="badge bg-warning text-white" title="Open high-severity exposures">${highCount} High</span>
+                                    <span class="badge bg-info text-white" title="Open medium-severity exposures">${mediumCount} Medium</span>
+                                    <span class="badge bg-success text-white" title="Open low-severity exposures">${lowCount} Low</span>
                                     ${needsReviewCount > 0 && orgContext.isSiteAdmin() ? html`<span class="badge bg-warning text-white">${needsReviewCount} Needs review</span>` : ''}
                                     ${rewindContext.isActive() ? html`<span class="badge bg-azure-lt text-azure">As of ${api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
                                 </div>

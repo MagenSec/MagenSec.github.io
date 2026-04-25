@@ -808,8 +808,10 @@ export default class UnifiedDashboard extends Component {
 
     // Fallback: derive from legacy fields when backend hasn't computed healthScore yet
     const threats = data?.securityPro?.threatIntel || {};
-    const crit = threats.criticalCveCount || 0;
-    const high = threats.highCveCount || 0;
+    // Prefer unique CVE counts where backend provides them so the hygiene score is
+    // not skewed by exposure multiplication (e.g. 1 Chrome CVE on 50 devices = 50 exposures).
+    const crit = threats.uniqueCriticalCveCount ?? threats.criticalCveCount ?? 0;
+    const high = threats.uniqueHighCveCount ?? threats.highCveCount ?? 0;
     const medium = threats.mediumCveCount || 0;
     const comp = data?.businessOwner?.complianceCard || {};
     const remediation = data?.aiTrends?.patchLatency || {};
@@ -863,7 +865,7 @@ export default class UnifiedDashboard extends Component {
     const pillars = [
       { name: 'Device Security', s: deviceScore, reason: deviceReason },
       { name: 'Software', s: softwareScore, reason: vuln > 0 ? `${vuln} app${vuln !== 1 ? 's' : ''} with known vulnerabilities` : 'All software up to date' },
-      { name: 'Vulnerability', s: vulnScore, reason: crit > 0 || high > 0 ? `${[crit > 0 ? `${crit} critical` : '', high > 0 ? `${high} high` : ''].filter(Boolean).join(' · ')} vulnerabilit${crit + high !== 1 ? 'ies' : 'y'} detected` : 'No critical or high vulnerabilities' },
+      { name: 'Vulnerability', s: vulnScore, reason: crit > 0 || high > 0 ? `${[crit > 0 ? `${crit} critical` : '', high > 0 ? `${high} high` : ''].filter(Boolean).join(' · ')} CVE${crit + high !== 1 ? 's' : ''} need patching` : 'No critical or high CVEs' },
       { name: 'Response', s: responseScore, reason: mttr <= 0 ? 'No remediation data yet' : mttr <= 7 ? 'Fixes applied within 7 days' : `Average fix time is ${Math.round(mttr)} days` },
       { name: 'Compliance', s: complianceScore, reason: (comp.gapCount || 0) > 0 ? `${comp.gapCount} compliance gap${comp.gapCount !== 1 ? 's' : ''} need attention` : 'All compliance controls met' }
     ];
@@ -1426,13 +1428,24 @@ export default class UnifiedDashboard extends Component {
     } else if (activePersona === 'security') {
       const critDelta = sec.criticalCveDelta;
       const highDelta = sec.highCveDelta;
+      // Display unique CVE counts; show exposure multiplier as sub-text for context.
+      const uCrit = sec.uniqueCriticalCveCount ?? sec.criticalCveCount ?? 0;
+      const uHigh = sec.uniqueHighCveCount ?? sec.highCveCount ?? 0;
+      const xCrit = sec.criticalCveCount || 0;
+      const xHigh = sec.highCveCount || 0;
+      const dCrit = sec.affectedDevicesCritical || 0;
+      const dHigh = sec.affectedDevicesHigh || 0;
       metricCards = [
-        { label: 'Critical CVEs', value: sec.criticalCveCount || 0,
-          valueColor: sec.criticalCveCount > 0 ? '#dc2626' : '#16a34a', suffix: '',
-          sub: critDelta > 0 ? `▲ +${critDelta} new` : critDelta < 0 ? `▼ ${Math.abs(critDelta)} fixed` : '' },
-        { label: 'High Severity', value: sec.highCveCount || 0,
-          valueColor: sec.highCveCount > 0 ? '#d97706' : '#16a34a', suffix: '',
-          sub: highDelta > 0 ? `▲ +${highDelta} new` : highDelta < 0 ? `▼ ${Math.abs(highDelta)} fixed` : '' },
+        { label: 'Critical CVEs', value: uCrit,
+          valueColor: uCrit > 0 ? '#dc2626' : '#16a34a', suffix: '',
+          sub: critDelta > 0 ? `▲ +${critDelta} new`
+             : critDelta < 0 ? `▼ ${Math.abs(critDelta)} fixed`
+             : (xCrit > uCrit ? `${xCrit} exposures · ${dCrit || '—'} device${dCrit === 1 ? '' : 's'}` : '') },
+        { label: 'High Severity', value: uHigh,
+          valueColor: uHigh > 0 ? '#d97706' : '#16a34a', suffix: '',
+          sub: highDelta > 0 ? `▲ +${highDelta} new`
+             : highDelta < 0 ? `▼ ${Math.abs(highDelta)} fixed`
+             : (xHigh > uHigh ? `${xHigh} exposures · ${dHigh || '—'} device${dHigh === 1 ? '' : 's'}` : '') },
         { label: 'Actively Exploited', value: `${sec.exploitCount || 0} / ${sec.activeExploitCount || 0}`,
           valueColor: sec.exploitCount > 0 ? '#ea580c' : '#16a34a', suffix: '', sub: 'catalog / in the wild' },
         { label: 'High Exploit Risk',     value: sec.highEpssCount || 0,
@@ -1991,8 +2004,8 @@ export default class UnifiedDashboard extends Component {
                 </div>
 
                 <div style="margin-top:6px;" class="d-flex flex-wrap gap-2">
-                  <span class="badge bg-danger-lt text-danger">Critical ${Number(threats.criticalCveCount || 0)}</span>
-                  <span class="badge bg-warning-lt text-warning">High ${Number(threats.highCveCount || 0)}</span>
+                  <span class="badge bg-danger-lt text-danger" title="Unique critical CVEs (${Number(threats.criticalCveCount || 0)} exposures)">Critical ${Number(threats.uniqueCriticalCveCount ?? threats.criticalCveCount ?? 0)}</span>
+                  <span class="badge bg-warning-lt text-warning" title="Unique high CVEs (${Number(threats.highCveCount || 0)} exposures)">High ${Number(threats.uniqueHighCveCount ?? threats.highCveCount ?? 0)}</span>
                   <span class="badge bg-info-lt text-info">Online ${fleet.online}/${fleet.total}</span>
                   <span class="badge bg-secondary-lt text-secondary">Offline ${fleet.offline}</span>
                 </div>
@@ -2112,8 +2125,8 @@ export default class UnifiedDashboard extends Component {
     const todaysAction = data.businessOwner?.todaysAction || null;
     const secScore = typeof score.score === 'number' ? score.score : 100;
     const grade = score.grade || '—';
-    const critical = threats.criticalCveCount || 0;
-    const high = threats.highCveCount || 0;
+    const critical = threats.uniqueCriticalCveCount ?? threats.criticalCveCount ?? 0;
+    const high = threats.uniqueHighCveCount ?? threats.highCveCount ?? 0;
 
     // Don't show if everything is green
     if (secScore >= 80 && critical === 0 && high === 0) return null;
@@ -2426,8 +2439,8 @@ export default class UnifiedDashboard extends Component {
 
     const secScore = typeof score.score === 'number' ? score.score : 100;
     const grade = score.grade || '—';
-    const critical = threats.criticalCveCount || 0;
-    const high = threats.highCveCount || 0;
+    const critical = threats.uniqueCriticalCveCount ?? threats.criticalCveCount ?? 0;
+    const high = threats.uniqueHighCveCount ?? threats.highCveCount ?? 0;
     const reportCard = data.reportCard || {};
     const reportGeneratedAt = reportCard.generatedAt ? new Date(reportCard.generatedAt) : null;
 
@@ -2497,7 +2510,7 @@ export default class UnifiedDashboard extends Component {
 
     let situationText = '';
     if (critical > 0 && high > 0) {
-      situationText = `${critical} critical · ${high} high vulnerabilities require immediate remediation.`;
+      situationText = `${critical} critical · ${high} high CVE${critical + high === 1 ? '' : 's'} need patching.`;
     } else if (critical > 0) {
       situationText = `${critical} critical CVE${critical !== 1 ? 's' : ''} require immediate attention.`;
     } else if (high > 0) {
@@ -2508,11 +2521,11 @@ export default class UnifiedDashboard extends Component {
 
     // Styled version with severity color dots for display only
     const situationNode = (critical > 0 && high > 0)
-      ? html`Immediate Attention: <span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> · <span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high</strong> vulnerabilities.`
+      ? html`Immediate Attention: <span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> · <span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high</strong> CVEs need patching.`
       : (critical > 0)
-      ? html`Immediate Attention: <span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> vulnerabilities.`
+      ? html`Immediate Attention: <span style="color:#ff6b6b; font-size:0.65rem;">●</span> <strong>${critical} critical</strong> CVE${critical !== 1 ? 's' : ''}.`
       : (high > 0)
-      ? html`Immediate Attention: <span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high</strong> vulnerabilities.`
+      ? html`Immediate Attention: <span style="color:#ffa94d; font-size:0.65rem;">●</span> <strong>${high} high</strong> CVE${high !== 1 ? 's' : ''}.`
       : html`Security posture is below target threshold.`;
 
     const freshness = this.getFreshnessInfo();

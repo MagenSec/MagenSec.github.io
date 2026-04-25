@@ -695,6 +695,11 @@ export class AlertsPage extends Component {
         const { summary, alerts, stateFilter } = this.state;
         const open = summary?.totalOpen ?? alerts.filter(a => (a.state || '').toUpperCase() === 'OPEN').length;
         const suppressed = summary?.totalSuppressed ?? alerts.filter(a => (a.state || '').toUpperCase() === 'SUPPRESSED').length;
+        // Backend summary now returns distinctControls + affectedDevices so the UI can
+        // show "X distinct issues across Y devices" instead of an exposure-multiplied count.
+        const distinctIssues = summary?.distinctControls ?? null;
+        const affectedDevices = summary?.affectedDevices ?? null;
+        const topControls = Array.isArray(summary?.topControls) ? summary.topControls : [];
 
         const visibleOpen = alerts.filter(a => (a.state || '').toUpperCase() === 'OPEN');
         const critical = visibleOpen.filter(a => Number(a.severity) === 4).length;
@@ -714,8 +719,17 @@ export class AlertsPage extends Component {
             return Number.isFinite(openedAt) && (Date.now() - openedAt) <= 86_400_000;
         }).length;
 
+        // Headline KPI: prefer "distinct issues" over raw exposure count when available.
+        // Each distinct issue is one ControlId (e.g. "Chrome critical CVE") even if it
+        // reaches many devices. Operators have ~controlCount things to fix, not totalOpen.
+        const headlineValue = distinctIssues != null && distinctIssues > 0 ? distinctIssues : open;
+        const headlineLabel = distinctIssues != null ? 'Distinct Issues' : 'Open Queue';
+        const headlineSub = distinctIssues != null
+            ? `${open.toLocaleString()} instance${open === 1 ? '' : 's'}${affectedDevices != null ? ` · ${affectedDevices} device${affectedDevices === 1 ? '' : 's'}` : ''}`
+            : `${suppressed} suppressed`;
+
         const cards = [
-            { label: 'Open Queue', value: open, sub: `${suppressed} suppressed`, tone: open > 0 ? 'danger' : 'success' },
+            { label: headlineLabel, value: headlineValue.toLocaleString(), sub: headlineSub, tone: headlineValue > 0 ? 'danger' : 'success' },
             { label: 'Needs Attention Now', value: needsAttentionNow, sub: 'overdue or due today', tone: needsAttentionNow > 0 ? 'warning' : 'success' },
             { label: 'Due Soon', value: dueSoon, sub: 'next 3 days', tone: dueSoon > 0 ? 'warning' : 'secondary' },
             { label: 'New in 24h', value: openedLast24h, sub: 'recently opened', tone: openedLast24h > 0 ? 'info' : 'secondary' },
@@ -748,11 +762,25 @@ export class AlertsPage extends Component {
                     </div>
                     <div class="text-muted small">
                         ${stateFilter === 'OPEN' && open > alerts.length
-                            ? `Showing newest ${alerts.length} items from ${open} open action items for faster triage.`
+                            ? `Showing newest ${alerts.length} of ${open} open instances · grouped into ${distinctIssues ?? '—'} distinct issues for triage.`
                             : `Showing ${alerts.length} ${stateFilter === 'ALL' ? 'loaded' : stateFilter.toLowerCase()} action item${alerts.length === 1 ? '' : 's'}.`}
                     </div>
                 </div>
             </div>
+            ${topControls.length > 0 ? html`
+                <div class="card card-sm mb-3">
+                    <div class="card-body py-2">
+                        <div class="text-muted small text-uppercase mb-2">Top issues by reach</div>
+                        <div class="d-flex flex-wrap gap-2">
+                            ${topControls.map(tc => html`
+                                <span class="badge bg-secondary-lt text-secondary" title="${tc.controlId}">
+                                    ${tc.controlId}: ${tc.affectedDevices} device${tc.affectedDevices === 1 ? '' : 's'} · ${tc.open} instance${tc.open === 1 ? '' : 's'}
+                                </span>
+                            `)}
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
         `;
     }
 
