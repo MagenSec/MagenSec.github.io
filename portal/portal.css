@@ -4319,3 +4319,33 @@ body.org-switcher-open .security-officer-top-note {
   color: var(--magi-text-muted) !important;
   opacity: 0.7;
 }
+
+/* ========================================
+   Table dropdown overflow fix
+   When a row's Actions dropdown is open, allow the menu to escape
+   the .card and .table-responsive overflow contexts. Uses :has()
+   so only the affected row's container relaxes overflow.
+   ======================================== */
+.card:has(.dropdown-menu.show),
+.card:has(.dropdown-menu.show) .table-responsive,
+.card:has(.dropdown-menu.show) .card-body {
+  overflow: visible !important;
+}
+.dropdown-menu.show {
+  z-index: 1080;
+}
+
+/* ========================================
+   Table dropdown overflow fix
+   When a row's Actions dropdown is open, allow the menu to escape
+   the .card and .table-responsive overflow contexts. Uses :has()
+   so only the affected row's container relaxes overflow.
+   ======================================== */
+.card:has(.dropdown-menu.show),
+.card:has(.dropdown-menu.show) .table-responsive,
+.card:has(.dropdown-menu.show) .card-body {
+  overflow: visible !important;
+}
+.dropdown-menu.show {
+  z-index: 1080;
+}
