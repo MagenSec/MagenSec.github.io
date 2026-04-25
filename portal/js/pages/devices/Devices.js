@@ -2854,7 +2854,7 @@ class DevicesPage extends window.Component {
 
                                                                 return html`
                                                                 <div class="dropdown">
-                                                                    <button class="btn btn-sm btn-secondary dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown">
+                                                                    <button class="btn btn-sm btn-secondary dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown" data-bs-strategy="fixed" data-bs-boundary="viewport">
                                                                         Actions
                                                                         ${isOutdated && !agentDisabled ? html`
                                                                             <span class="badge bg-danger badge-notification badge-blink" style="position: absolute; top: -4px; right: -4px;"></span>
