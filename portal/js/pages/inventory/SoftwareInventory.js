@@ -716,68 +716,85 @@ export class SoftwareInventoryPage extends Component {
     }
 
     _renderAtRiskCard(app) {
+        // Per-card collapse: header is always visible, CVE table renders only on click.
+        // Keying on `appKey` (encoded name) keeps state stable across re-renders even when
+        // groupBy or sort changes.
+        const cardKey = this._collapseId('risk-card', this._appKey(app));
+        const isOpen = !!this.state.expandedGroups[cardKey];
+        const hasCves = Array.isArray(app.cves) && app.cves.length > 0;
         return html`
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <div class="d-flex align-items-center gap-3 w-100">
-                            <span class="avatar bg-danger-lt text-danger">
-                                ${(app.name || '?')[0].toUpperCase()}
-                            </span>
-                            <div class="flex-fill">
-                                <div class="d-flex align-items-center gap-2 flex-wrap">
-                                    <h4 class="card-title mb-0">${app.name}</h4>
-                                    ${this._renderRiskBadge(app.riskScore)}
-                                    ${app.isFreeware ? html`<span class="badge bg-success-lt text-success">Free</span>` : ''}
+                        <button class="btn w-100 text-start border-0 bg-transparent shadow-none p-0"
+                                type="button"
+                                onClick=${() => this._toggleGroup(cardKey)}
+                                aria-expanded=${isOpen ? 'true' : 'false'}>
+                            <div class="d-flex align-items-center gap-3 w-100">
+                                <span class="avatar bg-danger-lt text-danger">
+                                    ${(app.name || '?')[0].toUpperCase()}
+                                </span>
+                                <div class="flex-fill">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <h4 class="card-title mb-0">${app.name}</h4>
+                                        ${this._renderRiskBadge(app.riskScore)}
+                                        ${app.isFreeware ? html`<span class="badge bg-success-lt text-success">Free</span>` : ''}
+                                    </div>
+                                    <div class="text-muted small mt-1">
+                                        ${app.vendor || 'Unknown vendor'} · v${app.version || 'N/A'} · ${app.deviceCount ?? 0} device${(app.deviceCount ?? 0) !== 1 ? 's' : ''}
+                                    </div>
                                 </div>
-                                <div class="text-muted small mt-1">
-                                    ${app.vendor || 'Unknown vendor'} · v${app.version || 'N/A'} · ${app.deviceCount ?? 0} device${(app.deviceCount ?? 0) !== 1 ? 's' : ''}
+                                <div class="ms-auto d-flex align-items-center gap-2">
+                                    <span class="badge bg-danger text-white">${app.cveCount} CVE${app.cveCount !== 1 ? 's' : ''}</span>
+                                    <span class="badge bg-secondary-lt text-secondary">${isOpen ? 'Collapse' : 'Expand'}</span>
                                 </div>
-                                <div class="mt-2">${this._renderDeviceLinks(app.devices, 6)}</div>
                             </div>
-                            <div class="ms-auto">
-                                <span class="badge bg-danger text-white">${app.cveCount} CVE${app.cveCount !== 1 ? 's' : ''}</span>
-                            </div>
-                        </div>
+                        </button>
                     </div>
 
-                    ${app.cves && app.cves.length > 0 ? html`
-                        <div class="table-responsive">
-                            <table class="table table-sm table-vcenter mb-0">
-                                <thead class="bg-light">
-                                    <tr>
-                                        <th>CVE ID</th>
-                                        <th>Severity</th>
-                                        <th>CVSS Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${app.cves.map(cve => html`
+                    ${isOpen ? html`
+                        <div class="card-body py-2 border-bottom">
+                            <div class="text-muted small mb-1">Affected devices</div>
+                            ${this._renderDeviceLinks(app.devices, 12)}
+                        </div>
+                        ${hasCves ? html`
+                            <div class="table-responsive">
+                                <table class="table table-sm table-vcenter mb-0">
+                                    <thead class="bg-light">
                                         <tr>
-                                            <td>
-                                                <a href="#!/cves?cveId=${encodeURIComponent(cve.id)}" class="fw-medium">
-                                                    ${cve.id}
-                                                </a>
-                                            </td>
-                                            <td>${this._renderSeverityBadge(cve.severity)}</td>
-                                            <td>
-                                                <span class="fw-medium">${(cve.score || 0).toFixed(1)}</span>
-                                                <div class="progress progress-sm mt-1" style="width:80px">
-                                                    <div class="progress-bar ${cve.score >= 9 ? 'bg-danger' : cve.score >= 7 ? 'bg-warning' : cve.score >= 4 ? 'bg-info' : 'bg-success'}"
-                                                         style="width:${Math.min(100, (cve.score / 10) * 100).toFixed(0)}%">
-                                                    </div>
-                                                </div>
-                                            </td>
+                                            <th>CVE ID</th>
+                                            <th>Severity</th>
+                                            <th>CVSS Score</th>
                                         </tr>
-                                    `)}
-                                </tbody>
-                            </table>
-                        </div>
-                    ` : html`
-                        <div class="card-body text-muted small">
-                            CVE details not yet enriched for this application.
-                        </div>
-                    `}
+                                    </thead>
+                                    <tbody>
+                                        ${app.cves.map(cve => html`
+                                            <tr>
+                                                <td>
+                                                    <a href="#!/cves?cveId=${encodeURIComponent(cve.id)}" class="fw-medium">
+                                                        ${cve.id}
+                                                    </a>
+                                                </td>
+                                                <td>${this._renderSeverityBadge(cve.severity)}</td>
+                                                <td>
+                                                    <span class="fw-medium">${(cve.score || 0).toFixed(1)}</span>
+                                                    <div class="progress progress-sm mt-1" style="width:80px">
+                                                        <div class="progress-bar ${cve.score >= 9 ? 'bg-danger' : cve.score >= 7 ? 'bg-warning' : cve.score >= 4 ? 'bg-info' : 'bg-success'}"
+                                                             style="width:${Math.min(100, (cve.score / 10) * 100).toFixed(0)}%">
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `)}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : html`
+                            <div class="card-body text-muted small">
+                                CVE details not yet enriched for this application.
+                            </div>
+                        `}
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -1169,7 +1186,9 @@ export class SoftwareInventoryPage extends Component {
 
         const TABS = [
             { id: 'all',      label: `All Software`,  badge: kpis.total,    badgeCls: 'bg-blue text-white' },
-            { id: 'atrisk',   label: `At Risk`,       badge: kpis.vuln,     badgeCls: kpis.vuln > 0 ? 'bg-danger text-white' : 'bg-success text-white' },
+            // At Risk badge counts DISTINCT apps (matches the dashboard's "apps with known
+            // vulnerabilities" tile). The version-row count is shown inside each app card.
+            { id: 'atrisk',   label: `At Risk`,       badge: kpis.vulnApps, badgeCls: kpis.vulnApps > 0 ? 'bg-danger text-white' : 'bg-success text-white' },
             ...(!orgContext.isIndividualUser() ? [{ id: 'licenses', label: `Licenses`, badge: kpis.licensed, badgeCls: 'bg-purple text-white' }] : []),
         ];
 
