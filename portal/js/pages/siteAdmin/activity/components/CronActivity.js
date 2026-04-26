@@ -548,6 +548,12 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         const progressAt = progressAtRaw ? new Date(progressAtRaw) : null;
         const ageMinutes = progressAt ? (Date.now() - progressAt.getTime()) / 60000 : null;
         const progressPercent = latestRun.metadata?.progressPercent ?? latestRun.metadata?.progress?.percent ?? null;
+        // Heartbeat ticks (CronCoordinator emits every 30s when the task itself is quiet)
+        // carry isHeartbeat=true and a stage prefix of "Heartbeat (...)". Treat them as
+        // proof-of-life but keep the display tied to the last *real* stage so users can
+        // tell genuine multi-stage progress apart from "still running, no new milestone."
+        const isHeartbeat = !!(latestRun.metadata?.progress?.isHeartbeat);
+        const quietSeconds = latestRun.metadata?.progress?.quietSeconds ?? null;
 
         const lockExpiresRaw = cronStatus?.currentStatus?.lockExpires;
         const lockExpired = lockExpiresRaw ? new Date(lockExpiresRaw) < new Date() : false;
@@ -559,7 +565,9 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                 badgeClass: 'bg-dark text-white',
                 icon: 'ti-plug-x',
                 progressPercent,
-                ageMinutes
+                ageMinutes,
+                isHeartbeat,
+                quietSeconds
             };
         }
 
@@ -570,17 +578,21 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                 badgeClass: 'bg-warning text-white',
                 icon: 'ti-alert-triangle',
                 progressPercent,
-                ageMinutes
+                ageMinutes,
+                isHeartbeat,
+                quietSeconds
             };
         }
 
         return {
             key: 'running',
-            label: 'Running',
+            label: isHeartbeat ? 'Running (heartbeat)' : 'Running',
             badgeClass: 'bg-primary text-white',
             icon: 'ti-player-play',
             progressPercent,
-            ageMinutes
+            ageMinutes,
+            isHeartbeat,
+            quietSeconds
         };
     }
 
