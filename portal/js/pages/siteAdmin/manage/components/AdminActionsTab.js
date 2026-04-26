@@ -554,7 +554,8 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 endDate: includeRange ? (params.endDate || undefined) : undefined,
                 retentionDays: job.supportsRetention
                     ? (params.retentionDays ? Number(params.retentionDays) : undefined)
-                    : undefined
+                    : undefined,
+                forceClearStale: Boolean(params.forceClearStale)
             };
 
             const result = typeof onTriggerCron === 'function'
@@ -920,7 +921,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                             ${taskStatus && html`<div class="small text-muted mt-2">Last run: ${taskStatus.lastRunAt ? new Date(taskStatus.lastRunAt).toLocaleString() : 'Never'}</div>`}
                         </div>
 
-                        <div class="mt-4 d-flex gap-2 flex-wrap">
+                        <div class="mt-4 d-flex gap-2 flex-wrap align-items-center">
                             <button class="btn btn-primary" onClick=${() => handleTriggerCron(group, job)} disabled=${isTriggering || !job.isAvailable}>
                                 ${isTriggering ? html`<span class="spinner-border spinner-border-sm me-2"></span>Queueing...` : html`<i class="ti ti-player-play me-1"></i>Queue Job`}
                             </button>
@@ -928,6 +929,16 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                                 <i class="ti ti-refresh me-1"></i>
                                 Refresh
                             </button>
+                            <label class="form-check form-check-inline mb-0 ms-2" title="If queueing fails because a previous run is still marked Queued/Running, automatically clear stale rows (only kills rows whose process has been silent >2 min, since the heartbeat ticker fires every 30 s) and retry once.">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    checked=${Boolean(params.forceClearStale)}
+                                    onChange=${(e) => updateGroupParams(group.groupId, { forceClearStale: e.target.checked })}
+                                    disabled=${isTriggering || !job.isAvailable}
+                                />
+                                <span class="form-check-label small">Force clear stale on conflict</span>
+                            </label>
                         </div>
 
                         ${renderResult(group.groupId)}
