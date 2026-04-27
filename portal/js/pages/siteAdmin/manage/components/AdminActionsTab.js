@@ -288,7 +288,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                     mkJob({ groupId: 'maintenance', jobId: 'perf-aggregation', title: 'Perf Aggregation', description: 'Per-org performance aggregation into hourly buckets. Prunes raw data >7d, aggregation retained 180d.', taskId: 'Perf Aggregation', supportsOrg: true, supportsRange: true }),
                     mkJob({ groupId: 'maintenance', jobId: 'cache-reset', title: 'Cache Reset', description: 'Purge daily cost cache, business metric blobs, and rebuild org cache entries.', taskId: 'Cache Reset' }),
                     mkJob({ groupId: 'maintenance', jobId: 'inventory-reset', title: 'Inventory Reset', description: 'Force full inventory re-derive from Signals. Deletes markers and inv|/comp|/mach| rows, then triggers SignalAssimilation.', taskId: 'Inventory Reset', supportsOrg: true }),
-                    mkJob({ groupId: 'maintenance', jobId: 'alert-purge', title: 'Alert Purge', description: 'Purge all VULN- alert rows from per-org Alerts tables, set VulnScanNeeded, then trigger VulnDetection to rebuild clean alerts.', taskId: 'Alert Purge', supportsOrg: true }),
+                    mkJob({ groupId: 'maintenance', jobId: 'alert-purge', title: 'Alert Purge', description: 'Purge all VULN- alert rows from per-org Alerts tables, then trigger VulnDetection to rebuild clean alerts.', taskId: 'Alert Purge', supportsOrg: true }),
                     mkJob({ groupId: 'maintenance', jobId: 'data-restore', title: 'Data Restore', description: 'Daily restore/recovery runner. Scheduled mode restores yesterday; manual trigger rebuilds full range for registered restore scenarios.', taskId: 'Data Restore' })
                 ]
             },
