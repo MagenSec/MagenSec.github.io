@@ -8,6 +8,7 @@ import { auth } from '@auth';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import ChatDrawer from '../../components/ChatDrawer.js';
+import { bundleToUnifiedPayload } from '../dashboard/bundleAdapter.js';
 
 const { html, Component } = window;
 
@@ -197,24 +198,34 @@ export class AuditorPage extends Component {
     }
 
     // ── 4. Background refresh — always fetch dashboard + audit events in parallel ────────────
-    const [dashboardResult, auditResult] = await Promise.allSettled([
-      api.getUnifiedDashboard(orgId, { format: 'unified', include: 'cached-summary' }),
+    // Phase 4.3.1: dashboard data sourced from page bundle (atoms + live overlays);
+    // adapter synthesizes the legacy unified-dashboard shape so this page's renderer
+    // does not need to change.
+    const [bundleResult, auditResult] = await Promise.allSettled([
+      api.getPageBundle(orgId, 'dashboard'),
       api.get(`/api/v1/orgs/${orgId}/audit?pageSize=10&days=30`)
     ]);
 
     const dashState = {};
-    if (dashboardResult.status === 'fulfilled' && dashboardResult.value?.success) {
+    if (bundleResult.status === 'fulfilled' && bundleResult.value?.success) {
+      let unifiedShape;
+      try {
+        unifiedShape = bundleToUnifiedPayload(bundleResult.value.data);
+      } catch (e) {
+        console.warn('[Auditor] bundleToUnifiedPayload threw', e);
+        unifiedShape = bundleResult.value.data;
+      }
       const now = Date.now();
       try {
-        sessionStorage.setItem(SESSION_DASH_KEY(orgId), JSON.stringify({ data: dashboardResult.value.data, ts: now }));
-        localStorage.setItem(LS_AUDITOR_KEY(orgId), JSON.stringify({ data: dashboardResult.value.data, ts: now }));
+        sessionStorage.setItem(SESSION_DASH_KEY(orgId), JSON.stringify({ data: unifiedShape, ts: now }));
+        localStorage.setItem(LS_AUDITOR_KEY(orgId), JSON.stringify({ data: unifiedShape, ts: now }));
       } catch {}
-      dashState.data = dashboardResult.value.data;
+      dashState.data = unifiedShape;
       dashState.cachedAt = now;
       dashState.loading = false;
       dashState.error = null;
     } else if (!cachedData) {
-      dashState.error = dashboardResult.reason?.message || 'Failed to load dashboard data';
+      dashState.error = bundleResult.reason?.message || 'Failed to load dashboard data';
       dashState.loading = false;
     }
 

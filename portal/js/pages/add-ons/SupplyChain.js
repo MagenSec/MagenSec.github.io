@@ -71,8 +71,8 @@ export function SupplyChainPage() {
     return html`<${AddOnPage}
         addOnKey="SupplyChainIntel"
         title="Supply Chain Intel"
-        endpoint="/api/v1/orgs/{orgId}/add-ons/supply-chain-intel"
-        responseDataKey="supplyChainIntel"
+        bundleName="add-on/supply-chain-intel"
+        atomName="addon-supply-chain"
         isEnabled=${isEnabled}
         upgradeDesc="Cross-reference your software inventory against CISA advisories for proactive supply chain risk detection. Available on BusinessUltimate."
         upgradeIcon="ti-building-factory"

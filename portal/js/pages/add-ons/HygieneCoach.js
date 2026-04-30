@@ -116,8 +116,8 @@ export function HygieneCoachPage() {
     return html`<${AddOnPage}
         addOnKey="HygieneCoach"
         title="Hygiene Coach"
-        endpoint="/api/v1/orgs/{orgId}/add-ons/hygiene-coach"
-        responseDataKey="hygieneCoach"
+        bundleName="add-on/hygiene-coach"
+        atomName="addon-hygiene"
         isEnabled=${isEnabled}
         upgradeDesc="Get weekly AI-generated security hygiene plans personalized to your org's risk profile. Available on BusinessUltimate."
         upgradeIcon="ti-heart-rate-monitor"

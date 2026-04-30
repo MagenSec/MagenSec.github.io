@@ -81,9 +81,19 @@ export class AttackChainPage extends Component {
         this.setState({ loading: true, error: null });
 
         try {
-            const resp = await api.getPostureSnapshot(org.orgId);
-            const snapshot = resp?.data || resp?.Data || resp;
-            const liveChain = snapshot?.attackChain || snapshot?.AttackChain || null;
+            // Phase 6: bundle-first read. attack-chain bundle composes
+            // org-snapshot (carries .attackChain + .deviceFleet) and
+            // security-snapshot (carries .top20Devices) atoms.
+            const resp = await api.getPageBundle(org.orgId, 'attack-chain');
+            const bundleData = resp?.data || resp?.Data || resp;
+            const atoms = bundleData?.atoms || bundleData?.Atoms || {};
+            const orgSnap = atoms['org-snapshot']?.data?.[0] || atoms.OrgSnapshot?.data?.[0] || null;
+            const secSnap = atoms['security-snapshot']?.data?.[0] || atoms.SecuritySnapshot?.data?.[0] || null;
+            const snapshot = {
+                ...(orgSnap || {}),
+                top20Devices: secSnap?.top20Devices || secSnap?.Top20Devices || [],
+            };
+            const liveChain = orgSnap?.attackChain || orgSnap?.AttackChain || null;
             const cachedChain = this.readCachedChain(org.orgId);
             const liveKey = liveChain?.chainKey || liveChain?.ChainKey || null;
             const cachedKey = cachedChain?.chainKey || cachedChain?.ChainKey || null;
@@ -155,6 +165,8 @@ export class AttackChainPage extends Component {
             snapshot.TopDevices,
             snapshot.top20Devices,
             snapshot.Top20Devices,
+            snapshot.deviceFleet,
+            snapshot.DeviceFleet,
             snapshot.devices?.items,
             snapshot.Devices?.Items,
             snapshot.devices,

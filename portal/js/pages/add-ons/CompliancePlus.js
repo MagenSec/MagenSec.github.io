@@ -133,8 +133,8 @@ export function CompliancePlusPage() {
     return html`<${AddOnPage}
         addOnKey="CompliancePlus"
         title="Compliance Plus"
-        endpoint="/api/v1/orgs/{orgId}/add-ons/compliance-plus"
-        responseDataKey="compliancePlus"
+        bundleName="add-on/compliance-plus"
+        atomName="addon-compliance-plus"
         isEnabled=${isEnabled}
         upgradeDesc="Extended compliance checks for ISO 27001, SOC 2, and PCI-DSS. Available on BusinessUltimate."
         upgradeIcon="ti-certificate-2"

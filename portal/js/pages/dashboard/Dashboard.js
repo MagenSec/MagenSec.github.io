@@ -19,6 +19,7 @@ import { SavingsCalculator } from '@components/SavingsCalculator.js';
 import { CveDetailsModal } from '@components/CveDetailsModal.js';
 import { SWRHelper } from '@utils/SWRHelper.js';
 import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
+import { bundleToUnifiedPayload } from './bundleAdapter.js';
 
 // Shared components
 import { StatusBadge, getConnectionStatus, StatusDot } from '@components/shared/StatusBadge.js';
@@ -453,11 +454,13 @@ export class DashboardPage extends Component {
             // Step 3: No cache available, show loading spinner
             this.setState({ loading: true, error: null, isRefreshingInBackground: false });
 
-            // Step 4: Fetch fresh data (no include parameter = full fresh data)
-            const dashboardRes = await api.getUnifiedDashboard(orgId, { format: 'unified' });
-            
+            // Step 4: Fetch fresh page bundle (Phase 4.2.3 — composes cooked atoms from parquet+DuckDB)
+            const dashboardRes = await api.getPageBundle(orgId, 'dashboard');
+
             if (dashboardRes.success && dashboardRes.data) {
-                const dashboard = dashboardRes.data;
+                const dashboard = bundleToUnifiedPayload(dashboardRes.data);
+                console.debug('[Dashboard] bundle freshness=%s missing=%o live=%o elapsedMs=%d',
+                    dashboardRes.data.freshness, dashboardRes.data.missingAtoms, dashboardRes.data.livePresent, dashboardRes.data.elapsedMs);
                 const trendSnapshots = await this.loadTrendSnapshots(orgId);
                 this.swr.setCached(dashboard);
                 this.writeSharedDashboardSessionCache(orgId, dashboard);
@@ -465,7 +468,7 @@ export class DashboardPage extends Component {
                 this.setState({
                     ...this.buildDashboardState(dashboard),
                     trendSnapshots,
-                    freshness: dashboardRes.freshness || null,
+                    freshness: dashboardRes.data?.freshness || dashboardRes.freshness || null,
                     loading: false,
                     isRefreshingInBackground: false,
                     officerNoteDismissed
@@ -488,12 +491,13 @@ export class DashboardPage extends Component {
 
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Background fetch with include=cached-summary parameter
-            // Server returns fresh data if cache is stale, or cached data if fresh
-            const dashboardRes = await api.getUnifiedDashboard(orgId, { format: 'unified', include: 'cached-summary' });
+            // Background fetch via page bundle (Phase 4.2.3)
+            const dashboardRes = await api.getPageBundle(orgId, 'dashboard');
 
             if (dashboardRes.success && dashboardRes.data) {
-                const dashboard = dashboardRes.data;
+                const dashboard = bundleToUnifiedPayload(dashboardRes.data);
+                console.debug('[Dashboard] bg-bundle freshness=%s missing=%o live=%o elapsedMs=%d',
+                    dashboardRes.data.freshness, dashboardRes.data.missingAtoms, dashboardRes.data.livePresent, dashboardRes.data.elapsedMs);
                 const trendSnapshots = await this.loadTrendSnapshots(orgId);
                 this.swr.setCached(dashboard);
                 this.writeSharedDashboardSessionCache(orgId, dashboard);
@@ -501,7 +505,7 @@ export class DashboardPage extends Component {
                 this.setState({
                     ...this.buildDashboardState(dashboard),
                     trendSnapshots,
-                    freshness: dashboardRes.freshness || null,
+                    freshness: dashboardRes.data?.freshness || dashboardRes.freshness || null,
                     isRefreshingInBackground: false,
                     officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
                 });
@@ -1201,8 +1205,8 @@ export class DashboardPage extends Component {
             if (!org) return;
             
             console.debug('[Dashboard] Loading posture snapshot in background for actions');
-            const response = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: false });
-            const snapshot = response?.data?.snapshot;
+            const response = await api.getPageBundle(org.orgId, 'posture');
+            const snapshot = response?.data?.atoms?.['org-snapshot']?.data?.[0] || null;
             
             if (snapshot) {
                 this.setState({ postureSnapshot: snapshot });
@@ -1235,20 +1239,20 @@ export class DashboardPage extends Component {
                 }
                 
                 console.debug('[Dashboard] Loading posture snapshot for org:', org.orgId);
-                const response = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: false });
-                console.debug('[Dashboard] Posture snapshot response:', response);
-                
-                // API returns: {success, data: {snapshot, triggeredGeneration}, message}
-                const snapshot = response?.data?.snapshot;
-                
+                const response = await api.getPageBundle(org.orgId, 'posture');
+                console.debug('[Dashboard] Posture bundle response:', response);
+
+                // posture bundle returns atoms['org-snapshot'].data[0] = OrgSnapshotValue
+                const snapshot = response?.data?.atoms?.['org-snapshot']?.data?.[0] || null;
+
                 if (!snapshot) {
-                    console.warn('[Dashboard] No snapshot in response, trying force generation...');
-                    const forceResponse = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: true });
-                    console.debug('[Dashboard] Forced snapshot response:', forceResponse);
-                    
-                    this.setState({ 
-                        postureSnapshot: forceResponse?.data?.snapshot || null,
-                        loadingPosture: false 
+                    console.warn('[Dashboard] No snapshot in bundle, trying refresh=true...');
+                    const forceResponse = await api.getPageBundle(org.orgId, 'posture', { refresh: true });
+                    console.debug('[Dashboard] Forced bundle response:', forceResponse);
+
+                    this.setState({
+                        postureSnapshot: forceResponse?.data?.atoms?.['org-snapshot']?.data?.[0] || null,
+                        loadingPosture: false
                     });
                 } else {
                     this.setState({ 
@@ -1278,11 +1282,10 @@ export class DashboardPage extends Component {
             }
             
             console.debug('[Dashboard] Forcing posture snapshot generation for org:', org.orgId);
-            const response = await api.getPostureSnapshot(org.orgId, { period: 'daily', force: true });
-            console.debug('[Dashboard] Generated snapshot response:', response);
-            
-            // API returns: {success, data: {snapshot, triggeredGeneration}, message}
-            const snapshot = response?.data?.snapshot;
+            const response = await api.getPageBundle(org.orgId, 'posture', { refresh: true });
+            console.debug('[Dashboard] Generated bundle response:', response);
+
+            const snapshot = response?.data?.atoms?.['org-snapshot']?.data?.[0] || null;
             
             this.setState({ 
                 postureSnapshot: snapshot || null,

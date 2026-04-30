@@ -8,6 +8,7 @@ import { api } from '@api';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
+import { bundleToUnifiedPayload } from './bundleAdapter.js';
 
 const { html, Component } = window;
 const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
@@ -216,19 +217,9 @@ export default class UnifiedDashboard extends Component {
         }
       }
 
-      const params = { format: 'unified' };
-      if (warpDate) {
-        params.date = warpDate;
-      } else if (isRefresh) {
-        params.refresh = 'true';
-      } else if (!isBackground) {
-        // Only request cached-summary on the initial load (fast snapshot).
-        // Background refresh omits it so the backend returns fresh live data
-        // with degraded:false, preventing redundant recovery probes.
-        params['include'] = 'cached-summary';
-      }
-
-      const response = await api.getUnifiedDashboard(orgId, params);
+      // Phase 4.2.3: page bundle composes cooked atoms (parquet + DuckDB) into a single first-paint payload.
+      // TimeWarp date passes through via X-Effective-Date header in api.js.
+      const response = await api.getPageBundle(orgId, 'dashboard');
 
       if (this._unmounted) return;
 
@@ -236,7 +227,10 @@ export default class UnifiedDashboard extends Component {
         throw new Error(response.message || 'Failed to load dashboard');
       }
 
-      let normalizedData = response.data;
+      console.debug('[UnifiedDashboard] bundle freshness=%s missing=%o live=%o elapsedMs=%d',
+        response.data?.freshness, response.data?.missingAtoms, response.data?.livePresent, response.data?.elapsedMs);
+
+      let normalizedData = response.data ? bundleToUnifiedPayload(response.data) : null;
       if (normalizedData) {
         normalizedData = await this.normalizeDashboardStats(orgId, normalizedData);
         this.setCachedDashboard(cacheKey, normalizedData);
@@ -297,13 +291,20 @@ export default class UnifiedDashboard extends Component {
 
     const requests = [
       canBenchmark
-        ? api.get(`/api/v1/orgs/${encodeURIComponent(orgId)}/add-ons/peer-benchmark`)
-            .then((resp) => resp?.data?.peerBenchmark || null)
+        ? api.getPageBundle(orgId, 'add-on/peer-benchmark')
+            .then((resp) => {
+              const atom = resp?.data?.atoms?.['addon-peer-benchmark'];
+              const row = Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
+              return row && row.ready !== false ? row : null;
+            })
             .catch(() => null)
         : Promise.resolve(null),
       canCoach
-        ? api.get(`/api/v1/orgs/${encodeURIComponent(orgId)}/add-ons/hygiene-coach`)
-            .then((resp) => resp?.data?.hygieneCoach || null)
+        ? api.getPageBundle(orgId, 'add-on/hygiene-coach')
+            .then((resp) => {
+              const atom = resp?.data?.atoms?.['addon-hygiene'];
+              return Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
+            })
             .catch(() => null)
         : Promise.resolve(null)
     ];

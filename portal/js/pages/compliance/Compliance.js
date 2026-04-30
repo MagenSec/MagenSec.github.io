@@ -148,6 +148,8 @@ export class CompliancePage extends Component {
       drilldownControl: null,
       drilldownDevices: [],
       drilldownLoading: false,
+      // Cached compliance-control-facts atom (per-device per-control state) for drilldowns
+      controlFacts: [],
       // Trend chart
       trendData: [],
       trendLoading: false
@@ -218,18 +220,29 @@ export class CompliancePage extends Component {
     }
 
     try {
-      const snapshotResponse = await api.getLatestComplianceSnapshot(orgId);
-      if (!snapshotResponse?.success) {
-        throw new Error(snapshotResponse?.message || 'Failed to load compliance snapshot');
+      // Phase 4.3.3: source the compliance snapshot from the unified page bundle.
+      // The 'compliance' bundle's 'compliance-snapshot' atom emits ComplianceSnapshotValue
+      // rows that match the legacy /compliance/latest payload shape (overallScore, standards, generatedAt).
+      const bundleResp = await api.getPageBundle(orgId, 'compliance');
+      if (!bundleResp?.success) {
+        throw new Error(bundleResp?.message || 'Failed to load compliance snapshot');
+      }
+      const atom = bundleResp?.data?.atoms?.['compliance-snapshot'];
+      const snapshot = Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
+      // compliance-control-facts is per-device per-control state — cache for drilldowns.
+      const controlFacts = bundleResp?.data?.atoms?.['compliance-control-facts']?.data || [];
+      if (!snapshot) {
+        throw new Error('No compliance snapshot available');
       }
 
-      this._setCache(snapshotResponse.data);
+      this._setCache(snapshot);
       this.setState({
-        snapshot: snapshotResponse.data,
+        snapshot,
+        controlFacts: Array.isArray(controlFacts) ? controlFacts : [],
         loading: false,
         isRefreshingInBackground: false,
         error: null,
-        selectedDate: toInputDate(snapshotResponse.data?.generatedAt)
+        selectedDate: toInputDate(snapshot?.generatedAt)
       }, () => {
         this.loadLatestReport();
       });
@@ -316,12 +329,15 @@ export class CompliancePage extends Component {
     const orgId = this.getOrgId();
     if (!orgId) return;
     try {
-      const resp = await api.getCompliancePosture(orgId, { controlId, compliant: false });
-      if (resp.success) {
-        this.setState({ drilldownDevices: resp.data?.rows || [], drilldownLoading: false });
-      } else {
-        this.setState({ drilldownLoading: false });
-      }
+      // Drilldown filters from the compliance-control-facts atom already loaded
+      // by the page-bundle on initial mount (cached in state.controlFacts).
+      // Each fact row shape: { controlId, deviceId, deviceName, isCompliant, ... }.
+      const facts = Array.isArray(this.state.controlFacts) ? this.state.controlFacts : [];
+      const rows = facts.filter(f =>
+        f && (f.controlId === controlId || f.ControlId === controlId) &&
+        (f.isCompliant === false || f.IsCompliant === false)
+      );
+      this.setState({ drilldownDevices: rows, drilldownLoading: false });
     } catch { this.setState({ drilldownLoading: false }); }
   }
 

@@ -326,13 +326,23 @@ export function PeerBenchmarkPage() {
         setLoading(true);
         setError(null);
         try {
-            const params = date ? `?date=${encodeURIComponent(date)}` : '';
-            const path   = `/api/v1/orgs/${encodeURIComponent(orgId)}/add-ons/peer-benchmark${params}`;
-            const resp   = await api.get(path);
+            // Phase 4.3.3 — peer benchmark sourced from the unified bundle.
+            // The 'add-on/peer-benchmark' bundle's 'addon-peer-benchmark' atom is live-only
+            // (overlay reads PeerBenchmarkService.GetCachedAsync) and emits the legacy
+            // PeerBenchmarkValue shape. `date` rewinds via api.getEffectiveDate().
+            void date; // rewind handled internally by api.getPageBundle
+            const resp = await api.getPageBundle(orgId, 'add-on/peer-benchmark');
             if (!resp?.success) throw new Error(resp?.message || 'API error');
-            const peer = resp?.data?.peerBenchmark;
-            if (!peer) throw new Error('No benchmark data returned');
-            setData(peer);
+            const atom = resp?.data?.atoms?.['addon-peer-benchmark'];
+            const row = Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
+            if (!row) throw new Error('No benchmark data returned');
+            if (row.ready === false) {
+                // Cohort not yet cooked for this org (new org or k<5).
+                setData(null);
+                setError('Peer cohort is still warming up. Check back after the next nightly cron run.');
+                return;
+            }
+            setData(row);
         } catch (ex) {
             logger.error('[PeerBenchmark] load failed', ex);
             setError(ex.message || 'Failed to load data');

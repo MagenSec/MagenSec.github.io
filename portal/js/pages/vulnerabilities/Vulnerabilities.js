@@ -229,40 +229,66 @@ export class VulnerabilitiesPage extends Component {
         }
 
         try {
-            // Step 3: Fetch fresh data (with Time Warp date if active).
-            // Single composite call returns vulnerabilities + reviewItems + devices + freshness.
-            // Replaces the old getVulnerabilities + getDevices + N+1 enrichDeviceAttribution loop.
-            const response = await api.getVulnerabilitiesFull(orgId);
+            // Step 3: Fetch fresh data via the unified page-bundle endpoint.
+            // Bundle returns: cve-list (vulns + review items, discriminated by isReviewItem),
+            //                 cve-device-facts (per-CVE per-device pairs),
+            //                 security-snapshot (KPI summary), device-fleet (id→name map).
+            const response = await api.getPageBundle(orgId, 'vulnerabilities');
 
             if (response.success) {
-                const deviceRows = response.data?.devices || [];
+                const atoms = response.data?.atoms || {};
+                const cveListRows = atoms['cve-list']?.data || [];
+                const deviceRows = atoms['device-fleet']?.data || [];
+                const securityData = atoms['security-snapshot']?.data || [];
+                const securitySnap = Array.isArray(securityData) ? securityData[0] : securityData;
+
+                // Split cve-list into legacy { vulnerabilities, reviewItems } shape via isReviewItem flag.
+                const vulnerabilities = [];
+                const reviewItems = [];
+                for (const row of cveListRows) {
+                    if (row?.isReviewItem) reviewItems.push(row);
+                    else vulnerabilities.push(row);
+                }
+
+                // Build deviceId → deviceName map from device-fleet atom.
                 const deviceMap = {};
                 for (const device of (Array.isArray(deviceRows) ? deviceRows : [])) {
                     if (device?.deviceId) deviceMap[device.deviceId] = device.deviceName || device.deviceId;
                 }
 
-                const data = {
-                    vulnerabilities: response.data?.vulnerabilities || [],
-                    reviewItems: response.data?.reviewItems || [],
-                    summary: response.data?.summary
+                // Synthesize legacy summary shape from security-snapshot.bySeverity (fallback to row counts).
+                const bySeverity = securitySnap?.bySeverity || {};
+                const summary = {
+                    critical: bySeverity.Critical ?? vulnerabilities.filter(v => v.severity === 'Critical').length,
+                    high: bySeverity.High ?? vulnerabilities.filter(v => v.severity === 'High').length,
+                    medium: bySeverity.Medium ?? vulnerabilities.filter(v => v.severity === 'Medium').length,
+                    low: bySeverity.Low ?? vulnerabilities.filter(v => v.severity === 'Low').length,
+                    needsReview: reviewItems.length
                 };
+
+                const data = { vulnerabilities, reviewItems, summary };
 
                 // Cache the response
                 this.setCachedVulnerabilities(data);
 
                 // Update UI with fresh data
                 this.setState({
-                    vulnerabilities: data.vulnerabilities,
-                    reviewItems: data.reviewItems,
-                    summary: data.summary,
+                    vulnerabilities,
+                    reviewItems,
+                    summary,
                     deviceMap,
-                    freshness: response.freshness || null,
+                    freshness: response.data?.freshness || response.freshness || null,
                     loading: false,
                     isRefreshingInBackground: false,
                     error: null
                 });
 
-                console.log('[Vulnerabilities] ✅ Fresh data loaded from API (composite)', response.freshness);
+                console.log('[Vulnerabilities] ✅ Fresh data loaded from page-bundle', {
+                    vulns: vulnerabilities.length,
+                    reviewItems: reviewItems.length,
+                    devices: Object.keys(deviceMap).length,
+                    freshness: response.data?.freshness
+                });
             } else {
                 throw new Error(response.message || 'Failed to load vulnerabilities');
             }

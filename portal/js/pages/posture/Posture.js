@@ -200,13 +200,15 @@ export class PosturePage extends Component {
             error: null
         });
 
-        // Step 3: Fetch fresh data
+        // Step 3: Fetch fresh data via the unified page-bundle endpoint.
+        // 'posture' bundle includes org-snapshot (the posture snapshot), security/compliance
+        // snapshots, and daily/weekly trend atoms.
         try {
-            const res = await api.getPostureSnapshot(currentOrg.orgId, { period, force });
-            const payload = res?.data || res;
-            const snapshot = payload?.snapshot || payload?.data?.snapshot || null;
-            const triggeredGeneration = payload?.triggeredGeneration ?? payload?.data?.triggeredGeneration ?? force;
-            const freshness = payload?.freshness || payload?.data?.freshness || null;
+            const res = await api.getPageBundle(currentOrg.orgId, 'posture', force ? { refresh: true } : {});
+            const atoms = res?.data?.atoms || {};
+            const snapshot = atoms['org-snapshot']?.data?.[0] || null;
+            const triggeredGeneration = !!force;
+            const freshness = res?.data?.freshness || res?.freshness || null;
 
             if (!snapshot) {
                 throw new Error('Snapshot unavailable');
@@ -251,10 +253,10 @@ export class PosturePage extends Component {
             const currentOrg = orgContext.getCurrentOrg();
             if (!currentOrg || !currentOrg.orgId) return;
 
-            const res = await api.getPostureSnapshot(currentOrg.orgId, { period, force: false });
-            const payload = res?.data || res;
-            const snapshot = payload?.snapshot || payload?.data?.snapshot || null;
-            const freshness = payload?.freshness || payload?.data?.freshness || null;
+            const res = await api.getPageBundle(currentOrg.orgId, 'posture');
+            const atoms = res?.data?.atoms || {};
+            const snapshot = atoms['org-snapshot']?.data?.[0] || null;
+            const freshness = res?.data?.freshness || res?.freshness || null;
 
             if (snapshot) {
                 // Cache the fresh data

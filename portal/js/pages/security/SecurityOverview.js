@@ -6,6 +6,7 @@ import { api } from '@api';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { SWRHelper } from '@utils/SWRHelper.js';
+import { bundleToUnifiedPayload } from '../dashboard/bundleAdapter.js';
 
 const { html, Component } = window;
 
@@ -165,10 +166,17 @@ export class SecurityOverview extends Component {
         }
 
         try {
-            const [dashboardResp, alertsResp] = await Promise.all([
-                api.getUnifiedDashboard(orgId, { format: 'unified', include: 'cached-summary' }),
+            // Phase 4.3.1: source dashboard data from page bundle (`security` is a personal-org
+            // alias of the dashboard bundle). Adapter synthesizes the legacy unified-dashboard
+            // shape so buildOverview() does not need to change.
+            const [bundleResp, alertsResp] = await Promise.all([
+                api.getPageBundle(orgId, 'security'),
                 api.getAlertSummary(orgId, { include: 'cached-summary' }),
             ]);
+
+            const dashboardResp = bundleResp?.success
+                ? { success: true, data: bundleToUnifiedPayload(bundleResp.data) }
+                : bundleResp;
 
             if (!dashboardResp?.success && !alertsResp?.success) {
                 throw new Error('Unable to load security data.');

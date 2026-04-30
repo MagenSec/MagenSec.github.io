@@ -69,15 +69,16 @@ function UpgradeWall({ name, description, icon = 'ti-stars', features = [] }) {
  * @param {string}   props.addOnKey          - e.g. "PeerBenchmark"
  * @param {string}   props.title             - Page heading
  * @param {string}   props.pretitle          - Sub-heading / breadcrumb
- * @param {string}   props.endpoint          - API path, e.g. "/api/v1/orgs/{orgId}/add-ons/peer-benchmark"
+ * @param {string}   props.bundleName        - Page-bundle name, e.g. "add-on/peer-benchmark"
+ * @param {string}   props.atomName          - Atom wire-name inside the bundle, e.g. "addon-peer-benchmark"
  * @param {boolean}  props.isEnabled         - orgContext.has*() result
  * @param {string}   props.upgradeDesc       - Shown in upgrade wall subtitle
  * @param {string}   [props.upgradeIcon]     - Tabler icon class
  * @param {function} props.renderContent     - (data) => html`` for the main content
  */
 export function AddOnPage({
-    addOnKey, title, pretitle = 'Add-ons', endpoint,
-    isEnabled, upgradeDesc, upgradeIcon, upgradeFeatures, renderContent, responseDataKey = null
+    addOnKey, title, pretitle = 'Add-ons', bundleName, atomName,
+    isEnabled, upgradeDesc, upgradeIcon, upgradeFeatures, renderContent
 }) {
     const isLicensedForOrg = window.orgContext?.hasAddOnForOrg?.(addOnKey) ?? false;
     const isSiteAdmin      = window.orgContext?.isSiteAdmin?.() ?? false;
@@ -97,16 +98,22 @@ export function AddOnPage({
         setLoading(true);
         setError(null);
         try {
-            const path = endpoint.replace('{orgId}', encodeURIComponent(orgId));
-            const resp = await api.get(path);
-            if (!resp?.success) throw new Error(resp?.message || 'API error');
-            const envelope = resp?.data || {};
-            const payload = responseDataKey ? (envelope?.[responseDataKey] ?? null) : envelope;
+            // Phase 4.3.3 (final): all add-ons source data exclusively from the unified page bundle.
+            // The 'add-on/<name>' bundle's '<atomName>' atom emits the same value object the
+            // legacy /add-ons/* endpoints used to return. Legacy endpoints have been deleted.
+            if (!bundleName || !atomName) {
+                throw new Error('AddOnPage requires bundleName + atomName.');
+            }
+            const bundleResp = await api.getPageBundle(orgId, bundleName);
+            if (!bundleResp?.success) throw new Error(bundleResp?.message || 'API error');
+            const bundle = bundleResp?.data || {};
+            const atom = bundle?.atoms?.[atomName];
+            const payload = Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
             setData(payload);
             setMeta({
-                cachedFromStore: envelope?.cachedFromStore ?? false,
-                computedAt: envelope?.computedAt || payload?.computedAt || payload?.snapshotDate || payload?.weekStartDate || null,
-                schemaVersion: envelope?.schemaVersion || null
+                cachedFromStore: true,
+                computedAt: atom?.meta?.asOf || payload?.computedAt || payload?.snapshotDate || payload?.weekStartDate || null,
+                schemaVersion: atom?.meta?.etag || null,
             });
         } catch (ex) {
             logger.error(`[AddOn:${addOnKey}] load failed`, ex);

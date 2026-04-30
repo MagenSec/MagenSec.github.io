@@ -98,9 +98,14 @@ export function AppDevicesModal({ appName, orgId, isOpen, onClose, graphContext 
                 new Promise((resolve) => setTimeout(() => resolve(null), ms))
             ]);
 
-            const vulnResp = await withTimeout(api.getVulnerabilitiesFull(orgId).catch(() => null), 3500);
+            // Use the unified vulnerabilities page-bundle (same source as the parent page).
+            // Bundle returns atoms: cve-list (vulns + review items), device-fleet (id→name),
+            // security-snapshot, cve-device-facts. We only need cve-list + device-fleet here.
+            const bundleResp = await withTimeout(api.getPageBundle(orgId, 'vulnerabilities').catch(() => null), 3500);
 
-            const vulnerabilities = vulnResp?.data?.vulnerabilities || [];
+            const atoms = bundleResp?.data?.atoms || {};
+            const vulnerabilities = atoms['cve-list']?.data?.filter(r => !r?.isReviewItem) || [];
+            const fleetDevices = atoms['device-fleet']?.data || [];
             const requested = normalizeAppName(appName);
             const matches = (Array.isArray(vulnerabilities) ? vulnerabilities : []).filter((item) => {
                 const candidate = normalizeAppName(item.appName || item.app || '');
@@ -109,6 +114,20 @@ export function AppDevicesModal({ appName, orgId, isOpen, onClose, graphContext 
 
             if (matches.length > 0) {
                 const deviceMap = new Map();
+
+                // Seed device map from the page-bundle device-fleet atom first
+                // (more authoritative than graph fallback when bundle is fresh).
+                for (const device of (Array.isArray(fleetDevices) ? fleetDevices : [])) {
+                    if (!device?.deviceId) continue;
+                    if (!deviceMap.has(device.deviceId)) {
+                        deviceMap.set(device.deviceId, {
+                            deviceId: device.deviceId,
+                            deviceName: device.deviceName || device.DeviceName || device.deviceId,
+                            os: device.os || device.OS || device.osName || '',
+                            lastSeen: device.lastSeen || device.LastSeen || null
+                        });
+                    }
+                }
 
                 for (const device of (graphFallback?.devices || [])) {
                     if (!device?.deviceId) continue;

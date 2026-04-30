@@ -130,10 +130,12 @@ export function InsuranceReadinessPage() {
         setRegenerating(true);
         setRegenMsg(null);
         try {
-            const path = `/api/v1/orgs/${encodeURIComponent(orgId)}/insurance/generate`;
-            const resp = await api.post(path, {});
+            // Phase 4.3.3: implicit-generate via the bundle's ?refresh=true (runs the
+            // AddonInsuranceRefreshProvider on the cloud which writes Cache row + cooks the parquet atom).
+            const resp = await api.getPageBundle(orgId, 'add-on/insurance-readiness', { refresh: true });
             if (!resp?.success) throw new Error(resp?.message || 'Generation failed');
-            setRegenMsg({ type: 'success', text: 'Report regenerated — refreshing data.' });
+            const refreshed = (resp?.data?.refreshedAtoms || []).includes('addon-insurance');
+            setRegenMsg({ type: 'success', text: refreshed ? 'Report regenerated \u2014 refreshing data.' : 'No data to regenerate yet.' });
             setReloadKey(k => k + 1);
         } catch (ex) {
             logger.error('[InsuranceReadiness] regenerate failed', ex);
@@ -149,8 +151,8 @@ export function InsuranceReadinessPage() {
         key=${reloadKey}
         addOnKey="InsuranceReadiness"
         title="Insurance Readiness"
-        endpoint="/api/v1/orgs/{orgId}/add-ons/insurance-attestation"
-        responseDataKey="insuranceAttestation"
+        bundleName="add-on/insurance-readiness"
+        atomName="addon-insurance"
         isEnabled=${isEnabled}
         upgradeDesc="Understand your cyber insurance readiness with scored control assessments. Available on BusinessUltimate."
         upgradeIcon="ti-shield-lock"

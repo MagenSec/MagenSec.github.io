@@ -461,9 +461,30 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/dashboard`, date ? { ...params, date } : params, { skipDegradedHandling: true });
     }
 
-    async getLatestComplianceSnapshot(orgId) {
+    /**
+     * Phase 4.2 page bundle: composes a small set of cooked atoms (parquet + DuckDB)
+     * into a single first-paint payload per portal page. TimeWarp-aware via X-Effective-Date.
+     *
+     * Phase 4.3.1 — supports `?include=summary|full` (defaults to full).
+     * Pass `params.include = 'summary'` for tiny KPI-strip payloads.
+     *
+     * Response data shape:
+     *   { pageName, orgId, dateUtc, include, summary?, atoms: { '<wireName>': {...} },
+     *     watermark, freshness, missingAtoms[], livePresent[], elapsedMs }
+     *
+     * @param {string} orgId
+     * @param {string} pageName  Bundle name from /api/v1/pages/catalog (e.g. 'dashboard', 'devices').
+     * @param {object} [params]  Optional extra query params (include, refresh, ...).
+     */
+    async getPageBundle(orgId, pageName, params = {}) {
         const date = this.getEffectiveDate();
-        return this.get(`/api/v1/orgs/${orgId}/compliance/latest`, date ? { date } : null);
+        const query = date ? { ...params, date } : { ...params };
+        return this.get(`/api/v1/orgs/${orgId}/pages/${pageName}`, query, { skipDegradedHandling: true });
+    }
+
+    /** Convenience: fetch a page bundle's tiny summary projection (KPI strip). */
+    async getPageBundleSummary(orgId, pageName, params = {}) {
+        return this.getPageBundle(orgId, pageName, { ...params, include: 'summary' });
     }
 
     // === SNAPSHOTS ===
@@ -520,11 +541,7 @@ export class ApiClient {
     }
 
     // === POSTURE ENGINE ===
-    async getPostureSnapshot(orgId, params = {}) {
-        const date = this.getEffectiveDate();
-        const merged = date ? { ...params, date } : params;
-        return this.get(`/api/v1/orgs/${orgId}/posture`, merged, { skipCache: merged?.force });
-    }
+    // getPostureSnapshot removed — Phase 4.3.5: use getPageBundle('posture')
 
     // === DEVICES ===
     async getDevices(orgId, params = null, options = {}) {
@@ -1013,21 +1030,7 @@ export class ApiClient {
     }
 
     // === VULNERABILITIES ===
-    async getVulnerabilities(orgId, params) {
-        const date = this.getEffectiveDate();
-        return this.get(`/api/v1/orgs/${orgId}/vulnerabilities`, date ? { ...(params || {}), date } : params);
-    }
-
-    /**
-     * Composite vulnerabilities endpoint: returns vulnerabilities + reviewItems +
-     * summary + lightweight device map + freshness in one round-trip.
-     * Replaces the legacy pattern of getVulnerabilities + getDevices + N+1
-     * getAlerts enrichment loop.
-     */
-    async getVulnerabilitiesFull(orgId, params) {
-        const date = this.getEffectiveDate();
-        return this.get(`/api/v1/orgs/${orgId}/vulnerabilities/full`, date ? { ...(params || {}), date } : params);
-    }
+    // getVulnerabilities + getVulnerabilitiesFull removed — Phase 4.3.5: use getPageBundle('vulnerabilities')
 
     async submitVulnerabilityReview(orgId, data) {
         return this.post(`/api/v1/orgs/${orgId}/vulnerabilities/review-request`, data);
@@ -1109,9 +1112,7 @@ export class ApiClient {
     }
 
     // Endpoint: GET /api/v1/orgs/{orgId}/compliance/posture
-    async getCompliancePosture(orgId, params = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/compliance/posture`, params);
-    }
+    // getCompliancePosture removed — Phase 4.3.5: use getPageBundle('compliance')
 
     // === ANALYTICS & TRENDS ===
     async getSoftwareInventory(orgId, deviceId, riskLevel, options = {}) {
