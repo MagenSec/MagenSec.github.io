@@ -779,25 +779,28 @@ async function init() {
 
         const orgId = org.orgId;
         try {
-            const [summaryResp, alertsResp] = await Promise.all([
-                api.getAlertSummary(orgId, { include: 'cached-summary' }),
-                api.getAlerts(orgId, { state: 'OPEN', limit: 100 })
-            ]);
-
+            // Single call: AlertSummary now carries oldestOpenedBySeverity so we
+            // can derive SLA-overdue locally without the parallel /alerts list
+            // (which was Promise.all'd with the summary previously — silent
+            // failures from either side hid the badge entirely on partial errors).
+            const summaryResp = await api.getAlertSummary(orgId, { include: 'cached-summary' });
             if (!summaryResp?.success) return;
 
-            const totalOpen = summaryResp.data?.totalOpen || 0;
-            const openAlerts = Array.isArray(alertsResp?.data?.alerts)
-                ? alertsResp.data.alerts
-                : (Array.isArray(alertsResp?.data) ? alertsResp.data : []);
+            const data = summaryResp.data || {};
+            const totalOpen = data.totalOpen || 0;
 
-            const SLA_DAYS = { 4: 2, 3: 7, 2: 30, 1: 90 };
-            const hasOverdue = openAlerts.some(a => {
-                const severity = Number(a?.severity ?? a?.severityInt ?? 0);
-                const slaDays = SLA_DAYS[severity];
-                if (!slaDays || !a?.openedAt) return false;
-                const deadline = new Date(a.openedAt).getTime() + slaDays * 86400000;
-                return Number.isFinite(deadline) && Date.now() > deadline;
+            // SLA-overdue check uses the canonical per-severity oldest-opened
+            // timestamps (UTC ISO strings, severity rank 1-4 keyed by canonical
+            // label). A bucket is overdue if any open alert at that severity has
+            // exceeded its policy SLA window.
+            const SLA_DAYS = { Critical: 2, High: 7, Medium: 30, Low: 90 };
+            const oldest = data.oldestOpenedBySeverity || {};
+            const now = Date.now();
+            const hasOverdue = Object.entries(SLA_DAYS).some(([sev, days]) => {
+                const ts = oldest[sev];
+                if (!ts) return false;
+                const opened = new Date(ts).getTime();
+                return Number.isFinite(opened) && (now - opened) > days * 86400000;
             });
 
             updateActionsBadgeUi(totalOpen, hasOverdue);

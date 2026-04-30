@@ -256,13 +256,19 @@ export class VulnerabilitiesPage extends Component {
                     if (device?.deviceId) deviceMap[device.deviceId] = device.deviceName || device.deviceId;
                 }
 
-                // Synthesize legacy summary shape from security-snapshot.bySeverity (fallback to row counts).
-                const bySeverity = securitySnap?.bySeverity || {};
+                // Synthesize summary chips directly from the vulnerability rows we
+                // are about to display. Previously this preferred
+                // securitySnap.bySeverity (which aggregates ALL domains —
+                // Compliance + AV + VULN + …) and only fell back to row counts
+                // when missing. That made the chips read "43 High" while the
+                // body showed "0 vulnerabilities" because the snapshot included
+                // compliance/AV alerts that have no place on this page. Chips
+                // and body must agree, so we now count VULN-only rows period.
                 const summary = {
-                    critical: bySeverity.Critical ?? vulnerabilities.filter(v => v.severity === 'Critical').length,
-                    high: bySeverity.High ?? vulnerabilities.filter(v => v.severity === 'High').length,
-                    medium: bySeverity.Medium ?? vulnerabilities.filter(v => v.severity === 'Medium').length,
-                    low: bySeverity.Low ?? vulnerabilities.filter(v => v.severity === 'Low').length,
+                    critical: vulnerabilities.filter(v => v.severity === 'Critical').length,
+                    high: vulnerabilities.filter(v => v.severity === 'High').length,
+                    medium: vulnerabilities.filter(v => v.severity === 'Medium').length,
+                    low: vulnerabilities.filter(v => v.severity === 'Low').length,
                     needsReview: reviewItems.length
                 };
 
