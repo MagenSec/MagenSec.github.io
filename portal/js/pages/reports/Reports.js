@@ -70,20 +70,11 @@ const REPORTS = [
     id: 'patch',
     title: 'Patch Report',
     description: 'Patch coverage by device, missing critical updates, remediation timelines, and compliance impact.',
-    href: '#!/apps',
-    viewHref: '#!/apps',
+    href: '#!/patch-posture',
+    viewHref: '#!/patch-posture',
     icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3l9 4.5v9l-9 4.5l-9 -4.5v-9z" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M3 7.5l9 4.5l9 -4.5" /></svg>`
   }
 ];
-
-const DownloadIcon = () => html`
-  <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
-    <polyline points="7 11 12 16 17 11" />
-    <line x1="12" y1="4" x2="12" y2="16" />
-  </svg>
-`;
 
 export class ReportsPage extends Component {
   render() {
@@ -138,10 +129,6 @@ export class ReportsPage extends Component {
                           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7" /></svg>
                           View ${r.title}
                         </a>
-                        <button class="btn btn-sm btn-outline-secondary" disabled title="CSV export — coming soon">
-                          <${DownloadIcon} />
-                          Download CSV
-                        </button>
                       </div>
                     ` : html`
                       <button class="btn btn-sm btn-outline-secondary" disabled>
