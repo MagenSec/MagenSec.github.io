@@ -2387,8 +2387,12 @@ class DevicesPage extends window.Component {
         const unreachable = staleCount + dormantCount + ghostedCount + errorCount;
 
         const signalMeta = devices.map(d => this.getSecuritySignalMeta(d));
-        const verifiedSignalCount = signalMeta.filter(meta => meta.available && !meta.stale).length;
-        const pendingSignalCount = signalMeta.filter(meta => !meta.available || meta.stale).length;
+        // "Verified" = device has a vuln signal at all (even if dated). "Pending" = no signal yet.
+        // Staleness alone does NOT make a signal pending — it just means the score is dated, which
+        // the per-row Score column already surfaces with a "Stale" tag. Conflating the two
+        // produces "N pending refresh" copy on tiles where almost every device is actually scanned.
+        const verifiedSignalCount = signalMeta.filter(meta => meta.available).length;
+        const pendingSignalCount = signalMeta.filter(meta => !meta.available).length;
 
         const needActionCount = stats.criticalRiskCount + stats.highRiskCount;
         const hasVerifiedRiskSignal = verifiedSignalCount > 0;
@@ -2753,7 +2757,14 @@ class DevicesPage extends window.Component {
                                                             const osVersion = device.telemetry?.osVersion || '';
                                                             const osLabel = osVersion ? `${osEdition} ${osVersion}`.trim() : (osEdition || 'Unknown OS');
                                                             const critHigh = (summary.criticalCves || 0) + (summary.highCves || 0);
-                                                            const showSignalPending = (!signalMeta.available || signalMeta.stale)
+                                                            // "Awaiting scan" / "Signal pending" should only fire when there is
+                                                            // genuinely NO vulnerability signal yet (never scanned, or zero apps
+                                                            // resolved). Stale-but-present scans are handled by the Score column's
+                                                            // "Stale" tag — they are NOT pending. Conflating staleness with absence
+                                                            // labels every fresh, fully-scanned device as pending whenever its
+                                                            // last enrichment write is >12h old (which is the common case under
+                                                            // hourly enrichment that no-ops when nothing has changed).
+                                                            const showSignalPending = !signalMeta.available
                                                                 && critHigh === 0
                                                                 && (summary.vulnerableApps || 0) === 0;
                                                             return html`
@@ -2776,12 +2787,12 @@ class DevicesPage extends window.Component {
                                                             <!-- Score Column -->
                                                             <td class="text-center" style="min-width: 80px;">
                                                                 ${risk.score !== null ? html`
-                                                                    <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; cursor: pointer;" title="${showSignalPending ? 'Last known score — vulnerability signal not yet refreshed for this device' : 'Click for score breakdown'}">
-                                                                        <div class="h2 mb-0 fw-bold text-${scoreColor}${showSignalPending ? ' opacity-50' : ''}">${scoreValue}</div>
+                                                                    <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; cursor: pointer;" title="${signalMeta.stale ? 'Last known score — vulnerability signal not refreshed in the last 12h' : 'Click for score breakdown'}">
+                                                                        <div class="h2 mb-0 fw-bold text-${scoreColor}${signalMeta.stale ? ' opacity-50' : ''}">${scoreValue}</div>
                                                                         <div class="progress progress-sm mt-1" style="height: 3px;">
                                                                             <div class="progress-bar bg-${scoreColor}" style="width: ${Math.min(scoreValue, 100)}%"></div>
                                                                         </div>
-                                                                        ${showSignalPending ? html`<div class="text-muted" style="font-size:0.65rem;line-height:1;margin-top:2px">Stale</div>` : ''}
+                                                                        ${signalMeta.stale ? html`<div class="text-muted" style="font-size:0.65rem;line-height:1;margin-top:2px">Stale</div>` : ''}
                                                                     </a>
                                                                 ` : html`<span class="text-muted small">—</span>`}
                                                             </td>
