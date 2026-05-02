@@ -534,8 +534,11 @@ export function AuditPage() {
             const rawSub = (evt?.subType || evt?.metadata?.subType || evt?.metadata?.SubType || '').toLowerCase();
             const isFailure = rawType.includes('fail') || rawSub.includes('fail');
             const outcome = isFailure ? 'Failure' : humanize(evt?.subType || evt?.metadata?.subType || evt?.metadata?.SubType || 'Success');
+            // Card title already conveys "Login Timeline", so the legend
+            // shows just the outcome (e.g. "User Login", "Failure") without
+            // a redundant "Login • " prefix.
             const key = `Login:${outcome}`;
-            const label = `Login • ${outcome}`;
+            const label = outcome;
             return { ...evt, __groupKey: key, __groupLabel: label };
         });
 
@@ -710,8 +713,18 @@ export function AuditPage() {
             .filter(e => includesAny(e, ['email', 'notification']))
             .map(e => {
                 const meta = e.metadata || {};
-                const metaType = meta.eventType || meta.EventType || meta.emailType || meta.EmailType || meta.type || meta.Type;
-                return { ...e, eventType: metaType || getTypeKey(e) };
+                // Resolve the most specific email kind we can find. Strip a
+                // redundant "EMAIL." or "Email." prefix and any duplicate
+                // ":SubType" suffix so the chart legend doesn't read
+                // "EMAIL.EmailSent:EmailSent". Card title already says
+                // "Email Notifications".
+                let metaType = meta.eventType || meta.EventType || meta.emailType || meta.EmailType || meta.type || meta.Type || '';
+                let kind = String(metaType || e.subType || e.eventType || '').trim();
+                kind = kind.replace(/^email[\.\s:_-]*/i, '');
+                kind = kind.split(':')[0];
+                if (!kind) kind = 'Email';
+                const label = humanize(kind);
+                return { ...e, __groupKey: `Email:${label}`, __groupLabel: label };
             });
         const loginEvents = allEvents.filter(e => includesAny(e, ['login', 'session']));
         const lifecycleEventsRaw = allEvents.filter(e => classifyLifecycleCategory(e));
@@ -721,7 +734,11 @@ export function AuditPage() {
         const userSessionsFromApi = buildUserSessionsFromAccessSummary(uxSummary?.access);
         const userSessionsRaw = userSessionsFromApi || computeUserSessions(allEvents);
 
-        const emailNotifications = groupByDayAndType(emailEvents);
+        const emailNotifications = groupByDayCustom(
+            emailEvents,
+            (e) => e.__groupKey,
+            (e) => e.__groupLabel
+        );
         const loginTimeline = groupLoginEvents(loginEvents);
         const lifecycleEvents = groupLifecycleEvents(lifecycleEventsRaw);
         const deviceLifecycleEvents = groupLifecycleEvents(deviceLifecycleRaw);
