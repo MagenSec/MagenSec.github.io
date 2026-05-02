@@ -2364,7 +2364,10 @@ class DevicesPage extends window.Component {
 
     // ─── Unified Dashboard KPIs ─────────────────────────────────────────────
     renderSecurityDashboard(stats) {
-        const devices = this.state.filteredDevices?.length ? this.state.filteredDevices : (this.state.devices || []);
+        // Header tiles describe THE FLEET, not the active filter — always pass
+        // the unfiltered device list so unreachable/online/grade tally consistently
+        // against the right-side connectivity sidebar (also unfiltered).
+        const devices = this.state.devices || [];
         return this.renderUnifiedKpis(stats, devices);
     }
 
