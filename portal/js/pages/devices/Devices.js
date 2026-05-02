@@ -2772,12 +2772,13 @@ class DevicesPage extends window.Component {
 
                                                             <!-- Score Column -->
                                                             <td class="text-center" style="min-width: 80px;">
-                                                                ${risk.score !== null && !showSignalPending ? html`
-                                                                    <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; cursor: pointer;">
-                                                                        <div class="h2 mb-0 fw-bold text-${scoreColor}">${scoreValue}</div>
+                                                                ${risk.score !== null ? html`
+                                                                    <a href="#" onclick=${(e) => { e.preventDefault(); this.openRiskExplanationModal(device); }} style="text-decoration: none; cursor: pointer;" title="${showSignalPending ? 'Last known score — vulnerability signal not yet refreshed for this device' : 'Click for score breakdown'}">
+                                                                        <div class="h2 mb-0 fw-bold text-${scoreColor}${showSignalPending ? ' opacity-50' : ''}">${scoreValue}</div>
                                                                         <div class="progress progress-sm mt-1" style="height: 3px;">
                                                                             <div class="progress-bar bg-${scoreColor}" style="width: ${Math.min(scoreValue, 100)}%"></div>
                                                                         </div>
+                                                                        ${showSignalPending ? html`<div class="text-muted" style="font-size:0.65rem;line-height:1;margin-top:2px">Stale</div>` : ''}
                                                                     </a>
                                                                 ` : html`<span class="text-muted small">—</span>`}
                                                             </td>
@@ -2811,6 +2812,8 @@ class DevicesPage extends window.Component {
                                                                 <div class="fw-medium">${summary.apps || 0} apps</div>
                                                                 ${(summary.vulnerableApps || 0) > 0 ? html`
                                                                     <span class="text-danger small">${summary.vulnerableApps} vulnerable</span>
+                                                                ` : showSignalPending ? html`
+                                                                    <span class="text-muted small" title="Vulnerability signal not yet available — apps awaiting AppVersionIntel resolution">Awaiting scan</span>
                                                                 ` : html`
                                                                     <span class="text-success small">Clean</span>
                                                                 `}
