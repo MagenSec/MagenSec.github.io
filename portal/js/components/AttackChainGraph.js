@@ -60,15 +60,49 @@ function getPrimaryGid(node, selectedGid) {
     return gids[0] ?? 0;
 }
 
-function getDeviceSegment(node) {
-    return String(node?.segment || node?.Segment || node?.networkSegment || node?.NetworkSegment || '').trim();
+function normalizeSegmentValues(value) {
+    if (!value) return [];
+    const values = Array.isArray(value) ? value : String(value).split(/[,;|]/);
+    return values
+        .map(item => String(item || '').trim())
+        .filter(Boolean);
+}
+
+function getDeviceSegments(node) {
+    const fields = [
+        node?.segment,
+        node?.Segment,
+        node?.segments,
+        node?.Segments,
+        node?.networkSegment,
+        node?.NetworkSegment,
+        node?.networkSegments,
+        node?.NetworkSegments,
+        node?.network,
+        node?.Network,
+        node?.networks,
+        node?.Networks,
+        node?.subnet,
+        node?.Subnet,
+        node?.subnets,
+        node?.Subnets
+    ];
+
+    return Array.from(new Set(fields.flatMap(normalizeSegmentValues)));
 }
 
 function getAccessStyle(gid) {
     return ACCESS_PALETTE[Math.abs(gid) % ACCESS_PALETTE.length];
 }
 
-function getDeviceStyle(node, selectedGid) {
+function getDeviceStyle(node, selectedGid, accessMembership) {
+    const memberships = accessMembership?.get(node._id) || [];
+    const selectedMembership = selectedGid >= 0
+        ? memberships.find(group => group.gids.has(selectedGid))
+        : null;
+    if (selectedMembership) return selectedMembership.style;
+    if (memberships.length > 0) return memberships[0].style;
+
     const gid = getPrimaryGid(node, selectedGid);
     return getAccessStyle(gid);
 }
@@ -102,29 +136,62 @@ function getEdgeWidth(edge, nodeById) {
     return getTacticStrokeWidth(edge.tactic);
 }
 
-function buildAccessGroups(nodes, graphCount, selectedGid) {
+function buildAccessGroups(nodes, edges, nodeById, selectedGid) {
     const groups = new Map();
+    const deviceGroups = new Map();
+
+    const ensureGroup = (key, label, segment, gidOrHash) => {
+        if (!groups.has(key)) {
+            groups.set(key, {
+                key,
+                label,
+                segment,
+                gids: new Set(),
+                nodes: [],
+                style: getAccessStyle(gidOrHash)
+            });
+        }
+        return groups.get(key);
+    };
+
+    const addNodeToGroup = (group, node) => {
+        if (!node) return;
+        if (!group.nodes.includes(node)) group.nodes.push(node);
+    };
 
     nodes.filter(node => node.type === 'device').forEach((node) => {
-        getNodeGids(node).forEach((gid) => {
-            const segment = getDeviceSegment(node);
-            const key = segment ? `segment:${segment.toLowerCase()}` : `path:${gid}`;
-            const style = getAccessStyle(segment ? Math.abs(hashCode(segment)) : gid);
+        const segments = getDeviceSegments(node);
+        const nodeGroups = [];
 
-            if (!groups.has(key)) {
-                groups.set(key, {
-                    key,
-                    label: segment || `Path ${gid + 1} access`,
-                    segment: !!segment,
-                    gids: new Set(),
-                    nodes: [],
-                    style
-                });
-            }
+        if (segments.length > 0) {
+            segments.forEach((segment) => {
+                const group = ensureGroup(`segment:${segment.toLowerCase()}`, segment, true, Math.abs(hashCode(segment)));
+                getNodeGids(node).forEach(gid => group.gids.add(gid));
+                addNodeToGroup(group, node);
+                nodeGroups.push(group);
+            });
+        } else {
+            getNodeGids(node).forEach((gid) => {
+                const group = ensureGroup(`path:${gid}`, `Path ${gid + 1} access`, false, gid);
+                group.gids.add(gid);
+                addNodeToGroup(group, node);
+                nodeGroups.push(group);
+            });
+        }
 
-            const group = groups.get(key);
-            group.gids.add(gid);
-            if (!group.nodes.includes(node)) group.nodes.push(node);
+        deviceGroups.set(node._id, nodeGroups);
+    });
+
+    edges.forEach((edge) => {
+        const source = getEdgeNode(edge, 'source', nodeById);
+        const target = getEdgeNode(edge, 'target', nodeById);
+        const appNode = source?.type === 'app' ? source : target?.type === 'app' ? target : null;
+        const deviceNode = source?.type === 'device' ? source : target?.type === 'device' ? target : null;
+
+        if (!appNode || !deviceNode) return;
+        (deviceGroups.get(deviceNode._id) || []).forEach((group) => {
+            group.gids.add(edge._gid);
+            addNodeToGroup(group, appNode);
         });
     });
 
@@ -135,6 +202,17 @@ function buildAccessGroups(nodes, graphCount, selectedGid) {
             const bActive = selectedGid >= 0 && b.gids.has(selectedGid) ? 0 : 1;
             return aActive - bActive || a.nodes.length - b.nodes.length;
         });
+}
+
+function buildAccessMembership(groups) {
+    const membership = new Map();
+    groups.forEach((group) => {
+        group.nodes.forEach((node) => {
+            if (!membership.has(node._id)) membership.set(node._id, []);
+            membership.get(node._id).push(group);
+        });
+    });
+    return membership;
 }
 
 function hashCode(value) {
@@ -341,7 +419,8 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
 
     const g = d3sel.append('g');
     const nodeById = new Map(allNodes.map(node => [node._id, node]));
-    const accessGroups = buildAccessGroups(allNodes, graphs.length, selectedGid);
+    const accessGroups = buildAccessGroups(allNodes, allEdges, nodeById, selectedGid);
+    const accessMembership = buildAccessMembership(accessGroups);
 
     // Intentionally render a single shared canvas instead of per-route chart clusters.
 
@@ -425,7 +504,7 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
     node.each(function (d) {
         const el = d3.select(this);
         const shape = NODE_SHAPES[d.type] || NODE_SHAPES.cve;
-        const deviceStyle = d.type === 'device' ? getDeviceStyle(d, selectedGid) : null;
+        const deviceStyle = d.type === 'device' ? getDeviceStyle(d, selectedGid, accessMembership) : null;
         const fill = d.type === 'cve'
             ? (SEVERITY_FILL[d.severity?.toLowerCase()] || shape.fill)
             : d.type === 'device'
@@ -450,6 +529,16 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
                 .attr('fill', fill)
                 .attr('stroke', stroke)
                 .attr('stroke-width', isSelected ? 2.8 : 2);
+
+            (accessMembership.get(d._id) || []).slice(0, 3).forEach((group, index) => {
+                el.append('circle')
+                    .attr('r', shape.r + 5 + index * 4)
+                    .attr('fill', 'none')
+                    .attr('stroke', palette.isDark ? group.style.label : group.style.stroke)
+                    .attr('stroke-width', 1.4)
+                    .attr('stroke-dasharray', group.segment ? null : '3 3')
+                    .attr('opacity', isSelected ? 0.88 : 0.25);
+            });
         } else if (d.type === 'app') {
             el.append('rect')
                 .attr('x', -20).attr('y', -14)
