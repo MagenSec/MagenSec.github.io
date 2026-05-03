@@ -364,8 +364,8 @@ export class AttackChainPage extends Component {
         return html`
             <div class="d-flex flex-wrap gap-3 mt-3 mb-2 px-1 align-items-center">
                 <div class="d-flex align-items-center gap-1">
-                    <svg width="16" height="16"><circle cx="8" cy="8" r="7" fill="#0054a6" stroke="#003d7a" stroke-width="1.5"/></svg>
-                    <span class="small text-muted">Endpoint</span>
+                    <svg width="16" height="16"><circle cx="8" cy="8" r="7" fill="#0054a6" stroke="#003d7a" stroke-width="1.5"/><rect x="4" y="4" width="8" height="5" rx="1" fill="none" stroke="#fff" stroke-width="1"/><line x1="6" y1="12" x2="10" y2="12" stroke="#fff" stroke-width="1" stroke-linecap="round"/></svg>
+                    <span class="small text-muted">Endpoint colour = access group</span>
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <svg width="16" height="14"><rect x="1" y="1" width="14" height="12" rx="3" fill="#f76707" stroke="#c05600" stroke-width="1.5"/></svg>
@@ -374,6 +374,10 @@ export class AttackChainPage extends Component {
                 <div class="d-flex align-items-center gap-1">
                     <svg width="16" height="16"><polygon points="8,1 15,8 8,15 1,8" fill="#d63939" stroke="#a82d2d" stroke-width="1.5"/></svg>
                     <span class="small text-muted">CVE</span>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <svg width="34" height="18"><path d="M7 3 C2 5 2 13 8 15 C15 18 28 16 31 10 C34 4 14 0 7 3Z" fill="rgba(0,84,166,0.11)" stroke="#003d7a" stroke-width="1.4" stroke-dasharray="4 3"/></svg>
+                    <span class="small text-muted">Network/access zone</span>
                 </div>
                 <div class="border-start ps-3 d-flex align-items-center gap-1">
                     <span class="small text-muted">Select a path, then open any node for the supporting MAGI brief.</span>
@@ -599,7 +603,7 @@ export class AttackChainPage extends Component {
                                         <div>
                                             <div class="text-uppercase small text-muted">Unified exposure map</div>
                                             <h3 class="card-title mb-1">A single operational view of active attack paths</h3>
-                                            <div class="small text-muted">MAGI consolidates related CVEs, applications, and endpoints into one shared canvas so overlap, concentration of risk, and likely pivot opportunities are immediately visible.</div>
+                                            <div class="small text-muted">MAGI consolidates related CVEs, applications, and endpoints into one shared canvas. Devices in the active path share an access halo; reported network segments reuse the same visual boundary.</div>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
                                             <button

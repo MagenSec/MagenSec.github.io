@@ -22,6 +22,15 @@ const NODE_SHAPES = {
     cve:    { r: 14, fill: '#d63939', stroke: '#a82d2d' },
 };
 
+const ACCESS_PALETTE = [
+    { fill: '#0054a6', stroke: '#003d7a', label: '#7cc4ff', soft: 'rgba(0,84,166,0.11)' },
+    { fill: '#2fb344', stroke: '#1d7f32', label: '#8ce99a', soft: 'rgba(47,179,68,0.11)' },
+    { fill: '#ae3ec9', stroke: '#862e9c', label: '#e599f7', soft: 'rgba(174,62,201,0.11)' },
+    { fill: '#0ca678', stroke: '#087f5b', label: '#63e6be', soft: 'rgba(12,166,120,0.11)' },
+    { fill: '#f59f00', stroke: '#b76d00', label: '#ffd43b', soft: 'rgba(245,159,0,0.13)' },
+    { fill: '#e03131', stroke: '#a61e1e', label: '#ffa8a8', soft: 'rgba(224,49,49,0.10)' }
+];
+
 const SEVERITY_FILL = {
     critical: '#d63939',
     high:     '#f76707',
@@ -37,6 +46,134 @@ function getTacticStrokeWidth(tactic) {
     if (tactic === 'exfiltration') return 4;
     if (tactic === 'privilege-escalation' || tactic === 'lateral-movement') return 3;
     return 2;
+}
+
+function getNodeGids(node) {
+    if (node?._gids instanceof Set) return Array.from(node._gids);
+    if (Array.isArray(node?._gids)) return node._gids;
+    return [node?._gid ?? 0].filter(Number.isFinite);
+}
+
+function getPrimaryGid(node, selectedGid) {
+    const gids = getNodeGids(node);
+    if (selectedGid >= 0 && gids.includes(selectedGid)) return selectedGid;
+    return gids[0] ?? 0;
+}
+
+function getDeviceSegment(node) {
+    return String(node?.segment || node?.Segment || node?.networkSegment || node?.NetworkSegment || '').trim();
+}
+
+function getAccessStyle(gid) {
+    return ACCESS_PALETTE[Math.abs(gid) % ACCESS_PALETTE.length];
+}
+
+function getDeviceStyle(node, selectedGid) {
+    const gid = getPrimaryGid(node, selectedGid);
+    return getAccessStyle(gid);
+}
+
+function getEdgeNode(edge, endpoint, nodeById) {
+    const id = edge?.[`_${endpoint}Id`];
+    const value = id || edge?.[endpoint];
+    if (value && typeof value === 'object') return value;
+    return nodeById.get(value) || null;
+}
+
+function isDeviceToDeviceEdge(edge, nodeById) {
+    return getEdgeNode(edge, 'source', nodeById)?.type === 'device'
+        && getEdgeNode(edge, 'target', nodeById)?.type === 'device';
+}
+
+function getEdgeStroke(edge, nodeById, selectedGid) {
+    if (isDeviceToDeviceEdge(edge, nodeById) && !edge.tactic) {
+        return getAccessStyle(edge._gid === selectedGid ? selectedGid : edge._gid).stroke;
+    }
+    return tacticColour(edge.tactic);
+}
+
+function getEdgeDash(edge, nodeById) {
+    if (isDeviceToDeviceEdge(edge, nodeById) && !edge.tactic) return '7 5';
+    return edge.tactic ? null : '5 4';
+}
+
+function getEdgeWidth(edge, nodeById) {
+    if (isDeviceToDeviceEdge(edge, nodeById) && !edge.tactic) return 2.6;
+    return getTacticStrokeWidth(edge.tactic);
+}
+
+function buildAccessGroups(nodes, graphCount, selectedGid) {
+    const groups = new Map();
+
+    nodes.filter(node => node.type === 'device').forEach((node) => {
+        getNodeGids(node).forEach((gid) => {
+            const segment = getDeviceSegment(node);
+            const key = segment ? `segment:${segment.toLowerCase()}` : `path:${gid}`;
+            const style = getAccessStyle(segment ? Math.abs(hashCode(segment)) : gid);
+
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    key,
+                    label: segment || `Path ${gid + 1} access`,
+                    segment: !!segment,
+                    gids: new Set(),
+                    nodes: [],
+                    style
+                });
+            }
+
+            const group = groups.get(key);
+            group.gids.add(gid);
+            if (!group.nodes.includes(node)) group.nodes.push(node);
+        });
+    });
+
+    return Array.from(groups.values())
+        .filter(group => group.nodes.length > 0)
+        .sort((a, b) => {
+            const aActive = selectedGid >= 0 && a.gids.has(selectedGid) ? 0 : 1;
+            const bActive = selectedGid >= 0 && b.gids.has(selectedGid) ? 0 : 1;
+            return aActive - bActive || a.nodes.length - b.nodes.length;
+        });
+}
+
+function hashCode(value) {
+    return String(value || '').split('').reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0, 0);
+}
+
+function accessBoundaryPath(nodes, width, height) {
+    const points = nodes
+        .map(node => ({ x: Number(node.x), y: Number(node.y) }))
+        .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+
+    if (points.length === 0) return '';
+
+    const padding = points.length === 1 ? 48 : 58;
+    const minX = Math.max(28, Math.min(...points.map(point => point.x)) - padding);
+    const maxX = Math.min(width - 28, Math.max(...points.map(point => point.x)) + padding);
+    const minY = Math.max(28, Math.min(...points.map(point => point.y)) - padding);
+    const maxY = Math.min(height - 28, Math.max(...points.map(point => point.y)) + padding);
+    const wobble = Math.max(14, Math.min(28, (maxX - minX) * 0.12));
+
+    return [
+        `M ${minX + wobble} ${minY}`,
+        `C ${minX - wobble} ${minY + (maxY - minY) * 0.24}, ${minX - wobble} ${maxY - (maxY - minY) * 0.24}, ${minX + wobble} ${maxY}`,
+        `C ${minX + (maxX - minX) * 0.36} ${maxY + wobble}, ${maxX - (maxX - minX) * 0.25} ${maxY + wobble}, ${maxX - wobble} ${maxY}`,
+        `C ${maxX + wobble} ${maxY - (maxY - minY) * 0.26}, ${maxX + wobble} ${minY + (maxY - minY) * 0.28}, ${maxX - wobble} ${minY}`,
+        `C ${maxX - (maxX - minX) * 0.34} ${minY - wobble}, ${minX + (maxX - minX) * 0.3} ${minY - wobble}, ${minX + wobble} ${minY}`,
+        'Z'
+    ].join(' ');
+}
+
+function accessLabelPosition(nodes) {
+    const points = nodes
+        .map(node => ({ x: Number(node.x), y: Number(node.y) }))
+        .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+    if (points.length === 0) return { x: 0, y: 0 };
+
+    const minY = Math.min(...points.map(point => point.y));
+    const avgX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+    return { x: avgX, y: minY - 54 };
 }
 
 function getThemePalette() {
@@ -63,14 +200,14 @@ function appendNodeIcon(el, d) {
 
     if (d.type === 'device') {
         el.append('rect')
-            .attr('x', -8).attr('y', -7)
-            .attr('width', 16).attr('height', 11)
+            .attr('x', -9).attr('y', -8)
+            .attr('width', 18).attr('height', 12)
             .attr('rx', 2)
             .attr('fill', 'none')
             .attr('stroke', stroke)
-            .attr('stroke-width', 1.4);
-        el.append('line').attr('x1', -4).attr('y1', 6).attr('x2', 4).attr('y2', 6).attr('stroke', stroke).attr('stroke-width', 1.4);
-        el.append('line').attr('x1', 0).attr('y1', 4).attr('x2', 0).attr('y2', 8).attr('stroke', stroke).attr('stroke-width', 1.4);
+            .attr('stroke-width', 1.6);
+        el.append('line').attr('x1', -5).attr('y1', 8).attr('x2', 5).attr('y2', 8).attr('stroke', stroke).attr('stroke-width', 1.6).attr('stroke-linecap', 'round');
+        el.append('line').attr('x1', 0).attr('y1', 4).attr('x2', 0).attr('y2', 8).attr('stroke', stroke).attr('stroke-width', 1.6).attr('stroke-linecap', 'round');
         return;
     }
 
@@ -186,7 +323,7 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
             const edgeKey = `${source}|${target}|${e.technique || ''}|${e.tactic || ''}`;
             if (seenEdges.has(edgeKey)) return;
             seenEdges.add(edgeKey);
-            allEdges.push({ ...e, source, target, _gid: gi });
+            allEdges.push({ ...e, source, target, _sourceId: source, _targetId: target, _gid: gi });
         });
     });
 
@@ -203,6 +340,8 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
         .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', palette.edge);
 
     const g = d3sel.append('g');
+    const nodeById = new Map(allNodes.map(node => [node._id, node]));
+    const accessGroups = buildAccessGroups(allNodes, graphs.length, selectedGid);
 
     // Intentionally render a single shared canvas instead of per-route chart clusters.
 
@@ -215,21 +354,43 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
 
     // Force simulation
     const simulation = d3.forceSimulation(allNodes)
-        .force('link', d3.forceLink(allEdges).id(d => d._id).distance(100))
-        .force('charge', d3.forceManyBody().strength(-350))
+        .force('link', d3.forceLink(allEdges).id(d => d._id).distance(118))
+        .force('charge', d3.forceManyBody().strength(-420))
         .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide(38))
+        .force('collision', d3.forceCollide(46))
         .force('x', d3.forceX(width / 2).strength(0.05))
         .force('y', d3.forceY(height / 2).strength(0.05));
+
+    const accessLayer = g.append('g').attr('class', 'attack-access-layer');
+    const accessBoundary = accessLayer
+        .selectAll('path')
+        .data(accessGroups)
+        .join('path')
+        .attr('fill', d => d.style.soft)
+        .attr('stroke', d => d.style.stroke)
+        .attr('stroke-width', d => selectedGid < 0 || d.gids.has(selectedGid) ? 2 : 1.2)
+        .attr('stroke-dasharray', d => d.segment ? null : '8 6')
+        .attr('opacity', d => selectedGid < 0 || d.gids.has(selectedGid) ? 0.95 : 0.2);
+
+    const accessLabel = accessLayer
+        .selectAll('text')
+        .data(accessGroups)
+        .join('text')
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 10)
+        .attr('font-weight', 700)
+        .attr('fill', d => palette.isDark ? d.style.label : d.style.stroke)
+        .attr('opacity', d => selectedGid < 0 || d.gids.has(selectedGid) ? 0.88 : 0.22)
+        .text(d => d.label);
 
     // Links
     const link = g.append('g')
         .selectAll('line')
         .data(allEdges)
         .join('line')
-        .attr('stroke', d => tacticColour(d.tactic))
-        .attr('stroke-width', d => getTacticStrokeWidth(d.tactic))
-        .attr('stroke-dasharray', d => d.tactic ? null : '5 4')
+        .attr('stroke', d => getEdgeStroke(d, nodeById, selectedGid))
+        .attr('stroke-width', d => getEdgeWidth(d, nodeById))
+        .attr('stroke-dasharray', d => getEdgeDash(d, nodeById))
         .attr('stroke-opacity', d => selectedGid >= 0 && d._gid !== selectedGid ? 0.08 : (d.tactic === 'exfiltration' ? 0.98 : 0.88))
         .attr('marker-end', 'url(#arrowhead)')
         .style('filter', d => d.tactic === 'exfiltration'
@@ -264,7 +425,13 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
     node.each(function (d) {
         const el = d3.select(this);
         const shape = NODE_SHAPES[d.type] || NODE_SHAPES.cve;
-        const fill = d.type === 'cve' ? (SEVERITY_FILL[d.severity?.toLowerCase()] || shape.fill) : shape.fill;
+        const deviceStyle = d.type === 'device' ? getDeviceStyle(d, selectedGid) : null;
+        const fill = d.type === 'cve'
+            ? (SEVERITY_FILL[d.severity?.toLowerCase()] || shape.fill)
+            : d.type === 'device'
+            ? deviceStyle.fill
+            : shape.fill;
+        const stroke = d.type === 'device' ? deviceStyle.stroke : shape.stroke;
         const isSelected = selectedGid < 0 || Array.from(d._gids || [d._gid]).includes(selectedGid);
         const appName = String(d.appName || d.label || '');
         const hasExfilHint = d.type === 'app' && /(edge|chrome|firefox|acrobat|office|outlook|excel|word|onedrive|teams)/i.test(appName);
@@ -278,11 +445,10 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
           .style('filter', `drop-shadow(0 0 8px ${glow})`);
 
         if (d.type === 'device') {
-            const points = `${-20},-4 ${-10},-18 ${10},-18 ${20},-4 ${10},18 ${-10},18`;
-            el.append('polygon')
-                .attr('points', points)
+            el.append('circle')
+                .attr('r', shape.r)
                 .attr('fill', fill)
-                .attr('stroke', shape.stroke)
+                .attr('stroke', stroke)
                 .attr('stroke-width', isSelected ? 2.8 : 2);
         } else if (d.type === 'app') {
             el.append('rect')
@@ -338,6 +504,12 @@ function renderGraph(svgEl, graphs, onNodeClick, highlightChainId) {
         link
             .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
             .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+
+        accessBoundary.attr('d', d => accessBoundaryPath(d.nodes, width, height));
+
+        accessLabel
+            .attr('x', d => accessLabelPosition(d.nodes).x)
+            .attr('y', d => accessLabelPosition(d.nodes).y);
 
         edgeLabel
             .attr('x', d => (d.source.x + d.target.x) / 2)
