@@ -1236,12 +1236,12 @@ export class ApiClient {
         return this.get(`/api/v1/orgs/${orgId}/audit`, merged);
     }
 
-    async getReportPreview(orgId, refresh = false) {
+    async getReportPreview(orgId, refresh = false, reportType = 'daily') {
         // Unified contract (Q0): /reports/{type}/json. The dispatcher returns the same envelope for
-        // either type (with both daily+weekly rendered together for cache parity), so calling /daily/json
-        // is sufficient to populate the preview surface that shows both tabs.
+        // the requested type and may include the other cached type when already available.
+        const type = (reportType || 'daily').toLowerCase() === 'weekly' ? 'weekly' : 'daily';
         const qs = refresh ? '?refresh=true' : '';
-        return this.get(`/api/v1/orgs/${orgId}/reports/daily/json${qs}`);
+        return this.get(`/api/v1/orgs/${orgId}/reports/${type}/json${qs}`);
     }
 
     async sendReport(orgId, reportType, recipient = 'owner', customEmail = '') {

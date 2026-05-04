@@ -29,21 +29,26 @@ class ReportPreviewPage extends Component {
 
     componentDidMount() {
         // Subscribe to org changes
-        this.orgUnsubscribe = window.orgContext.onChange(() => this.loadReportData(true));
+        this.orgUnsubscribe = window.orgContext.onChange(() => this.loadReportData(false, this.state.reportType));
 
         // Honor ?type=weekly|daily URL param so deep links from notifications open the right
         // tab. The ?print=1 / auto-print flow was removed in favour of an explicit
         // "Download PDF" button (server-rendered QuestPDF), because the browser print path
         // hit popup-blocker / OAuth-deep-link issues that confused customers.
+        let initialReportType = this.state.reportType;
+        let initialRefresh = false;
         try {
             const params = new URLSearchParams((window.location.hash.split('?')[1]) || window.location.search.replace(/^\?/, ''));
             const t = params.get('type');
             if (t === 'weekly' || t === 'daily') {
-                this.setState({ reportType: t });
+                initialReportType = t;
             }
+            const refreshParam = (params.get('refresh') || '').toLowerCase();
+            initialRefresh = refreshParam === '1' || refreshParam === 'true' || refreshParam === 'yes';
         } catch (_) { /* noop */ }
 
-        this.loadReportData(true);
+        this.setState({ reportType: initialReportType });
+        this.loadReportData(initialRefresh, initialReportType);
     }
 
     componentWillUnmount() {
@@ -53,7 +58,8 @@ class ReportPreviewPage extends Component {
         }
     }
 
-    async loadReportData(refresh = false) {
+    async loadReportData(refresh = false, reportType = this.state.reportType) {
+        const selectedType = reportType === 'weekly' ? 'weekly' : 'daily';
         this.setState(refresh
             ? { refreshing: true, error: null }
             : { loading: true, error: null });
@@ -72,7 +78,7 @@ class ReportPreviewPage extends Component {
             const isSiteAdmin = user?.userType === 'SiteAdmin';
 
             // Fetch latest snapshot and org details using API client
-            const response = await window.api.getReportPreview(currentOrg.orgId, refresh);
+            const response = await window.api.getReportPreview(currentOrg.orgId, refresh, selectedType);
 
             if (!response.success) {
                 throw new Error(response.message || 'Failed to load report preview');
@@ -87,6 +93,7 @@ class ReportPreviewPage extends Component {
                 orgData: org,
                 isSiteAdmin,
                 history: history || [],
+                reportType: selectedType,
                 rendered: rendered || null,
                 isFromCache: rendered?.isFromCache ?? false,
                 cachedAt: rendered?.cachedAt ?? null
@@ -102,11 +109,15 @@ class ReportPreviewPage extends Component {
     }
 
     handleReportTypeChange = (reportType) => {
+        const rendered = this.state.rendered || {};
         this.setState({ reportType, emailSent: false });
+        if (!rendered[reportType]) {
+            this.loadReportData(false, reportType);
+        }
     }
 
     handleRefreshPreview = () => {
-        this.loadReportData(true);
+        this.loadReportData(true, this.state.reportType);
     }
 
     /**
