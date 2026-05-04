@@ -14,7 +14,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Security',
             icon: '\ud83d\udd12',
-            desc: 'A deep-dive into your organization\u2019s threats and vulnerabilities. The Security page shows your posture snapshot with compliance framework alignment (CIS Controls v8.1, NIST CSF 2.0), risk score progression over time, actionable remediation priorities, and gap analysis. You can toggle between frameworks and view historical trends.',
+            desc: 'A deep-dive into your organization\u2019s threats and vulnerabilities. The Security page shows your posture dossier with compliance framework alignment (CIS Controls v8.1, NIST CSF 2.0), risk score progression over time, actionable remediation priorities, and gap analysis. You can toggle between frameworks and view historical trends.',
             tips: [
                 'Use severity filters to focus on Critical and High issues first',
                 'Check the risk trend chart to see if your posture is improving or declining over time',
@@ -47,9 +47,9 @@ export function PortalGuideTab(html) {
         {
             title: 'Response',
             icon: '\u26a1',
-            desc: 'Take remote actions on your devices. Response lets you queue operations that execute on the device at its next heartbeat. Available actions include Probe (collect a security posture snapshot), Scan (full vulnerability and malware scan), Inventory (refresh the installed applications list), Logs (securely collect encrypted diagnostic logs), and Updates (check for OS and application patches). You can track each action\u2019s status as it moves from Queued to Delivered to Completed.',
+            desc: 'Take remote actions on your devices. Response lets you queue operations that execute on the device at its next heartbeat. Available actions include Probe (collect a security posture dossier), Scan (full vulnerability and malware scan), Inventory (refresh the installed applications list), Logs (securely collect encrypted diagnostic logs), and Updates (check for OS and application patches). You can track each action\u2019s status as it moves from Queued to Delivered to Completed.',
             tips: [
-                'Use Probe to get a fresh security snapshot from a specific device on demand',
+                'Use Probe to get a fresh security dossier from a specific device on demand',
                 'Action results appear in the portal once the device completes the task \u2014 check back after a few minutes',
                 'The action history shows everything that\u2019s been run, with status and timestamps'
             ],

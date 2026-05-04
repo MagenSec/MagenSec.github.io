@@ -9,6 +9,7 @@ import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import ChatDrawer from '../../components/ChatDrawer.js';
 import { bundleToUnifiedPayload } from '../dashboard/bundleAdapter.js';
+import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
 
 const { html, Component } = window;
 
@@ -101,6 +102,7 @@ export class AuditorPage extends Component {
       loading: true,
       error: null,
       data: null,
+      evidence: null,
       cachedAt: null,
       recentEvents: [],
       eventsLoading: true,
@@ -194,7 +196,7 @@ export class AuditorPage extends Component {
 
     // ── 3. Render cached dashboard data immediately (stale-while-revalidate) ────────────────
     if (cachedData) {
-      this.setState({ data: cachedData, loading: false, cachedAt, error: null });
+      this.setState({ data: cachedData, evidence: cachedData?.evidence || null, loading: false, cachedAt, error: null });
     } else {
       this.setState({ loading: true, error: null, eventsLoading: true });
     }
@@ -223,6 +225,7 @@ export class AuditorPage extends Component {
         localStorage.setItem(LS_AUDITOR_KEY(orgId), JSON.stringify({ data: unifiedShape, ts: now }));
       } catch {}
       dashState.data = unifiedShape;
+      dashState.evidence = unifiedShape?.evidence || null;
       dashState.cachedAt = now;
       dashState.loading = false;
       dashState.error = null;
@@ -385,7 +388,7 @@ export class AuditorPage extends Component {
       this.setState({ deltaData: result.data, deltaLoading: false });
     } else {
       this.setState({
-        deltaError: result?.message || result?.error || 'No snapshot data found for this date range',
+        deltaError: result?.message || result?.error || 'No dossier data found for this date range',
         deltaLoading: false
       });
     }
@@ -519,7 +522,7 @@ export class AuditorPage extends Component {
                   <span class="badge bg-info-lt text-info">Risk ${risk?.riskScore || '—'}</span>
                 </div>
                 <div class="text-muted small">
-                  Executive Snapshot: Compliance ${compliance?.percent || 0}% with ${urgent} priority item(s) pending.
+                  Executive Dossier: Compliance ${compliance?.percent || 0}% with ${urgent} priority item(s) pending.
                   ${asOf ? `${asOfLabel} ${asOf}.` : ''}
                 </div>
               </div>
@@ -682,7 +685,7 @@ export class AuditorPage extends Component {
                       <span>Security Grade: ${score?.grade || '—'}</span>
                       <span>Risk: ${risk?.riskScore || '—'}</span>
                     </div>
-                    ${asOf ? html`<div class="text-muted small mt-2">Snapshot: ${asOf}</div>` : ''}
+                    ${asOf ? html`<div class="text-muted small mt-2">Dossier: ${asOf}</div>` : ''}
                   </div>
                 </div>
               </div>
@@ -987,7 +990,7 @@ export class AuditorPage extends Component {
               <div class="col">
                 <h4 class="mb-1">Evidence Export Pack</h4>
                 <p class="text-muted mb-0">
-                  Download a ZIP containing org/security/compliance snapshots and 90-day audit log CSV —
+                  Download a ZIP containing org/security/compliance dossiers and 90-day audit log CSV —
                   ready for external auditors.
                   ${asOfDate ? html` <span class="badge bg-amber-lt text-amber ms-1">⏪ Historical: ${toIsoDate(asOfDate)}</span>` : ''}
                 </p>
@@ -1146,7 +1149,7 @@ export class AuditorPage extends Component {
         <div class="card border-0 shadow-sm mb-4">
           <div class="card-header">
             <h3 class="card-title">Security Posture Comparison</h3>
-            <div class="card-options text-muted small">Compare two snapshots to see what changed</div>
+            <div class="card-options text-muted small">Compare two dossiers to see what changed</div>
           </div>
           <div class="card-body">
             <div class="row g-3 align-items-end">
@@ -1205,7 +1208,7 @@ export class AuditorPage extends Component {
           <div class="alert alert-warning">
             <div class="fw-semibold">No comparison data available</div>
             ${deltaError}
-            <div class="mt-1 small text-muted">Snapshots are created daily. Try dates that fall within your active subscription period.</div>
+            <div class="mt-1 small text-muted">Dossiers are created daily. Try dates that fall within your active subscription period.</div>
           </div>
         ` : ''}
 
@@ -1215,7 +1218,7 @@ export class AuditorPage extends Component {
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><circle cx="12" cy="12" r="4" /></svg>
             </div>
             <p class="empty-title">Select a date range and run the comparison</p>
-            <p class="empty-subtitle text-muted">Compares posture snapshots from two points in time to show score changes, new CVEs, and compliance drift.</p>
+            <p class="empty-subtitle text-muted">Compares posture dossiers from two points in time to show score changes, new CVEs, and compliance drift.</p>
           </div>
         ` : ''}
 
@@ -1547,7 +1550,7 @@ export class AuditorPage extends Component {
                   </div>
                   <h4 class="mb-2" style="color:#fff;">Access reports from any date in the past year</h4>
                   <p class="mb-3" style="opacity:.8; font-size:.9rem;">
-                    <strong>Time Warp</strong> lets you step back to any historical snapshot — see exactly what your security posture
+                    <strong>Time Warp</strong> lets you step back to any historical dossier — see exactly what your security posture
                     looked like on the day of an audit, incident, or compliance review.
                     Every page, every chart, every AI analysis reflects that exact point in time.
                   </p>
@@ -1559,7 +1562,7 @@ export class AuditorPage extends Component {
                       <i class="ti ti-check text-success"></i> Ask MAGI about any past date
                     </div>
                     <div class="d-flex align-items-center gap-2 me-3" style="opacity:.85; font-size:.85rem;">
-                      <i class="ti ti-check text-success"></i> Evidence packs with historical snapshots
+                      <i class="ti ti-check text-success"></i> Evidence packs with historical dossiers
                     </div>
                     <div class="d-flex align-items-center gap-2 me-3" style="opacity:.85; font-size:.85rem;">
                       <i class="ti ti-check text-success"></i> Delta reports across any window
@@ -1586,7 +1589,7 @@ export class AuditorPage extends Component {
               <strong>Want to see a report from a specific date?</strong>
               Use <strong>Time Warp</strong> — activate it from the navbar (
               <i class="ti ti-history"></i>) to travel to any date in the past year.
-              Every page, including this one, updates to reflect that snapshot.
+              Every page, including this one, updates to reflect that dossier.
             </div>
           </div>
         ` : ''}
@@ -1833,6 +1836,10 @@ export class AuditorPage extends Component {
               </div>
             </div>
           </div>
+        </div>
+
+        <div class="container-xl">
+          <${EvidenceBanner} evidence=${this.state.evidence || data?.evidence} pageName="auditor" />
         </div>
 
         ${this.renderCommandCenter(data, cachedAt)}

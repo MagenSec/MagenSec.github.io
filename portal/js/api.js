@@ -262,6 +262,16 @@ export class ApiClient {
             return Promise.reject(new Error('TIME_WARP_READ_ONLY'));
         }
 
+        const readOnlyMode = window.orgContext?.isReadOnly?.() && !window.orgContext?.isSiteAdmin?.();
+        if (isMutatingMethod && readOnlyMode) {
+            window.toast?.show(
+                'Auditor mode is read-only. You can review evidence and download dated reports, but changes are disabled.',
+                'warning',
+                4500
+            );
+            return Promise.reject(new Error('READ_ONLY_MODE'));
+        }
+
         // Add auth token if available
         const token = auth.getToken();
         if (token) {
@@ -483,8 +493,8 @@ export class ApiClient {
     // === DASHBOARD ===
     async getUnifiedDashboard(orgId, params = {}) {
         const date = this.getEffectiveDate();
-        // Dashboard has its own SWR (localStorage cache → background refresh),
-        // so skip api.js degraded recovery to avoid redundant probe calls.
+        // Dashboard renders from API page bundles now; keep degraded recovery out of
+        // this legacy endpoint to avoid redundant probe calls.
         return this.get(`/api/v1/orgs/${orgId}/dashboard`, date ? { ...params, date } : params, { skipDegradedHandling: true });
     }
 
@@ -503,10 +513,10 @@ export class ApiClient {
      * @param {string} pageName  Bundle name from /api/v1/pages/catalog (e.g. 'dashboard', 'devices').
      * @param {object} [params]  Optional extra query params (include, refresh, ...).
      */
-    async getPageBundle(orgId, pageName, params = {}) {
+    async getPageBundle(orgId, pageName, params = {}, options = {}) {
         const date = this.getEffectiveDate();
         const query = date ? { ...params, date } : { ...params };
-        const response = await this.get(`/api/v1/orgs/${orgId}/pages/${pageName}`, query, { skipDegradedHandling: true });
+        const response = await this.get(`/api/v1/orgs/${orgId}/pages/${pageName}`, query, { skipDegradedHandling: true, ...options });
         this.warnOnBundleEvidence(response, orgId, pageName, date);
         return response;
     }
@@ -543,16 +553,17 @@ export class ApiClient {
 
     /**
      * Export audit evidence pack as a ZIP file (browser download).
-     * Uses the bearer token from localStorage; triggers a file download.
+    * Uses the active portal session token; triggers a file download.
      * @param {string} orgId
      * @param {string?} date - yyyyMMdd, optional — defaults to today on server
      */
     async exportAuditEvidence(orgId, date) {
-        const token = localStorage.getItem('auth_token') || '';
+        const token = auth.getToken() || '';
         const qs = date ? `?date=${date}` : '';
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(`/api/v1/orgs/${orgId}/audit/export${qs}`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
+            method: 'GET',
+            headers
         });
         if (!res.ok) {
             const body = await res.json().catch(() => null);

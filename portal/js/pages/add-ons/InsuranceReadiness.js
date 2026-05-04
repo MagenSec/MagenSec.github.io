@@ -109,7 +109,7 @@ function renderInsuranceContent(data, { regenerating, regenMsg, onRegenerate }) 
                         <div class="progress progress-sm mb-3">
                             <div class="progress-bar bg-primary" style=${`width:${Math.max(0, Math.min(100, Number(data.fleetCoveragePercent || 0)))}%`}></div>
                         </div>
-                        <div class="text-muted">Active telemetry coverage supports insurance-grade evidence generation for the current org snapshot.</div>
+                        <div class="text-muted">Active telemetry coverage supports insurance-grade evidence generation for the current org dossier.</div>
                     </div>
                 </div>
             </div>

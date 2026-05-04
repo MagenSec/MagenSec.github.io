@@ -326,7 +326,7 @@ export class ChatDrawer extends Component {
           <!-- Row 2: subtitle + context pill -->
           <div style="display: flex; align-items: center; gap: 8px; min-width: 0; padding-left: 26px;">
             <span style="font-size: 0.75rem; color: var(--magi-text-muted); white-space: nowrap; flex-shrink: 0;">AI Security Officer</span>
-            ${rewindContext.isActive() ? html`<span style="margin-left: auto; font-size: 0.7rem; font-weight:600; color:#92400e; background:#fef3c7; padding: 1px 8px; border-radius: 999px; border: 1px solid #f59e0b;" title="Answering from ${rewindContext.getDate()} snapshot">⏪ ${rewindContext.getDate()}</span>` : ''}
+            ${rewindContext.isActive() ? html`<span style="margin-left: auto; font-size: 0.7rem; font-weight:600; color:#92400e; background:#fef3c7; padding: 1px 8px; border-radius: 999px; border: 1px solid #f59e0b;" title="Answering from the ${rewindContext.getDate()} dossier">⏪ ${rewindContext.getDate()}</span>` : ''}
             ${effectiveHint && !rewindContext.isActive() ? html`<span style="margin-left: auto; font-size: 0.7rem; color: var(--magi-pill-text); background: var(--magi-pill-bg); padding: 1px 8px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 70%;" title=${effectiveHint}>${effectiveHint}</span>` : ''}
           </div>
         </div>

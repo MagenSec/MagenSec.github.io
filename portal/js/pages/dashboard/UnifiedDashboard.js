@@ -1,6 +1,6 @@
 /**
- * UnifiedDashboard - Clean "Google-style" security dashboard
- * Score hero → MAGI search → Priority actions → KPI tiles
+ * UnifiedDashboard - Business proof-readiness dashboard.
+ * Proof readiness hero with dossier scores -> centered MAGI search -> officer brief.
  */
 
 import { auth } from '@auth';
@@ -9,11 +9,13 @@ import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
 import { bundleToUnifiedPayload } from './bundleAdapter.js';
+import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
+import { metricPhrase } from '../../utils/metricUnits.js';
 
 const { html, Component } = window;
 const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
 const BUSINESS_ONLY_ROUTES = new Set(['#!/compliance', '#!/reports', '#!/auditor', '#!/analyst']);
-
 function renderMarkdown(text) {
   if (!text) return '';
   let parsed = window.marked ? window.marked.parse(text) : text.replace(/\n/g, '<br>');
@@ -42,6 +44,7 @@ export default class UnifiedDashboard extends Component {
         hygieneCoach: null
       },
       cyberHygieneCollapsed: true,
+      dossierOpen: false,
       officerNoteOpen: false,
       officerNoteDismissed: false
     };
@@ -114,31 +117,6 @@ export default class UnifiedDashboard extends Component {
     this.renderCyberHygieneChart();
   }
 
-  getCachedDashboard(key, ttlMinutes = 30) {
-    try {
-      const cached = localStorage.getItem(key);
-      if (!cached) return null;
-
-      const { data, timestamp } = JSON.parse(cached);
-      const ageMs = Date.now() - timestamp;
-      const TTL_MS = ttlMinutes * 60 * 1000;
-      const isStale = ageMs >= TTL_MS;
-
-      return { data, isStale };
-    } catch (err) {
-      console.warn('[UnifiedDashboard] Cache read error:', err);
-    }
-    return null;
-  }
-
-  setCachedDashboard(key, data) {
-    try {
-      localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-    } catch (err) {
-      console.warn('[UnifiedDashboard] Cache write error:', err);
-    }
-  }
-
   getOfficerNoteDismissKey(orgId) {
     return `officer_note_unified_${orgId}`;
   }
@@ -188,38 +166,9 @@ export default class UnifiedDashboard extends Component {
 
       this._currentOrgId = orgId;
 
-      const warpDate = rewindContext.getDate?.() || null;
-      const cacheKey = warpDate
-        ? `unified_dashboard_${orgId}_warp_${warpDate}`
-        : `unified_dashboard_${orgId}`;
-
-      if (!isRefresh && !skipCache) {
-        const cached = this.getCachedDashboard(cacheKey, 30);
-        if (cached?.data) {
-          this.setState(prevState => ({
-            data: cached.data,
-            loading: false,
-            refreshing: false,
-            isRefreshingInBackground: true,
-            error: null,
-            refreshError: null,
-            personaSheetOpen: false,
-            officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
-          }));
-
-          // If cached counters are stale/partial, hydrate from devices + inventory APIs.
-          this.hydrateDashboardStats(orgId, cached.data);
-
-          if (!this._unmounted) {
-            await this.loadDashboard({ background: true, skipCache: true });
-          }
-          return;
-        }
-      }
-
       // Phase 4.2.3: page bundle composes cooked atoms (parquet + DuckDB) into a single first-paint payload.
       // TimeWarp date passes through via X-Effective-Date header in api.js.
-      const response = await api.getPageBundle(orgId, 'dashboard');
+      const response = await api.getPageBundle(orgId, 'dashboard', {}, { skipCache: true });
 
       if (this._unmounted) return;
 
@@ -233,8 +182,8 @@ export default class UnifiedDashboard extends Component {
       let normalizedData = response.data ? bundleToUnifiedPayload(response.data) : null;
       if (normalizedData) {
         normalizedData = await this.overlayAlertSummaryCounts(orgId, normalizedData);
+        normalizedData = await this.attachPatchStatus(orgId, normalizedData);
         normalizedData = await this.normalizeDashboardStats(orgId, normalizedData);
-        this.setCachedDashboard(cacheKey, normalizedData);
         this.loadAddOnSignals(orgId);
       }
 
@@ -245,6 +194,7 @@ export default class UnifiedDashboard extends Component {
         isRefreshingInBackground: false,
         // Keep drawer collapsed by default; user can open intentionally.
         personaSheetOpen: false,
+        dossierOpen: false,
         officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
       }));
     } catch (err) {
@@ -288,14 +238,18 @@ export default class UnifiedDashboard extends Component {
     if (!data || !summary) return data;
 
     const bySeverityByDomain = summary.bySeverityByDomain || {};
-    const vulnSeverity = bySeverityByDomain.Vulnerability || bySeverityByDomain.vulnerability || summary.bySeverity || {};
+    const vulnerabilityDomainKey = Object.keys(bySeverityByDomain)
+      .find(key => String(key).toLowerCase() === 'vulnerability');
+    if (!vulnerabilityDomainKey) return data;
+
+    const vulnSeverity = bySeverityByDomain[vulnerabilityDomainKey] || {};
     const byDomain = summary.byDomain || {};
     const critical = this.readSummaryInt(vulnSeverity, 'Critical');
     const high = this.readSummaryInt(vulnSeverity, 'High');
     const medium = this.readSummaryInt(vulnSeverity, 'Medium');
     const low = this.readSummaryInt(vulnSeverity, 'Low');
     const severityTotal = critical + high + medium + low;
-    const domainTotal = this.readSummaryInt(byDomain, 'Vulnerability');
+    const domainTotal = this.readSummaryInt(byDomain, vulnerabilityDomainKey);
     const total = domainTotal > 0 ? domainTotal : (severityTotal > 0 ? severityTotal : Number(summary.totalOpen || 0));
 
     if (total <= 0 && severityTotal <= 0) return data;
@@ -349,6 +303,47 @@ export default class UnifiedDashboard extends Component {
       console.warn('[UnifiedDashboard] AlertSummary overlay skipped:', err);
       return data;
     }
+  }
+
+  async attachPatchStatus(orgId, data) {
+    try {
+      const response = await api.getPatchPosture(orgId, { skipCache: true });
+      if (response && response.success === false) return data;
+      return {
+        ...data,
+        _patchPosture: response?.data || response || null
+      };
+    } catch (err) {
+      console.warn('[UnifiedDashboard] Patch Status overlay skipped:', err);
+      return {
+        ...data,
+        _patchPosture: {
+          unavailable: true,
+          message: err?.message || 'Patch Status unavailable'
+        }
+      };
+    }
+  }
+
+  getPatchStatusSummary(data = this.state.data) {
+    const patch = data?._patchPosture || {};
+    const summary = patch.summary || {};
+    const intel = patch.intel || {};
+    const hosts = Array.isArray(patch.hosts) ? patch.hosts : [];
+
+    return {
+      unavailable: patch.unavailable === true,
+      message: patch.message || '',
+      openAlerts: Number(summary.openAlerts ?? 0),
+      hostsAffected: Number(summary.hostsAffected ?? hosts.length ?? 0),
+      critical: Number(summary.critical ?? 0),
+      high: Number(summary.high ?? 0),
+      exploited: Number(summary.exploited ?? 0),
+      distinctKbs: Number(summary.distinctKbs ?? intel.topKbs?.length ?? 0),
+      productCount: Number(intel.productCount ?? 0),
+      leafPatchCount: Number(intel.leafPatchCount ?? 0),
+      builtAt: intel.builtAt || intel.lastBuiltAt || intel.generatedAt || null
+    };
   }
 
   async loadAddOnSignals(orgId) {
@@ -682,10 +677,6 @@ export default class UnifiedDashboard extends Component {
     const normalized = await this.normalizeDashboardStats(orgId, data);
     if (normalized !== data) {
       this.setState({ data: normalized });
-      try {
-        const cacheKey = `unified_dashboard_${orgId}`;
-        this.setCachedDashboard(cacheKey, normalized);
-      } catch (_) {}
     }
   }
 
@@ -717,6 +708,33 @@ export default class UnifiedDashboard extends Component {
     this.setState({ aiPrompt: e?.target?.value ?? '' });
   };
 
+  buildMagiActionContext(data = this.state.data) {
+    const items = this.getTopActionViewItems(data).filter(item => item.kind === 'action').slice(0, 3);
+    if (items.length === 0) return null;
+
+    return items.map((item) => {
+      const deviceNames = item.deviceNames.length > 0 ? item.deviceNames.join(', ') : 'not identified in dossier';
+      const support = item.supportText ? `; detail=${item.supportText}` : '';
+      return `${item.index}. ${item.title}; urgency=${item.badge}; devices=${deviceNames}; ${item.deviceText}${support}`;
+    }).join('\n');
+  }
+
+  groundAiActionAnswer(answer, data = this.state.data) {
+    if (!answer) return answer;
+
+    const items = this.getTopActionViewItems(data)
+      .filter(item => item.kind === 'action' && item.deviceNames.length > 0)
+      .slice(0, 3);
+    if (items.length === 0) return answer;
+
+    let replacementIndex = 0;
+    return String(answer).replace(/Affected device:\s*(?:1|one) device\b/gi, (match) => {
+      const item = items[Math.min(replacementIndex, items.length - 1)];
+      replacementIndex += 1;
+      return match.replace(/(?:1|one) device\b/i, item.deviceNames[0]);
+    });
+  }
+
   submitAiPrompt = async (e) => {
     if (e?.preventDefault) e.preventDefault();
     const prompt = (this.state.aiPrompt || '').trim();
@@ -729,14 +747,32 @@ export default class UnifiedDashboard extends Component {
 
     this.setState({ aiLoading: true, aiAnswer: null, aiError: null });
     try {
-      const response = await api.askAIAnalyst(orgId, { question: prompt });
+      const actionContext = this.buildMagiActionContext();
+      const question = actionContext
+        ? `${prompt}\n\nDashboard Top Action Items. Use these exact targets when recommending immediate actions; do not summarize a named device as "1 device".\n${actionContext}\n\nAnswer requirement: every recommended action must include the exact device name to act on. If multiple devices are present, name the first device and state how many others remain.`
+        : prompt;
+      const asOfDate = rewindContext.isActive?.() ? rewindContext.getDate?.() : undefined;
+
+      const response = await api.askAIAnalyst(orgId, {
+        question,
+        includeContext: true,
+        context: {
+          hint: actionContext
+            ? `dashboard-immediate-actions; exact device targets: ${actionContext.replace(/\s+/g, ' ').slice(0, 1200)}`
+            : 'dashboard-immediate-actions',
+          route: '#!/dashboard',
+          source: 'dashboard-magi-command'
+        },
+        persona: 'business_owner',
+        ...(asOfDate ? { asOfDate } : {})
+      });
       const data = response?.data;
       const answer = data?.answer || response?.answer || data?.response || response?.response || null;
       if (!answer) throw new Error('No answer in response');
       this.setState({
         aiAnswer: {
           question: prompt,
-          answer,
+          answer: this.groundAiActionAnswer(answer),
           confidence: data?.confidence ?? null,
           citations: Array.isArray(data?.citations) ? data.citations : []
         },
@@ -760,6 +796,42 @@ export default class UnifiedDashboard extends Component {
       'F': 'danger'
     };
     return gradeMap[grade] || 'secondary';
+  }
+
+  getScoreTone(score) {
+    const numericScore = Number(score || 0);
+    if (numericScore >= 85) return '#16a34a';
+    if (numericScore >= 70) return '#2563eb';
+    if (numericScore >= 50) return '#d97706';
+    return '#dc2626';
+  }
+
+  getReadableScoreTone(score) {
+    const numericScore = Number(score || 0);
+    if (numericScore >= 85) return 'var(--db-tone-success,#15803d)';
+    if (numericScore >= 70) return 'var(--db-tone-info,#1d4ed8)';
+    if (numericScore >= 50) return 'var(--db-tone-warning,#b45309)';
+    return 'var(--db-tone-danger,#dc2626)';
+  }
+
+  getUrgencyTone(urgency) {
+    const value = String(urgency || '').toLowerCase();
+    if (value === 'critical' || value === 'urgent' || value === 'immediate') return '#dc2626';
+    if (value === 'high' || value === 'important') return '#d97706';
+    if (value === 'medium' || value === 'watch') return '#2563eb';
+    return '#64748b';
+  }
+
+  getReadableUrgencyTone(urgency) {
+    const value = String(urgency || '').toLowerCase();
+    if (value === 'critical' || value === 'urgent' || value === 'immediate') return 'var(--db-tone-danger,#dc2626)';
+    if (value === 'high' || value === 'important') return 'var(--db-tone-warning,#b45309)';
+    if (value === 'medium' || value === 'watch') return 'var(--db-tone-info,#1d4ed8)';
+    return 'var(--db-tone-neutral,#475569)';
+  }
+
+  getTranslucentSurface(tone, alpha = '08') {
+    return `linear-gradient(135deg, ${tone}${alpha} 0%, var(--db-glass-bg, rgba(255,255,255,0.76)) 52%, var(--db-glass-bg, rgba(255,255,255,0.76)) 100%)`;
   }
 
   getLicenseStatusClass(status) {
@@ -795,6 +867,252 @@ export default class UnifiedDashboard extends Component {
       ageText,
       isStale
     };
+  }
+
+  getProofReadinessData(data = this.state.data) {
+    const hs = this.getHealthScoreData(data);
+    const patch = this.getPatchStatusSummary(data);
+    const coverage = data?.quickStats?.coverage || data?.itAdmin?.coverage || {};
+    const cves = data?.quickStats?.cves || data?.securityPro?.threatIntel || {};
+    const compliance = data?.businessOwner?.complianceCard || data?.complianceSummary || {};
+
+    const critical = Number(cves.criticalCount ?? cves.critical ?? cves.uniqueCriticalCveCount ?? 0);
+    const high = Number(cves.highCount ?? cves.high ?? cves.uniqueHighCveCount ?? 0);
+    const dormant = Number(coverage.dormant || 0);
+    const ghost = Number(coverage.ghost || coverage.ghosted || 0);
+    const errors = Number(coverage.error || 0);
+    const deviceBlockers = Math.max(0, dormant + ghost + errors);
+    const gapCount = Number(compliance.gapCount || compliance.gaps || 0);
+    const blockers = [];
+
+    if (patch.openAlerts > 0) {
+      blockers.push({
+        label: 'Patch posture',
+        value: patch.openAlerts,
+        detail: `${patch.hostsAffected} affected device${patch.hostsAffected === 1 ? '' : 's'} · ${patch.critical} critical · ${patch.high} high`,
+        href: '#!/patch-posture',
+        tone: '#d97706',
+        readableTone: 'var(--db-tone-warning,#b45309)'
+      });
+    }
+
+    if (critical + high > 0) {
+      blockers.push({
+        label: 'Vulnerability exposure',
+        value: critical + high,
+        detail: `${critical} critical · ${high} high CVE${critical + high === 1 ? '' : 's'} need proof of remediation`,
+        href: '#!/vulnerabilities',
+        tone: '#dc2626',
+        readableTone: 'var(--db-tone-danger,#dc2626)'
+      });
+    }
+
+    if (deviceBlockers > 0) {
+      const parts = [];
+      if (ghost > 0) parts.push(`${ghost} ghosted`);
+      if (dormant > 0) parts.push(`${dormant} dormant`);
+      if (errors > 0) parts.push(`${errors} error`);
+      blockers.push({
+        label: 'Inventory coverage',
+        value: deviceBlockers,
+        detail: `${parts.join(' · ')} device${deviceBlockers === 1 ? '' : 's'} reduce proof confidence`,
+        href: '#!/devices',
+        tone: '#2563eb',
+        readableTone: 'var(--db-tone-info,#1d4ed8)'
+      });
+    }
+
+    if (gapCount > 0) {
+      blockers.push({
+        label: 'Compliance proof',
+        value: gapCount,
+        detail: `${gapCount} control gap${gapCount === 1 ? '' : 's'} need evidence or remediation`,
+        href: '#!/compliance',
+        tone: '#7c3aed',
+        readableTone: 'var(--db-tone-purple,#7c3aed)'
+      });
+    }
+
+    if ((hs.response?.score ?? 100) <= 50) {
+      blockers.push({
+        label: 'Response hygiene',
+        value: 'Trend',
+        detail: hs.response?.shortReason || 'Remediation trend evidence is not strong enough yet',
+        href: '#!/alerts',
+        tone: '#0f766e',
+        readableTone: 'var(--db-tone-teal,#0f766e)'
+      });
+    }
+
+    const tier = hs.insuranceTier || 'At Risk';
+    const label = tier === 'Insurance Ready' ? 'Ready' : tier === 'Conditional' ? 'Conditional' : 'At Risk';
+    const tone = label === 'Ready' ? '#16a34a' : label === 'Conditional' ? '#d97706' : '#dc2626';
+    const readableTone = label === 'Ready' ? 'var(--db-tone-success,#15803d)' : label === 'Conditional' ? 'var(--db-tone-warning,#b45309)' : 'var(--db-tone-danger,#dc2626)';
+    const summary = blockers.length > 0
+      ? `${blockers.length} proof blocker${blockers.length === 1 ? '' : 's'} need attention before this dossier is easy to defend.`
+      : 'Current dossier has no major proof blockers. Keep patching and response evidence current.';
+
+    return { hs, label, tier, tone, readableTone, summary, blockers };
+  }
+
+  getActionDeviceNames(action) {
+    if (!action) return [];
+    const names = [];
+    const push = (value) => {
+      const text = String(value || '').trim();
+      if (text && !names.some(existing => existing.toLowerCase() === text.toLowerCase())) names.push(text);
+    };
+
+    (Array.isArray(action.affectedDeviceNames) ? action.affectedDeviceNames : []).forEach(push);
+    (Array.isArray(action.deviceNames) ? action.deviceNames : []).forEach(push);
+    push(action.primaryDeviceName);
+    push(action.deviceName);
+
+    if (!names.length) {
+      (Array.isArray(action.affectedDevices) ? action.affectedDevices : []).forEach((device) => {
+        if (typeof device === 'string') push(device);
+        else push(device?.deviceName || device?.DeviceName || device?.deviceId || device?.DeviceId);
+      });
+      push(action.primaryDeviceId);
+      push(action.deviceId);
+    }
+
+    return names;
+  }
+
+  formatActionDeviceText(action) {
+    if (!action) return 'Device: not identified in this dossier';
+
+    const names = this.getActionDeviceNames(action);
+
+    const count = Math.max(Number(action.deviceCount || 0), names.length);
+    if (names.length) {
+      return count > 1 ? `Device: ${names[0]} + ${count - 1} more` : `Device: ${names[0]}`;
+    }
+    if (count > 0) return `Device: ${count} unnamed device${count === 1 ? '' : 's'}`;
+    return 'Device: not identified in this dossier';
+  }
+
+  getTopActionViewItems(data = this.state.data) {
+    if (!data) return [];
+
+    const actions = Array.isArray(data?.businessOwner?.topActions)
+      ? data.businessOwner.topActions.filter(Boolean).slice(0, 3)
+      : [];
+    const proof = this.getProofReadinessData(data);
+
+    if (actions.length > 0) {
+      return actions.map((action, index) => {
+        const deviceNames = this.getActionDeviceNames(action);
+        return {
+          kind: 'action',
+          index: index + 1,
+          key: `action-${index}`,
+          href: action.href || action.url || action.drillDownUrl || action.route || '#!/security',
+          tone: this.getUrgencyTone(action.urgency),
+          readableTone: this.getReadableUrgencyTone(action.urgency),
+          badge: String(action.urgency || 'action').toUpperCase(),
+          title: this.cleanActionTitle(action.title || action.name || `Action ${index + 1}`),
+          deviceText: this.formatActionDeviceText(action),
+          deviceNames,
+          supportText: action.deadlineText || action.description || action.reason || '',
+          icon: 'ti-bolt'
+        };
+      });
+    }
+
+    return proof.blockers.slice(0, 3).map((blocker, index) => ({
+      kind: 'blocker',
+      index: index + 1,
+      key: `blocker-${index}`,
+      href: blocker.href || '#!/security',
+      tone: blocker.tone || proof.tone,
+      readableTone: blocker.readableTone || proof.readableTone,
+      badge: 'BLOCKER',
+      title: blocker.label,
+      deviceText: 'Scope: org dossier',
+      deviceNames: [],
+      supportText: blocker.detail,
+      icon: 'ti-alert-triangle'
+    }));
+  }
+
+  cleanActionTitle(title) {
+    return String(title || '')
+      .replace(/\s+on\s+\d+\s+devices?\.?$/i, '')
+      .replace(/Remediate compliance gap:\s*/i, 'Fix compliance: ')
+      .replace(/LowComplianceScore/g, 'Low compliance score')
+      .replace(/NonCompliantDevice/g, 'Non-compliant devices')
+      .replace(/MissingEncryption/g, 'Missing encryption')
+      .replace(/StaleUpdates/g, 'Stale updates')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/\bIn Design\b/g, 'InDesign')
+      .replace(/\bIn Copy\b/g, 'InCopy')
+      .replace(/^\w/, c => c.toUpperCase())
+      .trim();
+  }
+
+  getPrioritySoftwareUpdateCount(data = this.state.data) {
+    const actions = Array.isArray(data?.businessOwner?.topActions) ? data.businessOwner.topActions : [];
+    const updateNames = new Set();
+
+    actions.forEach((action) => {
+      const title = this.cleanActionTitle(action?.title || action?.name || '');
+      if (!/^update\s+/i.test(title)) return;
+      updateNames.add(title.toLowerCase());
+    });
+
+    return updateNames.size;
+  }
+
+  getDeviceCoverageDetail(data = this.state.data) {
+    const coverage = data?.quickStats?.coverage || data?.itAdmin?.coverage || {};
+    const fleet = this.getFleetStats(data) || {};
+    const total = Number(coverage.total || fleet.total || 0);
+    const ghost = Number(coverage.ghost || coverage.ghosted || 0);
+    const dormant = Number(coverage.dormant || 0);
+    const error = Number(coverage.error || 0);
+    const stale = Number(coverage.stale || 0);
+    const online = Number(coverage.online || fleet.online || 0);
+
+    const blockers = [];
+    if (ghost > 0) blockers.push(`${ghost} ghosted`);
+    if (dormant > 0 || ghost > 0) blockers.push(`${dormant} dormant`);
+    if (error > 0) blockers.push(`${error} error`);
+
+    if (blockers.length > 0) {
+      const staleText = stale > 0 ? `; ${stale} stale monitored` : '';
+      return `${blockers.join(' · ')} of ${total} devices${staleText}`;
+    }
+
+    if (stale > 0) return `${stale} stale monitored · ${online} current of ${total} devices`;
+    return `${online} current of ${total} devices`;
+  }
+
+  getSoftwareDossierDetail(data = this.state.data, hs = null, patch = null) {
+    const apps = data?.quickStats?.apps || {};
+    const cves = data?.quickStats?.cves || data?.securityPro?.threatIntel || {};
+    const trackedApps = Number(apps.trackedCount || data?.itAdmin?.inventory?.totalApps || 0);
+    const vulnerableApps = Number(apps.vulnerableCount || 0);
+    const critical = Number(cves.criticalCount ?? cves.critical ?? cves.uniqueCriticalCveCount ?? 0);
+    const high = Number(cves.highCount ?? cves.high ?? cves.uniqueHighCveCount ?? 0);
+    const priorityUpdates = this.getPrioritySoftwareUpdateCount(data);
+    const patchStatus = patch || this.getPatchStatusSummary(data);
+
+    if (vulnerableApps > 0 && trackedApps > 0) {
+      return `${vulnerableApps} vulnerable of ${trackedApps} tracked apps`;
+    }
+    if (priorityUpdates > 0 && trackedApps > 0) {
+      return `${priorityUpdates} priority app update${priorityUpdates === 1 ? '' : 's'} · ${trackedApps} tracked apps`;
+    }
+    if (!patchStatus.unavailable && patchStatus.openAlerts > 0 && trackedApps > 0) {
+      return `${trackedApps} tracked apps · ${patchStatus.openAlerts} missing updates in Patch`;
+    }
+    if (critical + high > 0 && trackedApps > 0) {
+      return `${trackedApps} tracked apps · ${critical + high} high-risk CVEs in Vulnerabilities`;
+    }
+    if (trackedApps > 0) return `${trackedApps} tracked apps · no app-level CVE exposure`;
+    return hs?.software?.shortReason || 'Software inventory score';
   }
 
   getDeviceHealthDotClass(stats) {
@@ -898,6 +1216,7 @@ export default class UnifiedDashboard extends Component {
     const apps = data?.quickStats?.apps || {};
     const tracked = apps.trackedCount || 0;
     const vuln = apps.vulnerableCount || 0;
+    const prioritySoftwareUpdates = this.getPrioritySoftwareUpdateCount(data);
 
     // Use coverage data (visibility-based: Recent < 24h) instead of real-time online status.
     // Offline devices (powered off but heartbeat < 24h) should NOT penalize.
@@ -909,13 +1228,20 @@ export default class UnifiedDashboard extends Component {
     const covStale = Number(coverage.stale) || 0;
     const covDormant = Number(coverage.dormant) || 0;
     const covGhost = Number(coverage.ghost) || 0;
+    const covError = Number(coverage.error) || 0;
     const covOffline = Number(coverage.offline) || 0; // = dormant + ghost
     const fleet = this.getFleetStats(data);
     const total = covTotal > 0 ? covTotal : fleet.total;
-    const healthy = covTotal > 0 ? covHealthy : fleet.active;
+    const actionableDevices = covTotal > 0 ? Math.max(0, covDormant + covGhost + covError) : fleet.offline;
+    const healthy = covTotal > 0 ? Math.max(0, total - actionableDevices) : fleet.active;
 
     const deviceScore = total > 0 ? Math.round((healthy / total) * 100) : 50;
-    const softwareScore = tracked > 0 ? Math.round(((tracked - vuln) / tracked) * 100) : 50;
+    let softwareScore = tracked > 0 ? Math.round(((tracked - vuln) / tracked) * 100) : 50;
+    if (vuln <= 0 && prioritySoftwareUpdates > 0) {
+      softwareScore = Math.min(softwareScore, prioritySoftwareUpdates >= 3 ? 60 : 75);
+    } else if (vuln <= 0 && crit + high > 0) {
+      softwareScore = Math.min(softwareScore, 80);
+    }
     const vulnScore = Math.max(0, 100 - (crit * 20) - (high * 10) - (medium * 5));
     const responseScore = mttr <= 0 ? 50 : mttr <= 7 ? 100 : mttr >= 90 ? 0 : Math.round(100 - ((mttr - 7) * 100 / 83));
     const complianceScore = Number(comp.percent) || 0;
@@ -932,18 +1258,23 @@ export default class UnifiedDashboard extends Component {
 
     // Build device reason using dormant/ghost terminology (stale no longer penalizes)
     const deviceReason = (() => {
-      if (unhealthy === 0) return 'All devices reporting normally';
+      if (unhealthy === 0 && covStale === 0) return 'All devices reporting normally';
       const parts = [];
-      if (covGhost > 0) parts.push(`${covGhost} ghost`);
+      if (covError > 0) parts.push(`${covError} error`);
+      if (covGhost > 0) parts.push(`${covGhost} ghosted`);
       if (covDormant > 0) parts.push(`${covDormant} dormant`);
-      if (parts.length > 0) return `${parts.join(', ')} device${unhealthy !== 1 ? 's' : ''} need attention`;
-      return `${unhealthy} device${unhealthy !== 1 ? 's' : ''} not reporting`;
+      if (parts.length > 0) {
+        const staleText = covStale > 0 ? `; ${covStale} stale device${covStale !== 1 ? 's' : ''} need monitoring` : '';
+        return `${parts.join(', ')} device${unhealthy !== 1 ? 's' : ''} need attention${staleText}`;
+      }
+      if (covStale > 0) return `${covStale} stale device${covStale !== 1 ? 's' : ''} need monitoring`;
+      return `${unhealthy} device${unhealthy !== 1 ? 's' : ''} need attention`;
     })();
 
     // Find weakest for narration
     const pillars = [
       { name: 'Device Security', s: deviceScore, reason: deviceReason },
-      { name: 'Software', s: softwareScore, reason: vuln > 0 ? `${vuln} app${vuln !== 1 ? 's' : ''} with known vulnerabilities` : 'All software up to date' },
+      { name: 'Software', s: softwareScore, reason: this.getSoftwareDossierDetail(data) },
       { name: 'Vulnerability', s: vulnScore, reason: crit > 0 || high > 0 ? `${[crit > 0 ? `${crit} critical` : '', high > 0 ? `${high} high` : ''].filter(Boolean).join(' · ')} CVE${crit + high !== 1 ? 's' : ''} need patching` : 'No critical or high CVEs' },
       { name: 'Response', s: responseScore, reason: mttr <= 0 ? 'No remediation data yet' : mttr <= 7 ? 'Fixes applied within 7 days' : `Average fix time is ${Math.round(mttr)} days` },
       { name: 'Compliance', s: complianceScore, reason: (comp.gapCount || 0) > 0 ? `${comp.gapCount} compliance gap${comp.gapCount !== 1 ? 's' : ''} need attention` : 'All compliance controls met' }
@@ -1049,21 +1380,83 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
+  renderTopActionItems({ stacked = false, embedded = false } = {}) {
+    const { data } = this.state;
+    if (!data) return null;
+
+    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
+    const items = this.getTopActionViewItems(data);
+
+    if (items.length === 0) {
+      return html`
+        <div style="margin-top:10px;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid rgba(22,163,74,0.22);border-radius:999px;padding:9px 12px;color:var(--db-answer-text,#111827);font-size:0.8rem;font-weight:700;text-align:center;box-shadow:0 1px 4px rgba(15,23,42,0.04);">
+          No immediate action items. Keep evidence fresh and watch for new patch or vulnerability alerts.
+        </div>
+      `;
+    }
+
+    return html`
+      <section aria-label="Top action items" style="margin-top:${embedded ? '12px' : stacked ? '0' : '9px'};text-align:left;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:${embedded ? '0 4px 6px' : '0 8px 6px'};">
+          <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Top Action Items</div>
+          <a href="#!/security" style="font-size:0.72rem;font-weight:800;color:var(--db-tone-primary,#4f46e5);text-decoration:none;white-space:nowrap;">Open Security</a>
+        </div>
+        <div role="list" style="display:grid;grid-template-columns:${stacked || isSmallScreen ? '1fr' : 'repeat(3,minmax(220px,1fr))'};gap:0;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid var(--db-tile-border,rgba(148,163,184,0.18));border-radius:${stacked || isSmallScreen ? '18px' : '999px'};box-shadow:0 4px 14px rgba(15,23,42,0.045);overflow:hidden;">
+          ${items.map((item, index) => {
+            const meta = this.getBusinessOnlyMeta(item.href);
+            const isDisabled = Boolean(meta.className);
+            const detail = item.supportText ? `${item.deviceText} · ${item.supportText}` : item.deviceText;
+            const urgency = item.badge && item.badge !== 'ACTION' ? `${item.badge}: ` : '';
+            const isLast = index === items.length - 1;
+            return html`
+              <a
+                role="listitem"
+                key=${item.key}
+                href=${item.href}
+                class=${meta.className}
+                title=${meta.title || `${urgency}${item.title} - ${detail}`}
+                aria-label=${`${urgency}${item.title}. ${detail}`}
+                data-business-tooltip=${meta.dataTooltip}
+                onClick=${(event) => {
+                  if (isDisabled) {
+                    event.preventDefault();
+                    window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                  }
+                }}
+                style="text-decoration:none;color:var(--db-answer-text,#111827);display:grid;grid-template-columns:${isSmallScreen ? '30px minmax(0,1fr)' : '32px minmax(0,1fr) auto'};align-items:center;gap:10px;min-height:68px;padding:${isSmallScreen ? '8px 12px' : '8px 12px 8px 9px'};background:transparent;border:0;border-bottom:${isLast ? '0' : '1px solid var(--db-tile-border,rgba(148,163,184,0.18))'};border-radius:0;box-shadow:none;overflow:hidden;text-align:left;"
+              >
+                <span aria-hidden="true" style="width:28px;height:28px;border-radius:999px;background:${item.tone}16;color:${item.readableTone || item.tone};display:inline-flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:900;justify-self:center;">${item.index}</span>
+                <span style="min-width:0;display:block;">
+                  <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:0.8rem;font-weight:850;line-height:1.16;overflow:hidden;">${item.title}</span>
+                  <span style="display:block;font-size:0.68rem;color:var(--db-faint-text,#6b7280);line-height:1.24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;">${detail}</span>
+                </span>
+                <span style="grid-column:${isSmallScreen ? '2' : 'auto'};justify-self:${isSmallScreen ? 'start' : 'end'};display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid ${item.tone}24;background:${item.tone}10;color:${item.readableTone || item.tone};font-size:0.62rem;font-weight:900;letter-spacing:0.04em;text-transform:uppercase;line-height:1;padding:5px 8px;white-space:nowrap;">
+                  <span aria-hidden="true" style="width:4px;height:4px;border-radius:999px;background:${item.readableTone || item.tone};display:inline-block;"></span>
+                  ${item.badge}
+                </span>
+              </a>
+            `;
+          })}
+        </div>
+      </section>
+    `;
+  }
+
   renderSearchHeader() {
     const { data, aiLoading, aiAnswer, aiError, refreshing } = this.state;
     const hs = this.getHealthScoreData(data);
     const freshness = this.getFreshnessInfo();
+    const proof = this.getProofReadinessData(data);
     const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
     const aiPlaceholder = isSmallScreen
       ? 'Ask about threats, compliance...'
       : 'Ask MAGI about your security posture...';
     const aiButtonLabel = aiLoading ? 'Thinking...' : (isSmallScreen ? 'Ask' : 'Ask MAGI');
+    const moveActionsToProofHero = Boolean(aiAnswer) && !isSmallScreen;
 
-    const scoreColor = hs.score >= 80 ? '#16a34a' : hs.score >= 60 ? '#2563eb' : hs.score >= 40 ? '#d97706' : '#dc2626';
-
-    // Insurance readiness
-    const insuranceColor = hs.insuranceTier === 'Insurance Ready' ? '#16a34a' : hs.insuranceTier === 'Conditional' ? '#d97706' : '#dc2626';
-    const insuranceLabel = hs.insuranceTier === 'Insurance Ready' ? 'Ready' : hs.insuranceTier === 'Conditional' ? 'Needs Work' : 'At Risk';
+    const scoreColor = this.getScoreTone(hs.score);
+    const scoreReadableColor = this.getReadableScoreTone(hs.score);
+    const magiHeroTip = `MAGI reads the current dossier and explains the proof blockers behind ${proof.label}.`;
 
     // Score delta (trend)
     const bo = data?.businessOwner || {};
@@ -1077,9 +1470,6 @@ export default class UnifiedDashboard extends Component {
       }
     }
 
-    // Top 3 priority actions
-    const topActions = (bo.topActions || []).slice(0, 3);
-
     return html`
       <div style="
         width: 100vw;
@@ -1092,69 +1482,79 @@ export default class UnifiedDashboard extends Component {
         padding: 14px 16px 8px;
         overflow: visible;
       ">
-        <div style="max-width: 720px; margin: 0 auto; position: relative;">
+        <div style="max-width: 1120px; margin: 0 auto; position: relative;">
 
-          <!-- Security Health Score Hero -->
-          <div style="text-align: center; margin-bottom: 12px;">
-            <a href="#!/security" style="text-decoration: none; display: inline-block;">
-              <div style="
-                display: inline-flex; align-items: center; gap: 16px;
-                padding: 16px 40px;
-                background: var(--db-glass-bg, rgba(255,255,255,0.7));
+          <section
+            aria-label="Dashboard proof and MAGI"
+            style="display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(360px,0.9fr) minmax(460px,1.1fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:start;"
+          >
+          <section aria-label="Insurance proof readiness" style="text-align:center;margin-bottom:${isSmallScreen ? '0' : '0'};min-width:0;">
+            <div
+              style="
+                max-width: none;
+                width: 100%;
+                height: 100%;
+                margin: 0 auto;
+                padding: 16px 18px;
+                background: linear-gradient(135deg, rgba(99,102,241,0.08), var(--db-glass-bg, rgba(255,255,255,0.76)) 44%, var(--db-glass-bg, rgba(255,255,255,0.76)));
                 backdrop-filter: blur(14px);
                 -webkit-backdrop-filter: blur(14px);
                 border: 1px solid var(--db-tile-border, rgba(148,163,184,0.18));
-                border-radius: 20px;
-                box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-                transition: transform 0.15s, box-shadow 0.15s;
-                cursor: pointer;
-              " onMouseEnter=${(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.1)'; }}
-                 onMouseLeave=${(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.06)'; }}>
-                <div>
-                  <div style="font-size: 3.5rem; font-weight: 800; color: ${scoreColor}; line-height: 1;">${hs.score}</div>
-                  <div style="font-size: 0.72rem; color: var(--db-muted-text, #6b7280); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; margin-top: 4px;">Security Health</div>
+                border-top: 4px solid ${proof.readableTone};
+                border-radius: 16px;
+                box-shadow: 0 4px 24px rgba(15,23,42,0.06);
+              "
+              title=${magiHeroTip}
+            >
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                <div style="text-align:left;min-width:240px;flex:1;">
+                  <div style="font-size:0.72rem;color:var(--db-muted-text,#6b7280);text-transform:uppercase;letter-spacing:0.12em;font-weight:800;margin-bottom:4px;">Insurance Proof Readiness</div>
+                  <div style="font-size:${isSmallScreen ? '2rem' : '2.45rem'};font-weight:850;color:${proof.readableTone};line-height:1;">${proof.label}</div>
+                  <div style="font-size:0.84rem;color:var(--db-answer-text,#374151);font-weight:550;margin-top:7px;line-height:1.4;">${proof.summary}</div>
                 </div>
-                <div style="
-                  font-size: 2rem; font-weight: 800; color: #fff;
-                  background: ${scoreColor};
-                  width: 52px; height: 52px;
-                  display: flex; align-items: center; justify-content: center;
-                  border-radius: 12px;
-                  box-shadow: 0 2px 8px ${scoreColor}44;
-                ">${hs.grade}</div>
+                <a href="#!/reports" style="min-width:132px;padding:11px 12px;border-radius:12px;background:${this.getTranslucentSurface(scoreColor, '07')};border:1px solid ${scoreColor}24;text-align:left;text-decoration:none;color:var(--db-answer-text,#111827);">
+                  <div style="font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--db-muted-text,#6b7280);font-weight:800;">Health Score</div>
+                  <div style="display:flex;align-items:center;gap:9px;margin-top:3px;">
+                    <span style="font-size:1.95rem;font-weight:850;color:${scoreReadableColor};line-height:1;">${hs.score}</span>
+                    <span style="min-width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;background:${scoreColor};border-radius:10px;line-height:1;box-shadow:0 8px 18px ${scoreColor}33;">${hs.grade}</span>
+                  </div>
+                  <div style="font-size:0.7rem;color:var(--db-faint-text,#6b7280);margin-top:4px;">Evidence reports</div>
+                </a>
               </div>
-            </a>
 
-            <!-- Narration -->
-            <div style="margin-top: 8px; max-width: 480px; margin-left: auto; margin-right: auto;">
-              <div style="font-size: 0.82rem; color: var(--db-answer-text, #374151); font-weight: 500;">${hs.narration}</div>
+              <div style="margin-top:22px;max-width:520px;text-align:left;">
+                <div style="font-size:0.8rem;color:var(--db-answer-text,#374151);font-weight:500;line-height:1.38;">${hs.narration}</div>
               ${hs.narrationImpact ? html`
-                <div style="font-size: 0.74rem; color: #16a34a; font-weight: 600; margin-top: 2px;">${hs.narrationImpact}</div>
+                  <div style="font-size:0.72rem;color:var(--db-tone-success,#15803d);font-weight:650;margin-top:3px;">${hs.narrationImpact}</div>
               ` : null}
-            </div>
+              </div>
 
-            <!-- Trend + Insurance + Critical Penalty -->
-            <div style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 0.76rem; flex-wrap: wrap;">
-              ${scoreDelta !== null ? html`
-                <span style="color: ${scoreDelta >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 600;">
-                  ${scoreDelta >= 0 ? '▲' : '▼'} ${Math.abs(scoreDelta)} since last week
-                </span>
-              ` : null}
-              ${hs.hasCriticalPenalty ? html`
-                <span style="color: #dc2626; font-weight: 600; font-size: 0.72rem;">⚠ Critical penalty applied</span>
-              ` : null}
-              ${!this.isPersonalOrg() ? html`
-                <span style="display: inline-flex; align-items: center; gap: 4px;">
-                  <span style="width: 8px; height: 8px; border-radius: 50%; background: ${insuranceColor};"></span>
-                  <span style="color: var(--db-faint-text, #9ca3af);">Insurance: ${insuranceLabel}</span>
-                </span>
-              ` : null}
-            </div>
-          </div>
+              <div style="margin-top:8px;display:flex;align-items:center;gap:10px;font-size:0.74rem;flex-wrap:wrap;">
+                ${scoreDelta !== null ? html`
+                  <span style="color:${scoreDelta >= 0 ? 'var(--db-tone-success,#15803d)' : 'var(--db-tone-danger,#dc2626)'};font-weight:700;">
+                    ${scoreDelta >= 0 ? '▲' : '▼'} ${Math.abs(scoreDelta)} since last week
+                  </span>
+                ` : null}
+                ${hs.hasCriticalPenalty ? html`
+                  <span style="color:var(--db-tone-danger,#dc2626);font-weight:700;font-size:0.72rem;">Critical penalty applied</span>
+                ` : null}
+                ${freshness ? html`<span style="color:var(--db-faint-text,#9ca3af);">Evidence: ${freshness.ageText}${freshness.isStale ? ' stale' : ''}</span>` : null}
+              </div>
 
-          <!-- MAGI Search Bar -->
-          <div style="max-width: 620px; margin: 0 auto 10px;">
-            <form onSubmit=${this.submitAiPrompt}>
+              ${this.renderDossierStack({ embedded: true })}
+              ${moveActionsToProofHero ? this.renderTopActionItems({ stacked: true, embedded: true }) : null}
+            </div>
+          </section>
+
+          <section aria-label="MAGI search" style="min-width:0;margin:0;padding:14px 14px 13px;border-radius:24px;background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.04));border:1px solid rgba(99,102,241,0.14);box-shadow:0 8px 28px rgba(99,102,241,0.08);display:flex;flex-direction:column;justify-content:flex-start;align-self:start;gap:12px;">
+            ${moveActionsToProofHero ? null : this.renderTopActionItems({ stacked: true })}
+
+            <div aria-label="MAGI command box" style="background:var(--db-command-bg,rgba(255,255,255,0.36));border:1px solid var(--db-command-border,rgba(99,102,241,0.12));border-radius:20px;padding:10px 10px 9px;">
+              <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 7px;color:var(--db-tone-primary,#4f46e5);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.14em;font-weight:900;">
+                <i class="ti ti-sparkles"></i>
+                <span>MAGI</span>
+              </div>
+              <form onSubmit=${this.submitAiPrompt} style="max-width:680px;margin:0 auto;">
               <div style="
                 display: flex;
                 align-items: center;
@@ -1169,7 +1569,7 @@ export default class UnifiedDashboard extends Component {
               ">
                 <span style="display: flex; align-items: center; padding: 0 10px 0 20px; color: var(--db-faintest-text); flex-shrink: 0;">
                   ${aiLoading
-                    ? html`<span class="spinner-border spinner-border-sm" style="color: #6366f1; width: 16px; height: 16px; border-width: 2px;" role="status"></span>`
+                    ? html`<span class="spinner-border spinner-border-sm" style="color: var(--db-tone-primary,#4f46e5); width: 16px; height: 16px; border-width: 2px;" role="status"></span>`
                     : html`<svg width="17" height="17" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>`}
                 </span>
                 <input
@@ -1195,7 +1595,7 @@ export default class UnifiedDashboard extends Component {
                   disabled=${aiLoading}
                   style="
                     flex-shrink: 0;
-                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                    background: linear-gradient(135deg, var(--db-tone-primary,#4f46e5), var(--db-tone-purple,#7c3aed));
                     border: none;
                     color: #fff;
                     padding: ${isSmallScreen ? '0 14px' : '0 20px'};
@@ -1212,6 +1612,7 @@ export default class UnifiedDashboard extends Component {
                 >${aiButtonLabel}</button>
               </div>
             </form>
+            </div>
 
             <!-- AI Answer card -->
             ${aiAnswer ? html`
@@ -1228,9 +1629,9 @@ export default class UnifiedDashboard extends Component {
               ">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="color: #6366f1; font-size: 0.78rem; font-weight: 600;">MAGI</span>
+                    <span style="color: var(--db-tone-primary,#4f46e5); font-size: 0.78rem; font-weight: 600;">MAGI</span>
                     ${aiAnswer.confidence != null ? html`
-                      <span style="font-size: 0.7rem; background: rgba(99,102,241,0.12); color: #6366f1; padding: 1px 8px; border-radius: 20px;">${Math.round((aiAnswer.confidence || 0) * 100)}%</span>
+                      <span style="font-size: 0.7rem; background: rgba(99,102,241,0.12); color: var(--db-tone-primary,#4f46e5); padding: 1px 8px; border-radius: 20px;">${Math.round((aiAnswer.confidence || 0) * 100)}%</span>
                     ` : ''}
                   </div>
                   <div style="display: flex; gap: 6px; align-items: center;">
@@ -1260,69 +1661,8 @@ export default class UnifiedDashboard extends Component {
                 <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: #dc2626; cursor: pointer; margin-left: 8px;">✕</button>
               </div>
             ` : ''}
-          </div>
-
-          <!-- Priority Actions -->
-          ${topActions.length > 0 ? html`
-            <div style="margin-bottom: 12px;">
-              <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; color: var(--db-muted-text, #6b7280); margin-bottom: 8px;">
-                Today's Priority Actions
-              </div>
-              <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-                ${topActions.map((action, i) => {
-                  const urgencyColor = action.urgency === 'critical' || action.urgency === 'urgent'
-                    ? '#dc2626' : action.urgency === 'high' || action.urgency === 'important'
-                    ? '#d97706' : '#6366f1';
-                  const affectedNames = Array.isArray(action.affectedDeviceNames)
-                    ? action.affectedDeviceNames.filter(Boolean) : [];
-                  const primaryName = affectedNames[0] || action.primaryDeviceName || '';
-                  const count = Number.isFinite(Number(action.deviceCount))
-                    ? Number(action.deviceCount) : affectedNames.length;
-                  const extra = Math.max(0, count - 1);
-                  const deviceText = primaryName
-                    ? (count > 1 ? `${primaryName} + ${extra} more` : primaryName) : '';
-
-                  let cleanTitle = (action.title || 'Action needed')
-                    .replace(/\s+on\s+\d+\s+devices?\.?$/i, '')
-                    .replace(/Remediate compliance gap:\s*/i, 'Fix compliance: ')
-                    .replace(/LowComplianceScore/g, 'Low compliance score')
-                    .replace(/NonCompliantDevice/g, 'Non-compliant device')
-                    .replace(/MissingEncryption/g, 'Missing encryption')
-                    .replace(/StaleUpdates/g, 'Stale updates')
-                    .replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^\w/, c => c.toUpperCase());
-
-                  return html`
-                    <div key=${i} style="flex:1 1 0;min-width:180px;max-width:260px;">
-                      <div style="
-                        background: var(--db-glass-bg, rgba(255,255,255,0.8));
-                        border: 1px solid var(--db-tile-border, rgba(148,163,184,0.18));
-                        border-left: 3px solid ${urgencyColor};
-                        border-radius: 12px;
-                        padding: 12px 14px;
-                        cursor: pointer;
-                        transition: background 0.15s, transform 0.12s;
-                        height: 100%;
-                      " onClick=${() => { window.location.hash = '#!/alerts'; }}
-                         onMouseEnter=${(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                         onMouseLeave=${(e) => { e.currentTarget.style.transform = ''; }}>
-                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-                          <span style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: ${urgencyColor}; letter-spacing: 0.06em;">
-                            ${action.urgency || 'action'}
-                          </span>
-                        </div>
-                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--db-answer-text, #111827); line-height: 1.3; margin-bottom: 4px;">
-                          ${cleanTitle}
-                        </div>
-                        ${deviceText ? html`
-                          <div style="font-size: 0.72rem; color: var(--db-faint-text, #9ca3af);">${deviceText}</div>
-                        ` : null}
-                      </div>
-                    </div>
-                  `;
-                })}
-              </div>
-            </div>
-          ` : null}
+          </section>
+          </section>
 
           <!-- Refresh + Freshness -->
           <div style="text-align: center;">
@@ -1360,43 +1700,253 @@ export default class UnifiedDashboard extends Component {
       { key: 'compliance',    data: hs.compliance,     icon: html`<svg width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/><path d="M9 12l2 2l4-4"/></svg>` }
     ];
 
-    const glass = 'background:var(--db-tile-bg);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--db-tile-border);border-radius:14px;padding:14px 12px;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.05);height:100%;';
-
     return html`
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:4px;">
-        ${pillars.map(p => {
-          const s = p.data?.score ?? 0;
-          const color = s >= 80 ? '#16a34a' : s >= 60 ? '#2563eb' : s >= 40 ? '#d97706' : '#dc2626';
-          const url = p.data?.drillDownUrl || '#!/security';
-          const isCompBiz = p.key === 'compliance' && this.isPersonalOrg();
+      <div style="max-width:960px;margin:8px auto 4px;padding:0 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;color:var(--db-muted-text,#6b7280);">Evidence Pack</div>
+          <a href="#!/reports" style="font-size:0.74rem;font-weight:700;text-decoration:none;color:#2563eb;">Open reports</a>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+          ${pillars.map(p => {
+            const s = p.data?.score ?? 0;
+            const color = s >= 80 ? '#16a34a' : s >= 60 ? '#2563eb' : s >= 40 ? '#d97706' : '#dc2626';
+            const status = s >= 80 ? 'Ready' : s >= 60 ? 'Partial' : s >= 40 ? 'Watch' : 'Blocked';
+            const label = p.key === 'device'
+              ? 'Devices'
+              : p.key === 'vulnerability'
+                ? 'Vulns'
+                : p.data?.label || p.key;
+            const url = p.data?.drillDownUrl || '#!/security';
+            const isCompBiz = p.key === 'compliance' && this.isPersonalOrg();
 
-          return html`
-            <div key=${p.key} style="flex:1 1 0;min-width:120px;max-width:160px;">
-              <div
-                style="${glass}"
+            return html`
+              <button
+                key=${p.key}
                 class=${isCompBiz ? 'business-license-only' : ''}
-                title=${isCompBiz ? BUSINESS_ONLY_TOOLTIP : ''}
+                title=${isCompBiz ? BUSINESS_ONLY_TOOLTIP : `${p.data?.label || p.key}: ${p.data?.shortReason || status}`}
                 onClick=${() => {
                   if (isCompBiz) { window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000); return; }
                   window.location.hash = url;
                 }}
-                onMouseEnter=${(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.08)'; }}
-                onMouseLeave=${(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; }}
+                style="flex:1 1 150px;min-width:150px;max-width:190px;display:flex;align-items:center;gap:9px;text-align:left;background:var(--db-tile-bg);border:1px solid var(--db-tile-border);border-left:3px solid ${color};border-radius:12px;padding:9px 10px;cursor:pointer;color:var(--db-answer-text,#111827);"
               >
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-                  <span style="color:${color};display:flex;">${p.icon}</span>
-                  <span style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;color:var(--db-muted-text,#6b7280);">${p.data?.label || p.key}</span>
+                <span style="color:${color};display:flex;flex-shrink:0;">${p.icon}</span>
+                <span style="min-width:0;flex:1;">
+                  <span style="display:block;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.07em;font-weight:700;color:var(--db-muted-text,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</span>
+                  <span style="display:flex;align-items:baseline;gap:6px;margin-top:1px;">
+                    <span style="font-size:1rem;font-weight:800;color:${color};line-height:1;">${status}</span>
+                    <span style="font-size:0.72rem;color:var(--db-faint-text,#6b7280);">${s}</span>
+                  </span>
+                </span>
+              </button>
+            `;
+          })}
+        </div>
+      </div>
+    `;
+  }
+
+  renderPatchStatusCard() {
+    const { data } = this.state;
+    if (!data) return null;
+
+    const patch = this.getPatchStatusSummary(data);
+    const hasOpen = patch.openAlerts > 0;
+    const tone = patch.unavailable ? '#6b7280' : hasOpen ? '#d97706' : '#16a34a';
+    const title = patch.unavailable
+      ? 'Patch Status unavailable'
+      : hasOpen
+        ? `${patch.openAlerts} missing Microsoft update${patch.openAlerts === 1 ? '' : 's'}`
+        : 'No missing Microsoft updates';
+    const subtitle = patch.unavailable
+      ? (patch.message || 'The Patch Status API did not return a current result.')
+      : hasOpen
+        ? `${patch.hostsAffected} affected device${patch.hostsAffected === 1 ? '' : 's'} · ${patch.critical} critical · ${patch.high} high${patch.exploited > 0 ? ` · ${patch.exploited} exploited` : ''}`
+        : `Patch intelligence covers ${patch.productCount} products and ${patch.leafPatchCount} KBs.`;
+    const builtDate = patch.builtAt ? new Date(patch.builtAt) : null;
+    const intelText = builtDate && !Number.isNaN(builtDate.getTime())
+      ? `MSRC intel built ${builtDate.toLocaleString()}`
+      : `MSRC intel: ${patch.productCount} products · ${patch.leafPatchCount} KBs`;
+
+    return html`
+      <div style="display:flex;justify-content:center;margin:8px 16px 4px;">
+        <a href="#!/patch-posture" style="text-decoration:none;width:100%;max-width:720px;">
+          <div
+            style="background:var(--db-tile-bg);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--db-tile-border);border-left:4px solid ${tone};border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.05);color:var(--db-answer-text,#111827);transition:transform 0.15s,box-shadow 0.15s;"
+            onMouseEnter=${(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.08)'; }}
+            onMouseLeave=${(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; }}
+          >
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="color:${tone};display:flex;margin-top:1px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/><path d="M10 13l2 2l4-4"/></svg>
+              </span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                  <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.09em;font-weight:700;color:var(--db-muted-text,#6b7280);">Patch Status</div>
+                  <span class="badge ${patch.unavailable ? 'bg-secondary text-white' : hasOpen ? 'bg-warning text-white' : 'bg-success text-white'}">${patch.unavailable ? 'Unavailable' : hasOpen ? 'Action needed' : 'Clean'}</span>
                 </div>
-                <div style="font-size:1.75rem;font-weight:800;color:${color};line-height:1;margin-bottom:6px;">${s}</div>
-                <div style="background:${s <= 30 ? 'rgba(220,38,38,0.15)' : 'var(--db-bar-track,rgba(0,0,0,0.06))'};border-radius:4px;height:5px;overflow:hidden;margin-bottom:6px;">
-                  <div style="width:${Math.max(s, 3)}%;height:100%;background:${color};border-radius:4px;transition:width 0.9s ease;"></div>
+                <div style="font-size:1rem;font-weight:750;line-height:1.3;margin-top:3px;color:var(--db-answer-text,#111827);">${title}</div>
+                <div style="font-size:0.82rem;color:var(--db-faint-text,#6b7280);line-height:1.4;margin-top:2px;">${subtitle}</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:9px;">
+                  <span style="font-size:0.72rem;color:var(--db-faintest-text,#9ca3af);">${intelText}</span>
+                  <span style="font-size:0.76rem;font-weight:700;color:${tone};display:inline-flex;align-items:center;gap:4px;">
+                    Open Patch Status
+                    <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z"/><path d="M5 12h14"/><path d="M13 18l6-6"/><path d="M13 6l6 6"/></svg>
+                  </span>
                 </div>
-                <div style="font-size:0.7rem;color:var(--db-faint-text,#9ca3af);line-height:1.3;">${p.data?.shortReason || ''}</div>
               </div>
             </div>
-          `;
-        })}
+          </div>
+        </a>
       </div>
+    `;
+  }
+
+  renderDossierStack({ embedded = false } = {}) {
+    const { data } = this.state;
+    if (!data) return null;
+
+    const hs = this.getHealthScoreData(data);
+    const proof = this.getProofReadinessData(data);
+    const patch = this.getPatchStatusSummary(data);
+    const apps = data?.quickStats?.apps || {};
+    const cves = data?.quickStats?.cves || data?.securityPro?.threatIntel || {};
+
+    const patchTone = patch.unavailable ? '#64748b' : patch.critical > 0 ? '#dc2626' : patch.high > 0 || patch.openAlerts > 0 ? '#d97706' : '#16a34a';
+    const deviceScore = Number(hs.device?.score ?? 0);
+    const softwareScore = Number(hs.software?.score ?? 0);
+    const vulnerabilityScore = Number(hs.vulnerability?.score ?? 0);
+    const complianceScore = Number(hs.compliance?.score ?? 0);
+    const responseScore = Number(hs.response?.score ?? 0);
+    const critical = Number(cves.criticalCount ?? cves.critical ?? cves.uniqueCriticalCveCount ?? 0);
+    const high = Number(cves.highCount ?? cves.high ?? cves.uniqueHighCveCount ?? 0);
+    const softwareDetail = this.getSoftwareDossierDetail(data, hs, patch);
+    const deviceDetail = this.getDeviceCoverageDetail(data);
+    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
+    const containerStyle = embedded
+      ? 'margin:12px 0 0;padding:0;'
+      : 'max-width:720px;margin:8px auto 18px;padding:0 16px;';
+    const itemMinHeight = embedded ? '78px' : '86px';
+
+    const dropdownItems = [
+      {
+        href: '#!/devices',
+        icon: 'ti-devices',
+        label: 'Devices',
+        value: `${deviceScore}`,
+        detail: deviceDetail,
+        tone: this.getScoreTone(deviceScore),
+        readableTone: this.getReadableScoreTone(deviceScore)
+      },
+      {
+        href: hs.software?.drillDownUrl || '#!/apps',
+        icon: 'ti-packages',
+        label: 'Software',
+        value: `${softwareScore}`,
+        detail: softwareDetail,
+        tone: this.getScoreTone(softwareScore),
+        readableTone: this.getReadableScoreTone(softwareScore)
+      },
+      {
+        href: '#!/patch-posture',
+        icon: 'ti-tool',
+        label: 'Patch',
+        value: patch.unavailable ? 'N/A' : `${patch.openAlerts}`,
+        detail: patch.unavailable
+          ? (patch.message || 'Patch evidence unavailable')
+          : `${patch.hostsAffected} affected devices, ${patch.critical} critical`,
+        tone: patchTone,
+        readableTone: patch.unavailable ? 'var(--db-tone-neutral,#475569)' : patch.critical > 0 ? 'var(--db-tone-danger,#dc2626)' : patch.high > 0 || patch.openAlerts > 0 ? 'var(--db-tone-warning,#b45309)' : 'var(--db-tone-success,#15803d)'
+      },
+      {
+        href: hs.vulnerability?.drillDownUrl || '#!/vulnerabilities',
+        icon: 'ti-shield-exclamation',
+        label: 'Vulnerabilities',
+        value: `${vulnerabilityScore}`,
+        detail: critical + high > 0
+          ? `${critical} critical, ${high} high CVEs`
+          : (hs.vulnerability?.shortReason || 'No critical or high CVEs'),
+        tone: this.getScoreTone(vulnerabilityScore),
+        readableTone: this.getReadableScoreTone(vulnerabilityScore)
+      },
+      {
+        href: hs.compliance?.drillDownUrl || '#!/compliance',
+        icon: 'ti-clipboard-check',
+        label: 'Compliance',
+        value: `${complianceScore}`,
+        detail: hs.compliance?.shortReason || 'Control evidence and audit-ready compliance context.',
+        tone: this.getScoreTone(complianceScore),
+        readableTone: this.getReadableScoreTone(complianceScore)
+      },
+      {
+        href: hs.response?.drillDownUrl || '#!/alerts',
+        icon: 'ti-clock-check',
+        label: 'Response',
+        value: `${responseScore}`,
+        detail: hs.response?.shortReason || 'Remediation and response evidence',
+        tone: this.getScoreTone(responseScore),
+        readableTone: this.getReadableScoreTone(responseScore)
+      }
+    ];
+
+    return html`
+      <section aria-label="Dossier score dropdown" style=${containerStyle}>
+        <details
+          open=${this.state.dossierOpen}
+          onToggle=${(event) => {
+            const nextOpen = event.currentTarget.open === true;
+            if (nextOpen !== this.state.dossierOpen) this.setState({ dossierOpen: nextOpen });
+          }}
+          style="background:var(--db-glass-bg,rgba(255,255,255,0.74));border:1px solid rgba(99,102,241,0.14);border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,0.04);overflow:hidden;"
+        >
+          <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;color:var(--db-answer-text,#111827);">
+            <span style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <span style="width:30px;height:30px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;background:${proof.tone}18;color:${proof.readableTone};flex-shrink:0;"><i class="ti ti-layout-grid"></i></span>
+              <span style="min-width:0;">
+                <span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;color:var(--db-muted-text,#6b7280);">Dossier Scores</span>
+                <span style="display:block;font-size:0.84rem;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${proof.label} - ${proof.blockers.length} blocker${proof.blockers.length === 1 ? '' : 's'} across six surfaces</span>
+              </span>
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:0.74rem;font-weight:800;color:${proof.readableTone};white-space:nowrap;">
+              ${this.state.dossierOpen ? 'Hide scores' : 'View scores'} <i class=${`ti ${this.state.dossierOpen ? 'ti-chevron-up' : 'ti-chevron-down'}`}></i>
+            </span>
+          </summary>
+          <div role="list" aria-label="Dossier score links" style="display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'repeat(2,minmax(0,1fr))'};gap:8px;padding:0 12px 12px;">
+            ${dropdownItems.map((item) => {
+              const meta = this.getBusinessOnlyMeta(item.href);
+              const isDisabled = Boolean(meta.className);
+              return html`
+                <div role="listitem">
+                  <a
+                    key=${item.href}
+                    href=${item.href}
+                    class=${meta.className}
+                    aria-label=${`${item.label}. ${item.value}. ${item.detail}`}
+                    title=${meta.title || `${item.label}: ${item.detail}`}
+                    data-business-tooltip=${meta.dataTooltip}
+                    onClick=${(event) => {
+                      if (isDisabled) {
+                        event.preventDefault();
+                        window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                      }
+                    }}
+                    style="min-height:${itemMinHeight};display:flex;align-items:flex-start;gap:10px;text-decoration:none;color:var(--db-answer-text,#111827);background:${this.getTranslucentSurface(item.tone, '07')};border:1px solid ${item.tone}20;border-radius:11px;padding:10px;box-shadow:0 1px 3px rgba(15,23,42,0.04);"
+                  >
+                    <span style="width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:${item.tone}18;color:${item.readableTone || item.tone};flex-shrink:0;"><i class=${`ti ${item.icon}`}></i></span>
+                    <span style="min-width:0;flex:1;">
+                      <span style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                        <span style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:800;color:var(--db-muted-text,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.label}</span>
+                        <span style="font-size:1rem;font-weight:850;color:${item.readableTone || item.tone};line-height:1;white-space:nowrap;">${item.value}</span>
+                      </span>
+                      <span style="display:block;font-size:0.76rem;color:var(--db-faint-text,#6b7280);line-height:1.35;margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${item.detail}</span>
+                    </span>
+                  </a>
+                </div>
+              `;
+            })}
+          </div>
+        </details>
+      </section>
     `;
   }
 
@@ -1468,9 +2018,12 @@ export default class UnifiedDashboard extends Component {
       headlineLabel = 'Compliance';
       headlineSubtitle = bo.riskSummary?.overallRisk ? `${bo.riskSummary.overallRisk} risk overall` : 'Risk posture summary';
     } else if (activePersona === 'it') {
-      headlineValue = String(it.deploymentStatus?.pendingUpdates || 0);
-      headlineLabel = 'Pending Updates';
-      headlineSubtitle = `${it.inventory?.totalDevices || 0} devices · ${it.inventory?.totalApps || 0} apps tracked`;
+      const patchStatus = this.getPatchStatusSummary(data);
+      headlineValue = patchStatus.unavailable ? '—' : String(patchStatus.openAlerts);
+      headlineLabel = 'Missing Updates';
+      headlineSubtitle = patchStatus.unavailable
+        ? 'Patch Status unavailable'
+        : `${patchStatus.hostsAffected} device${patchStatus.hostsAffected === 1 ? '' : 's'} · ${patchStatus.critical} critical · ${patchStatus.high} high`;
     } else if (activePersona === 'security') {
       headlineValue = String(sec.criticalCveCount || 0);
       headlineLabel = 'Critical CVEs';
@@ -1494,9 +2047,10 @@ export default class UnifiedDashboard extends Component {
       ];
     } else if (activePersona === 'it') {
       const osEntries = it.inventory?.osBreakdown ? Object.entries(it.inventory.osBreakdown) : [];
+      const patchStatus = this.getPatchStatusSummary(data);
       metricCards = [
         { label: 'Managed Devices', value: it.inventory?.totalDevices || 0,         valueColor: '#2563eb', suffix: '', sub: osEntries.slice(0,2).map(([k,v])=>`${k}: ${v}`).join(' · ') || '' },
-        { label: 'Pending Patches', value: it.deploymentStatus?.pendingUpdates || 0, valueColor: it.deploymentStatus?.pendingUpdates > 0 ? '#d97706' : '#16a34a', suffix: '', sub: '' },
+        { label: 'Missing Updates', value: patchStatus.unavailable ? '—' : patchStatus.openAlerts, valueColor: patchStatus.openAlerts > 0 ? '#d97706' : '#16a34a', suffix: '', sub: patchStatus.unavailable ? 'unavailable' : `${patchStatus.hostsAffected} affected hosts` },
         { label: 'Patch Coverage',  value: patchCovPct != null ? `${Math.round(patchCovPct)}%` : `${it.deploymentStatus?.completedToday || 0} today`,
           valueColor: patchCovPct != null ? (patchCovPct >= 90 ? '#16a34a' : patchCovPct >= 70 ? '#d97706' : '#dc2626') : '#16a34a',
           suffix: '', sub: patchCovPct != null ? 'across fleet' : 'patched today' },
@@ -1515,16 +2069,16 @@ export default class UnifiedDashboard extends Component {
       const dCrit = sec.affectedDevicesCritical || 0;
       const dHigh = sec.affectedDevicesHigh || 0;
       metricCards = [
-        { label: 'Critical CVEs', value: uCrit,
+           { label: 'Critical Unique CVEs', value: uCrit,
           valueColor: uCrit > 0 ? '#dc2626' : '#16a34a', suffix: '',
           sub: critDelta > 0 ? `▲ +${critDelta} new`
              : critDelta < 0 ? `▼ ${Math.abs(critDelta)} fixed`
-             : (xCrit > uCrit ? `${xCrit} exposures · ${dCrit || '—'} device${dCrit === 1 ? '' : 's'}` : '') },
-        { label: 'High Severity', value: uHigh,
+             : (xCrit > uCrit ? `${metricPhrase('cveExposures', xCrit)} · ${dCrit ? metricPhrase('affectedDevices', dCrit) : 'affected devices unknown'}` : '') },
+           { label: 'High Unique CVEs', value: uHigh,
           valueColor: uHigh > 0 ? '#d97706' : '#16a34a', suffix: '',
           sub: highDelta > 0 ? `▲ +${highDelta} new`
              : highDelta < 0 ? `▼ ${Math.abs(highDelta)} fixed`
-             : (xHigh > uHigh ? `${xHigh} exposures · ${dHigh || '—'} device${dHigh === 1 ? '' : 's'}` : '') },
+             : (xHigh > uHigh ? `${metricPhrase('cveExposures', xHigh)} · ${dHigh ? metricPhrase('affectedDevices', dHigh) : 'affected devices unknown'}` : '') },
         { label: 'Actively Exploited', value: `${sec.exploitCount || 0} / ${sec.activeExploitCount || 0}`,
           valueColor: sec.exploitCount > 0 ? '#ea580c' : '#16a34a', suffix: '', sub: 'catalog / in the wild' },
         { label: 'High Exploit Risk',     value: sec.highEpssCount || 0,
@@ -2221,20 +2775,7 @@ export default class UnifiedDashboard extends Component {
       .replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^\w/, c => c.toUpperCase());
     const actionTitle = cleanOrbTitle(urgentAction?.title);
     // Aggregate device names across all actions with the same cleaned title
-    const actionDevices = (() => {
-      if (!urgentAction) return '';
-      const matchTitle = actionTitle;
-      const allDevices = [];
-      for (const a of actions) {
-        if (cleanOrbTitle(a.title) !== matchTitle) continue;
-        const names = Array.isArray(a.affectedDeviceNames) ? a.affectedDeviceNames.filter(Boolean) : [];
-        if (names.length) allDevices.push(...names);
-        else if (a.primaryDeviceName) allDevices.push(a.primaryDeviceName);
-      }
-      const unique = [...new Set(allDevices)];
-      if (!unique.length) return '';
-      return unique.length > 1 ? `${unique[0]} + ${unique.length - 1} more` : unique[0];
-    })();
+    const actionDevices = urgentAction ? this.formatActionDeviceText(urgentAction) : '';
 
     const isGreen = ['A+','A','A-','B+','B','B-'].includes(grade);
     const isAmber = ['C+','C','C-'].includes(grade);
@@ -2439,15 +2980,9 @@ export default class UnifiedDashboard extends Component {
                   ` : null}
                 </div>
                 <div style="font-size:0.92rem;font-weight:700;color:rgba(255,255,255,0.95);word-break:break-word;line-height:1.3;">${todaysAction.title || todaysAction.appName}</div>
-                ${todaysAction.deviceCount > 0 ? html`
-                  <div style="font-size:0.68rem;color:rgba(255,255,255,0.55);margin-top:3px;">
-                    On ${todaysAction.deviceNames && todaysAction.deviceNames.length
-                      ? (todaysAction.deviceNames.length <= 2
-                          ? todaysAction.deviceNames.join(' · ')
-                          : `${todaysAction.deviceNames[0]} · ${todaysAction.deviceNames[1]} +${todaysAction.deviceCount - 2} more`)
-                      : `${todaysAction.deviceCount} device${todaysAction.deviceCount === 1 ? '' : 's'}`}
-                  </div>
-                ` : null}
+                <div style="font-size:0.68rem;color:rgba(255,255,255,0.55);margin-top:3px;">
+                  ${this.formatActionDeviceText(todaysAction)}
+                </div>
 
                 ${todaysAction.whyItMatters ? html`
                   <div style="margin-top:10px;">
@@ -2484,9 +3019,7 @@ export default class UnifiedDashboard extends Component {
                   </span>
                 </div>
                 <div style="font-size:0.8rem;font-weight:600;color:rgba(255,255,255,0.88);word-break:break-word;">${actionTitle}</div>
-                ${actionDevices ? html`
-                  <div style="font-size:0.68rem;color:rgba(255,255,255,0.45);margin-top:4px;">${actionDevices}</div>
-                ` : null}
+                <div style="font-size:0.68rem;color:rgba(255,255,255,0.45);margin-top:4px;">${actionDevices}</div>
               </div>
             ` : null)}
 
@@ -2889,9 +3422,13 @@ export default class UnifiedDashboard extends Component {
     return html`
       <div style="min-height: calc(100vh - 120px); display: flex; flex-direction: column;">
         ${this.renderBillingNoticeBanner()}
+        ${this.state.data?.evidence && rewindContext.isActive?.() ? html`
+          <div class="container-xl pt-3">
+            ${EvidenceBanner({ evidence: this.state.data.evidence, pageName: 'dashboard' })}
+          </div>
+        ` : null}
         ${this.isBootstrapState() ? this.renderBootstrapSetup() : html`
           ${this.renderSearchHeader()}
-          ${this.renderHealthPillars()}
           ${this.renderOfficerOrb()}
         `}
       </div>

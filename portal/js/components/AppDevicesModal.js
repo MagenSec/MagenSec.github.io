@@ -3,6 +3,7 @@
  */
 
 import { api } from '@api';
+import { metricTitle } from '../utils/metricUnits.js';
 
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
@@ -267,7 +268,7 @@ export function AppDevicesModal({ appName, orgId, isOpen, onClose, graphContext 
 
                         ${!loading && !error && html`
                             <div class="mb-4">
-                                <h5 class="mb-2">Affected Devices</h5>
+                                <h5 class="mb-2">${metricTitle('affectedDevices')} (${devices.length})</h5>
                                 ${devices.length > 0 ? html`
                                     <div class="table-responsive">
                                         <table class="table table-sm table-vcenter">
@@ -276,7 +277,7 @@ export function AppDevicesModal({ appName, orgId, isOpen, onClose, graphContext 
                                                     <th>Device</th>
                                                     <th>OS</th>
                                                     <th>Last Seen</th>
-                                                    <th class="text-end">CVEs</th>
+                                                    <th class="text-end">${metricTitle('uniqueCves')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -312,7 +313,7 @@ export function AppDevicesModal({ appName, orgId, isOpen, onClose, graphContext 
 
                             ${cves.length > 0 ? html`
                                 <div class="mb-2">
-                                    <h5 class="mb-2">Associated CVEs</h5>
+                                    <h5 class="mb-2">${metricTitle('uniqueCves')} (${cves.length})</h5>
                                     <div class="table-responsive">
                                         <table class="table table-sm table-vcenter">
                                             <thead>

@@ -91,6 +91,8 @@ html, body {
   --db-glass-border: rgba(0,0,0,0.1);
   --db-answer-bg: rgba(255,255,255,0.7);
   --db-card-border: rgba(0,0,0,0.08);
+  --db-command-bg: rgba(255,255,255,0.36);
+  --db-command-border: rgba(99,102,241,0.12);
   /* KR metric tiles */
   --db-tile-bg: rgba(255,255,255,0.55);
   --db-tile-border: rgba(0,0,0,0.07);
@@ -106,11 +108,19 @@ html, body {
   /* Text shades */
   --db-hero-title-color: #1e293b;
   --db-input-color: #1e293b;
-  --db-muted-text: rgba(0,0,0,0.45);
-  --db-faint-text: rgba(0,0,0,0.4);
-  --db-faintest-text: rgba(0,0,0,0.3);
+  --db-muted-text: #475569;
+  --db-faint-text: #475569;
+  --db-faintest-text: #64748b;
   --db-slash-color: rgba(0,0,0,0.35);
-  --db-answer-text: #334155;
+  --db-answer-text: #1f2937;
+  --db-tone-success: #15803d;
+  --db-tone-info: #1d4ed8;
+  --db-tone-warning: #b45309;
+  --db-tone-danger: #dc2626;
+  --db-tone-primary: #4f46e5;
+  --db-tone-purple: #7c3aed;
+  --db-tone-teal: #0f766e;
+  --db-tone-neutral: #475569;
   /* Subtle interactive elements */
   --db-subtle-bg: rgba(0,0,0,0.05);
   --db-subtle-border: rgba(0,0,0,0.1);
@@ -127,6 +137,8 @@ html, body {
   --db-glass-border: rgba(255,255,255,0.12);
   --db-answer-bg: rgba(255,255,255,0.07);
   --db-card-border: rgba(255,255,255,0.1);
+  --db-command-bg: rgba(15,23,42,0.44);
+  --db-command-border: rgba(165,180,252,0.22);
   /* KR metric tiles */
   --db-tile-bg: rgba(255,255,255,0.07);
   --db-tile-border: rgba(255,255,255,0.1);
@@ -142,11 +154,19 @@ html, body {
   /* Text shades */
   --db-hero-title-color: #e2e8f0;
   --db-input-color: #e2e8f0;
-  --db-muted-text: rgba(255,255,255,0.55);
-  --db-faint-text: rgba(255,255,255,0.5);
-  --db-faintest-text: rgba(255,255,255,0.4);
+  --db-muted-text: #cbd5e1;
+  --db-faint-text: #cbd5e1;
+  --db-faintest-text: #94a3b8;
   --db-slash-color: rgba(255,255,255,0.4);
-  --db-answer-text: #cbd5e1;
+  --db-answer-text: #e2e8f0;
+  --db-tone-success: #34d399;
+  --db-tone-info: #93c5fd;
+  --db-tone-warning: #fbbf24;
+  --db-tone-danger: #f87171;
+  --db-tone-primary: #a5b4fc;
+  --db-tone-purple: #c4b5fd;
+  --db-tone-teal: #5eead4;
+  --db-tone-neutral: #cbd5e1;
   /* Subtle interactive elements */
   --db-subtle-bg: rgba(255,255,255,0.08);
   --db-subtle-border: rgba(255,255,255,0.14);
@@ -3787,7 +3807,8 @@ body.rewind-active .navbar-expand-md {
 
 /* --- Time Warp: Observer Mode block mutating UI during time travel --- */
 body.rewind-active [data-rewind-block],
-body.rewind-active .rewind-blocked {
+body.rewind-active .rewind-blocked,
+body.readonly-active .readonly-blocked {
     opacity: 0.35 !important;
     pointer-events: none !important;
     filter: grayscale(55%) !important;

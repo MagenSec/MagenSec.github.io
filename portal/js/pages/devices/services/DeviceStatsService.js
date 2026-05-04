@@ -94,6 +94,19 @@ export class DeviceStatsService {
      * Check if device is inactive (offline)
      */
     static isDeviceInactive(device) {
+        const lower = value => String(value || '').toLowerCase();
+        const health = device.health || device.Health || {};
+        const status = lower(device.status || device.Status || health.status || health.Status);
+        const visibilityState = lower(device.visibilityState || device.VisibilityState || health.visibilityState || health.VisibilityState);
+        const telemetryState = lower(device.telemetryState || device.TelemetryState || health.telemetryState || health.TelemetryState);
+        const connectivityState = lower(device.connectivityState || device.ConnectivityState || health.connectivityState || health.ConnectivityState);
+
+        if (status === 'error' || telemetryState === 'error') return true;
+        if (visibilityState === 'ghosted' || visibilityState === 'dormant' || visibilityState === 'stale') return true;
+        if (visibilityState === 'recent' || visibilityState === 'online' || status === 'online') {
+            return connectivityState === 'offline';
+        }
+
         const state = device.state?.toLowerCase();
 
         // Non-active states are considered offline

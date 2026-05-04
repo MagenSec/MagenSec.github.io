@@ -22,17 +22,26 @@ function FreshnessBadge({ freshness, refreshing }) {
   }
   if (!freshness) return null;
 
+  const isTimeWarp = window.rewindContext?.isActive?.() === true;
+  const dateLabel = window.rewindContext?.getDateLabel?.() || window.rewindContext?.getDate?.();
+
   const source = freshness.source || 'live';
   const age = formatAge(freshness.ageSeconds);
   const isStale = freshness.status === 'stale';
-  const cls = isStale ? 'bg-yellow-lt text-yellow' : (source === 'snapshot' ? 'bg-blue-lt text-blue' : 'bg-green-lt text-green');
-  const label = source === 'snapshot' ? 'Snapshot' : 'Live';
-  const tip = `Source: ${source}${age ? ' · ' + age : ''}${freshness.generatedAt ? ' · ' + new Date(freshness.generatedAt).toLocaleString() : ''}`;
+  const cls = isTimeWarp
+    ? 'bg-azure-lt text-azure'
+    : isStale
+      ? 'bg-yellow-lt text-yellow'
+      : (source === 'snapshot' ? 'bg-blue-lt text-blue' : 'bg-green-lt text-green');
+  const sourceLabel = source === 'snapshot' ? 'MAGI dossier' : 'Live signal';
+  const label = isTimeWarp ? 'Historical' : (source === 'snapshot' ? 'Dossier' : 'Live');
+  const tip = `${isTimeWarp ? `Evidence date: ${dateLabel || 'selected date'} · ` : ''}Source: ${sourceLabel}${age ? ' · ' + age : ''}${freshness.generatedAt ? ' · ' + new Date(freshness.generatedAt).toLocaleString() : ''}`;
+  const icon = isTimeWarp ? 'clock' : (source === 'snapshot' ? 'database' : 'broadcast');
 
   return html`
     <span class="badge ${cls} ms-2" title="${tip}">
-      <i class="ti ti-${source === 'snapshot' ? 'database' : 'broadcast'} me-1"></i>
-      ${label}${age ? html` · <span class="ms-1">${age}</span>` : null}
+      <i class="ti ti-${icon} me-1"></i>
+      ${label}${isTimeWarp && dateLabel ? html` · <span class="ms-1">${dateLabel}</span>` : (age ? html` · <span class="ms-1">${age}</span>` : null)}
     </span>`;
 }
 

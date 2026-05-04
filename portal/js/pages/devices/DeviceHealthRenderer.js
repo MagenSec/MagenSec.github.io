@@ -34,12 +34,12 @@ export function renderHealthStatus(device) {
         }
         animated = false;
     } else if (!lastHeartbeat) {
-        status = 'error';
-        icon = '!';
-        color = 'danger';
-        text = 'Error';
+        status = 'ghosted';
+        icon = '●';
+        color = 'secondary';
+        text = 'Ghosted';
         animated = false;
-        reason = 'No heartbeat data';
+        reason = 'No heartbeat received';
     } else if (lastHeartbeat && lastTelemetry && Math.abs((lastHeartbeat.getTime() - lastTelemetry.getTime()) / 60000) > 30) {
         status = 'error';
         icon = '!';

@@ -397,6 +397,7 @@ class OrgContext {
         const isExpired  = org.totalCredits > 0 && org.remainingCredits === 0;
         const totalSeats = org.totalSeats > 0 ? org.totalSeats : 5;
         const isExpiring = !isExpired && org.remainingCredits > 0 && org.remainingCredits <= (totalSeats * 7);
+        const isReadOnly = this.isReadOnly() && !this.isSiteAdmin();
 
         // Icon SVG paths (Tabler icon style)
         const iconBan = `<svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -414,6 +415,11 @@ class OrgContext {
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <circle cx="12" cy="12" r="9" />
             <polyline points="12 7 12 12 15 15" />
+        </svg>`;
+        const iconLock = `<svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <rect x="5" y="11" width="14" height="10" rx="2" />
+            <path d="M8 11v-4a4 4 0 0 1 8 0v4" />
         </svg>`;
 
         const buildAlert = (colorClass, icon, title, detail) => `
@@ -464,6 +470,15 @@ class OrgContext {
                 'Your MagenSec license has no remaining credits. <a href="#!/account" class="text-reset fw-bold text-decoration-underline">Renew now</a> to restore full access.'
             );
             bindDismissHandler('expired');
+            banner.style.display = 'block';
+        } else if (isReadOnly) {
+            alertEl.innerHTML = buildAlert(
+                'alert-info',
+                iconLock,
+                'Auditor Mode',
+                'This session is read-only. You can review evidence and download dated reports, but changes and response commands are disabled.'
+            );
+            bindDismissHandler('readonly');
             banner.style.display = 'block';
         } else if (isExpiring) {
             if (shouldHideDismissed('expiring')) {

@@ -2,6 +2,7 @@ import { api } from '@api';
 import { logger } from '@config';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
+import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
 
 const { html, Component } = window;
 
@@ -20,6 +21,7 @@ export class PosturePage extends Component {
             refreshing: false,
             error: null,
             snapshot: null,
+            evidence: null,
             trendSnapshots: [],
             triggeredGeneration: false,
             freshness: null,
@@ -78,91 +80,9 @@ export class PosturePage extends Component {
         }
     }
 
-    getCachedNistGaps(key, ttlMinutes = 30) {
-        try {
-            const cached = localStorage.getItem(key);
-            if (!cached) return null;
-
-            const { data, timestamp } = JSON.parse(cached);
-            const ageMs = Date.now() - timestamp;
-            const TTL_MS = ttlMinutes * 60 * 1000;
-            const isStale = ageMs >= TTL_MS;
-
-            if (isStale) {
-                console.log(`[Posture] 📦 NIST Cache HIT (STALE): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
-            } else {
-                console.log(`[Posture] 📦 NIST Cache HIT (FRESH): ${key} (age: ${Math.round(ageMs / 1000)}s)`);
-            }
-            return { data, isStale };
-        } catch (err) {
-            console.warn('[Posture] NIST cache read error:', err);
-        }
-        return null;
-    }
-
-    setCachedNistGaps(key, data) {
-        try {
-            localStorage.setItem(key, JSON.stringify({
-                data,
-                timestamp: Date.now()
-            }));
-            console.log(`[Posture] 💾 NIST Cache SAVE: ${key}`);
-        } catch (err) {
-            console.warn('[Posture] NIST cache write error:', err);
-        }
-    }
-
-    async loadNistGaps(force = false) {
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg || !currentOrg.orgId) {
-            console.warn('[Posture] No organization selected for NIST gaps');
-            return;
-        }
-
-        const period = this.state?.period || 'daily';
-        const cacheKey = `nist_gaps_${currentOrg.orgId}_${period}`;
-
-        // Try cache first (even if stale)
-        if (!force) {
-            const cached = this.getCachedNistGaps(cacheKey, 30);
-            if (cached && cached.data && Array.isArray(cached.data)) {
-                console.log('[Posture] ⚡ Loading NIST gaps from cache...');
-                this.setState({ nistGaps: cached.data });
-                // Continue to background refresh
-                this.loadFreshNistGaps(cacheKey, period);
-                return;
-            }
-        }
-
-        // Fetch fresh NIST gaps from API
-        await this.loadFreshNistGaps(cacheKey, period);
-    }
-
-    async loadFreshNistGaps(cacheKey, period = 'daily') {
-        const currentOrg = orgContext.getCurrentOrg();
-        if (!currentOrg || !currentOrg.orgId) return;
-
-        this.setState({ nistGapsLoading: true });
-
-        try {
-            // Fetch NIST gaps from Cache table via API
-            const response = await api.get(
-                `/api/v1/orgs/${currentOrg.orgId}/cache/nist-gaps?period=${period}`
-            );
-
-            if (response && response.success && response.data && Array.isArray(response.data.gaps)) {
-                const gaps = response.data.gaps;
-                this.setCachedNistGaps(cacheKey, gaps);
-                this.setState({ nistGaps: gaps, nistGapsLoading: false });
-                console.log(`[Posture] ✅ Loaded ${gaps.length} NIST gaps from API`);
-            } else {
-                console.warn('[Posture] No NIST gaps found in response');
-                this.setState({ nistGapsLoading: false });
-            }
-        } catch (err) {
-            console.warn('[Posture] Failed to load NIST gaps:', err);
-            this.setState({ nistGapsLoading: false });
-        }
+    extractNistGaps(snapshot) {
+        const gaps = snapshot?.nistComplianceGaps || snapshot?.NistComplianceGaps || null;
+        return Array.isArray(gaps) ? gaps : null;
     }
 
     async loadSnapshot(force = false) {
@@ -182,13 +102,14 @@ export class PosturePage extends Component {
                 console.log('[Posture] ⚡ Loading from cache immediately (will refresh in background)...');
                 this.setState({ 
                     snapshot: cached.data,
+                    evidence: null,
+                    nistGaps: this.extractNistGaps(cached.data),
+                    nistGapsLoading: false,
                     loading: false, 
                     isRefreshingInBackground: true 
                 });
                 // Continue to background refresh
                 this.loadFreshSnapshot(cacheKey, period);
-                // Also load NIST gaps in background
-                this.loadNistGaps(false);
                 return;
             }
         }
@@ -206,12 +127,15 @@ export class PosturePage extends Component {
         try {
             const res = await api.getPageBundle(currentOrg.orgId, 'posture', force ? { refresh: true } : {});
             const atoms = res?.data?.atoms || {};
+            const evidence = res?.data?.evidence || res?.data?.Evidence || null;
             const snapshot = atoms['org-snapshot']?.data?.[0] || null;
             const triggeredGeneration = !!force;
             const freshness = res?.data?.freshness || res?.freshness || null;
 
             if (!snapshot) {
-                throw new Error('Snapshot unavailable');
+                const error = new Error('Dossier unavailable');
+                error.evidence = evidence;
+                throw error;
             }
 
             // Cache the response
@@ -220,9 +144,12 @@ export class PosturePage extends Component {
 
             this.setState({
                 snapshot,
+                evidence,
                 trendSnapshots,
                 triggeredGeneration,
                 freshness,
+                nistGaps: this.extractNistGaps(snapshot),
+                nistGapsLoading: false,
                 loading: false,
                 refreshing: false,
                 isRefreshingInBackground: false
@@ -231,11 +158,12 @@ export class PosturePage extends Component {
             logger.error('[Posture] Failed to load snapshot:', err);
             const is404 = err?.message?.includes('404');
             const errorMsg = is404
-                ? 'Posture Snapshot API is being deployed. Please check back in a few minutes.'
-                : (err?.message || 'Failed to load posture snapshot');
+                ? 'Posture dossier API is being deployed. Please check back in a few minutes.'
+                : (err?.message || 'Failed to load posture dossier');
 
             this.setState({
                 error: errorMsg,
+                evidence: err?.evidence || this.state.evidence,
                 loading: false,
                 refreshing: false,
                 isRefreshingInBackground: false
@@ -255,6 +183,7 @@ export class PosturePage extends Component {
 
             const res = await api.getPageBundle(currentOrg.orgId, 'posture');
             const atoms = res?.data?.atoms || {};
+            const evidence = res?.data?.evidence || res?.data?.Evidence || null;
             const snapshot = atoms['org-snapshot']?.data?.[0] || null;
             const freshness = res?.data?.freshness || res?.freshness || null;
 
@@ -266,8 +195,11 @@ export class PosturePage extends Component {
                 // Silent update
                 this.setState(prev => ({
                     snapshot,
+                    evidence,
                     trendSnapshots,
                     freshness,
+                    nistGaps: this.extractNistGaps(snapshot),
+                    nistGapsLoading: false,
                     isRefreshingInBackground: false
                 }));
 
@@ -590,7 +522,11 @@ export class PosturePage extends Component {
 
     renderNistComplianceGaps() {
         const gaps = this.state.nistGaps;
-        if (!gaps || gaps.length === 0) {
+        if (!Array.isArray(gaps)) {
+            return html`<div class="text-muted text-center py-4">NIST gap analysis data is not available in the current dossier.</div>`;
+        }
+
+        if (gaps.length === 0) {
             return html`<div class="text-muted text-center py-4">No NIST gaps detected. Great job!</div>`;
         }
 
@@ -806,6 +742,7 @@ export class PosturePage extends Component {
             
             return html`
                 <div class="container py-4">
+                    <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
                     <div class="alert ${is404 ? 'alert-info' : 'alert-danger'}">
                         ${is404 ? html`
                             <div class="d-flex align-items-center">
@@ -833,7 +770,8 @@ export class PosturePage extends Component {
         if (!this.state.snapshot) {
             return html`
                 <div class="container py-4">
-                    <div class="alert alert-warning">No snapshot available.</div>
+                    <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
+                    <div class="alert alert-warning">No dossier available.</div>
                     <button class="btn btn-primary" onClick=${() => this.loadSnapshot(true)}>Generate now</button>
                 </div>
             `;
@@ -862,7 +800,7 @@ export class PosturePage extends Component {
                                 <span class="text-muted">Generated: ${generatedAt}</span>
                                 ${this.state.freshness?.degraded ? html`
                                     <span class="badge bg-warning text-white ms-2">
-                                        Degraded snapshot
+                                        Degraded dossier
                                     </span>
                                 ` : null}
                             </div>
@@ -871,13 +809,17 @@ export class PosturePage extends Component {
                             <button 
                                 class="btn btn-icon" 
                                 onClick=${() => this.loadSnapshot(true)}
-                                title="Refresh snapshot"
+                                title="Refresh dossier"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                             </button>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="container">
+                <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
             </div>
 
             <div class="page-header d-print-none mb-3" style="margin-top: 20px;">
@@ -898,24 +840,14 @@ export class PosturePage extends Component {
                                 <button 
                                     type="button" 
                                     class="btn btn-sm ${this.state.frameworkView === 'nist' ? 'btn-primary' : 'btn-outline-primary'}"
-                                    onClick=${() => {
-                                        this.setState({ frameworkView: 'nist' });
-                                        if (!this.state.nistGaps) {
-                                            this.loadNistGaps(false);
-                                        }
-                                    }}
+                                    onClick=${() => this.setState({ frameworkView: 'nist' })}
                                 >
                                     NIST CSF
                                 </button>
                                 <button 
                                     type="button" 
                                     class="btn btn-sm ${this.state.frameworkView === 'both' ? 'btn-primary' : 'btn-outline-primary'}"
-                                    onClick=${() => {
-                                        this.setState({ frameworkView: 'both' });
-                                        if (!this.state.nistGaps) {
-                                            this.loadNistGaps(false);
-                                        }
-                                    }}
+                                    onClick=${() => this.setState({ frameworkView: 'both' })}
                                 >
                                     Compare All
                                 </button>
@@ -948,7 +880,7 @@ export class PosturePage extends Component {
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <div>
                                     <div class="card-title mb-0">Compliance</div>
-                                    <div class="text-muted small">Control status snapshot</div>
+                                    <div class="text-muted small">Control status dossier</div>
                                 </div>
                             </div>
                             <div class="card-body">

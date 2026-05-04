@@ -1,5 +1,6 @@
 import { api } from '@api';
 import { nvdCveCache } from '../utils/nvdCveCache.js';
+import { metricPhrase, metricTitle } from '../utils/metricUnits.js';
 
 const { html } = window;
 
@@ -419,10 +420,10 @@ export function CveDetailsContent({
         ${activeTab === 'impact' && html`
             ${(cveData.affectedApplications?.length || 0) > 0 ? html`
                 <div class="card mb-3">
-                    <div class="card-header"><h3 class="card-title">Affected Applications (${cveData.affectedApplications.length})</h3></div>
+                    <div class="card-header"><h3 class="card-title">${metricTitle('vulnerableApps')} (${cveData.affectedApplications.length})</h3></div>
                     <div class="table-responsive">
                         <table class="table table-vcenter card-table">
-                            <thead><tr><th>Application</th><th>Vendor</th><th>Vulnerable Versions</th><th class="text-end">Devices</th></tr></thead>
+                            <thead><tr><th>Application</th><th>Vendor</th><th>Vulnerable Versions</th><th class="text-end">${metricTitle('affectedDevices')}</th></tr></thead>
                             <tbody>
                                 ${cveData.affectedApplications.map(app => html`
                                     <tr>
@@ -440,7 +441,7 @@ export function CveDetailsContent({
 
             ${(cveData.affectedDevices?.length || 0) > 0 ? html`
                 <div class="card">
-                    <div class="card-header"><h3 class="card-title">Affected Devices (${cveData.affectedDevices.length})</h3></div>
+                    <div class="card-header"><h3 class="card-title">${metricTitle('affectedDevices')} (${cveData.affectedDevices.length})</h3></div>
                     <div class="list-group list-group-flush">
                         ${cveData.affectedDevices.map(device => html`
                             <a href=${`#!/devices/${encodeURIComponent(device.deviceId)}`} class="list-group-item list-group-item-action" onClick=${() => onNavigate?.()}>
@@ -466,7 +467,7 @@ export function CveDetailsContent({
         ${activeTab === 'intelligence' && html`
             <div class="row row-cards mb-3">
                 <div class="col-sm-4"><div class="card"><div class="card-body p-3"><div class="text-muted small text-uppercase fw-semibold mb-1">Exploitation Signal</div><div class="h3 mb-1">${cveData.hasExploit ? 'Active' : 'Observed risk'}</div><div class="text-muted small">${cveData.hasExploit ? 'Listed in KEV or active exploit intelligence' : 'No direct KEV evidence in the current feed'}</div></div></div></div>
-                <div class="col-sm-4"><div class="card"><div class="card-body p-3"><div class="text-muted small text-uppercase fw-semibold mb-1">Org Exposure</div><div class="h3 mb-1">${cveData.impact?.totalDevices ?? cveData.affectedDevices?.length ?? 0} devices</div><div class="text-muted small">${cveData.impact?.totalApplications ?? cveData.affectedApplications?.length ?? 0} affected applications currently in scope</div></div></div></div>
+                <div class="col-sm-4"><div class="card"><div class="card-body p-3"><div class="text-muted small text-uppercase fw-semibold mb-1">Org Exposure</div><div class="h3 mb-1">${metricPhrase('affectedDevices', cveData.impact?.totalDevices ?? cveData.affectedDevices?.length ?? 0)}</div><div class="text-muted small">${metricPhrase('vulnerableApps', cveData.impact?.totalApplications ?? cveData.affectedApplications?.length ?? 0)} currently in scope</div></div></div></div>
                 <div class="col-sm-4"><div class="card"><div class="card-body p-3"><div class="text-muted small text-uppercase fw-semibold mb-1">Timeline</div><div class="small"><strong>Published:</strong> ${formatFriendlyDate(cveData.published)}</div><div class="small"><strong>Updated:</strong> ${formatFriendlyDate(cveData.updated)}</div></div></div></div>
             </div>
 

@@ -9,6 +9,7 @@ import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 import ChatDrawer from '../../components/ChatDrawer.js';
+import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
 
 const { html, Component } = window;
 
@@ -137,6 +138,7 @@ export class CompliancePage extends Component {
       loading: true,
       error: null,
       snapshot: null,
+      evidence: null,
       isRefreshingInBackground: false,
       selectedFramework: 'all',
       selectedDate: toInputDate(null),
@@ -207,6 +209,7 @@ export class CompliancePage extends Component {
       if (cached) {
         this.setState({
           snapshot: cached.data,
+          evidence: null,
           loading: false,
           isRefreshingInBackground: true,
           error: null,
@@ -225,19 +228,23 @@ export class CompliancePage extends Component {
       // rows that match the legacy /compliance/latest payload shape (overallScore, standards, generatedAt).
       const bundleResp = await api.getPageBundle(orgId, 'compliance');
       if (!bundleResp?.success) {
-        throw new Error(bundleResp?.message || 'Failed to load compliance snapshot');
+        throw new Error(bundleResp?.message || 'Failed to load compliance dossier');
       }
+      const evidence = bundleResp?.data?.evidence || bundleResp?.data?.Evidence || null;
       const atom = bundleResp?.data?.atoms?.['compliance-snapshot'];
       const snapshot = Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
       // compliance-control-facts is per-device per-control state — cache for drilldowns.
       const controlFacts = bundleResp?.data?.atoms?.['compliance-control-facts']?.data || [];
       if (!snapshot) {
-        throw new Error('No compliance snapshot available');
+        const error = new Error('No compliance dossier available');
+        error.evidence = evidence;
+        throw error;
       }
 
       this._setCache(snapshot);
       this.setState({
         snapshot,
+        evidence,
         controlFacts: Array.isArray(controlFacts) ? controlFacts : [],
         loading: false,
         isRefreshingInBackground: false,
@@ -250,6 +257,7 @@ export class CompliancePage extends Component {
       this.setState({
         loading: false,
         isRefreshingInBackground: false,
+        evidence: err?.evidence || this.state.evidence,
         error: err?.message || 'Failed to load compliance page'
       });
     }
@@ -496,7 +504,7 @@ export class CompliancePage extends Component {
               </div>
               <div class="col-lg-4">
                 <div class="small text-muted text-lg-end">
-                  ${snapshotDate ? html`Latest compliance snapshot: <strong>${toInputDate(snapshotDate)}</strong>` : 'No snapshot timestamp available'}
+                  ${snapshotDate ? html`Latest compliance dossier: <strong>${toInputDate(snapshotDate)}</strong>` : 'No dossier timestamp available'}
                 </div>
               </div>
             </div>
@@ -544,7 +552,7 @@ export class CompliancePage extends Component {
                         <div class="progress-bar bg-${tone}" style="width: ${item.score}%"></div>
                       </div>
                       <div class="small text-muted mb-3" style="min-height: 3rem;">
-                        ${topGap ? html`Top gap: <strong>${topGap.controlId}</strong> · ${topGap.title}` : 'No recorded gaps in this snapshot.'}
+                        ${topGap ? html`Top gap: <strong>${topGap.controlId}</strong> · ${topGap.title}` : 'No recorded gaps in this dossier.'}
                       </div>
                       <div class="mt-auto d-flex gap-2">
                         <button class="btn btn-sm btn-primary flex-fill" onClick=${() => this.generateReport(item.id)}>
@@ -590,7 +598,7 @@ export class CompliancePage extends Component {
               <tbody>
                 ${gaps.length === 0 ? html`
                   <tr>
-                    <td colspan="7" class="text-center py-5 text-muted">No live compliance gaps are available in the latest snapshot.</td>
+                    <td colspan="7" class="text-center py-5 text-muted">No live compliance gaps are available in the latest dossier.</td>
                   </tr>
                 ` : gaps.map((gap) => {
                   const urgency = getUrgencyTone(gap.priority || 0);
@@ -852,6 +860,7 @@ export class CompliancePage extends Component {
     if (this.state.error) {
       return html`
         <div class="container-xl py-4">
+          <${EvidenceBanner} evidence=${this.state.evidence} pageName="compliance" />
           <div class="alert alert-danger">${this.state.error}</div>
           <button class="btn btn-primary" onClick=${() => this.loadPage()}>Retry</button>
         </div>
@@ -864,6 +873,7 @@ export class CompliancePage extends Component {
     return html`
       <div style="padding-bottom: 88px;">
         ${this.renderHeader(frameworkCards)}
+        ${this.state.evidence ? html`<div class="container-xl"><${EvidenceBanner} evidence=${this.state.evidence} pageName="compliance" /></div>` : null}
         ${this.renderCommandDeck()}
         ${this.renderFrameworkGrid(frameworkCards)}
         ${this.renderTrendChart()}

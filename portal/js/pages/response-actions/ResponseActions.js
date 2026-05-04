@@ -8,7 +8,7 @@ const DEVICE_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEVICE_CACHE_PREFIX = 'response-actions-devices-v1';
 
 const ACTION_CATALOG = [
-    { type: 'Probe', label: 'Probe', icon: 'ti ti-radar-2', tooltip: 'Collect a comprehensive security posture snapshot from the device', enabled: true },
+    { type: 'Probe', label: 'Probe', icon: 'ti ti-radar-2', tooltip: 'Collect a comprehensive security posture dossier from the device', enabled: true },
     { type: 'TriggerScan', label: 'Scan', icon: 'ti ti-shield-search', tooltip: 'Initiate a full system vulnerability and malware scan', enabled: true },
     { type: 'Resync', label: 'Full Resync', icon: 'ti ti-refresh', tooltip: 'Resync inventory and compliance data without a hard reset', enabled: true },
     { type: 'InventoryScan', label: 'Inventory Scan', icon: 'ti ti-apps', tooltip: 'Refresh software inventory from device telemetry', enabled: true },
@@ -728,7 +728,7 @@ export class ResponseActionsPage extends Component {
                 <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Probe Snapshot · ${this.state.selectedProbeDeviceName || 'Device'}</h5>
+                            <h5 class="modal-title">Probe Dossier · ${this.state.selectedProbeDeviceName || 'Device'}</h5>
                             <button
                                 type="button"
                                 class="btn-close"

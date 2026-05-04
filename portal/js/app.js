@@ -100,14 +100,15 @@ function closeOpenTopDropdowns() {
 }
 
 /**
- * applyRewindUiGuards — called whenever rewind state changes.
- * Adds/removes `rewind-blocked` on mutating action buttons so CSS
- * dims them and pointer-events are disabled. The API layer independently
- * rejects any POST/PUT/DELETE/PATCH calls as a second line of defence.
+ * applyRewindUiGuards — called whenever rewind state or org role changes.
+ * Adds/removes blocking classes on mutating action buttons so CSS dims them.
+ * The API layer and backend independently reject state-changing calls.
  */
 function applyRewindUiGuards() {
     const active = rewindContext.isActive();
+    const readOnlyMode = window.orgContext?.isReadOnly?.() && !window.orgContext?.isSiteAdmin?.();
     const MUTATING_SELECTORS = [
+        '[data-mutates-state="true"]', '[data-capability-mutates="true"]',
         '[data-action="scan"]', '[data-action="check-updates"]',
         '[data-action="run-probe"]', '[data-action="refresh-inventory"]',
         '[data-action="add-device"]', '[data-action="remove-device"]',
@@ -117,6 +118,25 @@ function applyRewindUiGuards() {
     ].join(',');
     document.querySelectorAll(MUTATING_SELECTORS).forEach(el => {
         el.classList.toggle('rewind-blocked', active);
+        el.classList.toggle('readonly-blocked', readOnlyMode);
+        const blocked = active || readOnlyMode;
+        if (blocked) {
+            el.setAttribute('aria-disabled', 'true');
+            el.setAttribute('title', readOnlyMode
+                ? 'Auditor mode is read-only'
+                : 'Disabled while viewing a Time Warp date');
+            if ('disabled' in el && !el.disabled) {
+                el.disabled = true;
+                el.dataset.guardDisabled = 'true';
+            }
+        } else {
+            if (el.dataset.guardDisabled === 'true') {
+                el.disabled = false;
+                delete el.dataset.guardDisabled;
+            }
+            el.removeAttribute('aria-disabled');
+            el.removeAttribute('title');
+        }
     });
 }
 
@@ -129,6 +149,7 @@ function applyOrgUiRestrictions() {
     body.classList.toggle('org-personal', isPersonal);
     body.classList.toggle('org-education', isEducation);
     body.classList.toggle('org-business', !isPersonal && !isEducation);
+    body.classList.toggle('readonly-active', orgContext.isReadOnly() && !orgContext.isSiteAdmin());
 
     const businessOnlyItems = document.querySelectorAll('.business-license-only');
     businessOnlyItems.forEach((item) => {
@@ -741,6 +762,7 @@ async function init() {
 
     orgContext.onChange(() => {
         applyOrgUiRestrictions();
+        applyRewindUiGuards();
         refreshActionsBadge();
     });
 

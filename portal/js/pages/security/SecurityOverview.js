@@ -7,6 +7,7 @@ import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { SWRHelper } from '@utils/SWRHelper.js';
 import { bundleToUnifiedPayload } from '../dashboard/bundleAdapter.js';
+import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
 
 const { html, Component } = window;
 
@@ -36,6 +37,64 @@ function formatRelativeTime(dateValue) {
     return `${days}d ago`;
 }
 
+function buildPatchStatus(patchResp) {
+    const patch = patchResp?.data || patchResp || {};
+    const summary = patch.summary || {};
+    const intel = patch.intel || {};
+    const hosts = Array.isArray(patch.hosts) ? patch.hosts : [];
+
+    return {
+        unavailable: patchResp?.success === false || patch.unavailable === true,
+        openAlerts: num(summary.openAlerts),
+        hostsAffected: num(summary.hostsAffected || hosts.length),
+        critical: num(summary.critical),
+        high: num(summary.high),
+        exploited: num(summary.exploited),
+        builtAt: intel.builtAt || intel.lastBuiltAt || intel.generatedAt || null,
+    };
+}
+
+function formatActionDeviceText(action) {
+    if (!action) return 'Device: not identified in this dossier';
+
+    const deviceNames = [];
+    const pushDeviceName = (value) => {
+        const text = String(value || '').trim();
+        if (text && !deviceNames.some((existing) => existing.toLowerCase() === text.toLowerCase())) {
+            deviceNames.push(text);
+        }
+    };
+
+    (Array.isArray(action.affectedDeviceNames) ? action.affectedDeviceNames : []).forEach(pushDeviceName);
+    (Array.isArray(action.deviceNames) ? action.deviceNames : []).forEach(pushDeviceName);
+    pushDeviceName(action.primaryDeviceName);
+    pushDeviceName(action.deviceName);
+
+    if (!deviceNames.length) {
+        (Array.isArray(action.affectedDevices) ? action.affectedDevices : []).forEach((device) => {
+            if (typeof device === 'string') pushDeviceName(device);
+            else pushDeviceName(device?.deviceName || device?.DeviceName || device?.deviceId || device?.DeviceId);
+        });
+        pushDeviceName(action.primaryDeviceId);
+        pushDeviceName(action.deviceId);
+    }
+
+    const count = Math.max(num(action.deviceCount), deviceNames.length);
+    if (deviceNames.length) {
+        return count > 1 ? `Device: ${deviceNames[0]} + ${count - 1} more` : `Device: ${deviceNames[0]}`;
+    }
+    if (count > 0) return `Device: ${count} unnamed device${count === 1 ? '' : 's'}`;
+    return 'Device: not identified in this dossier';
+}
+
+function cleanActionTitle(action) {
+    return String(action?.title || 'Security action')
+        .replace(/\s+on\s+\d+\s+devices?\.?$/i, '')
+        .replace(/Remediate compliance gap:\s*/i, 'Fix compliance: ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
 export class SecurityOverview extends Component {
     constructor(props) {
         super(props);
@@ -60,6 +119,8 @@ export class SecurityOverview extends Component {
             compliancePercent: 0,
             appsTotal: 0,
             topActions: [],
+            patchStatus: buildPatchStatus(null),
+            evidence: null,
         };
 
         this.orgUnsub = null;
@@ -88,7 +149,7 @@ export class SecurityOverview extends Component {
         return this.swr;
     }
 
-    buildOverview(dashboardResp, alertsResp, org) {
+    buildOverview(dashboardResp, alertsResp, patchResp, org) {
         const dashboard = dashboardResp?.data || {};
         const hygiene = dashboard?.cyberHygiene || dashboard?.hygieneScore || {};
         const security = dashboard?.securityScore || {};
@@ -141,6 +202,8 @@ export class SecurityOverview extends Component {
             compliancePercent: Math.round(num(hygiene?.compliance || complianceSummary?.score || security?.compliancePercent)),
             appsTotal: num(inventoryStats?.totalCount || inventoryStats?.totalApps || inventoryStats?.total),
             topActions,
+            patchStatus: buildPatchStatus(patchResp),
+            evidence: dashboard?.evidence || dashboard?._bundle?.evidence || null,
         };
     }
 
@@ -169,9 +232,13 @@ export class SecurityOverview extends Component {
             // Phase 4.3.1: source dashboard data from page bundle (`security` is a personal-org
             // alias of the dashboard bundle). Adapter synthesizes the legacy unified-dashboard
             // shape so buildOverview() does not need to change.
-            const [bundleResp, alertsResp] = await Promise.all([
-                api.getPageBundle(orgId, 'security'),
+            const [bundleResp, alertsResp, patchResp] = await Promise.all([
+                api.getPageBundle(orgId, 'security', {}, { skipCache: true }),
                 api.getAlertSummary(orgId, { include: 'cached-summary' }),
+                api.getPatchPosture(orgId, { skipCache: true }).catch((err) => ({
+                    success: false,
+                    data: { unavailable: true, message: err?.message || 'Patch Status unavailable' }
+                })),
             ]);
 
             const dashboardResp = bundleResp?.success
@@ -182,7 +249,7 @@ export class SecurityOverview extends Component {
                 throw new Error('Unable to load security data.');
             }
 
-            const overview = this.buildOverview(dashboardResp, alertsResp, org);
+            const overview = this.buildOverview(dashboardResp, alertsResp, patchResp, org);
             swr.setCached(overview);
 
             this.setState({
@@ -363,11 +430,14 @@ export class SecurityOverview extends Component {
 
                 ${s.topActions.length > 0 ? html`
                     <div class="mb-3">
-                        <div class="text-muted text-uppercase fw-semibold small mb-2">Recommended next steps</div>
+                        <div class="text-muted text-uppercase fw-semibold small mb-2">Fix first</div>
                         <div class="list-group list-group-flush">
                             ${s.topActions.map((item) => html`
-                                <a href=${item?.actionUrl || '#!/posture'} class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span>${item?.title || 'Security action'}</span>
+                                <a href=${item?.actionUrl || '#!/posture'} class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3">
+                                    <span class="flex-fill">
+                                        <span class="d-block fw-semibold">${cleanActionTitle(item)}</span>
+                                        <span class="d-block text-muted small mt-1">${formatActionDeviceText(item)}</span>
+                                    </span>
                                     <span class="badge bg-${String(item?.urgency || '').toLowerCase() === 'critical' ? 'danger' : 'warning'} text-white">${item?.urgency || 'Priority'}</span>
                                 </a>
                             `)}
@@ -392,6 +462,14 @@ export class SecurityOverview extends Component {
         const org = orgContext.getCurrentOrg();
         const isPersonal = org?.type === 'Personal';
         const scoreTone = s.score >= 80 ? 'success' : s.score >= 65 ? 'warning' : 'danger';
+        const patch = s.patchStatus || buildPatchStatus(null);
+        const needsAttention = s.devicesAttention > 0 || s.critical > 0 || patch.openAlerts > 0;
+        const safetyTone = needsAttention ? 'warning' : 'success';
+        const safetyTitle = needsAttention ? 'Attention' : 'Secure';
+        const safetySubtitle = needsAttention ? 'needs action today' : 'no urgent blocker';
+        const safetyCopy = needsAttention
+            ? `${s.devicesAttention} device${s.devicesAttention === 1 ? '' : 's'} need review, ${s.critical} critical exposure${s.critical === 1 ? '' : 's'}, and ${patch.openAlerts} missing Microsoft update${patch.openAlerts === 1 ? '' : 's'} need action.`
+            : 'Your protected devices have no critical exposure, missing Microsoft update, or device visibility blocker in the current dossier.';
 
         if (s.loading) {
             return html`
@@ -421,28 +499,30 @@ export class SecurityOverview extends Component {
         return html`
             <div class="page-body">
                 <div class="container-xl">
+                    <${EvidenceBanner} evidence=${s.evidence} pageName="security" />
                     <div class="card mb-4 border-0 shadow-sm overflow-hidden" style="background:linear-gradient(120deg,#1657a8 0%,#1a73e8 100%);color:#fff;">
                         <div class="card-body p-4 p-lg-5">
                             <div class="row align-items-center g-4">
                                 <div class="col-lg-7">
                                     <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                                        <div class="text-uppercase text-white-50 fw-semibold">${isPersonal ? 'Personal Security Console' : 'Business Security Console'}</div>
+                                        <div class="text-uppercase text-white-50 fw-semibold">${isPersonal ? 'Personal Security Dashboard' : 'Security Dashboard'}</div>
                                         ${s.isRefreshing ? html`<span class="badge bg-white text-primary">Refreshing…</span>` : ''}
                                     </div>
-                                    <h2 class="mb-2 text-white">Protect what matters first.</h2>
+                                    <h2 class="mb-2 text-white">Am I secure today?</h2>
                                     <div class="text-white-75 mb-3">
-                                        Your current command view: score, exposures, actions, and capacity — all from the same live dossier.
+                                        ${safetyCopy}
                                         ${s.postureGeneratedAt ? html` Updated ${formatRelativeTime(s.postureGeneratedAt)}.` : ''}
-                                        ${rewindContext.isActive() ? html` Viewing a historical Time Warp snapshot.` : ''}
+                                        ${rewindContext.isActive() ? html` Viewing a historical Time Warp dossier.` : ''}
                                     </div>
                                     <div class="btn-list">
-                                        ${!isPersonal ? html`
-                                            <a href="#!/alerts" class="btn btn-white ${s.actionsOpen > 0 ? '' : 'disabled'}">
-                                                <i class="ti ti-bell-ringing me-1"></i>Review ${s.actionsOpen} actions
-                                            </a>
-                                        ` : ''}
+                                        <a href=${patch.openAlerts > 0 ? '#!/patch-posture' : '#!/alerts'} class="btn btn-white ${needsAttention ? '' : 'disabled'}">
+                                            <i class="ti ti-tool me-1"></i>${needsAttention ? 'Fix first' : 'No urgent fix'}
+                                        </a>
                                         <a href="#!/vulnerabilities" class="btn btn-outline-light">
                                             <i class="ti ti-bug me-1"></i>Open exposures
+                                        </a>
+                                        <a href="#!/patch-posture" class="btn btn-outline-light">
+                                            <i class="ti ti-shield-check me-1"></i>Patch Status
                                         </a>
                                         <a href="#!/devices" class="btn btn-outline-light">
                                             <i class="ti ti-devices me-1"></i>Fleet
@@ -454,9 +534,9 @@ export class SecurityOverview extends Component {
                                         <div class="col-6">
                                             <div class="card bg-white text-body shadow-sm border-0">
                                                 <div class="card-body p-3">
-                                                    <div class="text-muted text-uppercase fw-semibold small">Applications observed</div>
-                                                    <div class="h2 mb-0">${s.appsTotal}</div>
-                                                    <div class="text-muted small">software inventory view</div>
+                                                    <div class="text-muted text-uppercase fw-semibold small">Today's state</div>
+                                                    <div class="h2 mb-0 text-${safetyTone}">${safetyTitle}</div>
+                                                    <div class="text-muted small">${safetySubtitle}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -472,9 +552,9 @@ export class SecurityOverview extends Component {
                                         <div class="col-6">
                                             <div class="card bg-white text-body shadow-sm border-0">
                                                 <div class="card-body p-3">
-                                                    <div class="text-muted text-uppercase fw-semibold small">Open actions</div>
-                                                    <div class="h2 mb-0 text-${s.actionsOpen > 0 ? 'danger' : 'success'}">${s.actionsOpen}</div>
-                                                    <div class="text-muted small">${s.actionsSuppressed} suppressed</div>
+                                                    <div class="text-muted text-uppercase fw-semibold small">Missing patches</div>
+                                                    <div class="h2 mb-0 text-${patch.openAlerts > 0 ? 'warning' : 'success'}">${patch.openAlerts}</div>
+                                                    <div class="text-muted small">${patch.hostsAffected} affected devices</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -502,10 +582,20 @@ export class SecurityOverview extends Component {
                         <div class="col-lg-7">
                             <div class="card h-100 border-0 shadow-sm">
                                 <div class="card-header">
-                                    <h3 class="card-title">Priority Focus</h3>
+                                    <h3 class="card-title">Fix First</h3>
                                 </div>
                                 <div class="card-body">
                                     <div class="list-group list-group-flush">
+                                        ${s.topActions.slice(0, 3).map((item) => html`
+                                            <a href=${item?.actionUrl || '#!/alerts'} class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3">
+                                                <span class="flex-fill">
+                                                    <span class="d-block fw-semibold">${cleanActionTitle(item)}</span>
+                                                    <span class="d-block text-muted small mt-1">${formatActionDeviceText(item)}</span>
+                                                </span>
+                                                <span class="badge bg-${String(item?.urgency || '').toLowerCase() === 'critical' ? 'danger' : 'warning'} text-white">${item?.urgency || 'Priority'}</span>
+                                            </a>
+                                        `)}
+                                        <div class="text-muted text-uppercase fw-semibold small mt-3 mb-2">Review queues</div>
                                         <a href="#!/vulnerabilities" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                             <span><i class="ti ti-alert-triangle text-danger me-2"></i>Remediate critical vulnerabilities first</span>
                                             <span class="badge bg-danger text-white">${s.critical}</span>
@@ -513,6 +603,10 @@ export class SecurityOverview extends Component {
                                         <a href="#!/devices" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                             <span><i class="ti ti-devices me-2"></i>Review devices needing attention</span>
                                             <span class="badge bg-secondary text-white">${s.devicesAttention}</span>
+                                        </a>
+                                        <a href="#!/patch-posture" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                            <span><i class="ti ti-shield-check text-warning me-2"></i>Install missing Microsoft updates</span>
+                                            <span class="badge bg-${patch.openAlerts > 0 ? 'warning' : 'success'} text-white">${patch.openAlerts} open</span>
                                         </a>
                                         ${!isPersonal ? html`
                                             <a href="#!/alerts" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">

@@ -1295,7 +1295,7 @@ export class DashboardPage extends Component {
             console.error('[Dashboard] Failed to generate posture snapshot:', err);
             this.setState({ 
                 loadingPosture: false,
-                error: `Failed to generate posture snapshot: ${err.message}`
+                error: `Failed to generate posture dossier: ${err.message}`
             });
         }
     }

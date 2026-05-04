@@ -1625,7 +1625,7 @@ export function OrganizationsTab({
                                                     <div class="fw-semibold">${credits.remaining} / ${credits.total}</div>
                                                     ${credits.hasSnapshot
                                                         ? html`<div class="progress progress-sm mt-1"><div class="progress-bar bg-primary" style="width: ${credits.pct}%"></div></div>`
-                                                        : html`<small class="text-muted">No credit snapshot</small>`}
+                                                        : html`<small class="text-muted">No credit dossier</small>`}
                                                 </td>
                                                 <td>
                                                     <span class=${`badge ${disabled ? 'bg-danger' : 'bg-success'}`}>
@@ -1861,7 +1861,7 @@ export function OrganizationsTab({
                                                                                                                         <small class="form-text text-muted">Managed in Storage tab only. Region changes are part of migration workflow.</small>
                                                                                                                     </div>
                                                                                                                     <div class="col-md-4">
-                                                                                                                        <label class="form-label">Snapshot Refresh Override (hrs)</label>
+                                                                                                                        <label class="form-label">Dossier Refresh Override (hrs)</label>
                                                                                                                         <input type="number" min="1" max="24" step="1" class="form-control" placeholder="Platform default" value=${updateTodaySnapshotRefreshHoursOverride} onInput=${(e) => setUpdateTodaySnapshotRefreshHoursOverride(e.target.value)} />
                                                                                                                         <small class="form-text text-muted">Leave blank to use platform default.</small>
                                                                                                                     </div>
@@ -2134,7 +2134,7 @@ export function OrganizationsTab({
                                                                                                                 <h5 class="card-title mb-0"><i class="ti ti-transfer me-2"></i>Schedule Storage Migration</h5>
                                                                                                             </div>
                                                                                                             <div class="card-body">
-                                                                                                                <p class="text-muted small mb-3">Move this organization's blob data (snapshots, reports) to a different storage account or region. The background job copies blobs with checkpoint resumption — safe to reschedule if interrupted.</p>
+                                                                                                                <p class="text-muted small mb-3">Move this organization's blob data (dossiers, reports) to a different storage account or region. The background job copies blobs with checkpoint resumption — safe to reschedule if interrupted.</p>
                                                                                                                 ${storageCatalogLoading ? html`
                                                                                                                     <div class="d-flex align-items-center gap-2 text-muted small py-2">
                                                                                                                         <span class="spinner-border spinner-border-sm"></span> Loading storage options…

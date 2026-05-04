@@ -18,6 +18,9 @@ import { getFixVersionLabel } from '../../utils/fixVersion.js';
 import { MagiFixPanel } from '../../components/MagiFixPanel.js';
 import { CveDetailsModal } from '../../components/CveDetailsModal.js';
 import { nvdCveCache } from '../../utils/nvdCveCache.js';
+import { metricHelp, metricPhrase, metricTitle, metricUnit } from '../../utils/metricUnits.js';
+import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
 import { SegmentedControl, CollapsibleSectionCard, resolveDeviceLabel } from '../../components/shared/CommonComponents.js';
 
 const { html, Component } = window;
@@ -36,6 +39,7 @@ export class VulnerabilitiesPage extends Component {
             vulnerabilities: [],
             reviewItems: [],
             summary: null,
+            evidence: null,
             severityFilter: 'all',
             groupBy: 'application',
             expandedSections: {},
@@ -215,6 +219,7 @@ export class VulnerabilitiesPage extends Component {
                     vulnerabilities: cached.data.vulnerabilities || [],
                     reviewItems: cached.data.reviewItems || [],
                     summary: cached.data.summary,
+                    evidence: cached.data.evidence || null,
                     loading: false,
                     isRefreshingInBackground: true,
                     error: null
@@ -237,6 +242,7 @@ export class VulnerabilitiesPage extends Component {
 
             if (response.success) {
                 const atoms = response.data?.atoms || {};
+                const evidence = response.data?.evidence || response.data?.Evidence || null;
                 const cveListRows = atoms['cve-list']?.data || [];
                 const deviceRows = atoms['device-fleet']?.data || [];
                 const securityData = atoms['security-snapshot']?.data || [];
@@ -272,7 +278,7 @@ export class VulnerabilitiesPage extends Component {
                     needsReview: reviewItems.length
                 };
 
-                const data = { vulnerabilities, reviewItems, summary };
+                const data = { vulnerabilities, reviewItems, summary, evidence };
 
                 // Cache the response
                 this.setCachedVulnerabilities(data);
@@ -282,6 +288,7 @@ export class VulnerabilitiesPage extends Component {
                     vulnerabilities,
                     reviewItems,
                     summary,
+                    evidence,
                     deviceMap,
                     freshness: response.data?.freshness || response.freshness || null,
                     loading: false,
@@ -638,9 +645,9 @@ export class VulnerabilitiesPage extends Component {
             <${CollapsibleSectionCard}
                 title=${'Confidence pending'}
                 subtitle=${'These applications are being held for review and are not counted as confirmed CVEs yet.'}
-                meta=${`${items.length} app${items.length === 1 ? '' : 's'} awaiting manual analysis`}
+                meta=${`${metricPhrase('needsReview', items.length)} awaiting manual analysis`}
                 badges=${[
-                    { text: `${items.length} need review`, className: 'bg-warning text-white' },
+                    { text: metricPhrase('needsReview', items.length), className: 'bg-warning text-white' },
                     { text: isOpen ? 'Collapse' : 'Expand', className: 'bg-secondary-lt text-secondary' }
                 ]}
                 accent=${'warning'}
@@ -652,7 +659,7 @@ export class VulnerabilitiesPage extends Component {
                             <tr>
                                 <th>Application</th>
                                 <th>How it matched</th>
-                                <th>Devices</th>
+                                <th>${metricTitle('affectedDevices')}</th>
                                 <th>Next retry</th>
                             </tr>
                         </thead>
@@ -724,6 +731,31 @@ export class VulnerabilitiesPage extends Component {
         const affectedDeviceTotal = affectedDeviceSet.size;
 
         const groupedView = this.buildGroupedViews(filtered, groupBy);
+        const topGroup = groupedView.highRiskGroups?.[0] || groupedView.appGroups?.[0] || this.buildAppGroups(filtered)[0] || null;
+        const topDeviceId = topGroup?.deviceIds?.[0]
+            || topGroup?.cves?.flatMap(cve => Array.isArray(cve.deviceIds) ? cve.deviceIds.filter(Boolean) : [])?.[0]
+            || Array.from(affectedDeviceSet)[0]
+            || null;
+        const topDeviceName = topDeviceId
+            ? resolveDeviceLabel(topDeviceId, this.state.deviceMap, topDeviceId)
+            : null;
+        const topDeviceSuffix = topDeviceName ? ` on ${topDeviceName}` : '';
+        const evidenceStatus = String(this.state.evidence?.status || this.state.evidence?.Status || '').toLowerCase();
+        const guideVerified = evidenceStatus === 'blocked'
+            ? 'Evidence blocked'
+            : evidenceStatus === 'partial'
+                ? 'Partial evidence'
+                : rewindContext.isActive()
+                    ? 'Historical evidence'
+                    : 'Live evidence';
+        const guideSummary = totalExposures > 0
+            ? `MAGI is prioritizing ${metricPhrase('cveExposures', totalExposures)} across ${metricPhrase('affectedDevices', affectedDeviceTotal)}. ${topGroup ? `${topGroup.appName}${topDeviceSuffix} is the first app cluster to review.` : 'Start with the highest severity app cluster.'}`
+            : 'MAGI did not find confirmed CVE exposures in the current risk map.';
+        const guideNextAction = topGroup
+            ? (rewindContext.isActive()
+                ? `Use ${topGroup.appName}${topDeviceSuffix} as historical exposure proof for this date; return to present day before remediation and confirm current risk after the update.`
+                : `Open ${topGroup.appName}${topDeviceSuffix}, review the highest severity CVE, update the affected version, then confirm the app disappears from this evidence view.`)
+            : 'Keep the review queue moving so unresolved app matches become confirmed or dismissed evidence.';
 
         return html`
             <div class="page-header d-print-none">
@@ -743,18 +775,18 @@ export class VulnerabilitiesPage extends Component {
                                 <div class="d-flex flex-column gap-1">
                                     ${uniqueCveTotal > 0 ? html`
                                         <div class="text-muted small">
-                                            <strong class="text-body">${uniqueCveTotal.toLocaleString()}</strong> unique CVE${uniqueCveTotal === 1 ? '' : 's'}
-                                            \u00b7 <strong class="text-body">${affectedDeviceTotal.toLocaleString()}</strong> device${affectedDeviceTotal === 1 ? '' : 's'} affected
-                                            \u00b7 <strong class="text-body">${totalExposures.toLocaleString()}</strong> open exposure${totalExposures === 1 ? '' : 's'}
-                                            <span class="text-muted ms-1" title="An exposure = one device with one vulnerable app version. The same CVE on multiple devices counts as multiple exposures.">(?)</span>
+                                            <strong class="text-body">${metricPhrase('uniqueCves', uniqueCveTotal)}</strong>
+                                            \u00b7 <strong class="text-body">${metricPhrase('affectedDevices', affectedDeviceTotal)}</strong>
+                                            \u00b7 <strong class="text-body">${metricPhrase('cveExposures', totalExposures)}</strong>
+                                            <span class="text-muted ms-1" title=${metricHelp('cveExposures')}>(?)</span>
                                         </div>
                                     ` : ''}
                                     <div class="d-flex gap-2 flex-wrap align-items-center">
-                                        <span class="badge bg-danger text-white" title=${`${uniqueCveBySev.Critical.size} unique critical CVE${uniqueCveBySev.Critical.size === 1 ? '' : 's'} \u00b7 ${criticalCount} open exposure${criticalCount === 1 ? '' : 's'}`}>${criticalCount} Critical</span>
-                                        <span class="badge bg-warning text-white" title=${`${uniqueCveBySev.High.size} unique high CVE${uniqueCveBySev.High.size === 1 ? '' : 's'} \u00b7 ${highCount} open exposure${highCount === 1 ? '' : 's'}`}>${highCount} High</span>
-                                        <span class="badge bg-info text-white" title=${`${uniqueCveBySev.Medium.size} unique medium CVE${uniqueCveBySev.Medium.size === 1 ? '' : 's'} \u00b7 ${mediumCount} open exposure${mediumCount === 1 ? '' : 's'}`}>${mediumCount} Medium</span>
-                                        <span class="badge bg-success text-white" title=${`${uniqueCveBySev.Low.size} unique low CVE${uniqueCveBySev.Low.size === 1 ? '' : 's'} \u00b7 ${lowCount} open exposure${lowCount === 1 ? '' : 's'}`}>${lowCount} Low</span>
-                                        ${needsReviewCount > 0 && orgContext.isSiteAdmin() ? html`<span class="badge bg-warning text-white">${needsReviewCount} Needs review</span>` : ''}
+                                        <span class="badge bg-danger text-white" title=${`${uniqueCveBySev.Critical.size} critical ${metricUnit('uniqueCves', uniqueCveBySev.Critical.size).toLowerCase()} \u00b7 ${metricPhrase('cveExposures', criticalCount)}`}>${criticalCount} Critical exposures</span>
+                                        <span class="badge bg-warning text-white" title=${`${uniqueCveBySev.High.size} high ${metricUnit('uniqueCves', uniqueCveBySev.High.size).toLowerCase()} \u00b7 ${metricPhrase('cveExposures', highCount)}`}>${highCount} High exposures</span>
+                                        <span class="badge bg-info text-white" title=${`${uniqueCveBySev.Medium.size} medium ${metricUnit('uniqueCves', uniqueCveBySev.Medium.size).toLowerCase()} \u00b7 ${metricPhrase('cveExposures', mediumCount)}`}>${mediumCount} Medium exposures</span>
+                                        <span class="badge bg-success text-white" title=${`${uniqueCveBySev.Low.size} low ${metricUnit('uniqueCves', uniqueCveBySev.Low.size).toLowerCase()} \u00b7 ${metricPhrase('cveExposures', lowCount)}`}>${lowCount} Low exposures</span>
+                                        ${needsReviewCount > 0 && orgContext.isSiteAdmin() ? html`<span class="badge bg-warning text-white">${metricPhrase('needsReview', needsReviewCount)}</span>` : ''}
                                         ${rewindContext.isActive() ? html`<span class="badge bg-azure-lt text-azure">As of ${api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
                                     </div>
                                 </div>
@@ -771,6 +803,16 @@ export class VulnerabilitiesPage extends Component {
             </div>
             <div class="page-body">
                 <div class="container-xl">
+                    <${EvidenceBanner} evidence=${this.state.evidence} pageName="vulnerabilities" />
+                    <${MagiGuideCard}
+                        title="MAGI risk guide"
+                        verified=${guideVerified}
+                        summary=${guideSummary}
+                        nextAction=${guideNextAction}
+                        provenance=${['cve-list', 'cve-device-facts', 'security-snapshot']}
+                        confidence="Deterministic"
+                        ctaHref="#!/analyst?ctx=CVE%20vulnerabilities%20and%20remediation"
+                    />
                     <div class="card mb-3">
                         <div class="card-body py-3">
                             <div class="triage-filter-toolbar">
@@ -835,7 +877,7 @@ export class VulnerabilitiesPage extends Component {
                                     <h2 class="accordion-header">
                                         <button class="accordion-button collapsed" type="button"
                                                 data-bs-toggle="collapse" data-bs-target="#lowRiskBody">
-                                            Lower Risk (${formatSuspiciousCount(groupedView.lowRiskGroups.reduce((n, g) => n + g.cves.length, 0))} CVEs across ${groupedView.lowRiskGroups.length} apps)
+                                            Lower Risk (${formatSuspiciousCount(groupedView.lowRiskGroups.reduce((n, g) => n + g.cves.length, 0))} ${metricTitle('uniqueCves')} across ${metricPhrase('vulnerableApps', groupedView.lowRiskGroups.length)})
                                         </button>
                                     </h2>
                                     <div id="lowRiskBody" class="accordion-collapse collapse">
@@ -905,7 +947,7 @@ export class VulnerabilitiesPage extends Component {
             .map(deviceId => resolveDeviceLabel(deviceId, this.state.deviceMap, deviceId));
 
         const metaParts = [
-            `${totalDevices} device${totalDevices === 1 ? '' : 's'} affected`
+            metricPhrase('affectedDevices', totalDevices)
         ];
         if (devicePreview.length > 0) {
             metaParts.push(`${devicePreview.join(', ')}${group.deviceIds.length > 3 ? ` +${group.deviceIds.length - 3} more` : ''}`);
@@ -924,8 +966,8 @@ export class VulnerabilitiesPage extends Component {
                     meta=${metaParts.join(' · ')}
                     badges=${[
                         { text: worstSeverity, className: `bg-${severityColor} text-white` },
-                        { text: `${formatSuspiciousCount(group.cves.length)} CVE${group.cves.length !== 1 ? 's' : ''}`, className: `bg-${severityColor}-lt text-${severityColor}` },
-                        ...(totalDevices > 0 ? [{ text: `${totalDevices} device${totalDevices === 1 ? '' : 's'}`, className: 'bg-primary-lt text-primary' }] : []),
+                        { text: `${formatSuspiciousCount(group.cves.length)} ${metricUnit('uniqueCves', group.cves.length)}`, className: `bg-${severityColor}-lt text-${severityColor}` },
+                        ...(totalDevices > 0 ? [{ text: metricPhrase('affectedDevices', totalDevices), className: 'bg-primary-lt text-primary' }] : []),
                         ...(knownExploitCount > 0 ? [{ text: `${knownExploitCount} KEV`, className: 'bg-danger-lt text-danger' }] : [])
                     ]}
                     accent=${severityColor}

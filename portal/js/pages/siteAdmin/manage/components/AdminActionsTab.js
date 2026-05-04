@@ -212,21 +212,21 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
             {
                 groupId: 'business',
                 title: 'Business',
-                description: 'Downstream and platform-level derived artifacts: AI snapshots, report generation, and business/platform aggregates.',
+                description: 'Downstream and platform-level derived artifacts: AI dossiers, report generation, and business/platform aggregates.',
                 jobs: [
                     mkJob({
                         groupId: 'business',
                         jobId: 'ai-snapshots',
-                        title: 'AI Snapshots',
-                        description: 'Generate/repair AI snapshots using Org Data pipeline controls.',
+                        title: 'AI Dossiers',
+                        description: 'Generate/repair AI dossiers using Org Data pipeline controls.',
                         taskId: 'Org Data Cook',
                         supportsOrg: true,
                         supportsRange: true,
                         supportsMode: true,
                         modes: [
-                            { value: 'BuildMissing', label: 'Build Missing', description: 'Generate only missing AI snapshot artifacts for the selected scope.' },
-                            { value: 'BuildAll', label: 'Build All', description: 'Regenerate AI snapshot artifacts for the selected scope.' },
-                            { value: 'ClearAndBuildAll', label: 'Clear And Build', description: 'Clear generated artifacts, then rebuild AI snapshots for the selected scope.' }
+                            { value: 'BuildMissing', label: 'Build Missing', description: 'Generate only missing AI dossier artifacts for the selected scope.' },
+                            { value: 'BuildAll', label: 'Build All', description: 'Regenerate AI dossier artifacts for the selected scope.' },
+                            { value: 'ClearAndBuildAll', label: 'Clear And Build', description: 'Clear generated artifacts, then rebuild AI dossiers for the selected scope.' }
                         ],
                         defaultMode: 'BuildMissing'
                     }),
@@ -243,14 +243,14 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                         groupId: 'business',
                         jobId: 'business-data',
                         title: 'Business Data',
-                        description: 'Platform-wide business snapshots and trend aggregation.',
+                        description: 'Platform-wide business dossiers and trend aggregation.',
                         taskId: 'Business Metrics Snapshots',
                         supportsRange: true,
                         supportsMode: true,
                         modes: [
                             { value: 'Normal', label: 'Smart', description: 'Use task-native cadence logic for the selected range.' },
-                            { value: 'BuildMissing', label: 'Build Missing', description: 'Generate only missing business snapshots.' },
-                            { value: 'BuildAll', label: 'Build All', description: 'Regenerate all business snapshots for the selected range.' }
+                            { value: 'BuildMissing', label: 'Build Missing', description: 'Generate only missing business dossiers.' },
+                            { value: 'BuildAll', label: 'Build All', description: 'Regenerate all business dossiers for the selected range.' }
                         ],
                         defaultMode: 'Normal'
                     })
@@ -271,7 +271,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 description: 'Independent cadence jobs for enrichment, vulnerability feeds, and signal assimilation.',
                 jobs: [
                     mkJob({ groupId: 'intel', jobId: 'signal-assimilation', title: 'Signal Assimilation', description: 'Compute latest compliance and AV signals into per-device compliance state and open alerts.', taskId: 'Signal Assimilation', supportsOrg: true }),
-                    mkJob({ groupId: 'intel', jobId: 'cve-feed-sync', title: 'CVE Feed Sync', description: 'Sync NVD CVE feeds and refresh enriched CVE intelligence snapshots.', taskId: 'CVE Sync' }),
+                    mkJob({ groupId: 'intel', jobId: 'cve-feed-sync', title: 'CVE Feed Sync', description: 'Sync NVD CVE feeds and refresh enriched CVE intelligence dossiers.', taskId: 'CVE Sync' }),
                     mkJob({ groupId: 'intel', jobId: 'cpe-dictionary-sync', title: 'CPE Dictionary Sync', description: 'Sync NVD/TIIUAE/Microsoft CPE dictionaries and vendor-product mappings.', taskId: 'CPE Sync' }),
                     mkJob({ groupId: 'intel', jobId: 'threat-intel', title: 'Threat Intel', description: 'Refresh exploitability and KEV/EPSS intelligence feeds.', taskId: 'ThreatIntel Enrichment' }),
                     mkJob({ groupId: 'intel', jobId: 'detection-engine', title: 'Detection Engine', description: 'Unified detection lifecycle (vuln + AV + compliance). Cache-only CVE-to-app matching for VULN, av|threats|active for AV, comp|* + comp|unstable|active for COMPLIANCE. Opens/closes alerts; on VULN cache miss writes a PENDING stub (AppVersionIntel Enricher resolves it next cycle).', taskId: 'Detection Engine' }),
@@ -284,7 +284,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 title: 'Maintenance',
                 description: 'Lifecycle, cleanup, and data aggregation tasks.',
                 jobs: [
-                    mkJob({ groupId: 'maintenance', jobId: 'retention-cleanup', title: 'Retention Cleanup', description: 'Daily unified cleanup: signal prune (30d), changelog prune (90d), blob lifecycle (450d blobs, 90d snapshots), command artifacts, and ApiLogs prune (30d).', taskId: 'Retention Cleanup' }),
+                    mkJob({ groupId: 'maintenance', jobId: 'retention-cleanup', title: 'Retention Cleanup', description: 'Daily unified cleanup: signal prune (30d), changelog prune (90d), blob lifecycle (450d blobs, 90d dossiers), command artifacts, and ApiLogs prune (30d).', taskId: 'Retention Cleanup' }),
                     mkJob({ groupId: 'maintenance', jobId: 'telemetry-cleanup', title: 'Telemetry Cleanup', description: 'On-demand retention purge for raw Heartbeat telemetry.', taskId: 'Telemetry Cleanup', supportsOrg: true, supportsRange: true, supportsRetention: true }),
                     mkJob({ groupId: 'maintenance', jobId: 'perf-aggregation', title: 'Perf Aggregation', description: 'Per-org performance aggregation into hourly buckets. Prunes raw data >7d, aggregation retained 180d.', taskId: 'Perf Aggregation', supportsOrg: true, supportsRange: true }),
                     mkJob({ groupId: 'maintenance', jobId: 'cache-reset', title: 'Cache Reset', description: 'Purge daily cost cache, business metric blobs, and rebuild org cache entries.', taskId: 'Cache Reset' }),
@@ -298,7 +298,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 title: 'Custom',
                 description: 'Operator-only jobs reserved for migrations and specialized workflows.',
                 jobs: [
-                    mkJob({ groupId: 'custom', jobId: 'org-storage-migration', title: 'Org Storage Migration', description: 'Cross-account storage migration. Copies all per-org tables and blob snapshots between storage accounts with resumable checkpoints.', taskId: 'Org Storage Migration', supportsOrg: true })
+                    mkJob({ groupId: 'custom', jobId: 'org-storage-migration', title: 'Org Storage Migration', description: 'Cross-account storage migration. Copies all per-org tables and blob dossiers between storage accounts with resumable checkpoints.', taskId: 'Org Storage Migration', supportsOrg: true })
                 ]
             }
         ];
@@ -720,7 +720,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                             <div><strong>Last run:</strong> ${taskStatus.lastRunAt ? new Date(taskStatus.lastRunAt).toLocaleString() : 'Never recorded'}</div>
                             <div><strong>Next scheduled:</strong> ${taskStatus.nextScheduledRun ? new Date(taskStatus.nextScheduledRun).toLocaleString() : 'On-Demand / n/a'}</div>
                             <div><strong>Failed executions:</strong> ${taskStatus.failedExecutions || 0}</div>
-                        ` : html`<div>No status snapshot available for this job yet.</div>`}
+                        ` : html`<div>No status dossier available for this job yet.</div>`}
                         <div class="mt-3 cron-history-panel">
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <div class="fw-semibold text-body">Run Trend</div>

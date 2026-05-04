@@ -160,7 +160,7 @@ class ReportPreviewPage extends Component {
     renderReportTypeSelector() {
         const { reportType, orgData } = this.state;
         const types = [
-            { id: 'daily', label: 'Daily Report', description: 'Security snapshot sent every day' },
+            { id: 'daily', label: 'Daily Report', description: 'Security dossier sent every day' },
             { id: 'weekly', label: 'Weekly Brief', description: 'Business summary sent every Monday' }
         ];
 
@@ -193,7 +193,7 @@ class ReportPreviewPage extends Component {
         const { snapshot, reportType, rendered, previewTheme, previewViewport } = this.state;
 
         if (!snapshot) {
-            return html`<div className="email-preview-empty">No snapshot data available</div>`;
+            return html`<div className="email-preview-empty">No dossier data available</div>`;
         }
 
         if (!rendered) {

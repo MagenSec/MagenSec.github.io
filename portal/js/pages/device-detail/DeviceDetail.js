@@ -1074,7 +1074,7 @@ export class DeviceDetailPage extends window.Component {
                 timeline.push({
                     type: 'telemetry',
                     timestamp: new Date(snapshot.timestamp),
-                    title: 'Current Snapshot',
+                    title: 'Current Dossier',
                     description: `OS: ${snapshot.fields.OSEdition || ''} | CPU: ${snapshot.fields.CPUName || ''} | RAM: ${snapshot.fields.TotalRAMMB ? Math.round(snapshot.fields.TotalRAMMB / 1024) + ' GB' : ''}`,
                     severity: 'success',
                     snapshot
@@ -1728,7 +1728,7 @@ export class DeviceDetailPage extends window.Component {
     </tbody>
   </table>
 
-  <h2>Network & Telemetry Snapshot</h2>
+    <h2>Network & Telemetry Dossier</h2>
   <div class="card">
     <div class="grid">
       <div><strong>Last Telemetry</strong><div>${FormattingUtils.escapeHtml(model?.telemetry?.latestTimestamp || 'N/A')}</div></div>
@@ -1794,6 +1794,8 @@ export class DeviceDetailPage extends window.Component {
                 const sevTotal = Math.max(1, crit + high + med + low);
                 const pct = (n) => Math.round((Math.max(0, Number(n) || 0) / sevTotal) * 100);
 
+                const vendorBase = new URL('../vendor/', window.location.href).toString().replace(/\/$/, '');
+
                 return `<!doctype html>
 <html lang="en">
 <head>
@@ -1802,10 +1804,10 @@ export class DeviceDetailPage extends window.Component {
     <title>MagenSec Device Security Report - ${safeTitle}</title>
 
     <!-- Tabler CSS (same as portal) -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-GgnF119bh9fxkKuWHRQYSgEe1rSp5jB0EJ2W8eMf8mjowfwhZP2H1u8n8xJUW3FQ">
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-PwEnNZvp50/uDLtKrd1s2D4Xe/y+fCVtEigigjik/PgHlDXUF1uJ32m7guk/XWYV">
+    <link href="${vendorBase}/tabler/1.0.0-beta20/css/tabler.min.css" rel="stylesheet" integrity="sha384-GgnF119bh9fxkKuWHRQYSgEe1rSp5jB0EJ2W8eMf8mjowfwhZP2H1u8n8xJUW3FQ">
+    <link href="${vendorBase}/tabler-icons/2.47.0/tabler-icons.min.css" rel="stylesheet" integrity="sha384-PwEnNZvp50/uDLtKrd1s2D4Xe/y+fCVtEigigjik/PgHlDXUF1uJ32m7guk/XWYV">
 
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0" crossorigin="anonymous" integrity="sha384-AMGf6SjYWuydruLCEKIx7wNrplae/LWMqStBYe5zhISiQeyuogc8OLM2QzJIreuY"></script>
+    <script src="${vendorBase}/apexcharts/3.45.0/apexcharts.min.js" integrity="sha384-AMGf6SjYWuydruLCEKIx7wNrplae/LWMqStBYe5zhISiQeyuogc8OLM2QzJIreuY"></script>
 
     <style>
         @media print {
@@ -2851,7 +2853,7 @@ export class DeviceDetailPage extends window.Component {
                                                             </div>
                                                             <div class="d-flex align-items-center gap-2 flex-wrap">
                                                                 <span class="badge ${summarySignalBadgeClass}">
-                                                                    ${summarySignalSource === 'cached' ? 'Last verified snapshot' : summarySignalSource === 'fresh' ? 'Live summary' : 'Signal pending'}
+                                                                    ${summarySignalSource === 'cached' ? 'Last verified dossier' : summarySignalSource === 'fresh' ? 'Live summary' : 'Signal pending'}
                                                                 </span>
                                                                 ${summarySignalAt ? html`<span class="text-muted small">Updated ${DateUtils.formatDate(summarySignalAt)}</span>` : ''}
                                                             </div>

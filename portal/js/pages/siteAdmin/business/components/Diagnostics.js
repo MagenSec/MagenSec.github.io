@@ -621,7 +621,7 @@ export class DiagnosticsPage extends Component {
         }
 
         if (!snapshotDiagnostics) {
-            return html`<div class="text-muted">No snapshot diagnostics available</div>`;
+            return html`<div class="text-muted">No dossier diagnostics available</div>`;
         }
 
         const parts = snapshotDiagnostics.parts || [];

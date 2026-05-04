@@ -13,31 +13,9 @@ const { html, Component } = window;
  *
  * Intel freshness is surfaced so admins know whether the MSRC catalog is stale.
  *
- * Caching: stale-while-revalidate from localStorage (15min TTL). On mount,
- * paint the cached payload immediately, then fetch fresh data in the background
- * and silently swap. Eliminates the 1-2s blank screen on repeat visits.
+ * Cache policy: API-authoritative. Patch Status is a current security state and
+ * must not first-paint from persisted browser-local cache.
  */
-const CACHE_TTL_MS = 15 * 60 * 1000;
-const CACHE_KEY_PREFIX = 'magensec.patchPosture.v1';
-const cacheKey = (orgId) => `${CACHE_KEY_PREFIX}.${orgId}`;
-
-function readCache(orgId) {
-    try {
-        const raw = localStorage.getItem(cacheKey(orgId));
-        if (!raw) return null;
-        const obj = JSON.parse(raw);
-        if (!obj?.cachedAt || !obj?.data) return null;
-        if (Date.now() - obj.cachedAt > CACHE_TTL_MS) return null;
-        return obj;
-    } catch { return null; }
-}
-
-function writeCache(orgId, data) {
-    try {
-        localStorage.setItem(cacheKey(orgId), JSON.stringify({ cachedAt: Date.now(), data }));
-    } catch { /* quota or disabled — ignore */ }
-}
-
 export class PatchPosturePage extends Component {
     constructor(props) {
         super(props);
@@ -46,7 +24,6 @@ export class PatchPosturePage extends Component {
         this.state = {
             loading: true,
             refreshing: false,
-            fromCache: false,
             error: null,
             data: null,
             expanded: new Set(),
@@ -116,22 +93,14 @@ export class PatchPosturePage extends Component {
             return;
         }
 
-        // Stale-while-revalidate: paint cache immediately if fresh, then fetch.
-        const cached = readCache(org.orgId);
-        if (cached) {
-            this.setState({ loading: false, refreshing: true, fromCache: true, data: cached.data, error: null });
-        } else {
-            this.setState({ loading: this.state.data == null, refreshing: this.state.data != null, fromCache: false, error: null });
-        }
+        this.setState({ loading: this.state.data == null, refreshing: this.state.data != null, error: null });
 
         try {
-            const resp = await api.getPatchPosture(org.orgId);
+            const resp = await api.getPatchPosture(org.orgId, { skipCache: true });
             if (!resp?.success) throw new Error(resp?.message || 'Failed to load patch posture');
-            writeCache(org.orgId, resp.data);
-            this.setState({ loading: false, refreshing: false, fromCache: false, data: resp.data });
+            this.setState({ loading: false, refreshing: false, data: resp.data });
         } catch (err) {
             console.error('[PatchPosture] load failed', err);
-            // Keep stale cache visible if present; only clear if we had no data.
             this.setState({
                 loading: false,
                 refreshing: false,

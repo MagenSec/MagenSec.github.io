@@ -1053,70 +1053,6 @@ class DevicesPage extends window.Component {
         }
     }
 
-    tryGetCachedDevices(orgId) {
-        try {
-            const key = `devices_${orgId}`;
-            const cached = localStorage.getItem(key);
-            if (!cached) return null;
-
-            const { devices, timestamp } = JSON.parse(cached);
-            const ageMs = Date.now() - timestamp;
-            const TTL_MS = 5 * 60 * 1000; // 5 minutes
-            if (ageMs < TTL_MS) {
-                console.log(`[DevicesPage] 📦 Cache HIT: ${devices.length} devices from localStorage`);
-                return devices;
-            }
-            localStorage.removeItem(key);
-        } catch (err) {
-            console.warn('[DevicesPage] Cache read error:', err);
-        }
-        return null;
-    }
-
-    setCachedDevices(orgId, devices) {
-        try {
-            const key = `devices_${orgId}`;
-            localStorage.setItem(key, JSON.stringify({
-                devices,
-                timestamp: Date.now()
-            }));
-        } catch (err) {
-            console.warn('[DevicesPage] Cache write error:', err);
-        }
-    }
-
-    getCachedSummaries(orgId) {
-        try {
-            const key = `device_summaries_${orgId}`;
-            const cached = localStorage.getItem(key);
-            if (!cached) return null;
-
-            const { data, timestamp } = JSON.parse(cached);
-            const ageMs = Date.now() - timestamp;
-            const TTL_MS = 15 * 60 * 1000; // 15 minutes
-            if (ageMs < TTL_MS) {
-                console.log(`[DevicesPage] 📦 Summary cache HIT: ${Object.keys(data).length} summaries from localStorage`);
-                return data;
-            }
-            localStorage.removeItem(key);
-        } catch (err) {
-            console.warn('[DevicesPage] Summary cache read error:', err);
-        }
-        return null;
-    }
-
-    setCachedSummaries(orgId, summaries) {
-        try {
-            const key = `device_summaries_${orgId}`;
-            localStorage.setItem(key, JSON.stringify({
-                data: summaries,
-                timestamp: Date.now()
-            }));
-        } catch (err) {
-            console.warn('[DevicesPage] Summary cache write error:', err);
-        }
-    }
-
     async enrichDeviceScoresAsync(devices, summaries) {
         // Enrich risk scores in background
         try {
@@ -1151,27 +1087,14 @@ class DevicesPage extends window.Component {
                 return;
             }
 
-            // Try to load from cache immediately
-            if (!forceRefresh) {
-                const cached = this.tryGetCachedDevices(currentOrg.orgId);
-                const cachedSummaries = this.getCachedSummaries(currentOrg.orgId) || {};
-                if (cached) {
-                    console.log('[DevicesPage] ⚡ Loading from cache immediately...');
-                    this.setState({ devices: cached, loading: false, error: null, deviceSummaries: cachedSummaries, isRefreshingInBackground: false });
-                    // Continue to background refresh (don't return)
-                }
-            }
-
-            // Show loading state only if not using cache
             if (!this.state.devices || this.state.devices.length === 0) {
                 this.setState({ loading: true, error: null });
             } else {
-                // Already showing cached data; keep existing view stable while refreshing in the background
-                this.setState({ isRefreshingInBackground: false });
+                this.setState({ isRefreshingInBackground: true, error: null });
             }
 
             // Step 1: Fast load with cached-summary (< 12s instead of 35s)
-            const response = await api.getDevices(currentOrg.orgId, { include: 'cached-summary' }, { skipCache: forceRefresh });
+            const response = await api.getDevices(currentOrg.orgId, { include: 'cached-summary' }, { skipCache: true });
             if (!response.success) {
                 throw new Error(response.message || response.error || 'Failed to load devices');
             }
@@ -1208,10 +1131,17 @@ class DevicesPage extends window.Component {
                 const telemetryDecoded = telemetryHost ? PiiDecryption.decryptIfEncrypted(telemetryHost) : null;
                 const telemetryName = (telemetryDecoded && telemetryDecoded.trim()) || telemetryHost;
                 const deviceName = nameFromDevice || telemetryName || device.deviceId;
+                const health = device.health || device.Health || {};
                 const mapped = {
                     id: device.DeviceId || device.deviceId,
                     name: deviceName,
                     state: (device.state || device.State || 'Unknown'),
+                    status: device.status || device.Status || health.status || health.Status,
+                    visibilityState: device.visibilityState || device.VisibilityState || health.visibilityState || health.VisibilityState,
+                    telemetryState: device.telemetryState || device.TelemetryState || health.telemetryState || health.TelemetryState,
+                    connectivityState: device.connectivityState || device.ConnectivityState || health.connectivityState || health.ConnectivityState,
+                    licenseState: device.licenseState || device.LicenseState || health.licenseState || health.LicenseState,
+                    health,
                     lastHeartbeat: device.lastHeartbeat,
                     firstHeartbeat: device.firstHeartbeat || device.firstSeen || device.createdAt,
                     clientVersion: device.clientVersion,
@@ -1244,15 +1174,9 @@ class DevicesPage extends window.Component {
                 return mapped;
             });
 
-            this.setCachedDevices(currentOrg.orgId, devices);
-            
-            // Step 2: Try to enrich with cached summaries immediately
-            const cachedSummaries = this.getCachedSummaries(currentOrg.orgId) || {};
-            const hasCache = Object.keys(cachedSummaries).length > 0;
-            
             this.setState(prev => {
                 const updatedSelected = prev.selectedDevice ? devices.find(d => d.id === prev.selectedDevice.id) : null;
-                const mergedSummaries = { ...prev.deviceSummaries, ...cachedSummaries, ...summariesFromApi };
+                const mergedSummaries = { ...summariesFromApi };
                 return {
                     devices,
                     loading: false,
@@ -1268,8 +1192,7 @@ class DevicesPage extends window.Component {
             });
             
             // Step 3: Background fetch with summary (don't wait, enrich silently)
-            // Skip if forced refresh (already have fresh data) and no cache (nothing to update)
-            const shouldRefreshSummariesInBackground = !forceRefresh || hasCache;
+            const shouldRefreshSummariesInBackground = !forceRefresh;
             if (shouldRefreshSummariesInBackground) {
                 if (!forceRefresh) {
                     this.setState({ isRefreshingInBackground: true });
@@ -1281,7 +1204,7 @@ class DevicesPage extends window.Component {
             
             // Background: Load known exploits and enrich risk scores
             this.loadKnownExploitsAsync();
-            const allSummaries = { ...cachedSummaries, ...summariesFromApi };
+            const allSummaries = { ...summariesFromApi };
             if (Object.keys(allSummaries).length > 0) {
                 this.enrichDeviceScoresAsync(devices, allSummaries);
             }
@@ -1325,9 +1248,6 @@ class DevicesPage extends window.Component {
                 }
             });
 
-            // Step 4: Cache the fresh summaries
-            this.setCachedSummaries(orgId, freshSummaries);
-
             // Update UI with fresh data (silent update)
             this.setState(prev => ({
                 deviceSummaries: { ...prev.deviceSummaries, ...freshSummaries },
@@ -1341,7 +1261,7 @@ class DevicesPage extends window.Component {
                 this.enrichDeviceScoresAsync(devices, freshSummaries);
             });
 
-            console.log(`[DevicesPage] ✅ Background fetch complete: ${Object.keys(freshSummaries).length} summaries cached`);
+            console.log(`[DevicesPage] ✅ Background fetch complete: ${Object.keys(freshSummaries).length} summaries loaded`);
         } catch (err) {
             console.warn('[DevicesPage] Background summary fetch error:', err);
             this.setState({
@@ -1360,7 +1280,6 @@ class DevicesPage extends window.Component {
 
         this.setState(prev => {
             const updated = (prev.devices || []).map(d => (d.id === deviceId ? { ...d, state: newState } : d));
-            this.setCachedDevices(currentOrg.orgId, updated);
             return { devices: updated };
         });
     }
@@ -2508,7 +2427,7 @@ class DevicesPage extends window.Component {
         const filteredDevices = (this.state.filteredDevices && this.state.filteredDevices.length > 0) ? this.state.filteredDevices : DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
         const stats = DeviceStatsService.computeDeviceStats(filteredDevices);
         const allStats = DeviceStatsService.computeDeviceStats(devices || []);
-        const securityStats = DeviceStatsService.computeSecurityStats(filteredDevices, this.state.enrichedScores, this.state.deviceSummaries);
+        const securityStats = DeviceStatsService.computeSecurityStats(devices || [], this.state.enrichedScores, this.state.deviceSummaries);
 
         return html`
             ${manifestError ? html`<div class="alert alert-warning mt-2">${manifestError}</div>` : null}

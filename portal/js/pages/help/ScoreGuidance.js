@@ -6,7 +6,7 @@
  * to avoid misinterpretation and guide remediation priorities.
  */
 
-import { html } from 'https://cdn.jsdelivr.net/npm/lit-html@3/+esm';
+const { html } = window;
 
 class ScoreGuidancePage {
     constructor() {
@@ -33,23 +33,23 @@ class ScoreGuidancePage {
                             <div class="card-body">
                                 <div class="nav nav-tabs nav-fill" data-bs-toggle="tabs" role="tablist">
                                     <button class="nav-link ${this.currentTab === 'overview' ? 'active' : ''}" 
-                                            @click=${() => this.setTab('overview')} role="tab">
+                                            onclick=${() => this.setTab('overview')} role="tab">
                                         Overview
                                     </button>
                                     <button class="nav-link ${this.currentTab === 'security' ? 'active' : ''}" 
-                                            @click=${() => this.setTab('security')} role="tab">
+                                            onclick=${() => this.setTab('security')} role="tab">
                                         Security Score
                                     </button>
                                     <button class="nav-link ${this.currentTab === 'risk' ? 'active' : ''}" 
-                                            @click=${() => this.setTab('risk')} role="tab">
+                                            onclick=${() => this.setTab('risk')} role="tab">
                                         Risk Score
                                     </button>
                                     <button class="nav-link ${this.currentTab === 'compliance' ? 'active' : ''}" 
-                                            @click=${() => this.setTab('compliance')} role="tab">
+                                            onclick=${() => this.setTab('compliance')} role="tab">
                                         Compliance Score
                                     </button>
                                     <button class="nav-link ${this.currentTab === 'interpretation' ? 'active' : ''}" 
-                                            @click=${() => this.setTab('interpretation')} role="tab">
+                                            onclick=${() => this.setTab('interpretation')} role="tab">
                                         Interpretation Guide
                                     </button>
                                 </div>
@@ -654,7 +654,7 @@ For each subcategory gap:
         // Re-render the component
         const container = document.getElementById('app');
         if (container) {
-            const { render } = window.lit;
+            const { render } = window;
             render(this.render(), container);
         }
     }

@@ -14,6 +14,8 @@ import { api } from '@api';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { getAlertRemediationTemplate } from '../../data/compliance-remediation-cache.js';
+import { metricPhrase, metricTitle } from '../../utils/metricUnits.js';
+import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
 import { SegmentedControl, CollapsibleSectionCard, resolveDeviceLabel } from '../../components/shared/CommonComponents.js';
 
 const { html, Component } = window;
@@ -641,6 +643,12 @@ export class AlertsPage extends Component {
         return Object.values(groups)
             .map(section => {
                 const deviceIds = new Set(section.alerts.map(a => a.deviceId).filter(Boolean));
+                const primaryAlert = section.alerts
+                    .slice()
+                    .sort((a, b) => Number(b.severity || 0) - Number(a.severity || 0))[0] || null;
+                const primaryDeviceName = primaryAlert?.deviceId
+                    ? resolveDeviceLabel(primaryAlert.deviceId, deviceMap, primaryAlert.deviceId)
+                    : null;
                 const worstSeverity = section.alerts.reduce((max, a) => Math.max(max, Number(a.severity || 0)), 0);
                 const newest = section.alerts
                     .map(a => new Date(a.openedAt || 0).getTime())
@@ -649,6 +657,7 @@ export class AlertsPage extends Component {
                     ...section,
                     alertCount: section.alerts.length,
                     deviceCount: deviceIds.size || (groupBy === 'device' ? 1 : 0),
+                    primaryDeviceName,
                     worstSeverity,
                     newest,
                     openCount: section.alerts.filter(a => (a.state || '').toUpperCase() === 'OPEN').length,
@@ -733,9 +742,9 @@ export class AlertsPage extends Component {
         // Each distinct issue is one ControlId (e.g. "Chrome critical CVE") even if it
         // reaches many devices. Operators have ~controlCount things to fix, not totalOpen.
         const headlineValue = distinctIssues != null && distinctIssues > 0 ? distinctIssues : open;
-        const headlineLabel = distinctIssues != null ? 'Distinct Issues' : 'Open Queue';
+        const headlineLabel = distinctIssues != null ? metricTitle('distinctIssues') : metricTitle('openAlertInstances');
         const headlineSub = distinctIssues != null
-            ? `${open.toLocaleString()} instance${open === 1 ? '' : 's'}${affectedDevices != null ? ` · ${affectedDevices} device${affectedDevices === 1 ? '' : 's'}` : ''}`
+            ? `${metricPhrase('openAlertInstances', open)}${affectedDevices != null ? ` · ${metricPhrase('affectedDevices', affectedDevices)}` : ''}`
             : `${suppressed} suppressed`;
 
         const cards = [
@@ -772,9 +781,9 @@ export class AlertsPage extends Component {
                     </div>
                     <div class="text-muted small">
                         ${isHistoricalSummary && isCappedSummary
-                            ? `Historical snapshot captured ${capturedOpen.toLocaleString()} row-level sample${capturedOpen === 1 ? '' : 's'} of ${open.toLocaleString()} open instances; the remaining count is aggregate-only.`
+                            ? `Historical dossier captured ${metricPhrase('openAlertInstances', capturedOpen)} as row-level samples of ${metricPhrase('openAlertInstances', open)}; the remaining count is aggregate-only.`
                             : stateFilter === 'OPEN' && open > alerts.length
-                            ? `Showing newest ${alerts.length} of ${open} open instances · grouped into ${distinctIssues ?? '—'} distinct issues for triage.`
+                            ? `Showing newest ${alerts.length} of ${metricPhrase('openAlertInstances', open)} · grouped into ${distinctIssues ?? '—'} ${metricTitle('distinctIssues').toLowerCase()} for triage.`
                             : `Showing ${alerts.length} ${stateFilter === 'ALL' ? 'loaded' : stateFilter.toLowerCase()} action item${alerts.length === 1 ? '' : 's'}.`}
                     </div>
                 </div>
@@ -786,13 +795,44 @@ export class AlertsPage extends Component {
                         <div class="d-flex flex-wrap gap-2">
                             ${topControls.map(tc => html`
                                 <span class="badge bg-secondary-lt text-secondary" title="${tc.controlId}">
-                                    ${tc.controlId}: ${tc.affectedDevices} device${tc.affectedDevices === 1 ? '' : 's'} · ${tc.open} instance${tc.open === 1 ? '' : 's'}
+                                    ${tc.controlId}: ${metricPhrase('affectedDevices', tc.affectedDevices)} · ${metricPhrase('openAlertInstances', tc.open)}
                                 </span>
                             `)}
                         </div>
                     </div>
                 </div>
             ` : ''}
+        `;
+    }
+
+    renderMagiGuide(filtered) {
+        const summary = this.state.summary || {};
+        const open = Number(summary.totalOpen ?? filtered.filter(a => (a.state || '').toUpperCase() === 'OPEN').length) || 0;
+        const distinct = Number(summary.distinctControls ?? 0) || 0;
+        const affected = Number(summary.affectedDevices ?? 0) || 0;
+        const topSection = this.buildGroupedAlerts(filtered)[0] || null;
+        const summaryText = distinct > 0
+            ? `MAGI is reducing ${metricPhrase('openAlertInstances', open)} into ${metricPhrase('distinctIssues', distinct)} across ${metricPhrase('affectedDevices', affected)}.`
+            : `MAGI is reviewing ${metricPhrase('openAlertInstances', open)} by severity, device reach, and due date.`;
+        const fallbackAlertWithDevice = filtered.find(alert => alert.deviceId);
+        const fallbackDeviceName = fallbackAlertWithDevice?.deviceId
+            ? resolveDeviceLabel(fallbackAlertWithDevice.deviceId, this.state.deviceMap, fallbackAlertWithDevice.deviceId)
+            : null;
+        const actionDeviceName = topSection?.primaryDeviceName || fallbackDeviceName;
+        const nextAction = topSection
+            ? `Start with ${topSection.title}${actionDeviceName ? ` on ${actionDeviceName}` : ''}; it has ${metricPhrase('openAlertInstances', topSection.openCount || topSection.alertCount)} and the highest reach or severity in this evidence set.`
+            : 'No open action cluster needs attention in the current filter.';
+
+        return html`
+            <${MagiGuideCard}
+                title="MAGI triage guide"
+                verified=${rewindContext.isActive() ? 'Historical alert evidence' : 'Live alert evidence'}
+                summary=${summaryText}
+                nextAction=${nextAction}
+                provenance=${['alert-summary', 'alerts', 'sla-rules']}
+                confidence="Deterministic"
+                ctaHref="#!/analyst?ctx=alert%20triage%20and%20remediation"
+            />
         `;
     }
 
@@ -930,7 +970,7 @@ export class AlertsPage extends Component {
                         </div>
                         <p class="empty-title">Historical alert samples are incomplete</p>
                         <p class="empty-subtitle text-muted">
-                            The snapshot reports ${historicalOpen.toLocaleString()} open alert instance${historicalOpen === 1 ? '' : 's'} as of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'the selected date'}, but ${historicalCaptured.toLocaleString()} row-level sample${historicalCaptured === 1 ? '' : 's'} are available for this view.
+                            The dossier reports ${historicalOpen.toLocaleString()} open alert instance${historicalOpen === 1 ? '' : 's'} as of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'the selected date'}, but ${historicalCaptured.toLocaleString()} row-level sample${historicalCaptured === 1 ? '' : 's'} are available for this view.
                         </p>
                     </div>
                 `;
@@ -1253,6 +1293,7 @@ export class AlertsPage extends Component {
             <div class="page-body">
                 <div class="container-xl">
                     ${this.renderSummaryBar()}
+                    ${this.renderMagiGuide(filtered)}
                     ${this.renderFilters()}
                     <div class="text-muted small mb-2">${filtered.length} item${filtered.length !== 1 ? 's' : ''} shown</div>
                     ${this.renderGroupedSections(filtered)}

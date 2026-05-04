@@ -27,7 +27,7 @@ function renderHygieneCoach(data) {
                         ` : null}
                     </div>
                     <div class="card-body">
-                        <p class="text-muted mb-2">${data.coachMessage || 'Your AI coach will post fresh weekly homework after the next snapshot run.'}</p>
+                        <p class="text-muted mb-2">${data.coachMessage || 'Your AI coach will post fresh weekly homework after the next dossier run.'}</p>
                         <div class="text-muted small">Trend: <span class="fw-medium text-body">${data.hygieneScoreTrend || 'Stable'}</span></div>
                     </div>
                 </div>

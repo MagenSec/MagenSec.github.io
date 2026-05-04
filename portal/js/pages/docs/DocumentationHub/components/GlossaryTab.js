@@ -16,7 +16,7 @@ export function GlossaryTab(html) {
         { term: 'MFA', definition: 'Multi-Factor Authentication \u2014 a login method requiring two or more forms of verification (e.g., password + authenticator app). Blocks the vast majority of credential-based attacks.' },
         { term: 'Heartbeat', definition: 'A regular check-in from the MagenSec client on your device to the portal. Used to determine device status: Online (recent heartbeat), Degraded (30 min \u2013 24 hrs), or Offline (over 24 hrs).' },
         { term: 'Telemetry', definition: 'Data collected from your devices about their configuration, installed software, and security status. Used to calculate scores and generate findings. Does not include personal files or browsing data.' },
-        { term: 'Probe', definition: 'A Response action that collects a comprehensive security posture snapshot from a device on demand. Available on Business plans via the Response page.' },
+        { term: 'Probe', definition: 'A Response action that collects a comprehensive security posture dossier from a device on demand. Available on Business plans via the Response page.' },
         { term: 'MAGICode', definition: 'A coupon code that can be entered during Personal plan setup to extend the free trial beyond the standard 7 days.' },
         { term: 'Protect', definition: 'The baseline MagenSec workflow covering antivirus management, vulnerability scanning, and software inventory. Included in all plans (Personal, Education, Business).' },
         { term: 'Prove', definition: 'The compliance evidence workflow available on Business plans. Adds compliance monitoring, audit capabilities, and framework alignment (CIS/NIST).' },

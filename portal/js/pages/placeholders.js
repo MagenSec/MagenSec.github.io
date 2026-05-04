@@ -519,7 +519,7 @@ export class ReviewPage extends Component {
     const isBusinessOnlyRoute = (route) => route === '#!/analyst' || route === '#!/mission-brief' || route === '#!/posture-ai';
     const parkedPages = [
       { name: 'AI Analyst', route: '#!/analyst', description: 'Interactive AI security chat' },
-      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine snapshot view' },
+      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine dossier view' },
       { name: 'Mission Briefing', route: '#!/mission-brief', description: 'Generate and review security/compliance/inventory reports' },
       { name: 'Vulnerabilities', route: '#!/vulnerabilities', description: 'CVE and vulnerability list view' }
     ];

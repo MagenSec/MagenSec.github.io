@@ -84,24 +84,27 @@ export class AnalystPage extends Component {
         // Load ApexCharts with error handling
         if (!window.ApexCharts && !document.querySelector('script[src*="apexcharts"]')) {
             const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/apexcharts@3.45.0/dist/apexcharts.min.js';
-            script.onerror = () => console.warn('[CDN] ApexCharts failed to load');
+            script.src = '../vendor/apexcharts/3.45.0/apexcharts.min.js';
+            script.integrity = 'sha384-AMGf6SjYWuydruLCEKIx7wNrplae/LWMqStBYe5zhISiQeyuogc8OLM2QzJIreuY';
+            script.onerror = () => console.warn('[Vendor] ApexCharts failed to load');
             document.head.appendChild(script);
         }
 
         // Load marked.js (stable build) with error handling
         if (!window.marked && !document.querySelector('script[src*="marked"]')) {
             const markedScript = document.createElement('script');
-            markedScript.src = 'https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js';
-            markedScript.onerror = () => console.warn('[CDN] marked.js failed, using regex fallback');
+            markedScript.src = '../vendor/marked/9.1.6/marked.min.js';
+            markedScript.integrity = 'sha384-odPBjvtXVM/5hOYIr3A1dB+flh0c3wAT3bSesIOqEGmyUA4JoKf/YTWy0XKOYAY7';
+            markedScript.onerror = () => console.warn('[Vendor] marked.js failed, using regex fallback');
             document.head.appendChild(markedScript);
         }
 
         // Load DOMPurify with error handling
         if (!window.DOMPurify && !document.querySelector('script[src*="purify"]')) {
             const purifyScript = document.createElement('script');
-            purifyScript.src = 'https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js';
-            purifyScript.onerror = () => console.warn('[CDN] DOMPurify failed, using regex fallback');
+            purifyScript.src = '../vendor/dompurify/3.0.8/purify.min.js';
+            purifyScript.integrity = 'sha384-vdScihEZCfbPnBQf+lc7LgXUdJVYyhC3yWHUW5C5P5GpHRqVnaM6HJELJxT6IqwM';
+            purifyScript.onerror = () => console.warn('[Vendor] DOMPurify failed, using regex fallback');
             document.head.appendChild(purifyScript);
         }
     }

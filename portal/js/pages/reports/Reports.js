@@ -80,6 +80,8 @@ export class ReportsPage extends Component {
   render() {
     const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
     const liveCount = REPORTS.filter(r => r.href).length;
+    const isHistorical = window.rewindContext?.isActive?.() === true;
+    const dateLabel = isHistorical ? (window.rewindContext?.getDateLabel?.() || window.rewindContext?.getDate?.()) : null;
 
     return html`
       <div class="page-header d-print-none">
@@ -93,6 +95,7 @@ export class ReportsPage extends Component {
               <div class="page-subtitle text-muted">
                 Security, compliance, and operational reports
                 <span class="badge bg-success-lt text-success ms-2">${liveCount} available</span>
+                ${isHistorical ? html`<span class="badge bg-blue-lt text-blue ms-2">As of ${dateLabel}</span>` : null}
               </div>
             </div>
           </div>
@@ -101,6 +104,15 @@ export class ReportsPage extends Component {
 
       <div class="page-body">
         <div class="container-xl">
+          ${isHistorical ? html`
+            <div class="alert alert-info-lt d-flex align-items-start gap-2 mb-3" role="status">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon mt-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>
+              <div>
+                <div class="fw-semibold">Historical report context</div>
+                <div>Report views open against the selected evidence date, ${dateLabel}. Dated proof downloads keep the selected date in the export identity.</div>
+              </div>
+            </div>
+          ` : null}
           <div class="row row-cols-1 row-cols-md-2 g-4">
             ${REPORTS.map(r => html`
               <div class="col">

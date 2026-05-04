@@ -1,7 +1,7 @@
 /**
  * Attack Chain Page
  *
- * Displays AI-generated attack chain graphs via D3 force-directed layout.
+ * Displays MAGI attack-chain graphs via D3 force-directed layout.
  * Data is sourced from the OrgSnapshot's AttackChain property.
  * Manual refresh calls POST /api/v1/orgs/{orgId}/ai/attack-chain/refresh.
  */
@@ -13,6 +13,8 @@ import { AttackChainGraph } from '../../components/AttackChainGraph.js';
 import { CveDetailsModal } from '../../components/CveDetailsModal.js';
 import { DeviceQuickViewModal } from '../../components/DeviceQuickViewModal.js';
 import { AppDevicesModal } from '../../components/AppDevicesModal.js';
+import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
 import { TACTICS, lookupTechnique } from '../../data/mitre-ttp-catalog.js';
 
 const { html, Component } = window;
@@ -415,9 +417,9 @@ export class AttackChainPage extends Component {
                 note: `${cveCount} CVEs • ${deviceCount} endpoints • ${appCount} applications`
             },
             {
-                label: 'Intelligence model',
-                value: generationSource === 'heuristic' ? 'Signal-driven' : 'AI-assisted',
-                note: generationSource === 'heuristic' ? 'refreshed when the underlying participants materially change' : 'narrative refined from live signal intelligence'
+                label: 'Assessment basis',
+                value: generationSource === 'heuristic' ? 'Signal-driven' : 'Guided graph',
+                note: generationSource === 'heuristic' ? 'refreshed when the underlying participants materially change' : 'narrative refined from signal intelligence'
             },
             {
                 label: 'Assessment confidence',
@@ -513,13 +515,27 @@ export class AttackChainPage extends Component {
     }
 
     render() {
-        const { loading, refreshing, error, dataHint, attackChain, selectedGraph, showNarrative, modalCveId, modalDeviceId, modalDeviceLabel, modalAppName, modalGraphContext } = this.state;
+        const { loading, refreshing, error, dataHint, evidence, attackChain, selectedGraph, showNarrative, modalCveId, modalDeviceId, modalDeviceLabel, modalAppName, modalGraphContext } = this.state;
         const graphs = attackChain?.graphs || [];
         const generatedAt = attackChain?.generatedAt;
         const generationSource = (attackChain?.source || attackChain?.Source || '').toLowerCase();
         const note = attackChain?.note || attackChain?.Note || dataHint;
         const isRewind = rewindContext.isActive();
         const rewindLabel = rewindContext.getDateLabel?.() || api.getEffectiveDate?.();
+        const evidenceStatus = String(evidence?.status || evidence?.Status || '').toLowerCase();
+        const guideVerified = evidenceStatus === 'blocked'
+            ? 'Evidence blocked'
+            : evidenceStatus === 'partial'
+                ? 'Partial evidence'
+                : isRewind
+                    ? 'Historical evidence'
+                    : 'Live evidence';
+        const guideSummary = graphs.length > 0
+            ? `MAGI found ${graphs.length} credible attack path${graphs.length === 1 ? '' : 's'} from correlated vulnerabilities, affected endpoints, and control context.`
+            : (note || 'MAGI has not identified a credible attack path in this evidence set.');
+        const guideNextAction = graphs.length > 0
+            ? 'Review the selected path, confirm exposed devices and apps, then remediate the earliest vulnerable application in the chain.'
+            : (isRewind ? 'Use another historical date or return to live mode to inspect current attack-chain evidence.' : 'Generate a fresh graph after new vulnerabilities or device changes arrive.');
 
         if (loading) {
             return html`
@@ -547,7 +563,7 @@ export class AttackChainPage extends Component {
                             <div class="page-pretitle">Officer MAGI assessment</div>
                             <h2 class="page-title">Attack Chain</h2>
                             <p class="page-subtitle mt-1 mb-0">
-                                MAGI correlates current vulnerabilities, exposed applications, affected endpoints, and control gaps to surface the most credible attack paths
+                                ${isRewind ? 'MAGI correlates selected-date vulnerabilities, exposed applications, affected endpoints, and control gaps to surface the most credible historical attack paths' : 'MAGI correlates current vulnerabilities, exposed applications, affected endpoints, and control gaps to surface the most credible attack paths'}
                                 ${isRewind ? html`
                                     <span class="badge bg-azure-lt text-azure ms-2">As of ${rewindLabel}</span>
                                 ` : ''}
@@ -558,7 +574,7 @@ export class AttackChainPage extends Component {
                                 ` : ''}
                                 ${generationSource ? html`
                                     <span class="badge ${generationSource === 'heuristic' ? 'bg-azure-lt text-azure' : 'bg-success-lt text-success'} ms-2">
-                                        ${generationSource === 'heuristic' ? 'MAGI signal graph' : 'AI-assisted MAGI graph'}
+                                        ${generationSource === 'heuristic' ? 'MAGI signal graph' : 'MAGI guided graph'}
                                     </span>
                                 ` : ''}
                             </p>
@@ -582,6 +598,17 @@ export class AttackChainPage extends Component {
                         </div>
                     </div>
                 </div>
+
+                <${EvidenceBanner} evidence=${evidence} pageName="attack-chain" />
+                <${MagiGuideCard}
+                    title="MAGI attack-path guide"
+                    verified=${guideVerified}
+                    summary=${guideSummary}
+                    nextAction=${guideNextAction}
+                    provenance=${['attack-chain-graph', 'security-snapshot', 'cve-device-facts']}
+                    confidence="Deterministic"
+                    ctaHref="#!/analyst?ctx=attack%20chain%20evidence%20and%20remediation"
+                />
 
                 ${error ? html`
                     <div class="alert alert-danger">${error}</div>

@@ -357,7 +357,7 @@ export class CommandMonitor extends Component {
                 <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Probe Snapshot · ${this.state.selectedProbeDeviceName || 'Device'}</h5>
+                            <h5 class="modal-title">Probe Dossier · ${this.state.selectedProbeDeviceName || 'Device'}</h5>
                             <button type="button" class="btn-close"
                                 onClick=${() => this.setState({ showProbeDataModal: false, selectedProbeDeviceName: null, selectedProbePayload: null })}>
                             </button>
