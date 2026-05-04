@@ -104,12 +104,12 @@ export function GettingStartedTab(html) {
 
                 <!-- What MagenSec Does -->
                 <h4 style="margin-top:32px;">What MagenSec Does</h4>
-                <p>MagenSec is a complete security posture platform powered by MAGI \u2014 your AI Security Officer. Here's what each capability does for you:</p>
+                <p>MagenSec is a complete security posture platform powered by MAGI intelligence and deterministic evidence. Here's what each capability does for you:</p>
 
                 <div class="card mb-3">
                     <div class="card-body" style="padding:14px 18px;">
                         <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83d\udd0d</span> <strong>Vulnerability Detection</strong></h5>
-                        <p class="mb-0 text-muted" style="font-size:13px;">Continuously scans every device for known vulnerabilities (CVEs) by matching installed software against the National Vulnerability Database. Findings are ranked by MAGI\u2019s AI engine based on severity, exploit activity, and real-world risk.</p>
+                        <p class="mb-0 text-muted" style="font-size:13px;">Continuously scans every device for known vulnerabilities (CVEs) by matching installed software against the National Vulnerability Database. Findings are ranked by severity, exploit activity, exposure, and real-world risk.</p>
                     </div>
                 </div>
                 <div class="card mb-3">
@@ -126,8 +126,8 @@ export function GettingStartedTab(html) {
                 </div>
                 <div class="card mb-3">
                     <div class="card-body" style="padding:14px 18px;">
-                        <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83e\udd16</span> <strong>AI Security Scoring</strong></h5>
-                        <p class="mb-0 text-muted" style="font-size:13px;">MAGI generates multi-dimensional security scores for your entire organization and individual devices. Scores adapt over time as MAGI learns your risk profile, giving you a clear picture of your posture and insurance readiness. See the <strong>Understanding Scores</strong> tab for details.</p>
+                        <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83e\udd16</span> <strong>Evidence-Based Security Scoring</strong></h5>
+                        <p class="mb-0 text-muted" style="font-size:13px;">MAGI generates multi-dimensional security scores for your entire organization and individual devices. Scores adapt as your risk evidence changes, giving you a clear picture of your posture and insurance readiness. See the <strong>Understanding Scores</strong> tab for details.</p>
                     </div>
                 </div>
                 <div class="card mb-3">
@@ -138,13 +138,13 @@ export function GettingStartedTab(html) {
                 </div>
                 <div class="card mb-3">
                     <div class="card-body" style="padding:14px 18px;">
-                        <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83e\udd16</span> <strong>Officer MAGI \u2014 AI Security Analyst</strong> <span class="badge bg-blue-lt text-blue" style="font-size:10px;">Business</span></h5>
+                        <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83e\udd16</span> <strong>Officer MAGI \u2014 Security Analyst</strong> <span class="badge bg-blue-lt text-blue" style="font-size:10px;">Business</span></h5>
                         <p class="mb-0 text-muted" style="font-size:13px;">Ask questions about your security posture in plain language \u2014 \u201cWhat are my most critical vulnerabilities?\u201d or \u201cWhich devices need attention?\u201d \u2014 and get answers backed by your real data. Reachable through the portal and WhatsApp.</p>
                     </div>
                 </div>
                 <div class="card mb-3">
                     <div class="card-body" style="padding:14px 18px;">
-                        <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83d\udcca</span> <strong>Mission Brief \u2014 AI Reports</strong> <span class="badge bg-blue-lt text-blue" style="font-size:10px;">Business</span></h5>
+                        <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83d\udcca</span> <strong>Mission Brief \u2014 Evidence Reports</strong> <span class="badge bg-blue-lt text-blue" style="font-size:10px;">Business</span></h5>
                         <p class="mb-0 text-muted" style="font-size:13px;">Generate detailed security posture, compliance, or inventory reports on demand. Reports can be emailed as PDFs and used for audit preparation, board presentations, or stakeholder updates.</p>
                     </div>
                 </div>
@@ -163,7 +163,7 @@ export function GettingStartedTab(html) {
                 <div class="card mb-3">
                     <div class="card-body" style="padding:14px 18px;">
                         <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83d\udd0e</span> <strong>Auditor Dashboard & Evidence</strong> <span class="badge bg-blue-lt text-blue" style="font-size:10px;">Business</span></h5>
-                        <p class="mb-0 text-muted" style="font-size:13px;">Purpose-built for compliance audits. Includes readiness checklists, fleet evidence summaries, delta comparisons to show improvement over time, and AI-generated report library.</p>
+                        <p class="mb-0 text-muted" style="font-size:13px;">Purpose-built for compliance audits. Includes readiness checklists, fleet evidence summaries, delta comparisons to show improvement over time, and a report library.</p>
                     </div>
                 </div>
                 <div class="card mb-3">

@@ -16,7 +16,9 @@ const { html, Component } = window;
 const SESSION_DASH_KEY = (orgId) => rewindContext.isActive()
   ? `dashboard_data_${orgId}_${rewindContext.getDate()}`
   : `dashboard_data_${orgId}`;
-const LS_AUDITOR_KEY = (orgId) => `auditor_${orgId}`;
+const LS_AUDITOR_KEY = (orgId) => rewindContext.isActive()
+  ? `auditor_${orgId}_${rewindContext.getDate()}`
+  : `auditor_${orgId}`;
 const LS_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 // Date helpers for delta tab (API uses yyyyMMdd, inputs use yyyy-MM-dd)
@@ -334,9 +336,17 @@ export class AuditorPage extends Component {
     `;
   }
 
+  getReferenceDate() {
+    return rewindContext.getReferenceDate?.() || new Date();
+  }
+
+  getReferenceTime() {
+    return this.getReferenceDate().getTime();
+  }
+
   getStatusDot(lastHeartbeat) {
     if (!lastHeartbeat) return 'bg-secondary';
-    const mins = (Date.now() - new Date(lastHeartbeat)) / 60000;
+    const mins = (this.getReferenceTime() - new Date(lastHeartbeat)) / 60000;
     if (mins < 60) return 'bg-success';       // Online
     if (mins < 1440) return 'bg-info';        // Offline (recent)
     if (mins < 4320) return 'bg-warning';     // Stale (1-3d)
@@ -347,7 +357,7 @@ export class AuditorPage extends Component {
   getStatusLabel(device) {
     if (device.status && device.status !== 'Active') return device.status;
     if (!device.lastHeartbeat) return 'Never seen';
-    const mins = (Date.now() - new Date(device.lastHeartbeat)) / 60000;
+    const mins = (this.getReferenceTime() - new Date(device.lastHeartbeat)) / 60000;
     if (mins < 60) return 'Online';
     if (mins < 1440) return 'Offline';
     if (mins < 4320) return 'Stale';
@@ -358,7 +368,8 @@ export class AuditorPage extends Component {
   formatLastSeen(ts) {
     if (!ts) return '—';
     const d = new Date(ts);
-    const hours = (Date.now() - d.getTime()) / 3600000;
+    const hours = (this.getReferenceTime() - d.getTime()) / 3600000;
+    if (hours < 0) return 'after selected date';
     if (hours < 1) return `${Math.floor(hours * 60)}m ago`;
     if (hours < 24) return `${Math.floor(hours)}h ago`;
     return `${Math.floor(hours / 24)}d ago`;
@@ -455,6 +466,9 @@ export class AuditorPage extends Component {
   }
 
   formatCachedAt(ts) {
+    if (rewindContext.isActive()) {
+      return rewindContext.getDateLabel?.() || toIsoDate(rewindContext.getDate());
+    }
     if (!ts) return null;
     const diffMs = Date.now() - ts;
     const mins = Math.floor(diffMs / 60000);
@@ -466,7 +480,8 @@ export class AuditorPage extends Component {
   formatTimestamp(ts) {
     if (!ts) return '—';
     const d = new Date(ts);
-    const ageMs = Date.now() - d.getTime();
+    const ageMs = this.getReferenceTime() - d.getTime();
+    if (ageMs < 0) return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     const mins = Math.floor(ageMs / 60000);
     const hours = Math.floor(ageMs / 3600000);
     const days = Math.floor(ageMs / 86400000);
@@ -489,6 +504,7 @@ export class AuditorPage extends Component {
     const urgent = score?.urgentActionCount || 0;
     const readiness = this.getReadinessTone(compliance?.percent || 0);
     const asOf = this.formatCachedAt(cachedAt);
+    const asOfLabel = rewindContext.isActive() ? 'Evidence date' : 'Last refresh';
 
     return html`
       <div class="container-xl mb-3">
@@ -504,7 +520,7 @@ export class AuditorPage extends Component {
                 </div>
                 <div class="text-muted small">
                   Executive Snapshot: Compliance ${compliance?.percent || 0}% with ${urgent} priority item(s) pending.
-                  ${asOf ? `Last refresh ${asOf}.` : ''}
+                  ${asOf ? `${asOfLabel} ${asOf}.` : ''}
                 </div>
               </div>
               <div class="col-lg-auto d-flex gap-2">
@@ -771,6 +787,7 @@ export class AuditorPage extends Component {
       ? (score.grade.startsWith('A') ? 'success' : score.grade.startsWith('B') ? 'info' : score.grade.startsWith('C') ? 'warning' : 'danger')
       : 'secondary';
     const asOf = this.formatCachedAt(cachedAt);
+    const asOfTitle = rewindContext.isActive() ? 'Evidence date' : 'Data last refreshed';
 
     return html`
       <div class="container-xl mb-4">
@@ -778,7 +795,7 @@ export class AuditorPage extends Component {
           <div class="card-header">
             <h3 class="card-title">Audit Readiness</h3>
             <div class="card-options d-flex align-items-center gap-2">
-              ${asOf ? html`<span class="badge bg-secondary-lt text-muted fw-normal" title="Data last refreshed">as of ${asOf}</span>` : ''}
+              ${asOf ? html`<span class="badge bg-secondary-lt text-muted fw-normal" title=${asOfTitle}>as of ${asOf}</span>` : ''}
               <a href="#!/auditor" class="btn btn-sm btn-outline-secondary" onClick=${(e) => { e.preventDefault(); this.loadAll(); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                 Refresh
@@ -1004,7 +1021,7 @@ export class AuditorPage extends Component {
     const total = this.state.fleetDevices?.length || 0;
     const online = (this.state.fleetDevices || []).filter(d => {
       if (!d.lastHeartbeat) return false;
-      return (Date.now() - new Date(d.lastHeartbeat)) / 60000 < 60;
+      return (this.getReferenceTime() - new Date(d.lastHeartbeat)) / 60000 < 60;
     }).length;
     const asOf = rewindContext.isActive()
       ? html`<span class="badge bg-amber-lt text-amber ms-2">⏪ As of ${toIsoDate(rewindContext.getDate())}</span>`

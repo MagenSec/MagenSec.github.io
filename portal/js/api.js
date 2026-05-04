@@ -121,6 +121,33 @@ export class ApiClient {
             && (typeof freshness.strategy !== 'string' || freshness.strategy.includes('snapshot'));
     }
 
+    warnOnBundleEvidence(payload, orgId, pageName, date) {
+        const data = payload?.data || payload?.Data || payload;
+        const evidence = data?.evidence || data?.Evidence;
+        if (!date || !evidence || evidence.isComplete === true || evidence.IsComplete === true) {
+            return;
+        }
+
+        const missing = evidence.missingRequiredAtoms || evidence.MissingRequiredAtoms || [];
+        const status = evidence.status || evidence.Status || 'partial';
+        const key = `evidence-warning:${orgId}:${pageName}:${date}:${status}:${missing.join('|')}`;
+        if (sessionStorage.getItem(key)) {
+            return;
+        }
+        sessionStorage.setItem(key, '1');
+
+        const atomText = missing.length ? ` Missing: ${missing.join(', ')}.` : '';
+        const message = status === 'blocked'
+            ? `Historical evidence is incomplete for ${date}.${atomText}`
+            : `Historical data is partial for ${date}.${atomText}`;
+        const level = status === 'blocked' ? 'error' : 'warning';
+        if (window.toast?.show) {
+            window.toast.show(message, level, 6000);
+        } else {
+            toast.warning?.(message);
+        }
+    }
+
     scheduleDegradedRecovery(cacheKey, requestUrl) {
         if (this.degradedRetryState.has(cacheKey)) {
             return;
@@ -479,7 +506,9 @@ export class ApiClient {
     async getPageBundle(orgId, pageName, params = {}) {
         const date = this.getEffectiveDate();
         const query = date ? { ...params, date } : { ...params };
-        return this.get(`/api/v1/orgs/${orgId}/pages/${pageName}`, query, { skipDegradedHandling: true });
+        const response = await this.get(`/api/v1/orgs/${orgId}/pages/${pageName}`, query, { skipDegradedHandling: true });
+        this.warnOnBundleEvidence(response, orgId, pageName, date);
+        return response;
     }
 
     /** Convenience: fetch a page bundle's tiny summary projection (KPI strip). */

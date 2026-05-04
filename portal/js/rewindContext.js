@@ -98,12 +98,32 @@ class RewindContext {
             const y = this._date.slice(0, 4);
             const m = this._date.slice(4, 6);
             const d = this._date.slice(6, 8);
-            return new Date(`${y}-${m}-${d}`).toLocaleDateString(undefined, {
+            return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(undefined, {
                 year: 'numeric', month: 'short', day: 'numeric'
             });
         } catch {
             return this._date;
         }
+    }
+
+    /**
+     * Returns the reference Date for relative UI calculations.
+     * In rewind mode this is the selected day at local end-of-day; live mode is now.
+     */
+    getReferenceDate() {
+        if (!this._date) return new Date();
+        try {
+            const y = Number(this._date.slice(0, 4));
+            const m = Number(this._date.slice(4, 6));
+            const d = Number(this._date.slice(6, 8));
+            return new Date(y, m - 1, d, 23, 59, 59, 999);
+        } catch {
+            return new Date();
+        }
+    }
+
+    getReferenceTime() {
+        return this.getReferenceDate().getTime();
     }
 
     /**

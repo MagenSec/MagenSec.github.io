@@ -94,12 +94,12 @@ function formatSuspiciousCount(count) {
 // SLA deadlines by severity (days from openedAt)
 const SLA_DAYS = { 4: 2, 3: 7, 2: 30, 1: 90 };  // Critical=2d, High=7d, Medium=30d, Low=90d
 
-function slaInfo(severity, openedAt) {
+function slaInfo(severity, openedAt, referenceDate = new Date()) {
     const slaDays = SLA_DAYS[severity];
     if (!slaDays || !openedAt) return { label: '—', color: 'secondary', daysLeft: Infinity };
     const opened = new Date(openedAt);
     const deadline = new Date(opened.getTime() + slaDays * 86400000);
-    const now = new Date();
+    const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
     const daysLeft = Math.ceil((deadline - now) / 86400000);
     if (daysLeft < 0) return { label: `${Math.abs(daysLeft)}d overdue`, color: 'danger', daysLeft };
     if (daysLeft === 0) return { label: 'Due today', color: 'danger', daysLeft };
@@ -552,6 +552,10 @@ export class AlertsPage extends Component {
 
     // ── Filtering helpers ─────────────────────────────────────────────────────
 
+    getReferenceDate() {
+        return rewindContext.getReferenceDate?.() || new Date();
+    }
+
     getFiltered() {
         const { alerts, severityFilter, domainFilter, deviceFilter, sortBy, sortDir } = this.state;
         let result = alerts.filter(a => {
@@ -561,9 +565,10 @@ export class AlertsPage extends Component {
             return true;
         });
         if (sortBy === 'sla') {
+            const referenceDate = this.getReferenceDate();
             result = [...result].sort((a, b) => {
-                const sa = slaInfo(a.severity, a.openedAt).daysLeft;
-                const sb = slaInfo(b.severity, b.openedAt).daysLeft;
+                const sa = slaInfo(a.severity, a.openedAt, referenceDate).daysLeft;
+                const sb = slaInfo(b.severity, b.openedAt, referenceDate).daysLeft;
                 return sortDir === 'asc' ? sa - sb : sb - sa;
             });
         }
@@ -695,6 +700,9 @@ export class AlertsPage extends Component {
         const { summary, alerts, stateFilter } = this.state;
         const open = summary?.totalOpen ?? alerts.filter(a => (a.state || '').toUpperCase() === 'OPEN').length;
         const suppressed = summary?.totalSuppressed ?? alerts.filter(a => (a.state || '').toUpperCase() === 'SUPPRESSED').length;
+        const isHistoricalSummary = summary?.isHistoricalSnapshot === true;
+        const isCappedSummary = summary?.isCapped === true;
+        const capturedOpen = Number(summary?.capturedOpen ?? alerts.length);
         // Backend summary now returns distinctControls + affectedDevices so the UI can
         // show "X distinct issues across Y devices" instead of an exposure-multiplied count.
         const distinctIssues = summary?.distinctControls ?? null;
@@ -702,21 +710,23 @@ export class AlertsPage extends Component {
         const topControls = Array.isArray(summary?.topControls) ? summary.topControls : [];
 
         const visibleOpen = alerts.filter(a => (a.state || '').toUpperCase() === 'OPEN');
+        const referenceDate = this.getReferenceDate();
+        const referenceTime = referenceDate.getTime();
         const critical = visibleOpen.filter(a => Number(a.severity) === 4).length;
         const high = visibleOpen.filter(a => Number(a.severity) === 3).length;
         const medium = visibleOpen.filter(a => Number(a.severity) === 2).length;
         const low = visibleOpen.filter(a => Number(a.severity) <= 1).length;
         const needsAttentionNow = visibleOpen.filter(a => {
-            const info = slaInfo(a.severity, a.openedAt);
+            const info = slaInfo(a.severity, a.openedAt, referenceDate);
             return Number.isFinite(info.daysLeft) && info.daysLeft <= 0;
         }).length;
         const dueSoon = visibleOpen.filter(a => {
-            const info = slaInfo(a.severity, a.openedAt);
+            const info = slaInfo(a.severity, a.openedAt, referenceDate);
             return Number.isFinite(info.daysLeft) && info.daysLeft > 0 && info.daysLeft <= 3;
         }).length;
         const openedLast24h = visibleOpen.filter(a => {
             const openedAt = new Date(a.openedAt || 0).getTime();
-            return Number.isFinite(openedAt) && (Date.now() - openedAt) <= 86_400_000;
+            return Number.isFinite(openedAt) && openedAt <= referenceTime && (referenceTime - openedAt) <= 86_400_000;
         }).length;
 
         // Headline KPI: prefer "distinct issues" over raw exposure count when available.
@@ -758,10 +768,12 @@ export class AlertsPage extends Component {
                         ${high > 0 ? html`<span class="badge bg-warning text-white">${high} high</span>` : ''}
                         ${medium > 0 ? html`<span class="badge bg-info text-white">${medium} medium</span>` : ''}
                         ${low > 0 ? html`<span class="badge bg-secondary text-white">${low} low</span>` : ''}
-                        ${rewindContext.isActive() ? html`<span class="badge bg-azure-lt text-azure">As of ${api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
+                        ${rewindContext.isActive() ? html`<span class="badge bg-azure-lt text-azure">As of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
                     </div>
                     <div class="text-muted small">
-                        ${stateFilter === 'OPEN' && open > alerts.length
+                        ${isHistoricalSummary && isCappedSummary
+                            ? `Historical snapshot captured ${capturedOpen.toLocaleString()} row-level sample${capturedOpen === 1 ? '' : 's'} of ${open.toLocaleString()} open instances; the remaining count is aggregate-only.`
+                            : stateFilter === 'OPEN' && open > alerts.length
                             ? `Showing newest ${alerts.length} of ${open} open instances · grouped into ${distinctIssues ?? '—'} distinct issues for triage.`
                             : `Showing ${alerts.length} ${stateFilter === 'ALL' ? 'loaded' : stateFilter.toLowerCase()} action item${alerts.length === 1 ? '' : 's'}.`}
                     </div>
@@ -908,6 +920,21 @@ export class AlertsPage extends Component {
         const { pendingRowKey, stateFilter, selectedAlerts } = this.state;
         if (filtered.length === 0) {
             if (nested) return null;
+            const historicalOpen = Number(this.state.summary?.totalOpen ?? 0);
+            const historicalCaptured = Number(this.state.summary?.capturedOpen ?? 0);
+            if (rewindContext.isActive() && stateFilter === 'OPEN' && historicalOpen > 0) {
+                return html`
+                    <div class="empty">
+                        <div class="empty-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.29 3.86l-8.09 14a2 2 0 0 0 1.71 3h16.18a2 2 0 0 0 1.71 -3l-8.09 -14a2 2 0 0 0 -3.42 0z" /></svg>
+                        </div>
+                        <p class="empty-title">Historical alert samples are incomplete</p>
+                        <p class="empty-subtitle text-muted">
+                            The snapshot reports ${historicalOpen.toLocaleString()} open alert instance${historicalOpen === 1 ? '' : 's'} as of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'the selected date'}, but ${historicalCaptured.toLocaleString()} row-level sample${historicalCaptured === 1 ? '' : 's'} are available for this view.
+                        </p>
+                    </div>
+                `;
+            }
             return html`
                 <div class="empty">
                     <div class="empty-icon">
@@ -1009,7 +1036,7 @@ export class AlertsPage extends Component {
                                         <td>
                                             ${(() => {
                                                 if (isSuppressed) return html`<span class="badge bg-warning-lt text-warning">Suppressed</span>`;
-                                                const sla = slaInfo(alert.severity, alert.openedAt);
+                                                const sla = slaInfo(alert.severity, alert.openedAt, this.getReferenceDate());
                                                 return html`<span class="badge bg-${sla.color}-lt text-${sla.color} small">${sla.label}</span>`;
                                             })()}
                                         </td>
@@ -1210,7 +1237,7 @@ export class AlertsPage extends Component {
                             </div>
                             <p class="page-subtitle mt-1 mb-0">
                                 Things that need your attention — prioritize what is urgent now, suppress known noise, or ask MAGI for help
-                                ${rewindContext.isActive() ? html` · <span class="badge bg-azure-lt text-azure">As of ${api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
+                                ${rewindContext.isActive() ? html` · <span class="badge bg-azure-lt text-azure">As of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
                             </p>
                         </div>
                         <div class="col-auto">

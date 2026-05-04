@@ -3,7 +3,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Home (Dashboard)',
             icon: '\ud83c\udfe0',
-            desc: 'Your command center. The Home dashboard shows your AI-generated Cyber Hygiene Score with letter grade (A\u2013F), a Security Posture Summary with device coverage and scan status, Compliance Score, threat counts by severity, top actions to take, and recent device activity. Business organizations see the full dashboard with three tabs: Overview, Detailed Analysis, and Findings. Personal organizations are taken directly to the Security page.',
+            desc: 'Your command center. The Home dashboard shows your evidence-based Cyber Hygiene Score with letter grade (A\u2013F), a Security Posture Summary with device coverage and scan status, Compliance Score, threat counts by severity, top actions to take, and recent device activity. Business organizations see the full dashboard with three tabs: Overview, Detailed Analysis, and Findings. Personal organizations are taken directly to the Security page.',
             tips: [
                 'Check your Security Score grade daily \u2014 drops usually mean new vulnerabilities were published',
                 'Review the "Top Actions" section for the highest-impact steps you can take right now',
@@ -58,7 +58,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Officer MAGI',
             icon: '\ud83e\udd16',
-            desc: 'Your AI security analyst. Ask questions in plain language about your organization\u2019s security posture, vulnerabilities, devices, or scores \u2014 and get answers backed by your real data. Officer MAGI can generate charts, link to specific devices or CVEs, and provide tailored remediation recommendations. You can also reach MAGI via WhatsApp if enabled in Settings.',
+            desc: 'Your security analyst experience. Ask questions in plain language about your organization\u2019s security posture, vulnerabilities, devices, or scores \u2014 and get answers backed by your real data when the analyst service is enabled. Static reviewed remediation guidance and evidence views remain available without Cloud model generation. You can also reach MAGI via WhatsApp if enabled in Settings.',
             tips: [
                 'Try asking "What are my most critical vulnerabilities right now?"',
                 'Ask "Which devices are at highest risk?" to get a prioritized list',
@@ -69,7 +69,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Mission Brief',
             icon: '\ud83d\udccb',
-            desc: 'AI-generated security posture reports. Choose from Security Posture, Compliance, or Inventory report types. Select a date for historical lookups and a compliance framework (CIS, NIST, or both). Reports are generated on demand and can be emailed as PDFs to your organization owner and team members.',
+            desc: 'Evidence-based security posture reports. Choose from Security Posture, Compliance, or Inventory report types. Select a date for historical lookups and a compliance framework (CIS, NIST, or both). Reports are generated on demand and can be emailed as PDFs to your organization owner and team members.',
             tips: [
                 'Use Mission Brief for quick executive-level status summaries',
                 'Generate historical reports to compare your posture over different time periods',
@@ -101,7 +101,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Auditor Dashboard',
             icon: '\ud83d\udd0d',
-            desc: 'Built for compliance audits and security reviews. The Auditor Dashboard has four tabs: Readiness (a checklist of audit prerequisites with pass/partial/missing status), Fleet Evidence (device summary and posture cards), Delta Comparison (compare your posture between two dates to show progress), and AI Reports (library of generated posture reports). Use it to assemble evidence packages for auditors.',
+            desc: 'Built for compliance audits and security reviews. The Auditor Dashboard has four tabs: Readiness (a checklist of audit prerequisites with pass/partial/missing status), Fleet Evidence (device summary and posture cards), Delta Comparison (compare your posture between two dates to show progress), and Reports (library of generated posture reports). Use it to assemble evidence packages for auditors.',
             tips: [
                 'The Readiness tab shows exactly what evidence is complete before an audit',
                 'Use Delta Comparison to demonstrate improvement over a specific period',

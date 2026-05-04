@@ -232,6 +232,7 @@ export default class UnifiedDashboard extends Component {
 
       let normalizedData = response.data ? bundleToUnifiedPayload(response.data) : null;
       if (normalizedData) {
+        normalizedData = await this.overlayAlertSummaryCounts(orgId, normalizedData);
         normalizedData = await this.normalizeDashboardStats(orgId, normalizedData);
         this.setCachedDashboard(cacheKey, normalizedData);
         this.loadAddOnSignals(orgId);
@@ -270,6 +271,83 @@ export default class UnifiedDashboard extends Component {
         refreshing: false,
         isRefreshingInBackground: false
       });
+    }
+  }
+
+  readSummaryInt(obj, key) {
+    if (!obj || typeof obj !== 'object') return 0;
+    const direct = obj[key] ?? obj[key?.toLowerCase?.()] ?? obj[key?.toUpperCase?.()];
+    if (direct !== undefined && direct !== null && Number.isFinite(Number(direct))) return Number(direct);
+
+    const foundKey = Object.keys(obj).find(k => String(k).toLowerCase() === String(key).toLowerCase());
+    const found = foundKey ? obj[foundKey] : undefined;
+    return Number.isFinite(Number(found)) ? Number(found) : 0;
+  }
+
+  applyAlertSummaryCounts(data, summary) {
+    if (!data || !summary) return data;
+
+    const bySeverityByDomain = summary.bySeverityByDomain || {};
+    const vulnSeverity = bySeverityByDomain.Vulnerability || bySeverityByDomain.vulnerability || summary.bySeverity || {};
+    const byDomain = summary.byDomain || {};
+    const critical = this.readSummaryInt(vulnSeverity, 'Critical');
+    const high = this.readSummaryInt(vulnSeverity, 'High');
+    const medium = this.readSummaryInt(vulnSeverity, 'Medium');
+    const low = this.readSummaryInt(vulnSeverity, 'Low');
+    const severityTotal = critical + high + medium + low;
+    const domainTotal = this.readSummaryInt(byDomain, 'Vulnerability');
+    const total = domainTotal > 0 ? domainTotal : (severityTotal > 0 ? severityTotal : Number(summary.totalOpen || 0));
+
+    if (total <= 0 && severityTotal <= 0) return data;
+
+    const existingThreatIntel = data.securityPro?.threatIntel || {};
+    const alertSummaryMeta = {
+      source: 'alerts-summary',
+      snapshotDate: summary.snapshotDate || null,
+      isHistoricalSnapshot: summary.isHistoricalSnapshot === true,
+      isCapped: summary.isCapped === true,
+      capturedOpen: Number(summary.capturedOpen ?? 0),
+      totalOpen: Number(summary.totalOpen ?? total)
+    };
+
+    return {
+      ...data,
+      quickStats: {
+        ...(data.quickStats || {}),
+        cves: {
+          ...((data.quickStats && data.quickStats.cves) || {}),
+          totalCount: total,
+          criticalCount: critical,
+          highCount: high,
+          mediumCount: medium,
+          lowCount: low,
+          alertSummaryMeta
+        }
+      },
+      securityPro: {
+        ...(data.securityPro || {}),
+        threatIntel: {
+          ...existingThreatIntel,
+          criticalCveCount: critical,
+          highCveCount: high,
+          mediumCveCount: medium,
+          lowCveCount: low,
+          totalCveCount: total,
+          alertSummaryMeta
+        }
+      },
+      _alertSummary: alertSummaryMeta
+    };
+  }
+
+  async overlayAlertSummaryCounts(orgId, data) {
+    try {
+      const response = await api.getAlertSummary(orgId, { include: 'cached-summary' });
+      if (response && response.success === false) return data;
+      return this.applyAlertSummaryCounts(data, response?.data || response);
+    } catch (err) {
+      console.warn('[UnifiedDashboard] AlertSummary overlay skipped:', err);
+      return data;
     }
   }
 

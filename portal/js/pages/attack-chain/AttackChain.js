@@ -25,6 +25,7 @@ export class AttackChainPage extends Component {
             refreshing: false,
             error: null,
             dataHint: null,
+            evidence: null,
             snapshot: null,
             attackChain: null,
             selectedGraph: null,
@@ -40,24 +41,24 @@ export class AttackChainPage extends Component {
         this._rewindUnsub = null;
     }
 
-    getCacheKey(orgId) {
-        return `attack-chain:${orgId}`;
+    getCacheKey(orgId, date = null) {
+        return `attack-chain:${orgId}:${date || 'current'}`;
     }
 
-    readCachedChain(orgId) {
+    readCachedChain(orgId, date = null) {
         if (!orgId) return null;
         try {
-            const raw = localStorage.getItem(this.getCacheKey(orgId));
+            const raw = localStorage.getItem(this.getCacheKey(orgId, date));
             return raw ? JSON.parse(raw) : null;
         } catch {
             return null;
         }
     }
 
-    writeCachedChain(orgId, chain) {
+    writeCachedChain(orgId, chain, date = null) {
         if (!orgId || !chain) return;
         try {
-            localStorage.setItem(this.getCacheKey(orgId), JSON.stringify(chain));
+            localStorage.setItem(this.getCacheKey(orgId, date), JSON.stringify(chain));
         } catch {
             // best effort only
         }
@@ -87,6 +88,10 @@ export class AttackChainPage extends Component {
             const resp = await api.getPageBundle(org.orgId, 'attack-chain');
             const bundleData = resp?.data || resp?.Data || resp;
             const atoms = bundleData?.atoms || bundleData?.Atoms || {};
+            const evidence = bundleData?.evidence || bundleData?.Evidence || null;
+            const effectiveDate = api.getEffectiveDate?.() || null;
+            const evidenceStatus = String(evidence?.status || evidence?.Status || '').toLowerCase();
+            const evidenceBlocked = !!effectiveDate && evidenceStatus === 'blocked';
             const orgSnap = atoms['org-snapshot']?.data?.[0] || atoms.OrgSnapshot?.data?.[0] || null;
             const secSnap = atoms['security-snapshot']?.data?.[0] || atoms.SecuritySnapshot?.data?.[0] || null;
             const snapshot = {
@@ -94,26 +99,33 @@ export class AttackChainPage extends Component {
                 top20Devices: secSnap?.top20Devices || secSnap?.Top20Devices || [],
             };
             const liveChain = orgSnap?.attackChain || orgSnap?.AttackChain || null;
-            const cachedChain = this.readCachedChain(org.orgId);
+            const cachedChain = evidenceBlocked ? null : this.readCachedChain(org.orgId, effectiveDate);
             const liveKey = liveChain?.chainKey || liveChain?.ChainKey || null;
             const cachedKey = cachedChain?.chainKey || cachedChain?.ChainKey || null;
-            const chain = liveChain || (!liveKey || !cachedKey || liveKey === cachedKey ? cachedChain : null);
+            const chain = evidenceBlocked ? null : (liveChain || (!liveKey || !cachedKey || liveKey === cachedKey ? cachedChain : null));
 
             if (chain) {
-                this.writeCachedChain(org.orgId, chain);
+                this.writeCachedChain(org.orgId, chain, effectiveDate);
             }
+
+            const missingRequired = evidence?.missingRequiredAtoms || evidence?.MissingRequiredAtoms || [];
+            const evidenceMessage = evidenceBlocked
+                ? `Historical attack-chain evidence is incomplete for ${rewindContext.getDateLabel() || effectiveDate}. Missing: ${missingRequired.join(', ') || 'required atom data'}.`
+                : null;
 
             this.setState({
                 loading: false,
                 error: null,
-                dataHint: chain?.note || chain?.Note || null,
+                dataHint: evidenceMessage || chain?.note || chain?.Note || null,
+                evidence,
                 snapshot,
                 attackChain: chain,
                 selectedGraph: chain?.graphs?.[0] ?? null,
             });
 
-            // Auto-generate if no chain available (first visit or blob migration)
-            if (!chain && !this.state.refreshing) {
+            // Auto-generate only for current data. Historical Time Warp views must not
+            // borrow or regenerate current attack-chain state.
+            if (!chain && !effectiveDate && !this.state.refreshing) {
                 this.handleRefresh();
             }
         } catch (err) {
@@ -124,6 +136,10 @@ export class AttackChainPage extends Component {
     async handleRefresh() {
         const org = orgContext.getCurrentOrg();
         if (!org || this.state.refreshing) return;
+        if (rewindContext.isActive()) {
+            window.toast?.show?.('Attack Chain regeneration is disabled in Time Warp. Return to live mode to generate a fresh graph.', 'warning', 5000);
+            return;
+        }
 
         this.setState({ refreshing: true });
 
@@ -131,7 +147,7 @@ export class AttackChainPage extends Component {
             const resp = await api.refreshAttackChain(org.orgId);
             const data = resp?.data || resp?.Data;
             if (data) {
-                this.writeCachedChain(org.orgId, data);
+                this.writeCachedChain(org.orgId, data, null);
                 this.setState({
                     refreshing: false,
                     error: null,
@@ -502,6 +518,8 @@ export class AttackChainPage extends Component {
         const generatedAt = attackChain?.generatedAt;
         const generationSource = (attackChain?.source || attackChain?.Source || '').toLowerCase();
         const note = attackChain?.note || attackChain?.Note || dataHint;
+        const isRewind = rewindContext.isActive();
+        const rewindLabel = rewindContext.getDateLabel?.() || api.getEffectiveDate?.();
 
         if (loading) {
             return html`
@@ -530,6 +548,9 @@ export class AttackChainPage extends Component {
                             <h2 class="page-title">Attack Chain</h2>
                             <p class="page-subtitle mt-1 mb-0">
                                 MAGI correlates current vulnerabilities, exposed applications, affected endpoints, and control gaps to surface the most credible attack paths
+                                ${isRewind ? html`
+                                    <span class="badge bg-azure-lt text-azure ms-2">As of ${rewindLabel}</span>
+                                ` : ''}
                                 ${generatedAt ? html`
                                     <span class="badge bg-secondary-lt text-muted ms-2">
                                         Generated ${new Date(generatedAt).toLocaleString()}
@@ -546,7 +567,7 @@ export class AttackChainPage extends Component {
                             <div class="btn-list">
                                 <button
                                     class="btn btn-outline-primary btn-sm"
-                                    disabled=${refreshing || rewindContext.isActive()}
+                                    disabled=${refreshing || isRewind}
                                     onClick=${() => this.handleRefresh()}
                                 >
                                     ${refreshing ? html`<span class="spinner-border spinner-border-sm me-1"></span> Regenerating…` : 'Regenerate'}
@@ -584,13 +605,17 @@ export class AttackChainPage extends Component {
                                 </div>
                                 <p class="empty-title">No active attack paths identified</p>
                                 <p class="empty-subtitle text-muted">
-                                    ${note || 'MAGI did not identify a path of concern from the latest available signals. Regenerate to run a fresh assessment against current cloud intelligence.'}
+                                    ${note || (isRewind
+                                        ? 'No historical attack-chain graph is available for the selected evidence date.'
+                                        : 'MAGI did not identify a path of concern from the latest available signals. Regenerate to run a fresh assessment against current cloud intelligence.')}
                                 </p>
-                                <div class="empty-action">
+                                ${isRewind ? html`
+                                    <span class="badge bg-azure-lt text-azure">Historical evidence view</span>
+                                ` : html`<div class="empty-action">
                                     <button class="btn btn-primary" disabled=${refreshing} onClick=${() => this.handleRefresh()}>
                                         ${refreshing ? 'Generating…' : 'Generate Now'}
                                     </button>
-                                </div>
+                                </div>`}
                             </div>
                         </div>
                     </div>

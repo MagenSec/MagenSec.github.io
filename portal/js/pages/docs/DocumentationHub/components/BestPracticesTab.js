@@ -99,7 +99,7 @@ export function BestPracticesTab(html) {
                         <p>If your Business plan includes Officer MAGI and Mission Brief, use them regularly:</p>
                         <ul>
                             <li><strong>Officer MAGI</strong> \u2014 ask questions in plain language to get data-driven answers about your security posture</li>
-                            <li><strong>Mission Brief</strong> \u2014 generate concise AI reports covering security posture, compliance, or inventory</li>
+                            <li><strong>Mission Brief</strong> \u2014 generate concise evidence reports covering security posture, compliance, or inventory</li>
                         </ul>
                         <p class="text-muted mb-0" style="font-size:13px;">These features are especially useful for quick status checks, trend analysis, and preparing reports for non-technical stakeholders.</p>
                     </div>

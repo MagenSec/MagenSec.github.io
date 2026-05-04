@@ -58,6 +58,8 @@ export function bundleToUnifiedPayload(bundle) {
     const totalFindings = Number(sec.totalFindings || 0);
     const criticalCount = Number(sev.critical ?? sev.Critical ?? 0);
     const highCount     = Number(sev.high     ?? sev.High     ?? 0);
+    const mediumCount   = Number(sev.medium   ?? sev.Medium   ?? 0);
+    const lowCount      = Number(sev.low      ?? sev.Low      ?? 0);
 
     const topActions = (Array.isArray(org.prioritizedActions) ? org.prioritizedActions : []).map((a) => ({
         title:           a.title || '',
@@ -108,6 +110,15 @@ export function bundleToUnifiedPayload(bundle) {
             }
         },
         securityPro: {
+            threatIntel: {
+                criticalCveCount: criticalCount,
+                highCveCount: highCount,
+                mediumCveCount: mediumCount,
+                lowCveCount: lowCount,
+                totalCveCount: totalFindings,
+                exploitCount: Array.isArray(sec.top20Cves) ? sec.top20Cves.filter(c => c.isKev || c.IsKev).length : 0,
+                activeExploitCount: Array.isArray(sec.top20Cves) ? sec.top20Cves.filter(c => c.isKev || c.IsKev).length : 0
+            },
             // Pass through high-signal vulnerability rollups so the security tab can show them.
             totalFindings,
             bySeverity: sev,
