@@ -47,9 +47,9 @@ export function PortalGuideTab(html) {
         {
             title: 'Response',
             icon: '\u26a1',
-            desc: 'Take remote actions on your devices. Response lets you queue operations that execute on the device at its next heartbeat. Available actions include Probe (collect a security posture dossier), Scan (full vulnerability and malware scan), Inventory (refresh the installed applications list), Logs (securely collect encrypted diagnostic logs), and Updates (check for OS and application patches). You can track each action\u2019s status as it moves from Queued to Delivered to Completed.',
+            desc: 'Take remote actions on your devices. Response lets you queue operations that execute on the device at its next heartbeat. Available actions include Probe (collect a security posture evidence package), Scan (full vulnerability and malware scan), Inventory (refresh the installed applications list), Logs (securely collect encrypted diagnostic logs), and Updates (check for OS and application patches). You can track each action\u2019s status as it moves from Queued to Delivered to Completed.',
             tips: [
-                'Use Probe to get a fresh security dossier from a specific device on demand',
+                'Use Probe to get a fresh security evidence package from a specific device on demand',
                 'Action results appear in the portal once the device completes the task \u2014 check back after a few minutes',
                 'The action history shows everything that\u2019s been run, with status and timestamps'
             ],

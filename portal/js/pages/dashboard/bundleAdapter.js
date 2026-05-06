@@ -7,7 +7,7 @@
  *     evidence, watermark, freshness, missingAtoms[], livePresent[], elapsedMs }
  *
  * Output: the same shape produced by GET /api/v1/orgs/{orgId}/dashboard?format=unified,
- * so downstream consumers (Dashboard.js, UnifiedDashboard.js) need no further changes.
+ * so UnifiedDashboard.js can keep using the established dashboard payload shape.
  *
  * License & add-on details that are not yet surfaced as cooked atoms remain at neutral
  * defaults; UnifiedDashboard.js subsequently calls hydrateDashboardStats() which fills

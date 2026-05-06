@@ -1,6 +1,6 @@
 /**
  * UnifiedDashboard - Business proof-readiness dashboard.
- * Proof readiness hero with dossier scores -> centered MAGI search -> officer brief.
+ * MAGI-first proof-readiness dashboard with readiness model, hygiene trend, and focused evidence details.
  */
 
 import { auth } from '@auth';
@@ -11,7 +11,6 @@ import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
 import { bundleToUnifiedPayload } from './bundleAdapter.js';
 import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
 import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
-import { TrendSnapshotStrip } from '../../components/TrendSnapshotStrip.js';
 import { metricPhrase } from '../../utils/metricUnits.js';
 
 const { html, Component } = window;
@@ -21,6 +20,10 @@ function renderMarkdown(text) {
   if (!text) return '';
   let parsed = window.marked ? window.marked.parse(text) : text.replace(/\n/g, '<br>');
   return window.DOMPurify ? window.DOMPurify.sanitize(parsed) : parsed;
+}
+
+function pointValueIsFinite(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
 }
 
 export default class UnifiedDashboard extends Component {
@@ -46,6 +49,8 @@ export default class UnifiedDashboard extends Component {
       },
       cyberHygieneCollapsed: true,
       dossierOpen: false,
+      evidenceGapsOpen: false,
+      hygieneDetailsOpen: false,
       officerNoteOpen: false,
       officerNoteDismissed: false
     };
@@ -714,7 +719,7 @@ export default class UnifiedDashboard extends Component {
     if (items.length === 0) return null;
 
     return items.map((item) => {
-      const deviceNames = item.deviceNames.length > 0 ? item.deviceNames.join(', ') : 'not identified in dossier';
+      const deviceNames = item.deviceNames.length > 0 ? item.deviceNames.join(', ') : 'not identified in current data';
       const support = item.supportText ? `; detail=${item.supportText}` : '';
       return `${item.index}. ${item.title}; urgency=${item.badge}; devices=${deviceNames}; ${item.deviceText}${support}`;
     }).join('\n');
@@ -750,7 +755,7 @@ export default class UnifiedDashboard extends Component {
     try {
       const actionContext = this.buildMagiActionContext();
       const question = actionContext
-        ? `${prompt}\n\nDashboard Top Action Items. Use these exact targets when recommending immediate actions; do not summarize a named device as "1 device".\n${actionContext}\n\nAnswer requirement: every recommended action must include the exact device name to act on. If multiple devices are present, name the first device and state how many others remain.`
+        ? `${prompt}\n\nDashboard Recommended Next Steps. Use these exact targets when recommending immediate actions; do not summarize a named device as "1 device".\n${actionContext}\n\nAnswer requirement: every recommended action must include the exact device name to act on. If multiple devices are present, name the first device and state how many others remain.`
         : prompt;
       const asOfDate = rewindContext.isActive?.() ? rewindContext.getDate?.() : undefined;
 
@@ -901,7 +906,7 @@ export default class UnifiedDashboard extends Component {
       blockers.push({
         label: 'Vulnerability exposure',
         value: critical + high,
-        detail: `${critical} critical · ${high} high CVE${critical + high === 1 ? '' : 's'} need proof of remediation`,
+        detail: `${critical} critical · ${high} high CVE${critical + high === 1 ? '' : 's'} need remediation evidence`,
         href: '#!/vulnerabilities',
         tone: '#dc2626',
         readableTone: 'var(--db-tone-danger,#dc2626)'
@@ -916,7 +921,7 @@ export default class UnifiedDashboard extends Component {
       blockers.push({
         label: 'Inventory coverage',
         value: deviceBlockers,
-        detail: `${parts.join(' · ')} device${deviceBlockers === 1 ? '' : 's'} reduce proof confidence`,
+        detail: `${parts.join(' · ')} device${deviceBlockers === 1 ? '' : 's'} reduce readiness confidence`,
         href: '#!/devices',
         tone: '#2563eb',
         readableTone: 'var(--db-tone-info,#1d4ed8)'
@@ -925,7 +930,7 @@ export default class UnifiedDashboard extends Component {
 
     if (gapCount > 0) {
       blockers.push({
-        label: 'Compliance proof',
+        label: 'Compliance evidence',
         value: gapCount,
         detail: `${gapCount} control gap${gapCount === 1 ? '' : 's'} need evidence or remediation`,
         href: '#!/compliance',
@@ -947,11 +952,11 @@ export default class UnifiedDashboard extends Component {
 
     const tier = hs.insuranceTier || 'At Risk';
     const label = tier === 'Insurance Ready' ? 'Ready' : tier === 'Conditional' ? 'Conditional' : 'At Risk';
-    const tone = label === 'Ready' ? '#16a34a' : label === 'Conditional' ? '#d97706' : '#dc2626';
-    const readableTone = label === 'Ready' ? 'var(--db-tone-success,#15803d)' : label === 'Conditional' ? 'var(--db-tone-warning,#b45309)' : 'var(--db-tone-danger,#dc2626)';
+    const tone = label === 'Ready' ? '#16a34a' : label === 'Conditional' ? '#d97706' : '#d97706';
+    const readableTone = label === 'Ready' ? 'var(--db-tone-success,#15803d)' : label === 'Conditional' ? 'var(--db-tone-warning,#b45309)' : 'var(--db-tone-warning,#b45309)';
     const summary = blockers.length > 0
-      ? `${blockers.length} proof blocker${blockers.length === 1 ? '' : 's'} need attention before this dossier is easy to defend.`
-      : 'Current dossier has no major proof blockers. Keep patching and response evidence current.';
+      ? `${blockers.length} proof gap${blockers.length === 1 ? '' : 's'} must improve before this evidence package is ready for review.`
+      : 'This evidence package is review-ready. Keep patch, response, and compliance evidence current.';
 
     return { hs, label, tier, tone, readableTone, summary, blockers };
   }
@@ -982,7 +987,7 @@ export default class UnifiedDashboard extends Component {
   }
 
   formatActionDeviceText(action) {
-    if (!action) return 'Device: not identified in this dossier';
+    if (!action) return 'Device: not identified yet';
 
     const names = this.getActionDeviceNames(action);
 
@@ -991,7 +996,7 @@ export default class UnifiedDashboard extends Component {
       return count > 1 ? `Device: ${names[0]} + ${count - 1} more` : `Device: ${names[0]}`;
     }
     if (count > 0) return `Device: ${count} unnamed device${count === 1 ? '' : 's'}`;
-    return 'Device: not identified in this dossier';
+    return 'Device: not identified yet';
   }
 
   getTopActionViewItems(data = this.state.data) {
@@ -1029,9 +1034,9 @@ export default class UnifiedDashboard extends Component {
       href: blocker.href || '#!/security',
       tone: blocker.tone || proof.tone,
       readableTone: blocker.readableTone || proof.readableTone,
-      badge: 'BLOCKER',
+      badge: 'REVIEW',
       title: blocker.label,
-      deviceText: 'Scope: org dossier',
+      deviceText: 'Scope: organization readiness',
       deviceNames: [],
       supportText: blocker.detail,
       icon: 'ti-alert-triangle'
@@ -1391,16 +1396,16 @@ export default class UnifiedDashboard extends Component {
     if (items.length === 0) {
       return html`
         <div style="margin-top:10px;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid rgba(22,163,74,0.22);border-radius:999px;padding:9px 12px;color:var(--db-answer-text,#111827);font-size:0.8rem;font-weight:700;text-align:center;box-shadow:0 1px 4px rgba(15,23,42,0.04);">
-          No immediate action items. Keep evidence fresh and watch for new patch or vulnerability alerts.
+          No urgent recommendations. Keep evidence current and watch for new patch or vulnerability alerts.
         </div>
       `;
     }
 
     return html`
-      <section aria-label="Top action items" style="margin-top:${embedded ? '12px' : stacked ? '0' : '9px'};text-align:left;">
+      <section aria-label="Recommended fixes" style="margin-top:${embedded ? '12px' : stacked ? '0' : '9px'};text-align:left;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:${embedded ? '0 4px 6px' : '0 8px 6px'};">
-          <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Top Action Items</div>
-          <a href="#!/security" style="font-size:0.72rem;font-weight:800;color:var(--db-tone-primary,#4f46e5);text-decoration:none;white-space:nowrap;">Open Security</a>
+          <div title="These fixes close the most important evidence gaps. Open Security or click a row to start." style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Recommended Fixes</div>
+          <a href="#!/security" title="Open Security to patch, investigate devices, and close the listed gaps." style="font-size:0.72rem;font-weight:800;color:var(--db-tone-primary,#4f46e5);text-decoration:none;white-space:nowrap;">Open Security</a>
         </div>
         <div role="list" style="display:grid;grid-template-columns:${stacked || isSmallScreen ? '1fr' : 'repeat(3,minmax(220px,1fr))'};gap:0;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid var(--db-tile-border,rgba(148,163,184,0.18));border-radius:${stacked || isSmallScreen ? '18px' : '999px'};box-shadow:0 4px 14px rgba(15,23,42,0.045);overflow:hidden;">
           ${items.map((item, index) => {
@@ -1443,33 +1448,492 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
+  renderTopActionDropdown({ embedded = false } = {}) {
+    const { data } = this.state;
+    if (!data) return null;
+
+    const proof = this.getProofReadinessData(data);
+    const itemCount = this.getTopActionViewItems(data).length;
+    const containerStyle = embedded
+      ? 'margin:12px 0 0;padding:0;'
+      : 'max-width:720px;margin:8px auto 18px;padding:0 16px;';
+
+    return html`
+      <section aria-label="Close proof gaps" style=${containerStyle}>
+        <details title="The highest-value fixes for improving insurance readiness. Expand, then open Security or a row to act." style="background:var(--db-glass-bg,rgba(255,255,255,0.74));border:1px solid rgba(99,102,241,0.14);border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,0.04);overflow:hidden;">
+          <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;color:var(--db-answer-text,#111827);">
+            <span style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <span style="width:30px;height:30px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;background:${proof.tone}18;color:${proof.readableTone};flex-shrink:0;"><i class="ti ti-list-check"></i></span>
+              <span style="min-width:0;">
+                <span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;color:var(--db-muted-text,#6b7280);">Close the Proof Gaps</span>
+                <span style="display:block;font-size:0.84rem;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${itemCount} fix${itemCount === 1 ? '' : 'es'} that improve the chain</span>
+              </span>
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:0.74rem;font-weight:800;color:${proof.readableTone};white-space:nowrap;">
+              Review <i class="ti ti-chevron-down"></i>
+            </span>
+          </summary>
+          <div style="padding:0 12px 12px;">
+            ${this.renderTopActionItems({ stacked: true, embedded: true })}
+          </div>
+        </details>
+      </section>
+    `;
+  }
+
+  readNumber(source, keys, fallback = null) {
+    if (!source || typeof source !== 'object') return fallback;
+    for (const key of keys) {
+      const value = source[key];
+      if (value !== undefined && value !== null && Number.isFinite(Number(value))) return Number(value);
+    }
+
+    const lowerKeyMap = new Map(Object.keys(source).map((key) => [key.toLowerCase(), key]));
+    for (const key of keys) {
+      const actualKey = lowerKeyMap.get(String(key).toLowerCase());
+      const value = actualKey ? source[actualKey] : null;
+      if (value !== undefined && value !== null && Number.isFinite(Number(value))) return Number(value);
+    }
+
+    return fallback;
+  }
+
+  clampScore(value, fallback = 0) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return fallback;
+    return Math.max(0, Math.min(100, Math.round(numeric)));
+  }
+
+  parseDashboardTrendDate(value) {
+    if (!value) return null;
+    const text = String(value).trim();
+    if (/^\d{8}$/.test(text)) {
+      const parsed = new Date(Date.UTC(Number(text.slice(0, 4)), Number(text.slice(4, 6)) - 1, Number(text.slice(6, 8))));
+      return Number.isFinite(parsed.getTime()) ? parsed : null;
+    }
+    const parsed = new Date(text);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
+  }
+
+  formatDashboardTrendDate(value) {
+    const parsed = this.parseDashboardTrendDate(value);
+    if (!parsed) return null;
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  formatDashboardTrendLabel(value) {
+    const parsed = this.parseDashboardTrendDate(value);
+    if (!parsed) return '';
+    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  }
+
+  getDashboardTrendPoints(data = this.state.data) {
+    if (!data) return [];
+
+    const byDate = new Map();
+    const rawPoints = Array.isArray(data.snapshots) ? data.snapshots : [];
+    const hs = this.getHealthScoreData(data);
+    const currentScores = {
+      hygieneScore: this.clampScore(hs.score),
+      securityScore: this.clampScore(hs.vulnerability?.score ?? hs.score),
+      complianceScore: this.clampScore(hs.compliance?.score ?? 0),
+      deviceScore: this.clampScore(hs.device?.score ?? hs.score),
+      responseScore: this.clampScore(hs.response?.score ?? 0)
+    };
+
+    const nullableScore = (value, currentValue) => {
+      if (!Number.isFinite(Number(value))) return null;
+      const numeric = Number(value);
+      if (numeric <= 0 && Number(currentValue) > 0) return null;
+      return this.clampScore(numeric);
+    };
+
+    rawPoints.forEach((point) => {
+      const source = point?.snapshot || point?.Snapshot || point || {};
+      const date = this.formatDashboardTrendDate(point?.date || point?.Date || source.date || source.Date);
+      if (!date) return;
+
+      const securityScore = this.readNumber(source, ['securityScore', 'SecurityScore', 'riskScore', 'RiskScore'], null);
+      const complianceScore = this.readNumber(source, ['complianceScore', 'ComplianceScore'], null);
+      const deviceScore = this.readNumber(source, ['deviceScore', 'DeviceScore', 'coverageScore', 'CoverageScore'], null);
+      const responseScore = this.readNumber(source, ['responseScore', 'ResponseScore'], null);
+      const explicitHygieneScore = this.readNumber(source, ['hygieneScore', 'HygieneScore', 'healthScore', 'HealthScore', 'score', 'Score'], null);
+      const hygieneScore = Number.isFinite(Number(explicitHygieneScore)) && Number(explicitHygieneScore) > 0
+        ? explicitHygieneScore
+        : securityScore;
+
+      byDate.set(date, {
+        date,
+        hygieneScore: nullableScore(hygieneScore, currentScores.hygieneScore),
+        securityScore: nullableScore(securityScore, currentScores.securityScore),
+        complianceScore: nullableScore(complianceScore, currentScores.complianceScore),
+        deviceScore: nullableScore(deviceScore, currentScores.deviceScore),
+        responseScore: nullableScore(responseScore, currentScores.responseScore),
+      });
+    });
+
+    const currentDate = this.formatDashboardTrendDate(rewindContext?.getDate?.() || data.generatedAt || new Date());
+    if (currentDate) {
+      byDate.set(currentDate, {
+        date: currentDate,
+        ...currentScores,
+      });
+    }
+
+    return Array.from(byDate.values())
+      .sort((a, b) => this.parseDashboardTrendDate(a.date) - this.parseDashboardTrendDate(b.date))
+      .slice(-30);
+  }
+
+  buildScoreTrendGeometry(points, key, width = 560, height = 190, pad = 18) {
+    const trendValues = points
+      .map((point, index) => ({ value: point?.[key], index }))
+      .filter((item) => pointValueIsFinite(item.value))
+      .map((item) => ({ ...item, value: Number(item.value) }));
+    const values = trendValues.map((item) => item.value);
+    if (trendValues.length < 2) return null;
+
+    let min = Math.max(0, Math.min(...values) - 6);
+    let max = Math.min(100, Math.max(...values) + 6);
+    if (max - min < 10) {
+      const mid = (max + min) / 2;
+      min = Math.max(0, mid - 5);
+      max = Math.min(100, mid + 5);
+    }
+
+    const span = Math.max(1, max - min);
+    const xStep = (width - (pad * 2)) / Math.max(1, points.length - 1);
+    const coords = trendValues.map((item) => {
+      const x = pad + item.index * xStep;
+      const value = item.value;
+      const y = height - pad - ((value - min) / span) * (height - pad * 2);
+      return { x, y };
+    });
+
+    const linePath = coords.map((coord, index) => `${index === 0 ? 'M' : 'L'} ${coord.x.toFixed(1)} ${coord.y.toFixed(1)}`).join(' ');
+    const first = coords[0];
+    const last = coords[coords.length - 1];
+    const areaPath = `${linePath} L ${last.x.toFixed(1)} ${(height - pad).toFixed(1)} L ${first.x.toFixed(1)} ${(height - pad).toFixed(1)} Z`;
+
+    return { linePath, areaPath, width, height };
+  }
+
+  getTrendMetricSummary(points, key, currentValue) {
+    const comparable = points
+      .map((point) => point?.[key])
+      .filter((value) => pointValueIsFinite(value))
+      .map((value) => Number(value));
+    const latestValue = Number.isFinite(Number(currentValue)) ? Number(currentValue) : (comparable[comparable.length - 1] ?? 0);
+    if (comparable.length < 2) {
+      return { value: latestValue, delta: null, hasDelta: false };
+    }
+
+    return {
+      value: latestValue,
+      delta: latestValue - comparable[0],
+      hasDelta: true
+    };
+  }
+
+  trendDeltaLabel(delta, suffix = '') {
+    if (delta === null || delta === undefined) return 'current';
+    const numeric = Number(delta);
+    if (!Number.isFinite(numeric) || Math.abs(numeric) < 0.5) return 'flat';
+    return `${numeric > 0 ? '+' : '-'}${Math.abs(Math.round(numeric))}${suffix}`;
+  }
+
+  trendDeltaTone(delta) {
+    if (delta === null || delta === undefined) return '#64748b';
+    const numeric = Number(delta);
+    if (!Number.isFinite(numeric) || Math.abs(numeric) < 0.5) return '#64748b';
+    return numeric > 0 ? '#16a34a' : '#d97706';
+  }
+
+  renderProofBlockerList(proof) {
+    const blockers = Array.isArray(proof?.blockers) ? proof.blockers.slice(0, 4) : [];
+    if (blockers.length === 0) return null;
+
+    return html`
+      <details
+        open=${this.state.evidenceGapsOpen}
+        onToggle=${(event) => {
+          const nextOpen = event.currentTarget.open === true;
+          if (nextOpen !== this.state.evidenceGapsOpen) this.setState({ evidenceGapsOpen: nextOpen });
+        }}
+        title="Evidence gaps are the model inputs blocking a cleaner insurance review. Expand and click a row to act."
+        style="margin-top:16px;text-align:left;border:1px solid var(--db-tile-border,rgba(148,163,184,0.2));border-radius:12px;background:var(--db-tile-bg,rgba(255,255,255,0.48));overflow:hidden;"
+      >
+        <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;color:var(--db-answer-text,#111827);">
+          <span style="min-width:0;display:flex;align-items:center;gap:9px;">
+            <span style="width:28px;height:28px;border-radius:9px;background:${proof.tone}16;color:${proof.readableTone};display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="ti ti-alert-triangle"></i></span>
+            <span style="min-width:0;">
+              <span title="Security, compliance, inventory, patch, vulnerability, and response evidence needing action. Open a row to resolve it." style="display:block;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Evidence gaps</span>
+              <span style="display:block;font-size:0.78rem;font-weight:780;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${blockers.length} proof gap${blockers.length === 1 ? '' : 's'} blocking review</span>
+            </span>
+          </span>
+          <span style="font-size:0.72rem;font-weight:850;color:${proof.readableTone};white-space:nowrap;">Review</span>
+        </summary>
+        <div style="padding:0 10px 10px;display:grid;gap:8px;">
+          ${blockers.map((blocker) => {
+            const meta = this.getBusinessOnlyMeta(blocker.href || '#!/security');
+            const isDisabled = Boolean(meta.className);
+            return html`
+              <a
+                href=${blocker.href || '#!/security'}
+                class=${meta.className}
+                title=${meta.title || blocker.detail}
+                data-business-tooltip=${meta.dataTooltip}
+                onClick=${(event) => {
+                  if (isDisabled) {
+                    event.preventDefault();
+                    window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                  }
+                }}
+                style="display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:10px;text-decoration:none;color:var(--db-answer-text,#111827);border:1px solid ${blocker.tone}22;background:${blocker.tone}08;border-radius:12px;padding:9px 10px;"
+              >
+                <span style="width:30px;height:30px;border-radius:10px;background:${blocker.tone}16;color:${blocker.readableTone || blocker.tone};display:inline-flex;align-items:center;justify-content:center;font-size:0.84rem;font-weight:900;">${blocker.value}</span>
+                <span style="min-width:0;">
+                  <span style="display:block;font-size:0.78rem;font-weight:850;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${blocker.label}</span>
+                  <span style="display:block;font-size:0.72rem;color:var(--db-faint-text,#6b7280);line-height:1.24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${blocker.detail}</span>
+                </span>
+                <i class="ti ti-arrow-up-right" style="color:${blocker.readableTone || blocker.tone};font-size:0.95rem;"></i>
+              </a>
+            `;
+          })}
+        </div>
+      </details>
+    `;
+  }
+
+  renderMiniScoreTrend(points, key, tone) {
+    const geometry = this.buildScoreTrendGeometry(points, key, 120, 42, 4);
+    if (!geometry) return null;
+
+    return html`
+      <svg viewBox=${`0 0 ${geometry.width} ${geometry.height}`} preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:34px;display:block;margin-top:7px;">
+        <path d=${geometry.linePath} fill="none" stroke=${tone} stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    `;
+  }
+
+  renderSecurityHygieneTrendPanel(data = this.state.data, { isSmallScreen = false } = {}) {
+    if (!data) return null;
+
+    const points = this.getDashboardTrendPoints(data);
+    const hs = this.getHealthScoreData(data);
+    const currentPoint = points[points.length - 1] || {
+      date: this.formatDashboardTrendDate(data.generatedAt || new Date()),
+      hygieneScore: this.clampScore(hs.score),
+      securityScore: this.clampScore(hs.vulnerability?.score ?? hs.score),
+      complianceScore: this.clampScore(hs.compliance?.score ?? 0),
+      deviceScore: this.clampScore(hs.device?.score ?? hs.score),
+      responseScore: this.clampScore(hs.response?.score ?? 0)
+    };
+    const firstPoint = points.find((point) => pointValueIsFinite(point?.hygieneScore)) || currentPoint;
+    const hygieneSummary = this.getTrendMetricSummary(points, 'hygieneScore', currentPoint.hygieneScore);
+    const hygieneDelta = hygieneSummary.hasDelta ? hygieneSummary.delta : null;
+    const hygieneTone = this.trendDeltaTone(hygieneDelta);
+    const mainGeometry = this.buildScoreTrendGeometry(points, 'hygieneScore', 560, 190, 18);
+    const fromLabel = this.formatDashboardTrendLabel(firstPoint.date);
+    const toLabel = this.formatDashboardTrendLabel(currentPoint.date);
+    const metricCards = [
+      { key: 'securityScore', label: 'Security', href: '#!/security', icon: 'ti-shield-check', detail: hs.vulnerability?.shortReason || 'Security trend' },
+      { key: 'complianceScore', label: 'Compliance', href: '#!/compliance', icon: 'ti-clipboard-check', detail: hs.compliance?.shortReason || 'Compliance evidence' },
+      { key: 'deviceScore', label: 'Devices', href: '#!/devices', icon: 'ti-devices', detail: this.getDeviceCoverageDetail(data) },
+      { key: 'responseScore', label: 'Response', href: '#!/alerts', icon: 'ti-clock-check', detail: hs.response?.shortReason || 'Response evidence' },
+    ];
+
+    return html`
+      <section aria-label="Hygiene behavior trend" title="Hygiene shows whether the org is improving or drifting. Use the supporting charts to open the weak area." class="card" style="min-width:0;height:100%;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid var(--db-tile-border,rgba(148,163,184,0.18));border-radius:16px;padding:${isSmallScreen ? '14px' : '16px'};box-shadow:0 4px 18px rgba(15,23,42,0.05);overflow:hidden;">
+        <div class="card-status-top bg-orange" style="opacity:${hygieneDelta !== null && hygieneDelta < -0.5 ? '1' : '0.55'};"></div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+          <div style="min-width:0;">
+            <div title="Behavior history, not a duplicate of today's insurance outcome. Expand supporting charts to act on weak areas." style="font-size:0.72rem;color:var(--db-muted-text,#6b7280);text-transform:uppercase;letter-spacing:0.12em;font-weight:850;margin-bottom:3px;">Hygiene Behavior Trend</div>
+            <div style="font-size:0.86rem;font-weight:780;color:var(--db-answer-text,#111827);line-height:1.35;">Org security behavior over time</div>
+            <div style="font-size:0.74rem;color:var(--db-faint-text,#6b7280);margin-top:5px;">${fromLabel && toLabel ? `${fromLabel} to ${toLabel}` : 'Latest hygiene trend'} · hygiene score movement</div>
+          </div>
+          <span class="badge bg-orange-lt text-orange-lt-fg badge-pill" style="display:inline-flex;align-items:center;gap:6px;border:1px solid ${hygieneTone}26;font-size:0.74rem;font-weight:900;line-height:1;padding:7px 10px;white-space:nowrap;">
+            ${this.trendDeltaLabel(hygieneDelta, ' pts')}
+          </span>
+        </div>
+
+        ${mainGeometry ? html`
+          <svg viewBox=${`0 0 ${mainGeometry.width} ${mainGeometry.height}`} role="img" aria-label="Hygiene score trend" preserveAspectRatio="none" style="width:100%;height:${isSmallScreen ? '130px' : '160px'};display:block;border-radius:12px;background:linear-gradient(180deg,rgba(99,102,241,0.06),rgba(99,102,241,0.015));">
+            <path d=${mainGeometry.areaPath} fill="${hygieneTone}12"></path>
+            <path d=${mainGeometry.linePath} fill="none" stroke=${hygieneTone} stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        ` : html`
+          <div style="height:${isSmallScreen ? '130px' : '160px'};display:flex;align-items:center;justify-content:center;border:1px dashed var(--db-tile-border,rgba(148,163,184,0.3));border-radius:12px;color:var(--db-faint-text,#6b7280);font-size:0.82rem;">Waiting for the next daily snapshot</div>
+        `}
+
+        <details
+          open=${this.state.hygieneDetailsOpen}
+          onToggle=${(event) => {
+            const nextOpen = event.currentTarget.open === true;
+            if (nextOpen !== this.state.hygieneDetailsOpen) this.setState({ hygieneDetailsOpen: nextOpen });
+          }}
+          title="Security + Compliance, Devices, and Response drive hygiene. Expand, then click a tile to open that workflow."
+          style="margin-top:12px;border:1px solid var(--db-tile-border,rgba(148,163,184,0.2));border-radius:12px;background:var(--db-tile-bg,rgba(255,255,255,0.42));overflow:hidden;"
+        >
+          <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;color:var(--db-answer-text,#111827);">
+            <span style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.09em;font-weight:850;color:var(--db-muted-text,#6b7280);">Supporting behavior charts</span>
+            <span style="font-size:0.72rem;font-weight:850;color:${hygieneTone};white-space:nowrap;">View</span>
+          </summary>
+          <div style="display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'repeat(2,minmax(0,1fr))'};gap:8px;padding:0 10px 10px;">
+            ${metricCards.map((metric) => {
+              const summary = this.getTrendMetricSummary(points, metric.key, currentPoint[metric.key]);
+              const value = Number(summary.value ?? 0);
+              const tone = this.trendDeltaTone(summary.hasDelta ? summary.delta : null);
+              const meta = this.getBusinessOnlyMeta(metric.href);
+              const isDisabled = Boolean(meta.className);
+              return html`
+                <a
+                  href=${metric.href}
+                  class=${meta.className}
+                  title=${meta.title || metric.detail}
+                  data-business-tooltip=${meta.dataTooltip}
+                  onClick=${(event) => {
+                    if (isDisabled) {
+                      event.preventDefault();
+                      window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                    }
+                  }}
+                  style="text-decoration:none;color:var(--db-answer-text,#111827);min-width:0;border:1px solid ${tone}22;background:${tone}08;border-radius:12px;padding:10px;display:block;"
+                >
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                    <span style="display:flex;align-items:center;gap:7px;min-width:0;">
+                      <i class=${`ti ${metric.icon}`} style="color:${tone};font-size:1rem;"></i>
+                      <span style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:850;color:var(--db-muted-text,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${metric.label}</span>
+                    </span>
+                    <span style="font-size:0.72rem;font-weight:900;color:${tone};white-space:nowrap;">${this.trendDeltaLabel(summary.hasDelta ? summary.delta : null, ' pts')}</span>
+                  </div>
+                  <div style="display:flex;align-items:baseline;gap:7px;margin-top:5px;">
+                    <span style="font-size:1.25rem;font-weight:850;color:${this.getReadableScoreTone(value)};line-height:1;">${Math.round(value)}</span>
+                    <span style="font-size:0.72rem;color:var(--db-faint-text,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${metric.detail}</span>
+                  </div>
+                  ${this.renderMiniScoreTrend(points, metric.key, tone)}
+                </a>
+              `;
+            })}
+          </div>
+        </details>
+      </section>
+    `;
+  }
+
+  renderProofChain(data = this.state.data, { isSmallScreen = false } = {}) {
+    if (!data) return null;
+
+    const hs = this.getHealthScoreData(data);
+    const proof = this.getProofReadinessData(data);
+    const securityScore = this.clampScore(hs.vulnerability?.score ?? hs.device?.score ?? hs.score);
+    const complianceScore = this.clampScore(hs.compliance?.score ?? 0);
+    const auditScore = this.clampScore(hs.response?.score ?? 0);
+    const hygieneScore = this.clampScore(hs.score);
+    const baseScore = Math.min(securityScore, complianceScore);
+    const steps = [
+      {
+        label: 'Security + Compliance',
+        value: `${securityScore} / ${complianceScore}`,
+        detail: 'Exposure plus controls',
+        icon: 'ti-shield-check',
+        tone: this.getScoreTone(baseScore),
+        readableTone: this.getReadableScoreTone(baseScore),
+        tooltip: 'Security exposure and compliance controls form the base. Open Security or Compliance to improve the weakest side.'
+      },
+      {
+        label: 'Audit',
+        value: `${auditScore}`,
+        detail: 'Response proof',
+        icon: 'ti-clipboard-check',
+        tone: this.getScoreTone(auditScore),
+        readableTone: this.getReadableScoreTone(auditScore),
+        tooltip: 'Audit proof shows whether findings have remediation evidence. Open Alerts to improve response proof.'
+      },
+      {
+        label: 'Hygiene',
+        value: `${hygieneScore} ${hs.grade}`,
+        detail: 'Behavior over time',
+        icon: 'ti-activity',
+        tone: this.getScoreTone(hygieneScore),
+        readableTone: this.getReadableScoreTone(hygieneScore),
+        tooltip: 'Hygiene shows whether the organization is improving or drifting. Use the behavior trend to choose the weak workflow.'
+      },
+      {
+        label: 'Insurance',
+        value: proof.label,
+        detail: 'Coverage outcome',
+        icon: 'ti-file-certificate',
+        tone: proof.tone,
+        readableTone: proof.readableTone,
+        tooltip: 'Insurance readiness is the outcome. Open Reports for evidence packs or ask MAGI what blocks readiness.'
+      }
+    ];
+
+    return html`
+      <section
+        aria-label="Readiness model"
+        class="proof-chain-strip"
+        title="Security + Compliance -> Audit -> Hygiene -> Insurance. Follow the weakest signal to choose the next action."
+        style="order:3;margin:0 0 14px;background:var(--proof-chain-bg);border:1px solid var(--proof-chain-border);border-radius:14px;padding:${isSmallScreen ? '11px' : '12px 14px'};box-shadow:var(--proof-chain-shadow);"
+      >
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+          <div style="min-width:0;">
+            <div title="The readiness model behind this dashboard. Follow the weakest signal below to decide where to act next." style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.12em;font-weight:850;color:var(--db-muted-text,#6b7280);">Readiness Model</div>
+            <div style="font-size:0.84rem;color:var(--db-answer-text,#374151);font-weight:700;line-height:1.38;max-width:820px;">MAGI correlates live endpoint telemetry, patch and vulnerability exposure, compliance controls, and response history into an auditable insurance readiness position.</div>
+          </div>
+          <span
+            class="badge badge-pill"
+            title="Ask MAGI to explain which model input blocks readiness and where to act."
+            style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,211,238,0.14);color:var(--db-tone-info,#1d4ed8);border:1px solid rgba(34,211,238,0.35);font-weight:850;box-shadow:0 6px 18px rgba(34,211,238,0.10);"
+          >
+            <i class="ti ti-sparkles"></i>
+            MAGI explains this model
+          </span>
+        </div>
+        <div style="display:flex;align-items:stretch;gap:${isSmallScreen ? '8px' : '9px'};flex-wrap:${isSmallScreen ? 'wrap' : 'nowrap'};">
+          ${steps.map((step, index) => html`
+            <div style="display:flex;align-items:center;gap:${isSmallScreen ? '8px' : '9px'};flex:${isSmallScreen ? '1 1 100%' : '1 1 0'};min-width:${isSmallScreen ? '100%' : '0'};">
+              <div
+                aria-label=${`${step.label}: ${step.value}. ${step.detail}`}
+                title=${step.tooltip}
+                style="flex:1;min-width:0;border:1px solid ${step.tone}22;background:${this.getTranslucentSurface(step.tone, '08')};border-radius:12px;padding:10px 11px;display:grid;grid-template-columns:32px minmax(0,1fr);gap:9px;align-items:center;color:var(--db-answer-text,#111827);"
+              >
+                <span style="width:32px;height:32px;border-radius:10px;background:${step.tone}16;color:${step.readableTone || step.tone};display:inline-flex;align-items:center;justify-content:center;"><i class=${`ti ${step.icon}`}></i></span>
+                <span style="min-width:0;display:block;">
+                  <span style="display:block;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:850;color:var(--db-muted-text,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${step.label}</span>
+                  <span style="display:flex;align-items:baseline;gap:7px;margin-top:2px;min-width:0;">
+                    <span style="font-size:0.98rem;font-weight:900;color:${step.readableTone || step.tone};line-height:1;white-space:nowrap;">${step.value}</span>
+                    <span style="font-size:0.7rem;color:var(--db-faint-text,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${step.detail}</span>
+                  </span>
+                </span>
+              </div>
+              ${index < steps.length - 1 ? html`
+                <span aria-hidden="true" style="display:${isSmallScreen ? 'none' : 'inline-flex'};align-items:center;justify-content:center;color:var(--db-tone-primary,#4f46e5);opacity:0.75;flex:0 0 18px;"><i class="ti ti-arrow-narrow-right"></i></span>
+              ` : null}
+            </div>
+          `)}
+        </div>
+      </section>
+    `;
+  }
+
   renderSearchHeader() {
     const { data, aiLoading, aiAnswer, aiError, refreshing } = this.state;
+    if (!data) return null;
+
     const hs = this.getHealthScoreData(data);
     const freshness = this.getFreshnessInfo();
     const proof = this.getProofReadinessData(data);
     const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
     const aiPlaceholder = isSmallScreen
-      ? 'Ask about threats, compliance...'
-      : 'Ask MAGI about your security posture...';
+      ? 'Ask about readiness or risk...'
+      : 'Ask MAGI about readiness, risk, or next actions...';
     const aiButtonLabel = aiLoading ? 'Thinking...' : (isSmallScreen ? 'Ask' : 'Ask MAGI');
-    const moveActionsToProofHero = Boolean(aiAnswer) && !isSmallScreen;
-
     const scoreColor = this.getScoreTone(hs.score);
     const scoreReadableColor = this.getReadableScoreTone(hs.score);
-    const magiHeroTip = `MAGI reads the current dossier and explains the proof blockers behind ${proof.label}.`;
-
-    // Score delta (trend)
-    const bo = data?.businessOwner || {};
-    const trendPoints = Array.isArray(bo.businessTrends?.points) ? bo.businessTrends.points : [];
-    let scoreDelta = null;
-    if (trendPoints.length >= 2) {
-      const prev = trendPoints[trendPoints.length - 2]?.score;
-      const curr = trendPoints[trendPoints.length - 1]?.score;
-      if (typeof prev === 'number' && typeof curr === 'number') {
-        scoreDelta = curr - prev;
-      }
-    }
+    const magiHeroTip = 'Ask MAGI to explain the readiness model and name the Security, Compliance, Audit, or Hygiene action to take next.';
+    const proofCardTip = 'Insurance readiness is today\'s outcome. Open Reports for evidence, or ask MAGI what blocks readiness.';
 
     return html`
       <div style="
@@ -1483,214 +1947,209 @@ export default class UnifiedDashboard extends Component {
         padding: 14px 16px 8px;
         overflow: visible;
       ">
-        <div style="max-width: 1120px; margin: 0 auto; position: relative;">
-
-          <section
-            aria-label="Dashboard proof and MAGI"
-            style="display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(360px,0.9fr) minmax(460px,1.1fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:start;"
-          >
-          <section aria-label="Insurance proof readiness" style="text-align:center;margin-bottom:${isSmallScreen ? '0' : '0'};min-width:0;">
-            <div
-              style="
-                max-width: none;
-                width: 100%;
-                height: 100%;
-                margin: 0 auto;
-                padding: 16px 18px;
-                background: linear-gradient(135deg, rgba(99,102,241,0.08), var(--db-glass-bg, rgba(255,255,255,0.76)) 44%, var(--db-glass-bg, rgba(255,255,255,0.76)));
-                backdrop-filter: blur(14px);
-                -webkit-backdrop-filter: blur(14px);
-                border: 1px solid var(--db-tile-border, rgba(148,163,184,0.18));
-                border-top: 4px solid ${proof.readableTone};
-                border-radius: 16px;
-                box-shadow: 0 4px 24px rgba(15,23,42,0.06);
-              "
-              title=${magiHeroTip}
-            >
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-                <div style="text-align:left;min-width:240px;flex:1;">
-                  <div style="font-size:0.72rem;color:var(--db-muted-text,#6b7280);text-transform:uppercase;letter-spacing:0.12em;font-weight:800;margin-bottom:4px;">Insurance Proof Readiness</div>
-                  <div style="font-size:${isSmallScreen ? '2rem' : '2.45rem'};font-weight:850;color:${proof.readableTone};line-height:1;">${proof.label}</div>
-                  <div style="font-size:0.84rem;color:var(--db-answer-text,#374151);font-weight:550;margin-top:7px;line-height:1.4;">${proof.summary}</div>
-                </div>
-                <a href="#!/reports" style="min-width:132px;padding:11px 12px;border-radius:12px;background:${this.getTranslucentSurface(scoreColor, '07')};border:1px solid ${scoreColor}24;text-align:left;text-decoration:none;color:var(--db-answer-text,#111827);">
-                  <div style="font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--db-muted-text,#6b7280);font-weight:800;">Health Score</div>
-                  <div style="display:flex;align-items:center;gap:9px;margin-top:3px;">
-                    <span style="font-size:1.95rem;font-weight:850;color:${scoreReadableColor};line-height:1;">${hs.score}</span>
-                    <span style="min-width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;background:${scoreColor};border-radius:10px;line-height:1;box-shadow:0 8px 18px ${scoreColor}33;">${hs.grade}</span>
+        <div style="max-width: 1120px; margin: 0 auto; position: relative; display:flex; flex-direction:column;">
+          <section aria-label="MAGI search" class="card card-lg magi-hero-card" style="order:1;min-width:0;margin:0 0 12px;border-radius:16px;">
+            <div class="card-status-top bg-purple"></div>
+            <div class="card-body" style="padding:${isSmallScreen ? '16px' : '18px 20px'};display:flex;flex-direction:column;gap:14px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+                <div style="min-width:0;flex:1 1 300px;">
+                  <div class="badges-list" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:7px;">
+                    <span class="badge bg-indigo-lt text-indigo-lt-fg badge-pill" title="Ask Officer MAGI to explain evidence and name the next action." style="font-weight:850;letter-spacing:0.08em;text-transform:uppercase;">MAGI</span>
+                    <span class="badge bg-azure-lt text-azure-lt-fg badge-pill" title="Review the readiness model below, then open the weak area.">Readiness model</span>
+                    <span class="badge bg-purple-lt text-purple-lt-fg badge-pill" title="Use Recommended Fixes or ask MAGI for the next action.">Next action</span>
                   </div>
-                  <div style="font-size:0.7rem;color:var(--db-faint-text,#6b7280);margin-top:4px;">Evidence reports</div>
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <span style="width:38px;height:38px;border-radius:13px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--db-tone-primary,#4f46e5),var(--db-tone-purple,#7c3aed));color:#fff;box-shadow:0 10px 20px rgba(79,70,229,0.24);"><i class="ti ti-sparkles" style="font-size:1.18rem;"></i></span>
+                    <span style="font-size:${isSmallScreen ? '1.35rem' : '1.65rem'};font-weight:900;line-height:1;color:var(--db-answer-text,#111827);">Officer MAGI</span>
+                  </div>
+                  <div style="margin-top:7px;color:var(--db-faint-text,#6b7280);font-size:0.86rem;line-height:1.42;max-width:680px;">${magiHeroTip}</div>
+                </div>
+                <a href="#!/analyst" class=${this.isPersonalOrg() ? 'btn btn-outline-indigo business-license-only' : 'btn btn-outline-indigo'} title=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : 'Open Officer MAGI'} data-business-tooltip=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''} onClick=${(event) => {
+                  if (this.isPersonalOrg()) {
+                    event.preventDefault();
+                    window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                  }
+                }} style="white-space:nowrap;align-self:${isSmallScreen ? 'stretch' : 'flex-start'};justify-content:center;">
+                  <i class="ti ti-messages"></i>
+                  Analyst view
                 </a>
               </div>
 
-              <div style="margin-top:22px;max-width:520px;text-align:left;">
-                <div style="font-size:0.8rem;color:var(--db-answer-text,#374151);font-weight:500;line-height:1.38;">${hs.narration}</div>
-              ${hs.narrationImpact ? html`
-                  <div style="font-size:0.72rem;color:var(--db-tone-success,#15803d);font-weight:650;margin-top:3px;">${hs.narrationImpact}</div>
-              ` : null}
-              </div>
-
-              <div style="margin-top:8px;display:flex;align-items:center;gap:10px;font-size:0.74rem;flex-wrap:wrap;">
-                ${scoreDelta !== null ? html`
-                  <span style="color:${scoreDelta >= 0 ? 'var(--db-tone-success,#15803d)' : 'var(--db-tone-danger,#dc2626)'};font-weight:700;">
-                    ${scoreDelta >= 0 ? '▲' : '▼'} ${Math.abs(scoreDelta)} since last week
-                  </span>
-                ` : null}
-                ${hs.hasCriticalPenalty ? html`
-                  <span style="color:var(--db-tone-danger,#dc2626);font-weight:700;font-size:0.72rem;">Critical penalty applied</span>
-                ` : null}
-                ${freshness ? html`<span style="color:var(--db-faint-text,#9ca3af);">Evidence: ${freshness.ageText}${freshness.isStale ? ' stale' : ''}</span>` : null}
-              </div>
-
-              ${this.renderDossierStack({ embedded: true })}
-              ${moveActionsToProofHero ? this.renderTopActionItems({ stacked: true, embedded: true }) : null}
-            </div>
-          </section>
-
-          <section aria-label="MAGI search" style="min-width:0;margin:0;padding:14px 14px 13px;border-radius:24px;background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.04));border:1px solid rgba(99,102,241,0.14);box-shadow:0 8px 28px rgba(99,102,241,0.08);display:flex;flex-direction:column;justify-content:flex-start;align-self:start;gap:12px;">
-            ${moveActionsToProofHero ? null : this.renderTopActionItems({ stacked: true })}
-
-            <div aria-label="MAGI command box" style="background:var(--db-command-bg,rgba(255,255,255,0.36));border:1px solid var(--db-command-border,rgba(99,102,241,0.12));border-radius:20px;padding:10px 10px 9px;">
-              <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 7px;color:var(--db-tone-primary,#4f46e5);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.14em;font-weight:900;">
-                <i class="ti ti-sparkles"></i>
-                <span>MAGI</span>
-              </div>
-              <form onSubmit=${this.submitAiPrompt} style="max-width:680px;margin:0 auto;">
-              <div style="
-                display: flex;
-                align-items: center;
-                background: var(--db-glass-bg, rgba(255,255,255,0.85));
-                backdrop-filter: blur(16px) saturate(180%);
-                -webkit-backdrop-filter: blur(16px) saturate(180%);
-                border: 1.5px solid rgba(99, 102, 241, 0.30);
-                border-radius: 50px;
-                overflow: hidden;
-                transition: border-color 0.2s;
-                box-shadow: 0 4px 18px rgba(99,102,241,0.10), 0 1px 3px rgba(0,0,0,0.05);
-              ">
-                <span style="display: flex; align-items: center; padding: 0 10px 0 20px; color: var(--db-faintest-text); flex-shrink: 0;">
-                  ${aiLoading
-                    ? html`<span class="spinner-border spinner-border-sm" style="color: var(--db-tone-primary,#4f46e5); width: 16px; height: 16px; border-width: 2px;" role="status"></span>`
-                    : html`<svg width="17" height="17" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>`}
-                </span>
-                <input
-                  type="text"
-                  aria-label="Ask security assistant"
-                  placeholder=${aiPlaceholder}
-                  value=${this.state.aiPrompt}
-                  onInput=${this.handleAiPromptChange}
-                  disabled=${aiLoading}
-                  style="
-                    flex: 1;
-                    background: none;
-                    border: none;
-                    outline: none;
-                    color: var(--db-input-color);
-                    font-size: ${isSmallScreen ? '0.84rem' : '0.9rem'};
-                    padding: ${isSmallScreen ? '11px 6px' : '13px 8px'};
-                    min-width: 0;
-                  "
-                />
-                <button
-                  type="submit"
-                  disabled=${aiLoading}
-                  style="
-                    flex-shrink: 0;
-                    background: linear-gradient(135deg, var(--db-tone-primary,#4f46e5), var(--db-tone-purple,#7c3aed));
-                    border: none;
-                    color: #fff;
-                    padding: ${isSmallScreen ? '0 14px' : '0 20px'};
-                    height: ${isSmallScreen ? '34px' : '36px'};
-                    font-weight: 600;
-                    font-size: ${isSmallScreen ? '0.78rem' : '0.82rem'};
-                    border-radius: 40px;
-                    margin: 4px;
-                    cursor: ${aiLoading ? 'default' : 'pointer'};
-                    opacity: ${aiLoading ? '0.6' : '1'};
-                    transition: opacity 0.15s;
-                    white-space: nowrap;
-                  "
-                >${aiButtonLabel}</button>
-              </div>
-            </form>
-            </div>
-
-            <!-- AI Answer card -->
-            ${aiAnswer ? html`
-              <div style="
-                margin-top: 14px;
-                background: var(--db-answer-bg, rgba(255,255,255,0.85));
-                backdrop-filter: blur(16px);
-                -webkit-backdrop-filter: blur(16px);
-                border: 1px solid var(--db-card-border, rgba(148,163,184,0.18));
-                border-left: 3px solid #818cf8;
-                border-radius: 14px;
-                padding: 14px 16px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-              ">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="color: var(--db-tone-primary,#4f46e5); font-size: 0.78rem; font-weight: 600;">MAGI</span>
-                    ${aiAnswer.confidence != null ? html`
-                      <span style="font-size: 0.7rem; background: rgba(99,102,241,0.12); color: var(--db-tone-primary,#4f46e5); padding: 1px 8px; border-radius: 20px;">${Math.round((aiAnswer.confidence || 0) * 100)}%</span>
-                    ` : ''}
-                  </div>
-                  <div style="display: flex; gap: 6px; align-items: center;">
+              <div aria-label="MAGI command box" class="magi-command-shell" title=${magiHeroTip}>
+                <form onSubmit=${this.submitAiPrompt}>
+                  <div class="input-group input-group-flat magi-command-input">
+                    <span class="input-group-text" style="background:transparent;border:0;color:var(--db-faintest-text);padding-left:14px;padding-right:4px;">
+                      ${aiLoading
+                        ? html`<span class="spinner-border spinner-border-sm" style="color: var(--db-tone-primary,#4f46e5); width: 16px; height: 16px; border-width: 2px;" role="status"></span>`
+                        : html`<i class="ti ti-search" style="font-size:1rem;"></i>`}
+                    </span>
+                    <input
+                      type="text"
+                      class="form-control"
+                      aria-label="Ask security assistant"
+                      title="Ask about insurance readiness, proof blockers, hygiene drift, or which page to open next."
+                      placeholder=${aiPlaceholder}
+                      value=${this.state.aiPrompt}
+                      onInput=${this.handleAiPromptChange}
+                      disabled=${aiLoading}
+                      style="background:transparent;border:0;box-shadow:none;color:var(--db-input-color);font-size:${isSmallScreen ? '0.84rem' : '0.92rem'};padding:${isSmallScreen ? '11px 6px' : '13px 8px'};min-width:0;"
+                    />
                     <button
-                      onClick=${() => {
-                        if (this.isPersonalOrg()) {
-                          window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
-                          return;
-                        }
-                        try { sessionStorage.setItem('ai_analyst_prefill', JSON.stringify({ question: aiAnswer.question, answer: aiAnswer.answer })); } catch (_) {}
-                        window.location.hash = '#!/analyst';
-                      }}
-                      class=${this.isPersonalOrg() ? 'business-license-only' : ''}
-                      style="background: var(--db-subtle-bg); border: 1px solid var(--db-subtle-border); color: var(--db-subtle-text); font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; cursor: pointer;"
-                    >Continue →</button>
-                    <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: var(--db-faintest-text); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px;">✕</button>
+                      type="submit"
+                      class=${aiLoading ? 'btn btn-indigo btn-loading' : 'btn btn-indigo'}
+                      title="Ask MAGI to explain the current readiness model."
+                      disabled=${aiLoading}
+                      style="margin:4px;border-radius:10px;min-width:${isSmallScreen ? '72px' : '106px'};white-space:nowrap;"
+                    >${aiButtonLabel}</button>
                   </div>
+                </form>
+              </div>
+
+              ${aiAnswer ? html`
+                <div class="magi-answer-card" style="
+                  background: var(--db-answer-bg, rgba(255,255,255,0.85));
+                  backdrop-filter: blur(16px);
+                  -webkit-backdrop-filter: blur(16px);
+                  border: 1px solid var(--db-card-border, rgba(148,163,184,0.18));
+                  border-left: 3px solid #818cf8;
+                  border-radius: 14px;
+                  padding: 14px 16px;
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+                ">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="color: var(--db-tone-primary,#4f46e5); font-size: 0.78rem; font-weight: 700;">MAGI</span>
+                      ${aiAnswer.confidence != null ? html`
+                        <span class="badge bg-indigo-lt text-indigo-lt-fg badge-pill">${Math.round((aiAnswer.confidence || 0) * 100)}%</span>
+                      ` : ''}
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                      <button
+                        onClick=${() => {
+                          if (this.isPersonalOrg()) {
+                            window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
+                            return;
+                          }
+                          try { sessionStorage.setItem('ai_analyst_prefill', JSON.stringify({ question: aiAnswer.question, answer: aiAnswer.answer })); } catch (_) {}
+                          window.location.hash = '#!/analyst';
+                        }}
+                        class=${this.isPersonalOrg() ? 'btn btn-sm btn-outline-indigo business-license-only' : 'btn btn-sm btn-outline-indigo'}
+                        title="Continue this answer in the full Analyst view."
+                      >Continue</button>
+                      <button class="btn btn-action" aria-label="Clear MAGI answer" title="Clear MAGI answer" onClick=${this.clearAiAnswer}><i class="ti ti-x"></i></button>
+                    </div>
+                  </div>
+                  <div class="magi-answer-question" style="color: var(--db-faint-text); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
+                  <div class="chat-markdown-content magi-answer-body" style="color: var(--db-answer-text); font-size: 0.875rem;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
                 </div>
-                <div style="color: var(--db-faint-text); font-size: 0.76rem; margin-bottom: 8px; font-style: italic;">${aiAnswer.question}</div>
-                <div class="chat-markdown-content" style="color: var(--db-answer-text); font-size: 0.875rem;" dangerouslySetInnerHTML=${{ __html: renderMarkdown(aiAnswer.answer) }}></div>
-              </div>
-            ` : ''}
-
-            ${aiError ? html`
-              <div style="margin-top: 10px; background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.2); border-radius: 10px; padding: 10px 14px; color: #dc2626; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
-                <span>${aiError}</span>
-                <button onClick=${this.clearAiAnswer} style="background: none; border: none; color: #dc2626; cursor: pointer; margin-left: 8px;">✕</button>
-              </div>
-            ` : ''}
-          </section>
-          </section>
-
-          <${TrendSnapshotStrip}
-            trends=${data?.snapshots || []}
-            context="dashboard"
-            title="30-Day Security Trend"
-            subtitle="Score, exposure, and device movement over the latest snapshot window"
-            className="mt-3"
-          />
-
-          <!-- Refresh + Freshness -->
-          <div style="text-align: center;">
-            <div style="display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;">
-              <button
-                class="db-quick-pill db-quick-pill-btn"
-                onClick=${() => this.refreshDashboard()}
-                style="font-size: 0.72rem; color: var(--db-pill-text); background: var(--db-pill-bg); border: 1px solid var(--db-pill-border); border-radius: 20px; padding: 4px 14px; cursor: pointer; font-weight: 500;"
-              >
-                ${refreshing ? 'Refreshing…' : '↻ Refresh'}
-              </button>
-              ${freshness ? html`
-                <span style="font-size: 0.68rem; color: var(--db-faintest-text);">
-                  ${freshness.ageText}${freshness.isStale ? ' (stale)' : ''}
-                </span>
               ` : ''}
+
+              ${aiError ? html`
+                <div class="alert alert-warning mb-0" role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                  <span>${aiError}</span>
+                  <button class="btn btn-action" aria-label="Clear MAGI error" onClick=${this.clearAiAnswer}><i class="ti ti-x"></i></button>
+                </div>
+              ` : ''}
+            </div>
+          </section>
+
+          <div style="order:2;margin:0 0 16px;padding:0 2px;">
+            <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(124,58,237,0.36),transparent);margin:0 0 10px;"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+              <div title="When the dashboard evidence package was last generated. If it looks stale, click Refresh before reviewing or exporting." style="display:inline-flex;align-items:center;gap:8px;color:var(--db-faint-text,#6b7280);font-size:0.76rem;font-weight:650;">
+                <i class=${`ti ${freshness?.isStale ? 'ti-clock-exclamation' : 'ti-clock-check'}`} style="color:var(--db-tone-primary,#4f46e5);"></i>
+                <span>${freshness ? `Updated ${freshness.ageText}${freshness.isStale ? ' · stale evidence' : ''}` : 'Current readiness data'}</span>
+              </div>
+              <button
+                class=${refreshing ? 'btn btn-sm btn-outline-indigo btn-loading' : 'btn btn-sm btn-outline-indigo'}
+                onClick=${() => this.refreshDashboard()}
+                title="Reload the dashboard evidence package before reviewing or exporting reports."
+                disabled=${refreshing}
+                style="display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:6px 10px;border-radius:9px;white-space:nowrap;"
+              >
+                <i class="ti ti-refresh"></i>
+                ${refreshing ? 'Refreshing' : 'Refresh'}
+              </button>
             </div>
           </div>
 
+          ${this.renderProofChain(data, { isSmallScreen })}
+
+          <section
+            aria-label="Insurance outcome and hygiene behavior trend"
+            style="order:4;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(330px,0.82fr) minmax(500px,1.18fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:stretch;"
+          >
+            <section aria-label="Insurance readiness" style="min-width:0;">
+              <div
+                class="card proof-readiness-card"
+                style="
+                  --proof-readiness-tone: ${proof.tone};
+                  --proof-readiness-shadow: ${proof.tone}18;
+                  width: 100%;
+                  height: 100%;
+                  margin: 0 auto;
+                  padding: 16px 18px;
+                  background: linear-gradient(135deg, rgba(99,102,241,0.055), var(--db-glass-bg, rgba(255,255,255,0.76)) 44%, var(--db-glass-bg, rgba(255,255,255,0.76)));
+                  backdrop-filter: blur(14px);
+                  -webkit-backdrop-filter: blur(14px);
+                  border: 1px solid var(--db-tile-border, rgba(148,163,184,0.18));
+                  border-top: 4px solid ${proof.tone};
+                  border-left: 1px solid ${proof.tone}26;
+                  border-radius: 16px;
+                  box-shadow: 0 6px 22px ${proof.tone}12, 0 4px 18px rgba(15,23,42,0.05);
+                  display:flex;
+                  flex-direction:column;
+                "
+                title=${proofCardTip}
+              >
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                  <div style="text-align:left;min-width:220px;flex:1;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                      <div title="The underwriter-facing outcome. Open Reports for the evidence pack or click gaps below." style="font-size:0.72rem;color:var(--db-muted-text,#6b7280);text-transform:uppercase;letter-spacing:0.12em;font-weight:800;">Insurance Readiness</div>
+                      <span class="badge badge-pill" title=${proofCardTip} style="font-weight:850;background:${proof.tone};color:#fff;border:1px solid ${proof.tone};box-shadow:0 6px 14px ${proof.tone}24;">${proof.label}</span>
+                    </div>
+                    <div title="This is the insurance decision view. Use Evidence gaps to choose what to fix." style="font-size:${isSmallScreen ? '1.45rem' : '1.72rem'};font-weight:850;color:var(--db-answer-text,#111827);line-height:1.08;">Coverage outcome</div>
+                    <div style="font-size:0.84rem;color:var(--db-answer-text,#374151);font-weight:550;margin-top:7px;line-height:1.4;">${proof.summary}</div>
+                  </div>
+                  <a href="#!/reports" title="Open evidence reports for the hygiene score and insurance package." style="min-width:132px;padding:11px 12px;border-radius:12px;background:${this.getTranslucentSurface(scoreColor, '07')};border:1px solid ${scoreColor}24;text-align:left;text-decoration:none;color:var(--db-answer-text,#111827);">
+                    <div style="font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--db-muted-text,#6b7280);font-weight:800;">Hygiene Score</div>
+                    <div style="display:flex;align-items:center;gap:9px;margin-top:3px;">
+                      <span style="font-size:1.95rem;font-weight:850;color:${scoreReadableColor};line-height:1;">${hs.score}</span>
+                      <span style="min-width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;background:${scoreColor};border-radius:10px;line-height:1;box-shadow:0 8px 18px ${scoreColor}33;">${hs.grade}</span>
+                    </div>
+                    <div style="font-size:0.7rem;color:var(--db-faint-text,#6b7280);margin-top:4px;">Evidence reports</div>
+                  </a>
+                </div>
+
+                <div title="The strongest reason the current outcome is not cleaner. Use the gap list below to open the right workflow." style="margin-top:22px;text-align:left;border-left:3px solid ${proof.tone};padding-left:10px;">
+                  <div style="font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--db-muted-text,#6b7280);font-weight:850;margin-bottom:3px;">Why this outcome</div>
+                  <div style="font-size:0.82rem;color:var(--db-answer-text,#374151);font-weight:500;line-height:1.42;">${hs.narration}</div>
+                  ${hs.narrationImpact ? html`
+                    <div style="font-size:0.72rem;color:var(--db-tone-success,#15803d);font-weight:650;margin-top:3px;">${hs.narrationImpact}</div>
+                  ` : null}
+                </div>
+
+                ${this.renderProofBlockerList(proof)}
+
+                <div style="margin-top:auto;padding-top:12px;display:flex;align-items:center;gap:10px;font-size:0.74rem;flex-wrap:wrap;">
+                  ${hs.hasCriticalPenalty ? html`
+                    <span style="color:var(--db-tone-danger,#dc2626);font-weight:700;font-size:0.72rem;">Critical penalty applied</span>
+                  ` : null}
+                  ${freshness ? html`<span style="color:var(--db-faint-text,#9ca3af);">Evidence: ${freshness.ageText}${freshness.isStale ? ' stale' : ''}</span>` : null}
+                </div>
+              </div>
+            </section>
+
+            ${this.renderSecurityHygieneTrendPanel(data, { isSmallScreen })}
+          </section>
+
+          <section
+            aria-label="Readiness details and next steps"
+            style="order:5;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(0,1fr) minmax(320px,0.92fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:start;margin-top:14px;"
+          >
+            <div style="min-width:0;">${this.renderDossierStack({ embedded: true })}</div>
+            <div style="min-width:0;">${this.renderTopActionDropdown({ embedded: true })}</div>
+          </section>
         </div>
       </div>
     `;
@@ -1899,28 +2358,29 @@ export default class UnifiedDashboard extends Component {
     ];
 
     return html`
-      <section aria-label="Dossier score dropdown" style=${containerStyle}>
+      <section aria-label="Readiness model signal dropdown" style=${containerStyle}>
         <details
           open=${this.state.dossierOpen}
           onToggle=${(event) => {
             const nextOpen = event.currentTarget.open === true;
             if (nextOpen !== this.state.dossierOpen) this.setState({ dossierOpen: nextOpen });
           }}
+          title="Detailed signals behind Security + Compliance, Audit, Hygiene, and Insurance readiness. Expand and click a signal to act."
           style="background:var(--db-glass-bg,rgba(255,255,255,0.74));border:1px solid rgba(99,102,241,0.14);border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,0.04);overflow:hidden;"
         >
           <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;color:var(--db-answer-text,#111827);">
             <span style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span style="width:30px;height:30px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;background:${proof.tone}18;color:${proof.readableTone};flex-shrink:0;"><i class="ti ti-layout-grid"></i></span>
               <span style="min-width:0;">
-                <span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;color:var(--db-muted-text,#6b7280);">Dossier Scores</span>
-                <span style="display:block;font-size:0.84rem;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${proof.label} - ${proof.blockers.length} blocker${proof.blockers.length === 1 ? '' : 's'} across six surfaces</span>
+                <span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;color:var(--db-muted-text,#6b7280);">Model Signals</span>
+                <span style="display:block;font-size:0.84rem;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${proof.label} · security, compliance, audit, and hygiene inputs</span>
               </span>
             </span>
             <span style="display:inline-flex;align-items:center;gap:6px;font-size:0.74rem;font-weight:800;color:${proof.readableTone};white-space:nowrap;">
-              ${this.state.dossierOpen ? 'Hide scores' : 'View scores'} <i class=${`ti ${this.state.dossierOpen ? 'ti-chevron-up' : 'ti-chevron-down'}`}></i>
+              ${this.state.dossierOpen ? 'Hide signals' : 'Review signals'} <i class=${`ti ${this.state.dossierOpen ? 'ti-chevron-up' : 'ti-chevron-down'}`}></i>
             </span>
           </summary>
-          <div role="list" aria-label="Dossier score links" style="display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'repeat(2,minmax(0,1fr))'};gap:8px;padding:0 12px 12px;">
+          <div role="list" aria-label="Readiness model signal links" style="display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'repeat(2,minmax(0,1fr))'};gap:8px;padding:0 12px 12px;">
             ${dropdownItems.map((item) => {
               const meta = this.getBusinessOnlyMeta(item.href);
               const isDisabled = Boolean(meta.className);
@@ -3403,7 +3863,7 @@ export default class UnifiedDashboard extends Component {
                 margin-bottom: 12px;
               "></div>
               <div style="color:#111827;font-size:0.95rem;font-weight:600;">Loading intelligence...</div>
-              <div style="color:#6b7280;font-size:0.82rem;margin-top:4px;">Building your current security dossier.</div>
+              <div style="color:#6b7280;font-size:0.82rem;margin-top:4px;">Building your current readiness view.</div>
             </div>
           </div>
           <style>@keyframes spin { to { transform: rotate(360deg); } }</style>

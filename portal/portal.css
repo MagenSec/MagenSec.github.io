@@ -184,6 +184,202 @@ html, body {
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease, filter 0.18s ease;
 }
 
+.magi-hero-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(124, 58, 237, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(79, 70, 229, 0.18), rgba(124, 58, 237, 0.10) 42%, var(--card-bg, #ffffff) 76%) !important;
+  border: 1px solid rgba(124, 58, 237, 0.34) !important;
+  box-shadow: 0 16px 40px rgba(79, 70, 229, 0.16), 0 0 0 1px rgba(124, 58, 237, 0.08) !important;
+}
+
+.magi-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.28), rgba(236, 72, 153, 0.18), transparent 46%);
+  opacity: 0.45;
+}
+
+.magi-hero-card > .card-body {
+  position: relative;
+  z-index: 1;
+}
+
+[data-bs-theme="dark"] .magi-hero-card {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(196, 181, 253, 0.22), transparent 34%),
+    linear-gradient(135deg, rgba(79, 70, 229, 0.26), rgba(124, 58, 237, 0.16) 42%, rgba(15, 23, 42, 0.94) 80%) !important;
+  border-color: rgba(196, 181, 253, 0.36) !important;
+  box-shadow: 0 18px 44px rgba(124, 58, 237, 0.26), 0 0 0 1px rgba(196, 181, 253, 0.12) !important;
+}
+
+.magi-answer-card {
+  color: var(--db-answer-text, #1f2937);
+}
+
+.proof-chain-strip {
+  --proof-chain-bg: linear-gradient(135deg, rgba(236, 254, 255, 0.96), rgba(239, 246, 255, 0.94) 46%, rgba(245, 243, 255, 0.92));
+  --proof-chain-border: rgba(14, 165, 233, 0.32);
+  --proof-chain-shadow: 0 10px 30px rgba(14, 165, 233, 0.10), 0 0 0 1px rgba(124, 58, 237, 0.05);
+}
+
+[data-bs-theme="dark"] .proof-chain-strip {
+  --proof-chain-bg: linear-gradient(135deg, rgba(8, 145, 178, 0.18), rgba(30, 41, 59, 0.82) 46%, rgba(88, 28, 135, 0.20));
+  --proof-chain-border: rgba(34, 211, 238, 0.34);
+  --proof-chain-shadow: 0 12px 34px rgba(8, 145, 178, 0.18), 0 0 0 1px rgba(196, 181, 253, 0.10);
+}
+
+.magi-answer-card .magi-answer-body {
+  color: var(--db-answer-text, #1f2937) !important;
+}
+
+.magi-answer-card .magi-answer-body strong,
+.magi-answer-card .magi-answer-body h1,
+.magi-answer-card .magi-answer-body h2,
+.magi-answer-card .magi-answer-body h3,
+.magi-answer-card .magi-answer-body h4 {
+  color: var(--db-answer-text, #111827);
+}
+
+[data-bs-theme="dark"] .magi-answer-card {
+  background: rgba(15, 23, 42, 0.92) !important;
+  border-color: rgba(196, 181, 253, 0.22) !important;
+  border-left-color: #a5b4fc !important;
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.32), 0 0 0 1px rgba(196, 181, 253, 0.08) !important;
+}
+
+[data-bs-theme="dark"] .magi-answer-card .magi-answer-question {
+  color: #bfdbfe !important;
+}
+
+[data-bs-theme="dark"] .magi-answer-card .magi-answer-body {
+  color: #f8fafc !important;
+}
+
+[data-bs-theme="dark"] .magi-answer-card .magi-answer-body strong,
+[data-bs-theme="dark"] .magi-answer-card .magi-answer-body h1,
+[data-bs-theme="dark"] .magi-answer-card .magi-answer-body h2,
+[data-bs-theme="dark"] .magi-answer-card .magi-answer-body h3,
+[data-bs-theme="dark"] .magi-answer-card .magi-answer-body h4 {
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .magi-answer-card .magi-answer-body blockquote {
+  color: #cbd5e1;
+}
+
+.magi-command-shell {
+  position: relative;
+  isolation: isolate;
+  background: rgba(14, 165, 233, 0.10);
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  border-radius: 14px;
+  padding: 8px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(14, 165, 233, 0.16), 0 0 0 1px rgba(168, 85, 247, 0.10);
+}
+
+.magi-command-shell::before {
+  content: "";
+  position: absolute;
+  inset: -110%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      transparent 34deg,
+      rgba(14, 165, 233, 0.16) 48deg,
+      rgba(34, 211, 238, 0.98) 66deg,
+      rgba(59, 130, 246, 0.82) 82deg,
+      rgba(168, 85, 247, 0.95) 102deg,
+      rgba(236, 72, 153, 0.46) 118deg,
+      rgba(34, 211, 238, 0.16) 138deg,
+      transparent 164deg,
+      transparent 360deg
+    );
+  filter: saturate(1.18);
+  opacity: 0.86;
+  animation: magi-command-orbit 4.7s linear infinite;
+}
+
+.magi-command-shell::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  z-index: 1;
+  pointer-events: none;
+  background: #ffffff;
+  border-radius: 11px;
+}
+
+.magi-command-shell > form {
+  position: relative;
+  z-index: 2;
+}
+
+.magi-command-input {
+  align-items: center;
+  background: #ffffff !important;
+  border: 1.5px solid rgba(14, 165, 233, 0.42) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 5px 20px rgba(14, 165, 233, 0.16), 0 0 0 1px rgba(168, 85, 247, 0.10), 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.magi-command-input:focus-within {
+  border-color: rgba(34, 211, 238, 0.78) !important;
+  box-shadow: 0 10px 30px rgba(14, 165, 233, 0.24), 0 0 0 3px rgba(34, 211, 238, 0.18), 0 0 34px rgba(168, 85, 247, 0.22);
+  transform: translateY(-1px);
+}
+
+.magi-command-shell:focus-within::before {
+  opacity: 1;
+  animation-duration: 3.8s;
+}
+
+@keyframes magi-command-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+[data-bs-theme="dark"] .magi-command-shell {
+  background: rgba(8, 145, 178, 0.12);
+  border-color: rgba(34, 211, 238, 0.40);
+  box-shadow: 0 14px 36px rgba(34, 211, 238, 0.18), 0 0 0 1px rgba(168, 85, 247, 0.16);
+}
+
+[data-bs-theme="dark"] .magi-command-shell::before {
+  opacity: 1;
+  filter: saturate(1.35) brightness(1.08);
+}
+
+[data-bs-theme="dark"] .magi-command-shell::after {
+  background: #111827;
+}
+
+[data-bs-theme="dark"] .magi-command-input {
+  background: #111827 !important;
+  border-color: rgba(34, 211, 238, 0.46) !important;
+  box-shadow: 0 5px 22px rgba(34, 211, 238, 0.18), 0 0 0 1px rgba(168, 85, 247, 0.14), 0 1px 3px rgba(0, 0, 0, 0.32);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .magi-command-shell::before {
+    animation: none;
+  }
+
+  .magi-command-input {
+    transition: none;
+  }
+}
+
 .db-quick-pill-btn {
   line-height: 1.2;
 }
@@ -3935,6 +4131,28 @@ body.org-switcher-open .security-officer-top-note {
 
 [data-bs-theme="dark"] #theme-toggle-btn:hover {
   box-shadow: 0 0 0 2px rgba(148,163,184,0.2), 0 8px 14px rgba(2,6,23,0.46);
+}
+
+.magi-hero-card.card {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(124, 58, 237, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(79, 70, 229, 0.18), rgba(124, 58, 237, 0.10) 42%, var(--card-bg, #ffffff) 76%) !important;
+  border-color: rgba(124, 58, 237, 0.34) !important;
+  box-shadow: 0 16px 40px rgba(79, 70, 229, 0.16), 0 0 0 1px rgba(124, 58, 237, 0.08) !important;
+}
+
+[data-bs-theme="dark"] .magi-hero-card.card {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(196, 181, 253, 0.22), transparent 34%),
+    linear-gradient(135deg, rgba(79, 70, 229, 0.26), rgba(124, 58, 237, 0.16) 42%, rgba(15, 23, 42, 0.94) 80%) !important;
+  border-color: rgba(196, 181, 253, 0.36) !important;
+  box-shadow: 0 18px 44px rgba(124, 58, 237, 0.26), 0 0 0 1px rgba(196, 181, 253, 0.12) !important;
+}
+
+.proof-readiness-card.card {
+  border-top: 4px solid var(--proof-readiness-tone, #d97706) !important;
+  border-left-color: color-mix(in srgb, var(--proof-readiness-tone, #d97706) 28%, transparent) !important;
+  box-shadow: 0 6px 22px var(--proof-readiness-shadow, rgba(217, 119, 6, 0.14)), 0 4px 18px rgba(15,23,42,0.05) !important;
 }
 
 /* User menu visual parity with theme toggle glow */

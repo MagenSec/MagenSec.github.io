@@ -8,6 +8,13 @@ class ThemeService {
     constructor() {
         this.currentTheme = this.getStoredTheme() || this.getPreferredTheme();
         this.listeners = new Set();
+        window.addEventListener('theme-changed', (event) => {
+            const theme = event?.detail?.theme === 'dark' ? 'dark' : 'light';
+            if (theme === this.currentTheme) return;
+            this.currentTheme = theme;
+            this.updateTopBarToggle(theme);
+            this.listeners.forEach(listener => listener(theme));
+        });
     }
 
     getStoredTheme() {
@@ -23,15 +30,15 @@ class ThemeService {
     }
 
     setTheme(theme) {
-        this.currentTheme = theme;
+        this.currentTheme = theme === 'dark' ? 'dark' : 'light';
         // Use unified key (same as theme.js ThemeManager)
-        localStorage.setItem('magensec-theme', theme);
+        localStorage.setItem('magensec-theme', this.currentTheme);
         // Set both attributes: data-bs-theme for Tabler components, data-theme for custom CSS
-        document.documentElement.setAttribute('data-bs-theme', theme);
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-bs-theme', this.currentTheme);
+        document.documentElement.setAttribute('data-theme', this.currentTheme);
         
         // Update theme color meta tag
-        const themeColor = theme === 'dark' ? '#1a1f36' : '#ffffff';
+        const themeColor = this.currentTheme === 'dark' ? '#1a1f36' : '#ffffff';
         let meta = document.querySelector('meta[name="theme-color"]');
         if (!meta) {
             meta = document.createElement('meta');
@@ -39,11 +46,14 @@ class ThemeService {
             document.head.appendChild(meta);
         }
         meta.content = themeColor;
+
+        this.updateTopBarToggle(this.currentTheme);
         
         // Notify listeners
-        this.listeners.forEach(listener => listener(theme));
+        this.listeners.forEach(listener => listener(this.currentTheme));
+        window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: this.currentTheme } }));
         
-        console.log('[Theme] Switched to', theme);
+        console.log('[Theme] Switched to', this.currentTheme);
     }
 
     toggle() {
@@ -105,6 +115,12 @@ class ThemeService {
         });
         
         return button;
+    }
+
+    updateTopBarToggle(theme = this.currentTheme) {
+        const button = document.getElementById('theme-toggle-btn');
+        if (!button) return;
+        button.innerHTML = theme === 'dark' ? this.getSunIcon() : this.getMoonIcon();
     }
 
     getMoonIcon() {

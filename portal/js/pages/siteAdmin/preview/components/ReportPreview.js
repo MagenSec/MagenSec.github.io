@@ -171,7 +171,7 @@ class ReportPreviewPage extends Component {
     renderReportTypeSelector() {
         const { reportType, orgData } = this.state;
         const types = [
-            { id: 'daily', label: 'Daily Report', description: 'Security dossier sent every day' },
+            { id: 'daily', label: 'Daily Report', description: 'Security evidence package sent every day' },
             { id: 'weekly', label: 'Weekly Brief', description: 'Business summary sent every Monday' }
         ];
 
