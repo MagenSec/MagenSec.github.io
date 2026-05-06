@@ -339,7 +339,7 @@ export function PeerBenchmarkPage() {
             if (row.ready === false) {
                 // Cohort not yet cooked for this org (new org or k<5).
                 setData(null);
-                setError('Peer cohort is still warming up. Check back after the next nightly cron run.');
+                setError('Peer cohort is still warming up. Check back after the next benchmark Dossier is prepared.');
                 return;
             }
             setData(row);

@@ -105,7 +105,7 @@ export function AddOnPage({
                 throw new Error('AddOnPage requires bundleName + atomName.');
             }
             const bundleResp = await api.getPageBundle(orgId, bundleName);
-            if (!bundleResp?.success) throw new Error(bundleResp?.message || 'API error');
+            if (!bundleResp?.success) throw new Error(bundleResp?.message || 'Unable to load add-on evidence.');
             const bundle = bundleResp?.data || {};
             const atom = bundle?.atoms?.[atomName];
             const payload = Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
@@ -152,11 +152,11 @@ export function AddOnPage({
                         ${meta?.computedAt ? html`
                             <span class="text-muted small">
                                 <i class="ti ti-clock me-1"></i>
-                                Updated ${new Date(meta.computedAt).toLocaleString()}
+                                Dossier submitted ${new Date(meta.computedAt).toLocaleString()}
                             </span>
                         ` : null}
                         <button class="btn btn-sm btn-outline-secondary ms-2" onClick=${load} disabled=${loading}>
-                            <i class="ti ti-refresh me-1"></i> Refresh
+                            <i class="ti ti-refresh me-1"></i> Get Intel Update
                         </button>
                     </div>
                 </div>
@@ -174,7 +174,7 @@ export function AddOnPage({
             ` : data ? renderContent(data) : html`
                 <div class="empty mt-4">
                     <p class="empty-title">No data yet</p>
-                    <p class="empty-subtitle text-muted">Data will appear after the next cron run.</p>
+                    <p class="empty-subtitle text-muted">Evidence will appear after the next Dossier is prepared.</p>
                     <div class="empty-action">
                         <button class="btn btn-primary" onClick=${load}>
                             <i class="ti ti-refresh me-1"></i> Try again

@@ -21,10 +21,10 @@ function renderInsuranceContent(data, { regenerating, regenMsg, onRegenerate }) 
                     <i class="ti ${regenMsg.type === 'success' ? 'ti-check' : 'ti-alert-circle'} me-1"></i>${regenMsg.text}
                 </div>
             ` : null}
-            <button class="btn btn-outline-primary btn-sm" onClick=${onRegenerate} disabled=${regenerating}>
+                <button class="btn btn-outline-primary btn-sm" data-mutates-state="true" onClick=${onRegenerate} disabled=${regenerating}>
                 ${regenerating
                     ? html`<span class="spinner-border spinner-border-sm me-1"></span> Generating...`
-                    : html`<i class="ti ti-refresh me-1"></i> Regenerate Report`}
+                    : html`<i class="ti ti-refresh me-1"></i> Update Readiness Dossier`}
             </button>
         </div>
 
@@ -135,7 +135,7 @@ export function InsuranceReadinessPage() {
             const resp = await api.getPageBundle(orgId, 'add-on/insurance-readiness', { refresh: true });
             if (!resp?.success) throw new Error(resp?.message || 'Generation failed');
             const refreshed = (resp?.data?.refreshedAtoms || []).includes('addon-insurance');
-            setRegenMsg({ type: 'success', text: refreshed ? 'Report regenerated \u2014 refreshing data.' : 'No data to regenerate yet.' });
+            setRegenMsg({ type: 'success', text: refreshed ? 'Readiness Dossier updated.' : 'No readiness evidence is available yet.' });
             setReloadKey(k => k + 1);
         } catch (ex) {
             logger.error('[InsuranceReadiness] regenerate failed', ex);

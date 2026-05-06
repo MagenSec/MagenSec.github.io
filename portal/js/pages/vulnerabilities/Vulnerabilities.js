@@ -619,7 +619,7 @@ export class VulnerabilitiesPage extends Component {
 
                     <div class="d-flex gap-2 justify-content-end">
                         <button class="btn btn-outline-secondary" onClick=${() => this.closeReviewDrawer()}>Cancel</button>
-                        <button class="btn btn-warning text-white" disabled=${reviewBusy || alreadyQueued} onClick=${() => this.submitAppReview(group, primaryCve)}>
+                        <button class="btn btn-warning text-white" data-mutates-state="true" disabled=${reviewBusy || alreadyQueued} onClick=${() => this.submitAppReview(group, primaryCve)}>
                             ${reviewBusy ? 'Sending…' : alreadyQueued ? 'Queued for review' : 'Send for review'}
                         </button>
                     </div>

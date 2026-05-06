@@ -767,7 +767,7 @@ export class PosturePage extends Component {
                 <div class="container py-4">
                     <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
                     <div class="alert alert-warning">No dossier available.</div>
-                    <button class="btn btn-primary" onClick=${() => this.loadSnapshot(true)}>Generate now</button>
+                    <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.loadSnapshot(true)}>Prepare Dossier</button>
                 </div>
             `;
         }

@@ -1083,6 +1083,7 @@ export class SoftwareInventoryPage extends Component {
                                             </td>
                                             <td class="text-end" style="white-space:nowrap">
                                                 <button class="btn btn-sm btn-primary me-1"
+                                                    data-mutates-state="true"
                                                         disabled=${savingKey === key}
                                                         onClick=${() => this._saveEdit(app)}>
                                                     ${savingKey === key
@@ -1142,6 +1143,7 @@ export class SoftwareInventoryPage extends Component {
                                             </button>
                                             ${lic ? html`
                                                 <button class="btn btn-sm btn-ghost-danger"
+                                                    data-mutates-state="true"
                                                         onClick=${() => this._deleteLicense(app)}>✕</button>
                                             ` : ''}
                                             ` : html`<span class="text-muted small" title="Auditors cannot edit licenses">View only</span>`}

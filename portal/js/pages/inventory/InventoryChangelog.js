@@ -581,7 +581,7 @@ export class InventoryChangelogPage extends Component {
                     <div class="card card-sm mb-3">
                         <div class="card-body py-2 d-flex flex-wrap justify-content-between gap-2 align-items-center">
                             <div>
-                                <div class="fw-medium">Signal updated ${fmtDateTime(recentStats.signalUpdatedAt)}</div>
+                                <div class="fw-medium">Inventory Dossier submitted ${fmtDateTime(recentStats.signalUpdatedAt)}</div>
                                 <div class="text-muted small">${recentStats.recent7dCount} changes in the last 7 days across ${recentStats.recentDevices || stats.devices} device${(recentStats.recentDevices || stats.devices) === 1 ? '' : 's'}.</div>
                             </div>
                             <div class="d-flex gap-2 flex-wrap">

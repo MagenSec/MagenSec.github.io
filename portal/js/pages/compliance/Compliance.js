@@ -399,7 +399,7 @@ export class CompliancePage extends Component {
               <h2 class="page-title">Your Readiness</h2>
               <div class="text-muted mt-1">
                 Are you audit-ready? Track compliance alignment and generate evidence.
-                ${snapshot.generatedAt ? html`<span class="badge bg-secondary-lt text-secondary ms-2">Signal updated ${formatRelativeTimeShort(snapshot.generatedAt)}</span>` : ''}
+                ${snapshot.generatedAt ? html`<span class="badge bg-secondary-lt text-secondary ms-2">Dossier submitted ${formatRelativeTimeShort(snapshot.generatedAt)}</span>` : ''}
               </div>
             </div>
           </div>
@@ -484,11 +484,11 @@ export class CompliancePage extends Component {
               </div>
               <div class="col-12 col-lg-5">
                 <div class="d-flex flex-wrap gap-2 justify-content-lg-end align-items-center">
-                  <button class="btn btn-primary" disabled=${this.state.generatingReport} onClick=${() => this.generateReport()}>
+                  <button class="btn btn-primary" data-mutates-state="true" disabled=${this.state.generatingReport} onClick=${() => this.generateReport()}>
                     ${this.state.generatingReport ? 'Generating…' : 'Generate Compliance Report'}
                   </button>
                   <button class="btn btn-outline-secondary" onClick=${() => this.loadPage()}>
-                    Refresh Signals
+                    Refresh Evidence
                   </button>
                   <a href="#!/mission-brief" class="btn btn-outline-primary">
                     Open Mission Briefing
@@ -519,7 +519,7 @@ export class CompliancePage extends Component {
       <div class="container-xl mb-4">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h3 class="mb-0">Framework Status</h3>
-          <div class="text-muted small">Only instrumented standards show live scores. Planned standards stay visible so the model remains extensible.</div>
+          <div class="text-muted small">Only evidence-backed standards show live scores. Planned standards stay visible so coverage expectations are clear.</div>
         </div>
         <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3">
           ${cards.map((item) => {
@@ -555,7 +555,7 @@ export class CompliancePage extends Component {
                         ${topGap ? html`Top gap: <strong>${topGap.controlId}</strong> · ${topGap.title}` : 'No recorded gaps in this dossier.'}
                       </div>
                       <div class="mt-auto d-flex gap-2">
-                        <button class="btn btn-sm btn-primary flex-fill" onClick=${() => this.generateReport(item.id)}>
+                        <button class="btn btn-sm btn-primary flex-fill" data-mutates-state="true" onClick=${() => this.generateReport(item.id)}>
                           Generate ${item.shortName} Report
                         </button>
                       </div>
@@ -655,7 +655,7 @@ export class CompliancePage extends Component {
                 <div class="empty-title">No compliance report for this scope yet</div>
                 <div class="empty-subtitle text-muted">No report exists for ${this.state.selectedDate} (${frameworkLabel}).</div>
                 <div class="empty-action mt-3">
-                  <button class="btn btn-primary" onClick=${() => this.generateReport()} disabled=${this.state.generatingReport}>
+                  <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.generateReport()} disabled=${this.state.generatingReport}>
                     ${this.state.generatingReport ? 'Generating…' : 'Generate report now'}
                   </button>
                 </div>

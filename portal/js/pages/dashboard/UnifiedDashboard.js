@@ -3404,7 +3404,7 @@ export default class UnifiedDashboard extends Component {
                 ${situationLine}
               </div>
               ${signalText ? html`
-                <div style="font-size:0.68rem;color:rgba(255,255,255,0.35);">Signal updated ${signalText}</div>
+                <div style="font-size:0.68rem;color:rgba(255,255,255,0.35);">Evidence updated ${signalText}</div>
               ` : null}
             </div>
 

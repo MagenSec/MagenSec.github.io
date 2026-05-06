@@ -583,10 +583,11 @@ export class AttackChainPage extends Component {
                             <div class="btn-list">
                                 <button
                                     class="btn btn-outline-primary btn-sm"
+                                    data-mutates-state="true"
                                     disabled=${refreshing || isRewind}
                                     onClick=${() => this.handleRefresh()}
                                 >
-                                    ${refreshing ? html`<span class="spinner-border spinner-border-sm me-1"></span> Regenerating…` : 'Regenerate'}
+                                    ${refreshing ? html`<span class="spinner-border spinner-border-sm me-1"></span> Updating…` : 'Update Attack Paths'}
                                 </button>
                                 <button
                                     class="btn btn-sm ${showNarrative ? 'btn-primary' : 'btn-outline-secondary'}"
@@ -634,13 +635,13 @@ export class AttackChainPage extends Component {
                                 <p class="empty-subtitle text-muted">
                                     ${note || (isRewind
                                         ? 'No historical attack-chain graph is available for the selected evidence date.'
-                                        : 'MAGI did not identify a path of concern from the latest available signals. Regenerate to run a fresh assessment against current cloud intelligence.')}
+                                        : 'MAGI did not identify a path of concern from the latest available evidence. Update attack paths after new vulnerabilities or device changes arrive.')}
                                 </p>
                                 ${isRewind ? html`
                                     <span class="badge bg-azure-lt text-azure">Historical evidence view</span>
                                 ` : html`<div class="empty-action">
-                                    <button class="btn btn-primary" disabled=${refreshing} onClick=${() => this.handleRefresh()}>
-                                        ${refreshing ? 'Generating…' : 'Generate Now'}
+                                    <button class="btn btn-primary" data-mutates-state="true" disabled=${refreshing} onClick=${() => this.handleRefresh()}>
+                                        ${refreshing ? 'Updating…' : 'Update Attack Paths'}
                                     </button>
                                 </div>`}
                             </div>

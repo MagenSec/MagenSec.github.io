@@ -53,7 +53,7 @@ export function buildOfficerNoteStatusCopy({ signalUpdatedText, reportCard }) {
     : (generatedAt ? 'pending send' : 'not sent');
 
   return {
-    signalLine: `Signal updated: ${normalizeSignalAge(signalUpdatedText)} · ${reportText}`,
+    signalLine: `Evidence updated: ${normalizeSignalAge(signalUpdatedText)} · ${reportText}`,
     deliveryLine: `Email: ${emailText} · Source: ${source}`,
     tooltips: {
       signal: 'Latest security scan data received from your devices',

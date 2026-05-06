@@ -2230,7 +2230,7 @@ class DevicesPage extends window.Component {
                         <strong>${selectedDevices.length}</strong> device${selectedDevices.length > 1 ? 's' : ''} selected
                     </div>
                     <div class="btn-list">
-                        <button class="btn btn-sm btn-primary" onclick=${() => this.scanSelected()} disabled=${orgContext.isReadOnly()} title=${orgContext.isReadOnly() ? 'Auditors cannot trigger scans' : ''}>
+                        <button class="btn btn-sm btn-primary" data-mutates-state="true" onclick=${() => this.scanSelected()} disabled=${orgContext.isReadOnly()} title=${orgContext.isReadOnly() ? 'Auditors cannot trigger scans' : ''}>
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                                 <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
@@ -2247,7 +2247,7 @@ class DevicesPage extends window.Component {
                             </svg>
                             Export
                         </button>
-                        <button class="btn btn-sm btn-danger" onclick=${() => this.blockSelected()} disabled=${orgContext.isReadOnly()} title=${orgContext.isReadOnly() ? 'Auditors cannot block devices' : ''}>
+                        <button class="btn btn-sm btn-danger" data-mutates-state="true" onclick=${() => this.blockSelected()} disabled=${orgContext.isReadOnly()} title=${orgContext.isReadOnly() ? 'Auditors cannot block devices' : ''}>
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                                 <circle cx="12" cy="12" r="9" />
@@ -2449,20 +2449,20 @@ class DevicesPage extends window.Component {
         ` : '')}
                 <div class="d-flex gap-2">
                     ${!orgContext.isReadOnly() ? html`
-                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick=${() => this.queueOrgCommand('TriggerScan')} title="Trigger scan on all devices">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-mutates-state="true" onclick=${() => this.queueOrgCommand('TriggerScan')} title="Trigger scan on all devices">
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
                             Scan All
                         </button>
                         ${(() => {
                             const outdatedCount = (this.state.devices || []).filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
                             const hasOutdated = outdatedCount > 0;
-                            return html`<button type="button" class="btn btn-sm ${hasOutdated ? 'btn-warning update-glow' : 'btn-outline-secondary'} d-inline-flex align-items-center gap-1" onclick=${() => this.queueOrgCommand('CheckUpdates')} title=${hasOutdated ? `${outdatedCount} device${outdatedCount === 1 ? '' : 's'} running outdated agent — push update now` : 'Check for updates on all devices'}>
+                            return html`<button type="button" class="btn btn-sm ${hasOutdated ? 'btn-warning update-glow' : 'btn-outline-secondary'} d-inline-flex align-items-center gap-1" data-mutates-state="true" onclick=${() => this.queueOrgCommand('CheckUpdates')} title=${hasOutdated ? `${outdatedCount} device${outdatedCount === 1 ? '' : 's'} running outdated agent — push update now` : 'Check for updates on all devices'}>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                                 Check Updates
                                 ${hasOutdated ? html`<span class="badge bg-white text-warning ms-1" style="font-size:10px;">${outdatedCount}</span>` : ''}
                             </button>`;
                         })()}
-                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick=${() => this.queueOrgCommand('RefreshInventory')} title="Refresh software inventory on all devices">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-mutates-state="true" onclick=${() => this.queueOrgCommand('RefreshInventory')} title="Refresh software inventory on all devices">
                             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74" /><path d="M3 4v4h4" /></svg>
                             Refresh Inventory
                         </button>
@@ -2773,11 +2773,12 @@ class DevicesPage extends window.Component {
                                                                 const isBusinessOrg = !orgContext.isIndividualUser();
 
                                                                 // Helper: render a dropdown item that is either active or disabled with a tooltip.
-                                                                const item = ({ disabled, onClick, title, className = '', icon, label, badge }) => {
+                                                                const item = ({ disabled, onClick, title, className = '', icon, label, badge, mutates = false }) => {
                                                                     const cls = `dropdown-item${disabled ? ' disabled' : ''} ${className}`.trim();
                                                                     return html`
                                                                         <button type="button"
                                                                                 class=${cls}
+                                                                            data-mutates-state=${mutates ? 'true' : undefined}
                                                                                 disabled=${disabled || undefined}
                                                                                 aria-disabled=${disabled ? 'true' : undefined}
                                                                                 title=${title || ''}
@@ -2812,6 +2813,7 @@ class DevicesPage extends window.Component {
                                                                             ${item({
                                                                                 disabled: agentDisabled,
                                                                                 onClick: () => this.queueDeviceAction(device, 'TriggerScan'),
+                                                                                mutates: true,
                                                                                 title: agentBlock || 'Run an on-demand security scan on this device',
                                                                                 icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>`,
                                                                                 label: 'Trigger Scan'
@@ -2819,6 +2821,7 @@ class DevicesPage extends window.Component {
                                                                             ${item({
                                                                                 disabled: agentDisabled,
                                                                                 onClick: () => this.queueDeviceAction(device, 'CheckUpdates'),
+                                                                                mutates: true,
                                                                                 title: agentBlock || 'Ask the agent to check for updates',
                                                                                 className: !agentDisabled && isOutdated ? 'bg-warning-lt' : '',
                                                                                 icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>`,
@@ -2828,6 +2831,7 @@ class DevicesPage extends window.Component {
                                                                             ${item({
                                                                                 disabled: agentDisabled,
                                                                                 onClick: () => this.queueDeviceAction(device, 'CollectLogs'),
+                                                                                mutates: true,
                                                                                 title: agentBlock || 'Pull diagnostic logs from this device',
                                                                                 icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>`,
                                                                                 label: 'Collect Logs'
@@ -2839,6 +2843,7 @@ class DevicesPage extends window.Component {
                                                                         ${item({
                                                                             disabled: !canEnable,
                                                                             onClick: () => this.enableDevice(device.id),
+                                                                            mutates: true,
                                                                             title: canEnable ? 'Re-enable this device so the agent resumes telemetry' : 'Device is already active',
                                                                             className: canEnable ? 'text-success' : '',
                                                                             icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>`,
@@ -2847,6 +2852,7 @@ class DevicesPage extends window.Component {
                                                                         ${item({
                                                                             disabled: !canBlock,
                                                                             onClick: () => this.blockDevice(device.id, false),
+                                                                            mutates: true,
                                                                             title: canBlock ? 'Block device, keep telemetry data for analysis' : (stateRaw === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state'),
                                                                             className: canBlock ? 'text-warning' : '',
                                                                             icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>`,
@@ -2855,6 +2861,7 @@ class DevicesPage extends window.Component {
                                                                         ${item({
                                                                             disabled: !canBlock,
                                                                             onClick: () => this.blockDevice(device.id, true),
+                                                                            mutates: true,
                                                                             title: canBlock ? 'Block device and permanently delete all telemetry data' : (stateRaw === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state'),
                                                                             className: canBlock ? 'text-orange' : '',
                                                                             icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="9" y1="12" x2="15" y2="12" /></svg>`,
@@ -2863,6 +2870,7 @@ class DevicesPage extends window.Component {
                                                                         ${item({
                                                                             disabled: isDeleted,
                                                                             onClick: () => this.deleteDevice(device.id),
+                                                                            mutates: true,
                                                                             title: isDeleted ? 'Device is already deleted' : 'Delete device and purge all associated data',
                                                                             className: isDeleted ? '' : 'text-danger',
                                                                             icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="4" y1="7" x2="20" y2="7" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>`,

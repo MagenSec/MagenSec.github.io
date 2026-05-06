@@ -644,11 +644,11 @@ export class PatchPosturePage extends Component {
                             Patch Status
                             ${refreshing ? html`<span class="badge bg-info-lt text-info ms-2"><i class="ti ti-refresh me-1"></i>Refreshing…</span>` : null}
                         </h2>
-                        <div class="text-muted">Missing Microsoft security updates across your fleet, refreshed daily.</div>
+                        <div class="text-muted">Missing Microsoft security updates across your fleet, prepared as daily evidence.</div>
                     </div>
                     <div class="ms-auto">
                         <button class="btn btn-outline-primary" onClick=${() => this.load()} disabled=${refreshing}>
-                            <i class="ti ti-refresh me-1"></i>${refreshing ? 'Refreshing…' : 'Refresh'}
+                            <i class="ti ti-refresh me-1"></i>${refreshing ? 'Refreshing…' : 'Get Patch Intel'}
                         </button>
                     </div>
                 </div>
@@ -715,7 +715,8 @@ export class PatchPosturePage extends Component {
                                     <button class="btn btn-sm btn-outline-secondary ms-1" onClick=${() => this.exportDiffCsv()} title="Download this diff as CSV">
                                         <i class="ti ti-download me-1"></i>CSV
                                     </button>
-                                    <button class="btn btn-sm ${this.state.emailDiffState === 'sent' ? 'btn-success' : this.state.emailDiffState === 'failed' ? 'btn-danger' : 'btn-outline-secondary'} ms-1"
+                                        <button class="btn btn-sm ${this.state.emailDiffState === 'sent' ? 'btn-success' : this.state.emailDiffState === 'failed' ? 'btn-danger' : 'btn-outline-secondary'} ms-1"
+                                            data-mutates-state="true"
                                             onClick=${() => this.emailDiffReport()}
                                             disabled=${this.state.emailDiffState === 'sending'}
                                             title="Email this diff as a report">
@@ -807,6 +808,7 @@ export class PatchPosturePage extends Component {
                                     <i class="ti ti-download me-1"></i>CSV
                                 </button>
                                 <button class="btn ${this.state.emailState === 'sent' ? 'btn-success' : this.state.emailState === 'failed' ? 'btn-danger' : 'btn-outline-secondary'}"
+                                    data-mutates-state="true"
                                     onClick=${() => { if (this.state.emailState !== 'sending') this.emailReport(); }}
                                     disabled=${!summary?.openAlerts || this.state.emailState === 'sending'}
                                     title="Email a branded PDF of the full report">
