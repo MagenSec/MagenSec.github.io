@@ -4,9 +4,9 @@
  */
 
 // ── Currency ────────────────────────────────────────────────────────
-export const EXCHANGE_RATES = { USD: 1, INR: 83.5, EUR: 0.92, GBP: 0.79 };
+export const EXCHANGE_RATES = { USD: 1, INR: 83.5 };
 
-export const CURRENCY_SYMBOLS = { USD: '$', INR: '₹', EUR: '€', GBP: '£' };
+export const CURRENCY_SYMBOLS = { USD: '$', INR: '₹' };
 
 export function getCurrencySymbol(code) {
     return CURRENCY_SYMBOLS[(code || 'USD').toUpperCase()] || '$';

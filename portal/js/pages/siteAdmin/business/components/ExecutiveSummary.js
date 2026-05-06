@@ -14,7 +14,7 @@ import { KpiCard } from './KpiCard.js';
 import {
     formatCurrency, formatCompact, formatPercent, calcTrendPercent,
     getHealthGrade, getMarginInfo, TELEMETRY_LABELS, TELEMETRY_COLORS,
-    getRegionLabel, KNOWN_REGION_ORDER, formatNumberByCurrency,
+    getRegionLabel, KNOWN_REGION_ORDER, formatNumberByCurrency, EXCHANGE_RATES,
 } from '../businessConstants.js';
 import {
     destroyChart, doughnutConfig, lineChartConfig, themeColors, CHART_PALETTE,
@@ -22,6 +22,34 @@ import {
 
 const { html } = window;
 const { useRef, useEffect, useState } = window.preactHooks;
+
+function convertCurrencyBackToUsd(value, sourceCcy) {
+    const source = (sourceCcy || 'USD').toUpperCase();
+    return Number(value || 0) / (EXCHANGE_RATES[source] || 1);
+}
+
+function sumNumericValues(record) {
+    return Object.values(record || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+}
+
+function getSignalRows(point) {
+    const byTypeTotal = sumNumericValues(point?.telemetryRowsByType || point?.telemetryByType || point?.byType);
+    return Number(point?.telemetryRows || point?.telemetryVolume || point?.totalTelemetryRows || point?.totalRows || byTypeTotal || 0);
+}
+
+function getAiCost(point) {
+    const byType = point?.costsByResourceType || point?.costByResourceType || {};
+    return Object.entries(byType)
+        .filter(([key]) => /openai|ai|cognitive|foundry|model/i.test(key || ''))
+        .reduce((sum, [, value]) => sum + Number(value || 0), 0);
+}
+
+function formatDelta(value) {
+    if (value == null || !Number.isFinite(Number(value))) return 'n/a';
+    const delta = Number(value || 0);
+    if (Math.abs(delta) < 0.25) return 'flat';
+    return `${delta >= 0 ? '+' : '-'}${Math.abs(delta).toFixed(1)}%`;
+}
 
 export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billingCcy, convert, ccySymbol }) {
     if (!snapshot) return null;
@@ -44,10 +72,17 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     // ── Derived values ──────────────────────────────────────────────
     const revenueCcy = (s.revenueCurrencyCode || 'USD').toUpperCase();
     const costCcy = (s.billingCurrencyCode || billingCcy || 'USD').toUpperCase();
+    const costDetail = s.costDetail || {};
+    const recentDailySnaps = (costDetail.dailySnapshots || []).filter(snap => snap?.date).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const latestCostSnapshot = [...recentDailySnaps].reverse().find(snap => Number(snap.totalCost || 0) > 0) || null;
+    const latestCostDate = latestCostSnapshot?.date ? new Date(latestCostSnapshot.date) : null;
+    const latestCostDateLabel = latestCostDate && !Number.isNaN(latestCostDate.getTime())
+        ? latestCostDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+        : 'cost snapshot pending';
 
     const rawMrr = Number(s.mrr || 0);
     const rawArr = Number(s.arr || (rawMrr * 12));
-    const rawDailyCost = Number(s.dailyCost || 0);
+    const rawDailyCost = Number(latestCostSnapshot?.totalCost || s.dailyCost || 0);
     const rawMonthlyCost = Number(s.totalCost || 0);
 
     const mrr = convert(rawMrr, revenueCcy);
@@ -56,17 +91,11 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const monthlyCost = convert(rawMonthlyCost, costCcy);
     const totalOrgs = s.totalOrgs || 0;
     const totalDevices = s.totalDevices || 0;
-    const recentDailySnaps = (s.costDetail?.dailySnapshots || []).filter(snap => snap?.date).sort((a, b) => new Date(a.date) - new Date(b.date));
     const seenDevicesLatest = recentDailySnaps.length > 0
         ? (recentDailySnaps[recentDailySnaps.length - 1].topTelemetryOrgs || []).reduce((sum, org) => sum + Number(org.activeDevices || 0), 0)
         : 0;
     const activeDevices = Number(s.totalSeenDevices || seenDevicesLatest || s.activeDevices || 0);
     const totalTelemetry = s.totalTelemetryToday || 0;
-    const avgTelemetry7d = Number((s.window7d?.telemetryVolume || 0) / 7) || totalTelemetry;
-    const signalUpdatedLabel = s.generatedAt
-        ? `Signal updated ${new Date(s.generatedAt).toLocaleString()}`
-        : 'Signal intelligence ready';
-
     const businessModel = catalog?.businessModel || {};
     const fixedOverheads = businessModel.fixedOverheadAnnualUsd || {};
     const gitHubBilling = s.costDetail?.gitHubBilling || s.gitHubBilling || {};
@@ -100,6 +129,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const monthlyMarkupPercent = Number(businessModel.monthlyBillingMarkupPercent || 20);
     const churnReservePercent = Number(businessModel.churnReservePercent || 8);
     const breakevenPerActiveDevice = activeDevices > 0 ? loadedMonthlyCost / activeDevices : 0;
+    const breakevenPerActiveDeviceUsd = convertCurrencyBackToUsd(breakevenPerActiveDevice, displayCcy);
     const recommendedPerActiveDevice = breakevenPerActiveDevice > 0
         ? breakevenPerActiveDevice / Math.max(0.05, 1 - (targetMarginPercent / 100))
         : 0;
@@ -128,11 +158,6 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const intelCve = Number(intel.cveRecords || 0);
     const intelTotal = intelCpe + intelCve;
 
-    // Cost breakdown from costDetail
-    const costDetail = s.costDetail || {};
-    const latestSnap = (costDetail.dailySnapshots || [])
-        .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-
     // Monthly cost breakdowns (from Azure Cost API — more complete than daily snapshots)
     const monthlyCostByService = costDetail.monthlyCostByService || {};
     const monthlySvcEntries = Object.entries(monthlyCostByService)
@@ -142,6 +167,18 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const monthlyRegionEntries = Object.entries(monthlyCostByRegion)
         .filter(([, v]) => v > 0.01)
         .sort((a, b) => b[1] - a[1]);
+    const monthlyCostByResourceGroup = costDetail.monthlyCostByResourceGroup || {};
+    const resourceGroupEntries = Object.entries(monthlyCostByResourceGroup)
+        .filter(([, v]) => v > 0.01)
+        .sort((a, b) => b[1] - a[1]);
+    const dailyServiceCosts = (costDetail.dailyServiceCosts || [])
+        .filter(entry => entry?.date && entry?.service)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+    const dailyServiceCostByDate = dailyServiceCosts.reduce((acc, entry) => {
+        const key = new Date(entry.date).toISOString().slice(0, 10);
+        acc[key] = (acc[key] || 0) + Number(entry.cost || 0);
+        return acc;
+    }, {});
 
     // Daily cost trend data for chart — merge costDetail snapshots with long-range history
     const historyCostTrend = (history || [])
@@ -150,6 +187,8 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
             date: point.date,
             totalCost: Number(point.dailyCost || 0),
             costsByResourceType: {},
+            telemetryRows: getSignalRows(point),
+            telemetryRowsByType: point.telemetryRowsByType || point.telemetryByType || {},
             costByRegion: (point.regionBreakdown || []).reduce((acc, region) => {
                 const key = region.region || 'unknown';
                 acc[key] = (acc[key] || 0) + Number(region.cost || 0);
@@ -162,15 +201,34 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
         .filter(snap => snap?.date && Number(snap.totalCost || 0) >= 0)
         .forEach(snap => {
             const key = new Date(snap.date).toISOString().slice(0, 10);
+            const existing = trendMap.get(key) || {};
             trendMap.set(key, {
-                ...trendMap.get(key),
+                ...existing,
                 ...snap,
+                telemetryRows: getSignalRows(snap) || getSignalRows(existing),
+                telemetryRowsByType: {
+                    ...(existing.telemetryRowsByType || {}),
+                    ...(snap.telemetryRowsByType || {})
+                },
+                costsByResourceType: {
+                    ...(existing.costsByResourceType || {}),
+                    ...(snap.costsByResourceType || {})
+                },
                 costByRegion: {
-                    ...(trendMap.get(key)?.costByRegion || {}),
+                    ...(existing.costByRegion || {}),
                     ...(snap.costByRegion || {})
                 }
             });
         });
+    Object.entries(dailyServiceCostByDate).forEach(([date, totalCost]) => {
+        const existing = trendMap.get(date) || { date };
+        trendMap.set(date, {
+            ...existing,
+            date: existing.date || date,
+            totalCost: Math.max(Number(existing.totalCost || 0), Number(totalCost || 0)),
+            costSource: Number(totalCost || 0) > Number(existing.totalCost || 0) ? 'azure-daily-service-cost' : existing.costSource,
+        });
+    });
 
     const dailyCostTrend = Array.from(trendMap.values())
         .filter(snap => Number(snap.totalCost || 0) > 0)
@@ -185,9 +243,6 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const lastClosedMonthAzureCost = convert(lastClosedMonthAzureRaw, costCcy);
 
     const filteredDailyCostTrend = dailyCostTrend.slice(-Math.max(7, costWindow));
-    const dailyServiceCosts = (costDetail.dailyServiceCosts || [])
-        .filter(entry => entry?.date && entry?.service)
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
     const uniqueServiceDates = [...new Set(dailyServiceCosts.map(entry => new Date(entry.date).toISOString().slice(0, 10)))];
 
     const availableGrowthDays = (history || []).length;
@@ -199,6 +254,51 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const actualGrowthDays = Math.min(requestedGrowthDays, availableGrowthDays);
     const actualCostDays = Math.min(requestedCostDays, availableCostDays);
     const actualServiceDays = Math.min(requestedServiceDays, availableServiceDays);
+    const selectedWindowRawCost = filteredDailyCostTrend.reduce((sum, snap) => sum + Number(snap.totalCost || 0), 0);
+    const selectedWindowCost = convert(selectedWindowRawCost, costCcy);
+    const priorDailyCostTrend = dailyCostTrend.slice(
+        Math.max(0, dailyCostTrend.length - (requestedCostDays * 2)),
+        Math.max(0, dailyCostTrend.length - requestedCostDays)
+    );
+    const priorWindowRawCost = priorDailyCostTrend.reduce((sum, snap) => sum + Number(snap.totalCost || 0), 0);
+    const selectedWindowTrendPercent = priorWindowRawCost > 0 && actualCostDays > 0 && priorDailyCostTrend.length > 0
+        ? calcTrendPercent(selectedWindowRawCost / actualCostDays, priorWindowRawCost / priorDailyCostTrend.length)
+        : null;
+    const selectedWindowSignals = filteredDailyCostTrend.reduce((sum, snap) => sum + getSignalRows(snap), 0);
+    const priorWindowSignals = priorDailyCostTrend.reduce((sum, snap) => sum + getSignalRows(snap), 0);
+    const selectedSignalTrendPercent = priorWindowSignals > 0 && actualCostDays > 0 && priorDailyCostTrend.length > 0
+        ? calcTrendPercent(selectedWindowSignals / actualCostDays, priorWindowSignals / priorDailyCostTrend.length)
+        : null;
+    const selectedSignalDailyAverage = actualCostDays > 0 ? selectedWindowSignals / actualCostDays : 0;
+    const selectedCostPer100kSignals = selectedWindowSignals > 0 ? (selectedWindowCost / selectedWindowSignals) * 100000 : 0;
+    const signalCostSpread = selectedWindowTrendPercent != null && selectedSignalTrendPercent != null
+        ? selectedWindowTrendPercent - selectedSignalTrendPercent
+        : null;
+    const correlationNarrative = signalCostSpread == null
+        ? 'Prior signal comparison is still filling for this window; use the plotted lines for raw direction.'
+        : signalCostSpread > 25
+            ? 'Cost is running ahead of signal volume; inspect AI/model, storage, and serving mix.'
+            : signalCostSpread < -25
+                ? 'Signal volume is rising faster than cost; current scale efficiency is improving.'
+                : 'Cost and signal movement are broadly aligned for this window.';
+    const nowUtc = new Date();
+    const currentYear = nowUtc.getUTCFullYear();
+    const currentMonth = nowUtc.getUTCMonth();
+    const elapsedMonthDays = Math.max(1, nowUtc.getUTCDate());
+    const daysInCurrentMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
+    const daysRemainingInMonth = Math.max(0, daysInCurrentMonth - elapsedMonthDays);
+    const mtdAzureActual = monthlyCost;
+    const mtdAzureActualRaw = rawMonthlyCost;
+    const selectedDailyAverageRaw = actualCostDays > 0 ? selectedWindowRawCost / actualCostDays : 0;
+    const projectedAzureEomRaw = mtdAzureActualRaw > 0
+        ? (mtdAzureActualRaw / elapsedMonthDays) * daysInCurrentMonth
+        : selectedDailyAverageRaw * daysInCurrentMonth;
+    const projectedAzureEom = convert(projectedAzureEomRaw, costCcy);
+    const projectedLoadedEom = projectedAzureEom + monthlyOverhead;
+    const selectedDailyBurn = actualCostDays > 0 ? selectedWindowCost / actualCostDays : 0;
+    const projectedDailyAzureBurn = projectedAzureEom / daysInCurrentMonth;
+    const projectedDailyLoadedBurn = projectedDailyAzureBurn + (monthlyOverhead / daysInCurrentMonth);
+    const azureCostAuthorityLabel = mtdAzureActualRaw > 0 ? 'Azure Cost API MTD' : `${actualCostDays}d daily snapshots`;
     const serviceBreakdownLabel = monthlySvcEntries.length > 0
         ? 'month to date'
         : `${actualCostDays}d available`;
@@ -243,14 +343,22 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
 
     const serviceEntries = monthlySvcEntries.length > 0 ? monthlySvcEntries : fallbackSvcEntries;
 
+    const regionSourceEntries = monthlyRegionEntries.length > 0
+        ? monthlyRegionEntries
+        : attributedRegionEntries.length > 0
+            ? attributedRegionEntries
+            : fallbackRegionEntries;
     const regionMap = new Map(KNOWN_REGION_ORDER.map(region => [getRegionLabel(region), 0]));
-    [...monthlyRegionEntries, ...attributedRegionEntries, ...fallbackRegionEntries].forEach(([region, value]) => {
+    regionSourceEntries.forEach(([region, value]) => {
         const key = getRegionLabel(region || 'unknown');
-        const current = Number(regionMap.get(key) || 0);
-        regionMap.set(key, Math.max(current, Number(value || 0)));
+        regionMap.set(key, Number(regionMap.get(key) || 0) + Number(value || 0));
     });
     const regionEntries = Array.from(regionMap.entries())
         .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0));
+    const nonZeroRegionEntries = regionEntries.filter(([, value]) => Number(value || 0) > 0.01);
+    const topRegionEntry = nonZeroRegionEntries[0] || null;
+    const topResourceGroupEntry = resourceGroupEntries[0] || null;
+    const totalResourceGroupCost = resourceGroupEntries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
 
     const serviceTrendDateKeys = uniqueServiceDates.slice(-Math.max(1, serviceTrendWindow));
     const serviceTrendSource = dailyServiceCosts.filter(entry => serviceTrendDateKeys.includes(new Date(entry.date).toISOString().slice(0, 10)));
@@ -287,58 +395,52 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     };
     const keyResults = [
         {
-            label: 'Run-rate Profit',
-            value: `${ccySymbol}${runRateProfitAnnual.toLocaleString(undefined, { maximumFractionDigits: 0 })}/yr`,
-            detail: 'after loaded costs',
-            tone: runRateProfitAnnual > 0 ? 'good' : 'risk',
-            ribbon: runRateProfitAnnual > 0 ? 'Good' : 'Risk',
-            tooltip: 'Annualized gross profit after Azure spend plus fixed operating overhead.'
+            label: `${actualCostDays || costWindow}d Actual`,
+            value: `${ccySymbol}${formatNumberByCurrency(selectedWindowCost, displayCcy, 0)}`,
+            detail: `${ccySymbol}${selectedDailyBurn.toFixed(2)}/day average`,
+            tone: selectedWindowCost <= projectedAzureEom ? 'info' : 'watch',
+            ribbon: 'Window',
+            tooltip: 'Azure daily cost trend for the selected window, sourced from Azure Cost API daily service totals when available and DAILY_COST snapshots as fallback.'
         },
         {
-            label: 'Cost / Revenue',
-            value: formatPercent(costRevenueRatio),
-            detail: 'target under 15%',
-            tone: costRevenueRatio <= 15 ? 'good' : costRevenueRatio <= 25 ? 'watch' : 'risk',
-            ribbon: costRevenueRatio <= 15 ? 'Good' : costRevenueRatio <= 25 ? 'Watch' : 'Risk',
-            tooltip: 'Lower is better. This is monthly platform cost divided by monthly recurring revenue.'
+            label: 'Azure Actual',
+            value: `${ccySymbol}${formatNumberByCurrency(mtdAzureActual, displayCcy, 0)}`,
+            detail: azureCostAuthorityLabel,
+            tone: mtdAzureActual <= mrr * 0.15 ? 'good' : mtdAzureActual <= mrr * 0.25 ? 'watch' : 'risk',
+            ribbon: 'Actual',
+            tooltip: 'Financial authority for current billing-month Azure spend. This value is overlaid from Azure Cost Management even when the dashboard serves a cached snapshot.'
         },
         {
-            label: 'AI Share',
-            value: `${formatPercent(aiSharePercent)}`,
-            detail: gitHubAiEnabled
-                ? `${ccySymbol}${aiCostMtd.toFixed(2)}/mo · ${gitHubAiModel || 'GitHub Models'}`
-                : `${ccySymbol}${aiCostMtd.toFixed(2)}/mo`,
-            tone: aiSharePercent <= 15 ? 'good' : aiSharePercent <= 30 ? 'watch' : 'risk',
-            ribbon: aiSharePercent <= 15 ? 'Lean' : aiSharePercent <= 30 ? 'Watch' : 'Heavy',
-            tooltip: gitHubAiEnabled
-                ? 'Share of Azure AI spend, with GitHub Models currently enabled as an additional AI provider.'
-                : 'Share of Azure spend currently attributable to AI-related services.'
+            label: 'EOM Projection',
+            value: `${ccySymbol}${formatNumberByCurrency(projectedAzureEom, displayCcy, 0)}`,
+            detail: `${daysRemainingInMonth} day(s) left in month`,
+            tone: projectedAzureEom <= mrr * 0.15 ? 'good' : projectedAzureEom <= mrr * 0.25 ? 'watch' : 'risk',
+            ribbon: 'Forecast',
+            tooltip: 'Projected Azure end-of-month bill based on the current month-to-date Azure Cost API burn rate. If the live MTD value is unavailable, the selected daily snapshot average is used.'
         },
         {
-            label: 'Fixed Overhead',
-            value: `${ccySymbol}${monthlyOverhead.toFixed(2)}/mo`,
-            detail: `${githubSourceLabel} + cert + domain + admin`,
-            tone: monthlyOverhead <= Math.max(25, mrr * 0.1) ? 'good' : 'watch',
-            ribbon: monthlyOverhead <= Math.max(25, mrr * 0.1) ? 'Good' : 'Watch',
-            tooltip: gitHubBilling.hasLiveMonthlyCost
-                ? 'Fixed operating overhead including the live GitHub monthly run-rate plus certificate, domain, and administrative costs.'
-                : 'Fixed operating overhead using the configured GitHub run-rate until GitHub exposes fuller org billing spend through the current API surface.'
+            label: 'Loaded EOM',
+            value: `${ccySymbol}${formatNumberByCurrency(projectedLoadedEom, displayCcy, 0)}`,
+            detail: `includes ${githubSourceLabel.toLowerCase()} + overhead`,
+            tone: projectedLoadedEom <= mrr * 0.2 ? 'good' : projectedLoadedEom <= mrr * 0.3 ? 'watch' : 'risk',
+            ribbon: 'Loaded',
+            tooltip: 'Projected Azure end-of-month cost plus GitHub run-rate, certificate, domain, and administrative overhead.'
+        },
+        {
+            label: 'Top Region',
+            value: topRegionEntry ? `${ccySymbol}${formatNumberByCurrency(convert(topRegionEntry[1], costCcy), displayCcy, 0)}` : '—',
+            detail: topRegionEntry ? getRegionLabel(topRegionEntry[0]) : 'Azure region split pending',
+            tone: topRegionEntry ? 'info' : 'watch',
+            ribbon: topRegionEntry ? 'Region' : 'Pending',
+            tooltip: 'Largest current-month Azure regional cost bucket. Region comes from Azure Cost dimensions, with resource-group name fallback when Azure does not emit ResourceLocation.'
         },
         {
             label: 'Breakeven Price',
             value: `${ccySymbol}${breakevenPerActiveDevice.toFixed(2)}`,
             detail: 'per active device / month',
-            tone: breakevenPerActiveDevice <= 2 ? 'good' : breakevenPerActiveDevice <= 4 ? 'watch' : 'risk',
-            ribbon: breakevenPerActiveDevice <= 2 ? 'Good' : breakevenPerActiveDevice <= 4 ? 'Watch' : 'Risk',
+            tone: breakevenPerActiveDeviceUsd <= 2 ? 'good' : breakevenPerActiveDeviceUsd <= 4 ? 'watch' : 'risk',
+            ribbon: breakevenPerActiveDeviceUsd <= 2 ? 'Good' : breakevenPerActiveDeviceUsd <= 4 ? 'Watch' : 'Risk',
             tooltip: 'Current all-in breakeven per active device at today’s scale.'
-        },
-        {
-            label: 'Billing Policy',
-            value: `+${monthlyMarkupPercent}% / +${churnReservePercent}%`,
-            detail: 'monthly premium · reserve',
-            tone: 'info',
-            ribbon: 'Policy',
-            tooltip: 'Recommended markup for monthly billing and reserve buffer for churn, refunds, and collection risk.'
         }
     ];
 
@@ -355,7 +457,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     useEffect(() => {
         renderRevenueDonut();
         renderCostDonut();
-        renderCostTrendChart();
+        renderCostSignalCorrelationChart();
         renderServiceTrendChart();
         renderRegionDonut();
     }, [snapshot, displayCcy, costWindow, costScale, serviceTrendWindow, serviceScale]);
@@ -386,37 +488,72 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
         new window.Chart(costChartRef.current.getContext('2d'), doughnutConfig(labels, data, CHART_PALETTE.slice(0, labels.length)));
     }
 
-    function renderCostTrendChart() {
+    function renderCostSignalCorrelationChart() {
         if (!costTrendChartRef.current || !window.Chart || filteredDailyCostTrend.length < 2) return;
         destroyChart(costTrendChartRef);
         const t = themeColors();
         const dateKeys = filteredDailyCostTrend.map(snap => new Date(snap.date).toISOString().slice(0, 10));
-        const labels = filteredDailyCostTrend.map(snap => {
+        const actualLabels = filteredDailyCostTrend.map(snap => {
             const d = new Date(snap.date);
             return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
         });
+        const projectionStart = Date.UTC(currentYear, currentMonth, Math.min(elapsedMonthDays, daysInCurrentMonth));
+        const monthEnd = Date.UTC(currentYear, currentMonth, daysInCurrentMonth);
+        const futureDateKeys = [];
+        for (let ts = projectionStart; ts <= monthEnd; ts += 86400000) {
+            const key = new Date(ts).toISOString().slice(0, 10);
+            if (!dateKeys.includes(key)) futureDateKeys.push(key);
+        }
+        const futureLabels = futureDateKeys.map(key => {
+            const d = new Date(`${key}T00:00:00Z`);
+            return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+        });
+        const labels = [...actualLabels, ...futureLabels];
+        const actualCount = actualLabels.length;
         const gitHubByDate = new Map(gitHubDailyExpenses.map(point => [new Date(point.date).toISOString().slice(0, 10), Number(point.totalUsd || 0)]));
         const rawAzureData = filteredDailyCostTrend.map(snap => convert(snap.totalCost || 0, costCcy));
+        const rawSignalData = filteredDailyCostTrend.map(snap => getSignalRows(snap));
+        const rawAiCostData = filteredDailyCostTrend.map(snap => convert(getAiCost(snap), costCcy));
         const rawGitHubData = dateKeys.map(key => convert(gitHubByDate.get(key) || 0, 'USD'));
-        const rawTotalExpenseData = rawAzureData.map((value, idx) => Number(value || 0) + Number(rawGitHubData[idx] || 0));
-        const axisValue = (value) => costScale === 'log' ? (Number(value || 0) > 0 ? Number(value) : null) : Number(value || 0);
-        const azureData = rawAzureData.map(axisValue);
-        const gitHubData = rawGitHubData.map(axisValue);
-        const totalExpenseData = rawTotalExpenseData.map(axisValue);
-        const loadedRunRateData = labels.map(() => axisValue(loadedDailyRunRate));
-        const cfg = lineChartConfig(labels, [
-            { label: 'Azure daily expense', data: azureData, borderColor: '#f76707', backgroundColor: 'rgba(247,103,7,0.08)', fill: true, borderWidth: 2, pointRadius: 2, tension: 0.3 },
-            { label: 'GitHub daily expense', data: gitHubData, borderColor: '#0f766e', backgroundColor: 'transparent', fill: false, borderDash: [4, 4], borderWidth: 2, pointRadius: 0, tension: 0.25 },
-            { label: 'Total daily expense', data: totalExpenseData, borderColor: '#0054a6', backgroundColor: 'transparent', fill: false, borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: 0.25 },
-            { label: 'Loaded breakeven run-rate', data: loadedRunRateData, borderColor: '#7c3aed', backgroundColor: 'transparent', fill: false, borderDash: [2, 3], borderWidth: 2, pointRadius: 0, tension: 0 },
-        ], {
+        const axisValue = (value) => {
+            if (value == null) return null;
+            return costScale === 'log' ? (Number(value || 0) > 0 ? Number(value) : null) : Number(value || 0);
+        };
+        const padFuture = data => [...data.map(axisValue), ...futureLabels.map(() => null)];
+        const azureData = padFuture(rawAzureData);
+        const signalData = [...rawSignalData, ...futureLabels.map(() => null)];
+        const aiCostData = padFuture(rawAiCostData);
+        const gitHubData = padFuture(rawGitHubData);
+        const projectedLoadedBurnData = labels.map((_, idx) => idx < actualCount - 1 ? null : axisValue(projectedDailyLoadedBurn));
+        const datasets = [
+            { type: 'bar', label: 'Signals processed', data: signalData, yAxisID: 'y1', backgroundColor: 'rgba(0,84,166,0.16)', borderColor: 'rgba(0,84,166,0.35)', borderWidth: 1, order: 5 },
+            { label: 'Azure daily cost', data: azureData, yAxisID: 'y', borderColor: '#f76707', backgroundColor: 'rgba(247,103,7,0.08)', fill: false, borderWidth: 2, pointRadius: 2, tension: 0.3, order: 1 },
+            { label: 'Projected loaded EOM burn', data: projectedLoadedBurnData, yAxisID: 'y', borderColor: '#d63939', backgroundColor: 'transparent', fill: false, borderDash: [8, 5], borderWidth: 2, pointRadius: 0, tension: 0, order: 3 },
+        ];
+        if (rawAiCostData.some(value => Number(value || 0) > 0.01)) {
+            datasets.push({ label: 'AI/model cost', data: aiCostData, yAxisID: 'y', borderColor: '#7c3aed', backgroundColor: 'transparent', fill: false, borderDash: [2, 3], borderWidth: 2, pointRadius: 1, tension: 0.25, order: 4 });
+        }
+        if (rawGitHubData.some(value => Number(value || 0) > 0.01)) {
+            datasets.push({ label: 'GitHub daily expense', data: gitHubData, yAxisID: 'y', borderColor: '#64748b', backgroundColor: 'transparent', fill: false, borderDash: [3, 4], borderWidth: 1.5, pointRadius: 0, tension: 0.2, order: 4 });
+        }
+        const cfg = lineChartConfig(labels, datasets, {
             plugins: { legend: { display: true, position: 'bottom', labels: { color: t.text, usePointStyle: true, font: { size: 11 } } } },
             scales: {
                 x: { ticks: { color: t.muted, maxTicksLimit: 10 }, grid: { color: t.gridLine } },
                 y: {
                     type: costScale === 'log' ? 'logarithmic' : 'linear',
+                    position: 'left',
                     ticks: { color: t.muted, callback: v => `${ccySymbol}${Number(v).toFixed(Number(v) < 1 ? 2 : 0)}` },
-                    grid: { color: t.gridLine }
+                    grid: { color: t.gridLine },
+                    title: { display: true, text: `Cost (${displayCcy})`, color: t.muted }
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    beginAtZero: true,
+                    ticks: { color: t.muted, callback: v => formatCompact(Number(v || 0)) },
+                    grid: { display: false },
+                    title: { display: true, text: 'Signals', color: t.muted }
                 },
             },
         });
@@ -504,32 +641,45 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     // ── Render ───────────────────────────────────────────────────────
     return html`
         <div class="executive-summary">
-            <!-- Hero Band -->
-            <div class="card mb-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <div class="card-body py-3">
-                    <div class="row align-items-center">
-                        <div class="col-auto">
-                            <span class="badge ${grade.badge} fs-5 px-3 py-2">${grade.grade}</span>
-                        </div>
-                        <div class="col">
-                            <div class="text-white opacity-75 small">Business Health</div>
-                            <div class="text-white fs-3 fw-bold">
-                                ${ccySymbol}${formatNumberByCurrency(mrr, displayCcy, 0)} MRR
-                                <span class="fs-5 opacity-75 ms-2">${formatPercent(margin)} margin</span>
-                            </div>
-                        </div>
-                        <div class="col-auto text-white text-end small">
-                            <div>${totalOrgs} orgs · ${formatCompact(activeDevices)} active devices</div>
-                            <div class="opacity-75">${formatCompact(avgTelemetry7d)} avg signals/day (7d)</div>
-                            <div class="opacity-50 mt-1">${signalUpdatedLabel}</div>
-                        </div>
-                    </div>
+            <div class="business-section-heading mb-2">
+                <div>
+                    <div class="business-section-kicker">Key Indicators</div>
+                    <h3 class="business-section-title">Business health now</h3>
+                </div>
+                <div class="business-section-note">Snapshot financial basis with Azure Cost actuals overlaid where current-month billing matters.</div>
+            </div>
+
+            <div class="business-health-strip mb-3" aria-label="Snapshot business health">
+                <div class="business-health-tile business-health-grade">
+                    <div class="business-health-label">Grade</div>
+                    <div class="business-health-value"><span class="badge ${grade.badge} px-3 py-2">${grade.grade}</span></div>
+                    <div class="business-health-detail">${marginInfo.label}</div>
+                </div>
+                <div class="business-health-tile">
+                    <div class="business-health-label">MRR</div>
+                    <div class="business-health-value">${ccySymbol}${formatNumberByCurrency(mrr, displayCcy, 0)}</div>
+                    <div class="business-health-detail">ARR ${ccySymbol}${formatNumberByCurrency(arr, displayCcy, 0)}</div>
+                </div>
+                <div class="business-health-tile">
+                    <div class="business-health-label">COGS</div>
+                    <div class="business-health-value">${ccySymbol}${formatNumberByCurrency(expenseMonthlyCost, displayCcy, 0)}</div>
+                    <div class="business-health-detail">Azure MTD + ${githubSourceLabel.toLowerCase()}</div>
+                </div>
+                <div class="business-health-tile">
+                    <div class="business-health-label">Margin</div>
+                    <div class="business-health-value">${formatPercent(margin)}</div>
+                    <div class="business-health-detail">${formatPercent(costRevenueRatio)} cost / revenue</div>
+                </div>
+                <div class="business-health-tile business-health-info">
+                    <div class="business-health-label">Information</div>
+                    <div class="business-health-value">${totalOrgs} orgs · ${formatCompact(totalDevices)} devices</div>
+                    <div class="business-health-detail">${formatCompact(activeDevices)} seen · ${formatCompact(totalTelemetry)} signals · ${latestCostDateLabel}</div>
                 </div>
             </div>
 
             ${d.mrrChange != null && html`
                 <div class="alert alert-light py-2 mb-3 d-flex gap-3 flex-wrap align-items-center small" style="color: var(--tblr-body-color, #182433);">
-                    <span class="fw-medium text-muted me-1">Day-over-Day:</span>
+                    <span class="fw-medium text-muted me-1">Snapshot Delta:</span>
                     <span>MRR <span class="badge ${d.mrrChange >= 0 ? 'bg-success' : 'bg-danger'} text-white">${d.mrrChange >= 0 ? '+' : ''}${ccySymbol}${convert(d.mrrChange || 0, revenueCcy).toFixed(0)}</span></span>
                     <span>Cost <span class="badge ${d.costChange <= 0 ? 'bg-success' : 'bg-danger'} text-white">${d.costChange >= 0 ? '+' : ''}${ccySymbol}${convert(d.costChange || 0, costCcy).toFixed(2)}</span></span>
                     <span>Margin <span class="badge ${marginDeltaDisplay == null ? 'bg-secondary' : marginDeltaDisplay >= 0 ? 'bg-success' : 'bg-danger'} text-white">${marginDeltaDisplay == null ? 'baseline updated' : `${marginDeltaDisplay >= 0 ? '+' : ''}${marginDeltaDisplay.toFixed(1)}pp`}</span></span>
@@ -538,8 +688,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 </div>
             `}
 
-            <!-- Row 1: Financial KPIs -->
-            <div class="row g-3 mb-3">
+            <div class="row g-3 mb-3 business-kpi-grid">
                 <div class="col-sm-6 col-lg-3 d-flex">
                     <${KpiCard}
                         icon="currency-dollar" label="MRR / ARR" color="primary"
@@ -552,14 +701,12 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 </div>
                 <div class="col-sm-6 col-lg-3 d-flex">
                     <${KpiCard}
-                        icon="receipt" label="Last Closed Month" color="warning"
-                        value="${lastClosedMonthAzureCost > 0 ? `${ccySymbol}${formatNumberByCurrency(lastClosedMonthAzureCost, displayCcy, 0)}` : `${ccySymbol}${avgDailyCost7.toFixed(2)}`}"
-                        subtitle=${lastClosedMonthAzureCost > 0
-                            ? `${previousMonthLabel} Azure bill - ${ccySymbol}${avgDailyCost7.toFixed(2)}/day 7d`
-                            : `${ccySymbol}${mtdCost.toFixed(0)} expense MTD`}
+                        icon="receipt" label=${`${actualCostDays || costWindow}D Azure Actual`} color="warning"
+                        value="${ccySymbol}${formatNumberByCurrency(selectedWindowCost, displayCcy, 0)}"
+                        subtitle=${html`MTD ${ccySymbol}${formatNumberByCurrency(monthlyCost, displayCcy, 0)} · EOM <strong class="text-body">${ccySymbol}${formatNumberByCurrency(projectedAzureEom, displayCcy, 0)}</strong>`}
                         sparkData=${costSpark}
                         sparkColor="#f59f00"
-                        trend=${{ pct: d.costChangePercent, higherIsBetter: false }}
+                        trend=${{ pct: selectedWindowTrendPercent, higherIsBetter: false }}
                     />
                 </div>
                 <div class="col-sm-6 col-lg-3 d-flex">
@@ -581,8 +728,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 </div>
             </div>
 
-            <!-- Row 2: Volume KPIs -->
-            <div class="row g-3 mb-3">
+            <div class="row g-3 mb-3 business-kpi-grid">
                 <div class="col-sm-6 col-lg-3 d-flex">
                     <${KpiCard}
                         icon="building" label="Organizations" color="primary"
@@ -593,15 +739,16 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 <div class="col-sm-6 col-lg-3 d-flex">
                     <${KpiCard}
                         icon="devices" label="Daily Active Footprint" color="success"
-                        value=${formatCompact(activeDevices)}
-                        subtitle="online at least once / day"
+                        value=${formatCompact(totalDevices)}
+                        subtitle=${activeDevices > 0 ? `${formatCompact(activeDevices)} seen in latest daily snapshot` : 'registered fleet baseline'}
                     />
                 </div>
                 <div class="col-sm-6 col-lg-3 d-flex">
                     <${KpiCard}
-                        icon="database" label="Signal Volume (7d avg)" color="purple"
-                        value=${formatCompact(avgTelemetry7d)}
-                        subtitle="${formatCompact(totalTelemetry)} latest-day signals"
+                        icon="database" label=${`${actualCostDays || costWindow}D Signals`} color="purple"
+                        value=${formatCompact(selectedWindowSignals)}
+                        subtitle=${`${formatCompact(Math.round(selectedSignalDailyAverage))}/day · ${ccySymbol}${selectedCostPer100kSignals.toFixed(2)}/100k signals`}
+                        trend=${{ pct: selectedSignalTrendPercent }}
                     />
                 </div>
                 <div class="col-sm-6 col-lg-3 d-flex">
@@ -615,7 +762,39 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 </div>
             </div>
 
-            <!-- Row 3: Growth Trends from History -->
+            <div class="card mb-3 business-key-results-card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="ti ti-rosette-discount-check me-2"></i>Decision Signals</h3>
+                    <div class="card-options text-muted small">Fixed-size tiles for fast business review</div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        ${keyResults.map(item => html`
+                            <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
+                                <div class="card business-key-result-tile h-100 w-100 position-relative overflow-hidden shadow-sm" title=${item.tooltip}>
+                                    <div style=${`position:absolute;top:10px;right:-6px;background:${krToneStyles[item.tone]};color:#fff;padding:4px 12px;border-radius:999px 0 0 999px;font-size:.68rem;font-weight:800;letter-spacing:.02em;box-shadow:0 6px 16px rgba(15,23,42,.18);`}>
+                                        ${item.ribbon}
+                                    </div>
+                                    <div class="card-body d-flex flex-column justify-content-between">
+                                        <div class="subheader pe-5">${item.label}</div>
+                                        <div class="h3 mb-1">${item.value}</div>
+                                        <div class="text-muted small">${item.detail}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `)}
+                    </div>
+                </div>
+            </div>
+
+            <div class="business-section-heading mt-4 mb-2">
+                <div>
+                    <div class="business-section-kicker">Trends</div>
+                    <h3 class="business-section-title">Movement and correlation</h3>
+                </div>
+                <div class="business-section-note">Use these before drilling into service, region, and resource-group detail.</div>
+            </div>
+
             ${historySlice.length >= 2 && html`
                 <div class="card mb-3">
                     <div class="card-header">
@@ -636,14 +815,16 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 </div>
             `}
 
-            <!-- Row 4: Expense Trends -->
             ${dailyCostTrend.length >= 2 && html`
                 <div class="card mb-3">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="ti ti-chart-line me-2"></i>Expense Trends</h3>
-                        <div class="card-actions d-flex gap-2 align-items-center">
+                        <h3 class="card-title"><i class="ti ti-chart-line me-2"></i>Signal / Cost Correlation</h3>
+                        <div class="card-actions d-flex gap-2 align-items-center flex-wrap">
+                            <span class="badge bg-blue-lt text-blue">Signals ${formatDelta(selectedSignalTrendPercent)}</span>
+                            <span class="badge ${selectedWindowTrendPercent != null && selectedSignalTrendPercent != null && selectedWindowTrendPercent > selectedSignalTrendPercent + 25 ? 'bg-orange-lt text-orange' : 'bg-green-lt text-green'}">Cost ${formatDelta(selectedWindowTrendPercent)}</span>
+                            <span class="badge bg-teal-lt text-teal">${ccySymbol}${selectedCostPer100kSignals.toFixed(2)}/100k</span>
                             <select class="form-select form-select-sm w-auto" value=${String(costWindow)} onChange=${(e) => setCostWindow(Number(e.target.value) || 30)}>
-                                ${[7, 15, 30, 60, 90].map(days => html`<option value=${String(days)}>${days} days</option>`)}
+                                ${[7, 15, 30, 90].map(days => html`<option value=${String(days)}>${days} days</option>`)}
                             </select>
                             <select class="form-select form-select-sm w-auto" value=${costScale} onChange=${(e) => setCostScale(e.target.value || 'linear')}>
                                 <option value="linear">Linear</option>
@@ -656,7 +837,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                         <canvas ref=${costTrendChartRef}></canvas>
                     </div>
                     <div class="card-footer text-muted small">
-                        Orange = Azure billed daily expense from completed days. Teal = GitHub daily allocation from payment history or current run-rate. Blue dashed = combined expense trend. Purple dashed = loaded breakeven run-rate, implying about ${ccySymbol}${breakevenPerActiveDevice.toFixed(2)} per active device/month today.
+                        Blue bars = processed signal rows. Orange = Azure daily cost. Purple appears when AI/model spend is visible. Red dashed projects loaded burn through month end, implying EOM <strong class="text-body">${ccySymbol}${formatNumberByCurrency(projectedAzureEom, displayCcy, 0)}</strong>. ${correlationNarrative}
                     </div>
                 </div>
             `}
@@ -667,7 +848,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                         <h3 class="card-title"><i class="ti ti-chart-infographic me-2"></i>Cost by Service Trends</h3>
                         <div class="card-actions d-flex gap-2 align-items-center">
                             <select class="form-select form-select-sm w-auto" value=${String(serviceTrendWindow)} onChange=${(e) => setServiceTrendWindow(Number(e.target.value) || 30)}>
-                                ${[7, 15, 30, 60, 90].map(days => html`<option value=${String(days)}>${days} days</option>`)}
+                                ${[7, 15, 30, 90].map(days => html`<option value=${String(days)}>${days} days</option>`)}
                             </select>
                             <select class="form-select form-select-sm w-auto" value=${serviceScale} onChange=${(e) => setServiceScale(e.target.value || 'linear')}>
                                 <option value="linear">Linear</option>
@@ -685,7 +866,14 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 </div>
             `}
 
-            <!-- Row 5: Revenue Mix + Cost by Service + Cost by Region -->
+            <div class="business-section-heading mt-4 mb-2">
+                <div>
+                    <div class="business-section-kicker">Details</div>
+                    <h3 class="business-section-title">Breakdowns and exceptions</h3>
+                </div>
+                <div class="business-section-note">Use these after the indicators and trends point to a cost or margin question.</div>
+            </div>
+
             <div class="row g-3 mb-3">
                 <div class="col-md-4 d-flex">
                     <div class="card h-100 w-100">
@@ -723,11 +911,10 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 </div>
             </div>
 
-            <!-- Row 6: Cost Summary Tables -->
-            ${(serviceEntries.length > 0 || regionEntries.length > 0) && html`
+            ${(serviceEntries.length > 0 || nonZeroRegionEntries.length > 0 || resourceGroupEntries.length > 0) && html`
                 <div class="row g-3 mb-3">
                     ${serviceEntries.length > 0 && html`
-                        <div class="col-md-6">
+                        <div class="col-lg-4">
                             <div class="card">
                                 <div class="card-header">
                                     <h3 class="card-title"><i class="ti ti-list me-2"></i>Cost by Service (${serviceBreakdownLabel})</h3>
@@ -754,8 +941,8 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                             </div>
                         </div>
                     `}
-                    ${regionEntries.length > 0 && html`
-                        <div class="col-md-6">
+                    ${nonZeroRegionEntries.length > 0 && html`
+                        <div class="col-lg-4">
                             <div class="card">
                                 <div class="card-header">
                                     <h3 class="card-title"><i class="ti ti-world me-2"></i>Regional Cost Footprint (${regionBreakdownLabel})</h3>
@@ -782,36 +969,36 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                             </div>
                         </div>
                     `}
-                </div>
-            `}
-
-            <!-- Row 7: Key Results Tiles -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="ti ti-rosette-discount-check me-2"></i>Key Results</h3>
-                    <div class="card-options text-muted small">Fixed-size tiles with decision signals</div>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        ${keyResults.map(item => html`
-                            <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
-                                <div class="card h-100 w-100 position-relative overflow-hidden shadow-sm border-0" title=${item.tooltip} style="min-height:96px; background:var(--tblr-bg-surface, #fff); border:1px solid var(--tblr-border-color,#e5e7eb);">
-                                    <div style=${`position:absolute;top:10px;right:-6px;background:${krToneStyles[item.tone]};color:#fff;padding:4px 12px;border-radius:999px 0 0 999px;font-size:.68rem;font-weight:800;letter-spacing:.02em;box-shadow:0 6px 16px rgba(15,23,42,.18);`}>
-                                        ${item.ribbon}
-                                    </div>
-                                    <div class="card-body d-flex flex-column justify-content-between">
-                                        <div class="subheader pe-5">${item.label}</div>
-                                        <div class="h3 mb-1">${item.value}</div>
-                                        <div class="text-muted small">${item.detail}</div>
+                    ${resourceGroupEntries.length > 0 && html`
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title"><i class="ti ti-folders me-2"></i>Cost by Resource Group (month to date)</h3>
+                                    <span class="badge bg-blue-lt text-blue ms-auto">${ccySymbol}${convert(totalResourceGroupCost, costCcy).toFixed(2)}</span>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive" style="max-height:280px">
+                                        <table class="table table-vcenter table-sm card-table">
+                                            <thead><tr><th>Resource group</th><th class="text-end">Amount</th><th class="text-end">Share</th></tr></thead>
+                                            <tbody>
+                                                ${resourceGroupEntries.map(([groupName, cost]) => {
+                                                    const share = totalResourceGroupCost > 0 ? (cost / totalResourceGroupCost * 100) : 0;
+                                                    return html`<tr>
+                                                        <td class="small text-truncate" title=${groupName} style="max-width: 220px;">${groupName}</td>
+                                                        <td class="text-end font-monospace small">${ccySymbol}${convert(cost, costCcy).toFixed(2)}</td>
+                                                        <td class="text-end small text-muted">${share.toFixed(1)}%</td>
+                                                    </tr>`;
+                                                })}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
-                        `)}
-                    </div>
+                        </div>
+                    `}
                 </div>
-            </div>
+            `}
 
-            <!-- Row 8: At-Risk Alerts -->
             ${(s.atRiskOrgs || []).length > 0 && html`
                 <div class="card mb-3">
                     <div class="card-header">

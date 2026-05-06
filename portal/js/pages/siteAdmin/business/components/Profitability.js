@@ -187,8 +187,6 @@ export function ProfitabilityPage({ snapshot, catalog, displayCcy, billingCcy, c
         ? catalog.aiUsageProfiles
         : DEFAULT_AI_USAGE_PROFILES;
 
-    useEffect(() => { loadProfitability(); }, []);
-
     const loadProfitability = async () => {
         setLoading(true);
         setError(null);
@@ -314,7 +312,7 @@ export function ProfitabilityPage({ snapshot, catalog, displayCcy, billingCcy, c
     const monthlyOpsCost = conv(annualOpsCostUsd / 12, 'USD');
     const monthlyAzureCost = conv(Number(snapshot?.totalCost || 0), costSourceCcy);
     const loadedMonthlyCost = monthlyAzureCost + monthlyOpsCost;
-    const activeDeviceCount = Math.max(1, Number(snapshot?.totalSeenDevices || snapshot?.activeDevices || snapshot?.totalDevices || 0));
+    const activeDeviceCount = Math.max(1, Number(snapshot?.activeDevices || snapshot?.totalDevices || snapshot?.totalSeenDevices || 0));
     const currentVariableMonthlyCostPerDevice = activeDeviceCount > 0 ? (monthlyAzureCost / activeDeviceCount) : 0;
     const investor = snapshot?.costDetail?.investorCostSummary || {};
     const avgObservedVariableMonthlyCostPerDevice = Number(investor.avgDailyCostPerDevice || 0) > 0
@@ -346,7 +344,7 @@ export function ProfitabilityPage({ snapshot, catalog, displayCcy, billingCcy, c
                 : listAnnual;
         const monthlyBilled = (discountAnnual / 12) * (1 + (monthlyMarkupPercent / 100));
         const insuranceReserve = monthlyBilled * (churnReservePercent / 100);
-        const fixedCostShareAnnual = monthlyOpsCost * 12;
+        const fixedCostShareAnnual = (monthlyOpsCost * 12) * (devicesIncluded / activeDeviceCount);
         const staticAnnualCost = (currentVariableMonthlyCostPerDevice * devicesIncluded * 12) + fixedCostShareAnnual;
         const runningAnnualCost = (avgObservedVariableMonthlyCostPerDevice * devicesIncluded * 12) + fixedCostShareAnnual;
         const stressAnnualCost = (maxObservedVariableMonthlyCostPerDevice * devicesIncluded * 12) + fixedCostShareAnnual;
@@ -482,7 +480,7 @@ export function ProfitabilityPage({ snapshot, catalog, displayCcy, billingCcy, c
             ${!loading && data?.scopeNote ? html`
                 <div class="alert alert-info mb-3">
                     <div class="fw-semibold">Profitability scope</div>
-                    <div class="small text-muted">${data.scopeNote}</div>
+                    <div class="small text-muted">${data.scopeNote} COGS comes from DAILY_COST org allocation rows first, then historical allocation fallback.</div>
                 </div>
             ` : null}
 
@@ -514,7 +512,7 @@ export function ProfitabilityPage({ snapshot, catalog, displayCcy, billingCcy, c
                             <div class="card-body">
                                 <div class="subheader">Allocated Daily COGS</div>
                                 <div class="h1 mb-0">${fmtCost(data?.totalDailyCost, 2)}</div>
-                                <div class="text-muted small">Daily operating cost attributed across the filtered customer base</div>
+                                <div class="text-muted small">Latest completed daily cost allocation attributed across the filtered customer base</div>
                             </div>
                         </div>
                     </div>

@@ -809,16 +809,183 @@ pre.json-metadata {
   border-color: #0f5ea8;
 }
 
-.business-hero-card {
-  background: linear-gradient(130deg, #1a4d7e 0%, #1e6e8f 55%, #4ba7aa 100%) !important;
-  color: #f3f8ff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 12px 28px rgba(16, 45, 79, 0.22);
+.business-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-[data-bs-theme="dark"] .business-hero-card {
-  background: linear-gradient(130deg, #102640 0%, #17435e 55%, #236877 100%) !important;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
+.business-view-tabs .nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0.5rem 0.8rem;
+  font-weight: 600;
+}
+
+.business-source-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--tblr-muted, #6c757d);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  border-top: 1px solid var(--bi-border);
+  padding-top: 0.75rem;
+}
+
+.business-source-footer span {
+  display: inline-flex;
+  align-items: center;
+}
+
+.business-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.business-section-kicker {
+  color: var(--tblr-muted, #6c757d);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.business-section-title {
+  color: var(--tblr-body-color, #182433);
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0.1rem 0 0;
+}
+
+.business-section-note {
+  color: var(--tblr-muted, #6c757d);
+  font-size: 0.78rem;
+  max-width: 520px;
+  text-align: right;
+}
+
+.business-health-strip {
+  display: grid;
+  grid-template-columns: 0.75fr 1fr 1fr 1fr minmax(230px, 1.45fr);
+  gap: 0.75rem;
+  background:
+    linear-gradient(135deg, rgba(15, 94, 168, 0.18) 0%, rgba(47, 179, 68, 0.12) 48%, rgba(247, 103, 7, 0.10) 100%),
+    color-mix(in srgb, var(--bi-surface) 82%, #e7f0f8 18%);
+  border: 1px solid color-mix(in srgb, #0f5ea8 28%, var(--bi-border) 72%);
+  border-radius: 10px;
+  padding: 0.8rem;
+  box-shadow: 0 10px 26px rgba(15, 45, 75, 0.12);
+}
+
+.business-health-tile {
+  min-height: 86px;
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  background: linear-gradient(180deg, color-mix(in srgb, #ffffff 94%, #e7f0f8 6%), color-mix(in srgb, var(--bi-surface) 92%, #f4f8fb 8%));
+  border: 1px solid color-mix(in srgb, var(--bi-border) 76%, transparent);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.business-health-grade {
+  align-items: flex-start;
+}
+
+.business-health-info {
+  background: linear-gradient(180deg, color-mix(in srgb, #ffffff 90%, #e6f2ff 10%), color-mix(in srgb, var(--bi-surface) 88%, #edf6ff 12%));
+}
+
+.business-kpi-grid .kpi-card,
+.business-key-result-tile {
+  background: linear-gradient(180deg, color-mix(in srgb, #ffffff 93%, #eff6ff 7%), color-mix(in srgb, var(--bi-surface) 91%, #f5f9fc 9%)) !important;
+  border: 1px solid color-mix(in srgb, var(--bi-border) 82%, transparent) !important;
+  box-shadow: 0 8px 20px rgba(15, 45, 75, 0.07) !important;
+}
+
+.business-key-results-card {
+  background: color-mix(in srgb, var(--bi-surface) 94%, #f4f8fb 6%);
+}
+
+.business-health-label {
+  color: var(--tblr-muted, #6c757d);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+
+.business-health-value {
+  color: var(--tblr-body-color, #182433);
+  font-size: 1.12rem;
+  font-weight: 800;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.business-health-detail {
+  color: var(--tblr-muted, #6c757d);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  margin-top: 0.25rem;
+}
+
+[data-bs-theme="dark"] .business-health-strip {
+  background:
+    linear-gradient(135deg, rgba(42, 122, 190, 0.22) 0%, rgba(47, 179, 68, 0.12) 48%, rgba(247, 103, 7, 0.12) 100%),
+    color-mix(in srgb, var(--bi-surface) 82%, #17324a 18%);
+  border-color: color-mix(in srgb, #2a7abe 34%, var(--bi-border) 66%);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+}
+
+[data-bs-theme="dark"] .business-health-tile,
+[data-bs-theme="dark"] .business-kpi-grid .kpi-card,
+[data-bs-theme="dark"] .business-key-result-tile {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bi-surface) 88%, #20364b 12%), color-mix(in srgb, var(--bi-surface) 94%, #14293d 6%)) !important;
+  border-color: color-mix(in srgb, var(--bi-border) 74%, #34506a 26%) !important;
+}
+
+[data-bs-theme="dark"] .business-health-info {
+  background: color-mix(in srgb, var(--bi-surface) 90%, #1d405c 10%);
+}
+
+[data-bs-theme="dark"] .business-key-results-card {
+  background: color-mix(in srgb, var(--bi-surface) 94%, #132b40 6%);
+}
+
+@media (max-width: 1199.98px) {
+  .business-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .business-section-note {
+    max-width: none;
+    text-align: left;
+  }
+
+  .business-health-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .business-health-info {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .business-health-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .business-health-info {
+    grid-column: auto;
+  }
 }
 
 /* ─── Business Metrics: Margin Band Badges ──────────────────────────────────── */

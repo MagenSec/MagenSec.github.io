@@ -53,7 +53,7 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
         })()
         : 0;
     const activeDevices = Number(s.totalSeenDevices || latestSeenFromSnapshots || s.activeDevices || 0);
-    const coverageCount = Number(s.orgsWithBusinessSignal || s.costDetail?.topOrgTelemetryAggregates?.length || 0);
+    const coverageCount = Number(s.foundOrgCount || s.orgsWithBusinessSignal || 0);
     const fleetUtil = totalDevices > 0 && activeDevices > 0 ? ((activeDevices / totalDevices) * 100) : 0;
     const orgDataCoverage = Number(s.coveragePercent || (totalOrgs > 0 ? ((coverageCount / totalOrgs) * 100) : 0));
     const avgOnline = Number(s.avgDailyOnlinePercent || (totalDevices > 0 && avgSeenFromSnapshots > 0 ? ((avgSeenFromSnapshots / totalDevices) * 100) : 0));
@@ -115,6 +115,16 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
             return acc;
         }, {});
     }
+
+    const normalizedTelemetryByType = normalizeTelemetryBreakdown(telemetryByType);
+    const processingInputRows = Number(normalizedTelemetryByType.Heartbeat || 0)
+        + Number(normalizedTelemetryByType.Signals || 0)
+        + Number(normalizedTelemetryByType.Performance || 0);
+    const materializedEvidenceRows = Number(normalizedTelemetryByType.Inventory || 0)
+        + Number(normalizedTelemetryByType.Alerts || 0);
+    const cachePerformance = s.cachePerformance || s.costDetail?.cachePerformance || {};
+    const apiRequestRows = Number(cachePerformance.totalRequests || 0);
+    const apiHitRate = Number(cachePerformance.hitRate || 0);
 
     // ── Telemetry stacked bar from live daily snapshots/history ─────────────
     useEffect(() => {
@@ -363,8 +373,40 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
                 <div class="col-sm-6 col-lg-3 d-flex">
                     <${KpiCard} icon="wifi" label="Avg Daily Seen (7d)" color="cyan"
                         value=${avgOnline > 0 ? formatPercent(avgOnline) : '—'}
-                        subtitle=${avgSeenFromSnapshots > 0 ? `${formatCompact(avgSeenFromSnapshots)} seen/day` : 'trend data building'}
+                        subtitle=${avgSeenFromSnapshots > 0 ? `${formatCompact(Math.round(avgSeenFromSnapshots))} seen/day` : 'trend data building'}
                     />
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="ti ti-route-square me-2"></i>Signal Economics Path</h3>
+                    <span class="badge bg-blue-lt text-blue ms-auto">Latest daily snapshot</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <div class="subheader mb-1">Processing inputs</div>
+                                <div class="h2 mb-1">${formatCompact(processingInputRows)}</div>
+                                <div class="text-muted small">Heartbeat + Signals + Performance rows drive ingestion and compute pressure.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <div class="subheader mb-1">Materialized evidence</div>
+                                <div class="h2 mb-1">${formatCompact(materializedEvidenceRows)}</div>
+                                <div class="text-muted small">Inventory and Alerts are durable evidence rows used by portal, reports, and snapshots.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <div class="subheader mb-1">Serving pressure</div>
+                                <div class="h2 mb-1">${apiRequestRows > 0 ? formatCompact(apiRequestRows) : '—'}</div>
+                                <div class="text-muted small">ApiLogs cache tracking${apiHitRate > 0 ? ` · ${apiHitRate.toFixed(1)}% cache hit rate` : ' will appear when available'}.</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -418,8 +460,8 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
                                                             ${orgSubLabel && html`<div class="text-muted small font-monospace">${orgSubLabel}</div>`}
                                                         </td>
                                                         <td class="text-end">${o.activeDays || 0}</td>
-                                                        <td class="text-end">${formatCompact(avgRowsPerDay)}</td>
-                                                        <td class="text-end">${formatCompact(rowsPerDevice)}</td>
+                                                        <td class="text-end">${formatCompact(Math.round(avgRowsPerDay))}</td>
+                                                        <td class="text-end">${formatCompact(Math.round(rowsPerDevice))}</td>
                                                         <td class="text-end">${ccySymbol}${convert(avgCostPerDay).toFixed(2)}</td>
                                                     </tr>
                                                 `;
