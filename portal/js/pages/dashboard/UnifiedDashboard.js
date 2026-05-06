@@ -11,6 +11,7 @@ import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
 import { bundleToUnifiedPayload } from './bundleAdapter.js';
 import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
 import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
+import { TrendSnapshotStrip } from '../../components/TrendSnapshotStrip.js';
 import { metricPhrase } from '../../utils/metricUnits.js';
 
 const { html, Component } = window;
@@ -1663,6 +1664,14 @@ export default class UnifiedDashboard extends Component {
             ` : ''}
           </section>
           </section>
+
+          <${TrendSnapshotStrip}
+            trends=${data?.snapshots || []}
+            context="dashboard"
+            title="30-Day Security Trend"
+            subtitle="Score, exposure, and device movement over the latest snapshot window"
+            className="mt-3"
+          />
 
           <!-- Refresh + Freshness -->
           <div style="text-align: center;">
