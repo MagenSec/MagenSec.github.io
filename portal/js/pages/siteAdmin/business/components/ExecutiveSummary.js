@@ -176,6 +176,14 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
         .filter(snap => Number(snap.totalCost || 0) > 0)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+    const previousMonthDate = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1));
+    const previousMonthKey = previousMonthDate.toISOString().slice(0, 7);
+    const previousMonthLabel = previousMonthDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const lastClosedMonthAzureRaw = dailyCostTrend
+        .filter(snap => new Date(snap.date).toISOString().slice(0, 7) === previousMonthKey)
+        .reduce((sum, snap) => sum + Number(snap.totalCost || 0), 0);
+    const lastClosedMonthAzureCost = convert(lastClosedMonthAzureRaw, costCcy);
+
     const filteredDailyCostTrend = dailyCostTrend.slice(-Math.max(7, costWindow));
     const dailyServiceCosts = (costDetail.dailyServiceCosts || [])
         .filter(entry => entry?.date && entry?.service)
@@ -192,10 +200,10 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const actualCostDays = Math.min(requestedCostDays, availableCostDays);
     const actualServiceDays = Math.min(requestedServiceDays, availableServiceDays);
     const serviceBreakdownLabel = monthlySvcEntries.length > 0
-        ? '30d billed'
+        ? 'month to date'
         : `${actualCostDays}d available`;
     const regionBreakdownLabel = monthlyRegionEntries.length > 0
-        ? '30d billed'
+        ? 'month to date'
         : `${actualCostDays}d available`;
 
     const fallbackServiceTotals = filteredDailyCostTrend.reduce((acc, snap) => {
@@ -544,9 +552,11 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                 </div>
                 <div class="col-sm-6 col-lg-3 d-flex">
                     <${KpiCard}
-                        icon="receipt" label="Avg Daily Expense (7d)" color="warning"
-                        value="${ccySymbol}${avgDailyCost7.toFixed(2)}"
-                        subtitle="${ccySymbol}${mtdCost.toFixed(0)} expense MTD"
+                        icon="receipt" label="Last Closed Month" color="warning"
+                        value="${lastClosedMonthAzureCost > 0 ? `${ccySymbol}${formatNumberByCurrency(lastClosedMonthAzureCost, displayCcy, 0)}` : `${ccySymbol}${avgDailyCost7.toFixed(2)}`}"
+                        subtitle=${lastClosedMonthAzureCost > 0
+                            ? `${previousMonthLabel} Azure bill - ${ccySymbol}${avgDailyCost7.toFixed(2)}/day 7d`
+                            : `${ccySymbol}${mtdCost.toFixed(0)} expense MTD`}
                         sparkData=${costSpark}
                         sparkColor="#f59f00"
                         trend=${{ pct: d.costChangePercent, higherIsBetter: false }}
@@ -708,7 +718,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                                 : html`<div class="empty"><p class="empty-title">No region data</p></div>`
                             }
                         </div>
-                        <div class="card-footer text-muted small">This panel reflects the latest billed regional footprint, currently shown as a 30-day view when Azure monthly totals are available. Configured regions with zero spend remain listed below.</div>
+                        <div class="card-footer text-muted small">This panel reflects the latest billed regional footprint for the current billing month when Azure monthly totals are available. Configured regions with zero spend remain listed below.</div>
                     </div>
                 </div>
             </div>
