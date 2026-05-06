@@ -418,6 +418,8 @@ function App() {
             `;
         case 'settings':
             return html`<${SettingsPage} />`;
+        case 'review':
+            return html`<${ReviewPage} />`;
         case 'account':
             return html`<${AccountPage} />`;
         case 'audit':

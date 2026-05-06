@@ -132,7 +132,7 @@ export function AuditPage() {
             const range = getTrendDateRange(Math.max(30, Math.min(90, rangeDays)));
             const res = await api.getTrendSnapshots(currentOrg.orgId, range);
             const payload = res?.data || res;
-            const trends = payload?.data || payload?.snapshots || [];
+            const trends = Array.isArray(payload) ? payload : (payload?.data || payload?.snapshots || []);
             setTrendSnapshots(Array.isArray(trends) ? trends : []);
         } catch (err) {
             console.warn('[Audit] Failed to load trend snapshots:', err);

@@ -336,13 +336,13 @@ export function initRouter(renderApp) {
         renderApp({ page: 'reports', ctx });
     });
 
-    // Review - app vulnerability review (protected)
+    // Feature Review catalog (protected)
     page('/review', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        renderApp({ page: 'siteadmin/review', ctx });
+        renderApp({ page: 'review', ctx });
     });
 
     page('/vulnerabilities', (ctx) => {

@@ -516,12 +516,14 @@ export class ReviewPage extends Component {
   render() {
     const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
     const businessTooltip = 'Feature available in Business License only';
-    const isBusinessOnlyRoute = (route) => route === '#!/analyst' || route === '#!/mission-brief' || route === '#!/posture-ai';
-    const parkedPages = [
-      { name: 'AI Analyst', route: '#!/analyst', description: 'Interactive AI security chat' },
-      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine dossier view' },
-      { name: 'Mission Briefing', route: '#!/mission-brief', description: 'Generate and review security/compliance/inventory reports' },
-      { name: 'Vulnerabilities', route: '#!/vulnerabilities', description: 'CVE and vulnerability list view' }
+    const isBusinessOnlyRoute = (route) => route === '#!/analyst' || route === '#!/mission-brief' || route.startsWith('#!/add-ons/');
+    const reviewPages = [
+      { name: 'AI Analyst', route: '#!/analyst', description: 'Interactive AI security chat', status: 'Wired', location: 'Actions / Officer MAGI' },
+      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine dossier view', status: 'Wired', location: 'Prove / Posture Trends' },
+      { name: 'Mission Briefing', route: '#!/mission-brief', description: 'Generate and review security/compliance/inventory reports', status: 'Wired', location: 'Prove / Mission Briefs' },
+      { name: 'Vulnerabilities', route: '#!/vulnerabilities', description: 'CVE and vulnerability list view', status: 'Wired', location: 'Protect / Active Exposures' },
+      { name: 'Compliance Plus', route: '#!/add-ons/compliance-plus', description: 'Advanced compliance add-on review surface', status: 'Wired', location: 'Prove / Compliance Plus' },
+      { name: 'Supply Chain Intel', route: '#!/add-ons/supply-chain-intel', description: 'Supply-chain risk add-on review surface', status: 'Wired', location: 'Insure / Supply Chain Risk' }
     ];
 
     return html`
@@ -529,8 +531,8 @@ export class ReviewPage extends Component {
         <div class="container-xl">
           <div class="row g-2 align-items-center">
             <div class="col">
-              <h2 class="page-title">Review</h2>
-              <div class="text-muted">Pages that exist but are not linked from the main navigation</div>
+              <h2 class="page-title">Feature Review</h2>
+              <div class="text-muted">Site-admin catalog for pages under review and their current navigation wiring</div>
             </div>
           </div>
         </div>
@@ -539,9 +541,9 @@ export class ReviewPage extends Component {
         <div class="container-xl">
           <div class="card">
             <div class="card-header">
-              <h3 class="card-title">Parked Pages</h3>
+              <h3 class="card-title">Feature Catalog</h3>
               <div class="card-options">
-                <span class="badge bg-secondary text-white">${parkedPages.length} pages</span>
+                <span class="badge bg-secondary text-white">${reviewPages.length} pages</span>
               </div>
             </div>
             <div class="table-responsive">
@@ -551,17 +553,19 @@ export class ReviewPage extends Component {
                     <th>Page Name</th>
                     <th>Route</th>
                     <th>Description</th>
+                    <th>Navigation</th>
                     <th>Status</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${parkedPages.map(p => html`
+                  ${reviewPages.map(p => html`
                     <tr>
                       <td class="fw-medium">${p.name}</td>
                       <td><code>${p.route}</code></td>
                       <td class="text-muted">${p.description}</td>
-                      <td><span class="badge bg-warning text-white">Parked</span></td>
+                      <td class="text-muted small">${p.location}</td>
+                      <td><span class="badge bg-success text-white">${p.status}</span></td>
                       <td>
                         <a
                           href="${p.route}"

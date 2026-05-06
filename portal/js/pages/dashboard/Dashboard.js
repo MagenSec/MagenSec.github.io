@@ -602,7 +602,7 @@ export class DashboardPage extends Component {
             const range = this.getTrendDateRange(30);
             const res = await api.getTrendSnapshots(orgId, range);
             const payload = res?.data || res;
-            const trends = payload?.data || payload?.snapshots || [];
+            const trends = Array.isArray(payload) ? payload : (payload?.data || payload?.snapshots || []);
             return coerceTrendSnapshots(trends);
         } catch (err) {
             console.warn('[Dashboard] Failed to load trend snapshots:', err);
