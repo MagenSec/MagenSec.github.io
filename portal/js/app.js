@@ -273,7 +273,7 @@ function applyOrgUiRestrictions() {
 function shouldShowPageNarrative() {
     if (!auth.isAuthenticated()) return false;
     if (currentPage.startsWith('siteadmin/')) return false;
-    return !['login', 'device-hub', 'dashboard', 'settings', 'review'].includes(currentPage);
+    return !['login', 'device-hub', 'dashboard', 'security', 'settings', 'review'].includes(currentPage);
 }
 
 // Main app component

@@ -282,49 +282,115 @@ export class SecurityOverview extends Component {
         this.setState(prev => ({ deepDiveOpen: !prev.deepDiveOpen }));
     };
 
-    renderSeatGarage(isPersonal) {
-        const org = orgContext.getCurrentOrg();
-        const totalSeats = Math.max(1, num(org?.totalSeats || (isPersonal ? 5 : this.state.devicesTotal)));
-        const usedSeats = Math.max(0, Math.min(totalSeats, num(this.state.devicesTotal || org?.deviceCount)));
-        const freeSeats = Math.max(0, totalSeats - usedSeats);
-        const slotCount = Math.max(3, Math.min(totalSeats, 10));
-        const openVisible = Math.min(slotCount, freeSeats);
-        const occupiedVisible = Math.min(slotCount - openVisible, usedSeats);
-        const slots = [
-            ...Array.from({ length: openVisible }, () => 'open'),
-            ...Array.from({ length: occupiedVisible }, () => 'occupied')
-        ];
+    buildSecuritySignals() {
+        const s = this.state;
+        const patch = s.patchStatus || buildPatchStatus(null);
+        const strengths = [];
+        const weaknesses = [];
+
+        if (s.devicesHealthy > 0) {
+            strengths.push({ icon: 'ti-device-desktop-check', text: `${s.devicesHealthy} protected device${s.devicesHealthy === 1 ? '' : 's'} reporting into the Dossier.` });
+        }
+        if (s.appsTotal > 0) {
+            strengths.push({ icon: 'ti-apps', text: `${s.appsTotal} applications inventoried for exposure matching.` });
+        }
+        if (s.critical === 0) {
+            strengths.push({ icon: 'ti-shield-check', text: 'No critical vulnerability is open in the current Dossier.' });
+        }
+        if (patch.openAlerts === 0 && !patch.unavailable) {
+            strengths.push({ icon: 'ti-shield-bolt', text: 'No Microsoft patch alert is currently blocking coverage.' });
+        }
+        if (!s.topActions.length) {
+            strengths.push({ icon: 'ti-circle-check', text: 'No fix-first action was generated from the latest evidence.' });
+        }
+
+        if (s.devicesAttention > 0) {
+            weaknesses.push({ icon: 'ti-wifi-off', href: '#!/devices', tone: 'warning', text: `${s.devicesAttention} device${s.devicesAttention === 1 ? '' : 's'} need visibility review.` });
+        }
+        if (s.critical > 0 || s.high > 0) {
+            weaknesses.push({ icon: 'ti-bug', href: '#!/vulnerabilities', tone: s.critical > 0 ? 'danger' : 'warning', text: `${s.critical} critical and ${s.high} high vulnerabilities need triage.` });
+        }
+        if (patch.openAlerts > 0 || patch.hostsAffected > 0) {
+            weaknesses.push({ icon: 'ti-shield-x', href: '#!/patch-posture', tone: 'warning', text: `${patch.openAlerts} patch alert${patch.openAlerts === 1 ? '' : 's'} across ${patch.hostsAffected} affected device${patch.hostsAffected === 1 ? '' : 's'}.` });
+        }
+        if (s.actionsOpen > 0) {
+            weaknesses.push({ icon: 'ti-bell-ringing', href: '#!/alerts', tone: 'warning', text: `${s.actionsOpen} open action${s.actionsOpen === 1 ? '' : 's'} still need closure.` });
+        }
+        if (!weaknesses.length) {
+            weaknesses.push({ icon: 'ti-circle-check', tone: 'success', text: 'No immediate weakness is visible in the latest Dossier.' });
+        }
+
+        return { strengths: strengths.slice(0, 4), weaknesses: weaknesses.slice(0, 4) };
+    }
+
+    renderSecurityCoverageMap() {
+        const s = this.state;
+        const totalDevices = Math.max(0, s.devicesTotal, s.devicesHealthy + s.devicesAttention);
+        const attentionDevices = Math.max(0, Math.min(totalDevices, s.devicesAttention));
+        const healthyDevices = Math.max(0, totalDevices - attentionDevices);
+        const cellsToShow = totalDevices > 0 ? (totalDevices <= 24 ? totalDevices : 24) : 12;
+        const devicesPerCell = totalDevices > cellsToShow ? Math.ceil(totalDevices / cellsToShow) : 1;
+        const attentionCells = totalDevices > 0 ? Math.min(cellsToShow, Math.ceil((attentionDevices / Math.max(1, totalDevices)) * cellsToShow)) : 0;
+        const healthyCells = totalDevices > 0 ? Math.max(0, cellsToShow - attentionCells) : 0;
+        const cells = Array.from({ length: cellsToShow }, (_, index) => {
+            if (totalDevices === 0) return 'unknown';
+            return index < healthyCells ? 'healthy' : 'attention';
+        });
+        const coveragePct = totalDevices > 0 ? Math.round((healthyDevices / totalDevices) * 100) : 0;
+        const mapSubtitle = totalDevices > cellsToShow
+            ? `Each square represents up to ${devicesPerCell} devices.`
+            : 'Each square represents one known device.';
 
         return html`
-            <div class="card h-100 border-0 shadow-sm" style="cursor:pointer;" onClick=${this.goToGarage}>
+            <div class="card h-100 border-0 shadow-sm">
                 <div class="card-header">
-                    <h3 class="card-title">License Seats</h3>
+                    <h3 class="card-title">Security Coverage Map</h3>
                     <div class="card-actions">
-                        <span class="badge bg-${freeSeats > 0 ? 'success' : 'warning'}-lt text-${freeSeats > 0 ? 'success' : 'warning'}">${freeSeats} open</span>
+                        <span class="badge bg-${coveragePct >= 90 ? 'success' : coveragePct >= 70 ? 'warning' : 'danger'}-lt text-${coveragePct >= 90 ? 'success' : coveragePct >= 70 ? 'warning' : 'danger'}">${coveragePct}% covered</span>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex align-items-baseline gap-2 mb-2">
-                        <div class="h2 mb-0">${freeSeats}</div>
-                        <div class="text-muted">${freeSeats === 1 ? 'open seat' : 'open seats'}</div>
+                    <div class="d-flex justify-content-between align-items-end gap-3 mb-2">
+                        <div>
+                            <div class="text-muted text-uppercase fw-semibold small">Protected estate</div>
+                            <div class="h2 mb-0">${healthyDevices}/${totalDevices || 0}</div>
+                        </div>
+                        <div class="text-end small text-muted">
+                            <div>${attentionDevices} need review</div>
+                            <div>${mapSubtitle}</div>
+                        </div>
                     </div>
-                    <div class="text-muted small mb-3">
-                        ${usedSeats} occupied now. ${isPersonal ? 'Add another protected device when you are ready.' : 'Open seats are shown first so license headroom is instantly visible.'}
+                    <div class="progress progress-sm mb-3">
+                        <div class="progress-bar bg-success" style=${`width:${Math.max(0, Math.min(100, coveragePct))}%`}></div>
                     </div>
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        ${slots.map((state, idx) => html`
-                            <div class="d-flex flex-column align-items-center justify-content-center rounded-3 border"
-                                 title=${state === 'open' ? `Seat ${idx + 1}: available for a device` : `Seat ${idx + 1}: assigned to a device`}
-                                 style=${`width:48px;height:56px;background:${state === 'open' ? 'linear-gradient(135deg,#ecfdf3 0%,#d1fae5 100%)' : 'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)'};border-color:${state === 'open' ? 'rgba(34,197,94,0.28)' : 'rgba(37,99,235,0.35)'} !important;color:${state === 'open' ? '#15803d' : '#fff'};box-shadow:${state === 'open' ? '0 6px 12px rgba(34,197,94,0.10)' : '0 8px 16px rgba(37,99,235,0.18)'};`}>
-                                <i class="ti ${state === 'open' ? 'ti-plus' : 'ti-device-desktop'}" style="font-size:1rem;"></i>
-                                <span class="small fw-semibold">${idx + 1}</span>
-                            </div>
-                        `)}
-                        ${(totalSeats || 0) > slotCount ? html`<div class="d-flex align-items-center text-muted small">+${totalSeats - slotCount} more</div>` : ''}
+                    <div class="mb-3" style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;">
+                        ${cells.map((state, index) => {
+                            const title = state === 'healthy'
+                                ? `Coverage square ${index + 1}: reporting device coverage`
+                                : state === 'attention'
+                                    ? `Coverage square ${index + 1}: device coverage needs review`
+                                    : `Coverage square ${index + 1}: waiting for device evidence`;
+                            const style = state === 'healthy'
+                                ? 'background:linear-gradient(135deg,#16a34a,#22c55e);border-color:rgba(22,163,74,0.45);'
+                                : state === 'attention'
+                                    ? 'background:linear-gradient(135deg,#f97316,#f59e0b);border-color:rgba(249,115,22,0.45);'
+                                    : 'background:linear-gradient(135deg,#e5e7eb,#f8fafc);border-color:rgba(148,163,184,0.35);';
+                            return html`
+                                <div title=${title} style=${`${style}aspect-ratio:1;border-radius:6px;border:1px solid;box-shadow:inset 0 1px 0 rgba(255,255,255,0.22);`}></div>
+                            `;
+                        })}
+                    </div>
+                    <div class="d-flex gap-3 flex-wrap small mb-3">
+                        <span class="d-inline-flex align-items-center gap-1"><span class="rounded-circle bg-success" style="width:10px;height:10px;"></span>Reporting</span>
+                        <span class="d-inline-flex align-items-center gap-1"><span class="rounded-circle bg-warning" style="width:10px;height:10px;"></span>Needs review</span>
+                        <span class="d-inline-flex align-items-center gap-1"><span class="rounded-circle bg-secondary" style="width:10px;height:10px;"></span>Awaiting evidence</span>
                     </div>
                     <div class="d-flex gap-2 flex-wrap">
-                        <a href="#!/devices" class="btn btn-primary btn-sm" onClick=${(e) => e.stopPropagation()}>
-                            <i class="ti ti-devices me-1"></i>Devices
+                        <a href="#!/devices" class="btn btn-primary btn-sm">
+                            <i class="ti ti-devices me-1"></i>Open fleet
+                        </a>
+                        <a href="#!/patch-posture" class="btn btn-outline-secondary btn-sm">
+                            <i class="ti ti-shield-bolt me-1"></i>Patch coverage
                         </a>
                     </div>
                 </div>
@@ -332,65 +398,166 @@ export class SecurityOverview extends Component {
         `;
     }
 
-    renderVisualInsights() {
-        const s = this.state;
-        const org = orgContext.getCurrentOrg();
-        const totalRisk = Math.max(1, s.critical + s.high + s.medium);
-        const totalSeats = Math.max(1, num(org?.totalSeats || (org?.type === 'Personal' ? 5 : s.devicesTotal)));
-        const occupiedSeats = Math.min(totalSeats, s.devicesTotal);
-        const occupiedPct = totalSeats > 0 ? Math.round((occupiedSeats / totalSeats) * 100) : 0;
-        const criticalPct = Math.round((s.critical / totalRisk) * 100);
-        const highPct = Math.round((s.high / totalRisk) * 100);
-        const mediumPct = Math.max(0, 100 - criticalPct - highPct);
+    renderStrengthsWeaknesses() {
+        const { strengths, weaknesses } = this.buildSecuritySignals();
 
         return html`
             <div class="row row-cards mb-4">
-                <div class="col-lg-4">
+                <div class="col-lg-6">
                     <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body">
-                            <div class="text-muted text-uppercase fw-semibold small mb-2">Security Pulse</div>
-                            <div class="d-flex align-items-end gap-2 mb-2">
-                                <div class="display-6 fw-bold text-${s.score >= 80 ? 'success' : s.score >= 65 ? 'warning' : 'danger'}">${s.score}</div>
-                                <span class="badge bg-${s.score >= 80 ? 'success' : s.score >= 65 ? 'warning' : 'danger'} text-white mb-2">Grade ${s.grade}</span>
-                            </div>
-                            <div class="progress progress-sm mb-2">
-                                <div class="progress-bar bg-${s.score >= 80 ? 'success' : s.score >= 65 ? 'warning' : 'danger'}" style=${`width:${Math.max(0, Math.min(100, s.score))}%`}></div>
-                            </div>
-                            <div class="small text-muted">Updated ${formatRelativeTime(s.postureGeneratedAt) || 'recently'}</div>
+                        <div class="card-header">
+                            <h3 class="card-title">Strengths to preserve</h3>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            ${strengths.map((item) => html`
+                                <div class="list-group-item d-flex align-items-start gap-2">
+                                    <i class=${`ti ${item.icon} text-success mt-1`}></i>
+                                    <span>${item.text}</span>
+                                </div>
+                            `)}
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-4">
+                <div class="col-lg-6">
                     <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body">
-                            <div class="text-muted text-uppercase fw-semibold small mb-2">Threat Mix</div>
-                            <div class="d-flex justify-content-between small mb-2">
-                                <span>Critical ${s.critical}</span>
-                                <span>High ${s.high}</span>
-                                <span>Medium ${s.medium}</span>
-                            </div>
-                            <div class="progress-stacked mb-2" style="height:10px;">
-                                <div class="progress" style=${`width:${criticalPct}%`}><div class="progress-bar bg-danger"></div></div>
-                                <div class="progress" style=${`width:${highPct}%`}><div class="progress-bar bg-orange"></div></div>
-                                <div class="progress" style=${`width:${mediumPct}%`}><div class="progress-bar bg-warning"></div></div>
-                            </div>
-                            <div class="small text-muted">${s.vulnerabilitiesTotal} known exposures in the current dossier</div>
+                        <div class="card-header">
+                            <h3 class="card-title">Weaknesses to close</h3>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            ${weaknesses.map((item) => {
+                                const content = html`
+                                    <i class=${`ti ${item.icon} text-${item.tone || 'warning'} mt-1`}></i>
+                                    <span>${item.text}</span>
+                                `;
+                                return item.href ? html`
+                                    <a href=${item.href} class="list-group-item list-group-item-action d-flex align-items-start gap-2">
+                                        ${content}
+                                    </a>
+                                ` : html`
+                                    <div class="list-group-item d-flex align-items-start gap-2">
+                                        ${content}
+                                    </div>
+                                `;
+                            })}
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-4">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body">
-                            <div class="text-muted text-uppercase fw-semibold small mb-2">Coverage</div>
-                            <div class="d-flex justify-content-between align-items-end mb-2">
-                                <div class="h3 mb-0">${occupiedSeats}/${totalSeats}</div>
-                                <span class="small text-muted">occupied</span>
+            </div>
+        `;
+    }
+
+    renderFocusMatrix() {
+        const s = this.state;
+        const patch = s.patchStatus || buildPatchStatus(null);
+        const cards = [
+            {
+                label: 'Coverage',
+                value: `${s.devicesHealthy}/${Math.max(s.devicesTotal, s.devicesHealthy + s.devicesAttention)}`,
+                detail: `${s.devicesAttention} devices need visibility review`,
+                icon: 'ti-radar-2',
+                tone: s.devicesAttention > 0 ? 'warning' : 'success',
+                href: '#!/devices'
+            },
+            {
+                label: 'Vulnerabilities',
+                value: `${s.critical + s.high}`,
+                detail: `${s.critical} critical, ${s.high} high`,
+                icon: 'ti-bug',
+                tone: s.critical > 0 ? 'danger' : s.high > 0 ? 'warning' : 'success',
+                href: '#!/vulnerabilities'
+            },
+            {
+                label: 'Patches',
+                value: `${patch.openAlerts}`,
+                detail: `${patch.hostsAffected} affected devices`,
+                icon: 'ti-shield-bolt',
+                tone: patch.openAlerts > 0 ? 'warning' : 'success',
+                href: '#!/patch-posture'
+            },
+            {
+                label: 'Actions',
+                value: `${s.topActions.length || s.actionsOpen}`,
+                detail: s.topActions.length ? 'fix-first items ready' : `${s.actionsOpen} open alerts`,
+                icon: 'ti-list-check',
+                tone: (s.topActions.length || s.actionsOpen) > 0 ? 'warning' : 'success',
+                href: '#!/alerts'
+            }
+        ];
+
+        return html`
+            <div class="row row-cards mb-4">
+                ${cards.map(card => html`
+                    <div class="col-sm-6 col-xl-3">
+                        <a href=${card.href} class="card card-link border-0 shadow-sm h-100 text-reset text-decoration-none">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class=${`avatar avatar-sm bg-${card.tone}-lt text-${card.tone}`}><i class=${`ti ${card.icon}`}></i></span>
+                                    <span class=${`badge bg-${card.tone}-lt text-${card.tone}`}>${card.tone === 'success' ? 'Clear' : 'Review'}</span>
+                                </div>
+                                <div class="text-muted text-uppercase fw-semibold small">${card.label}</div>
+                                <div class="h2 mb-0">${card.value}</div>
+                                <div class="text-muted small">${card.detail}</div>
                             </div>
-                            <div class="progress progress-sm mb-2">
-                                <div class="progress-bar bg-success" style=${`width:${occupiedPct}%`}></div>
-                            </div>
-                            <div class="small text-muted">${Math.max(0, totalSeats - occupiedSeats)} seats open</div>
-                        </div>
+                        </a>
+                    </div>
+                `)}
+            </div>
+        `;
+    }
+
+    renderSecurityCoverageSection() {
+        return html`
+            <div class="row row-cards mb-4">
+                <div class="col-lg-5">
+                    ${this.renderSecurityCoverageMap()}
+                </div>
+                <div class="col-lg-7">
+                    ${this.renderFixFirstCard()}
+                </div>
+            </div>
+        `;
+    }
+
+    renderFixFirstCard() {
+        const s = this.state;
+        const patch = s.patchStatus || buildPatchStatus(null);
+
+        return html`
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header">
+                    <h3 class="card-title">Fix First</h3>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        ${s.topActions.slice(0, 3).map((item) => html`
+                            <a href=${item?.actionUrl || '#!/alerts'} class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3">
+                                <span class="flex-fill">
+                                    <span class="d-block fw-semibold">${cleanActionTitle(item)}</span>
+                                    <span class="d-block text-muted small mt-1">${formatActionDeviceText(item)}</span>
+                                </span>
+                                <span class="badge bg-${String(item?.urgency || '').toLowerCase() === 'critical' ? 'danger' : 'warning'} text-white">${item?.urgency || 'Priority'}</span>
+                            </a>
+                        `)}
+                        ${!s.topActions.length ? html`
+                            <div class="list-group-item text-muted">No generated fix-first action is waiting. Review the queues below to keep coverage strong.</div>
+                        ` : null}
+                        <div class="text-muted text-uppercase fw-semibold small mt-3 mb-2">Review queues</div>
+                        <a href="#!/vulnerabilities" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="ti ti-alert-triangle text-danger me-2"></i>Remediate critical vulnerabilities first</span>
+                            <span class="badge bg-danger text-white">${s.critical}</span>
+                        </a>
+                        <a href="#!/devices" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="ti ti-devices me-2"></i>Review devices needing attention</span>
+                            <span class="badge bg-secondary text-white">${s.devicesAttention}</span>
+                        </a>
+                        <a href="#!/patch-posture" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="ti ti-shield-check text-warning me-2"></i>Install missing Microsoft updates</span>
+                            <span class="badge bg-${patch.openAlerts > 0 ? 'warning' : 'success'} text-white">${patch.openAlerts} open</span>
+                        </a>
+                        <a href="#!/apps" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="ti ti-apps me-2"></i>Inspect risky software footprint</span>
+                            <span class="badge bg-blue text-white">${s.appsTotal > 0 ? `${s.appsTotal} apps` : 'Inventory'}</span>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -407,7 +574,7 @@ export class SecurityOverview extends Component {
                             <div class="card-body">
                                 <div class="text-muted text-uppercase fw-semibold small">Software footprint</div>
                                 <div class="h2 mb-0">${s.appsTotal}</div>
-                                <div class="text-muted small">applications in your current dossier</div>
+                                <div class="text-muted small">applications in your current Dossier</div>
                             </div>
                         </div>
                     </div>
@@ -472,7 +639,7 @@ export class SecurityOverview extends Component {
         const safetySubtitle = needsAttention ? 'needs action today' : 'no urgent blocker';
         const safetyCopy = needsAttention
             ? `${s.devicesAttention} device${s.devicesAttention === 1 ? '' : 's'} need review, ${s.critical} critical exposure${s.critical === 1 ? '' : 's'}, and ${patch.openAlerts} missing Microsoft update${patch.openAlerts === 1 ? '' : 's'} need action.`
-            : 'Your protected devices have no critical exposure, missing Microsoft update, or device visibility blocker in the current dossier.';
+            : 'Your protected devices have no critical exposure, missing Microsoft update, or device visibility blocker in the current Dossier.';
 
         if (s.loading) {
             return html`
@@ -508,13 +675,13 @@ export class SecurityOverview extends Component {
                             <div class="row align-items-center g-4">
                                 <div class="col-lg-7">
                                     <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                                        <div class="text-uppercase text-white-50 fw-semibold">${isPersonal ? 'Personal Security Dashboard' : 'Security Dashboard'}</div>
+                                        <div class="text-uppercase text-white-50 fw-semibold">${isPersonal ? 'Personal Protection Dashboard' : 'Security Coverage Dashboard'}</div>
                                         ${s.isRefreshing ? html`<span class="badge bg-white text-primary">Refreshing…</span>` : ''}
                                     </div>
                                     <h2 class="mb-2 text-white">Am I secure today?</h2>
                                     <div class="text-white-75 mb-3">
                                         ${safetyCopy}
-                                        ${s.postureGeneratedAt ? html` Updated ${formatRelativeTime(s.postureGeneratedAt)}.` : ''}
+                                        ${s.postureGeneratedAt ? html` Dossier submitted ${formatRelativeTime(s.postureGeneratedAt)}.` : ''}
                                         ${rewindContext.isActive() ? html` Viewing a historical Time Warp dossier.` : ''}
                                     </div>
                                     <div class="btn-list">
@@ -576,62 +743,15 @@ export class SecurityOverview extends Component {
                         </div>
                     </div>
 
-                    ${this.renderVisualInsights()}
+                    ${this.renderFocusMatrix()}
+                    ${this.renderStrengthsWeaknesses()}
+                    ${this.renderSecurityCoverageSection()}
                     <${TrendSnapshotStrip}
                         trends=${s.trendSnapshots}
                         context="security"
                         title="Security Trend"
                         subtitle="Score, CVE exposure, and fleet movement over the last 30 days"
                     />
-
-                    <div class="row row-cards mb-4">
-                        <div class="col-lg-5">
-                            ${this.renderSeatGarage(isPersonal)}
-                        </div>
-                        <div class="col-lg-7">
-                            <div class="card h-100 border-0 shadow-sm">
-                                <div class="card-header">
-                                    <h3 class="card-title">Fix First</h3>
-                                </div>
-                                <div class="card-body">
-                                    <div class="list-group list-group-flush">
-                                        ${s.topActions.slice(0, 3).map((item) => html`
-                                            <a href=${item?.actionUrl || '#!/alerts'} class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3">
-                                                <span class="flex-fill">
-                                                    <span class="d-block fw-semibold">${cleanActionTitle(item)}</span>
-                                                    <span class="d-block text-muted small mt-1">${formatActionDeviceText(item)}</span>
-                                                </span>
-                                                <span class="badge bg-${String(item?.urgency || '').toLowerCase() === 'critical' ? 'danger' : 'warning'} text-white">${item?.urgency || 'Priority'}</span>
-                                            </a>
-                                        `)}
-                                        <div class="text-muted text-uppercase fw-semibold small mt-3 mb-2">Review queues</div>
-                                        <a href="#!/vulnerabilities" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                            <span><i class="ti ti-alert-triangle text-danger me-2"></i>Remediate critical vulnerabilities first</span>
-                                            <span class="badge bg-danger text-white">${s.critical}</span>
-                                        </a>
-                                        <a href="#!/devices" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                            <span><i class="ti ti-devices me-2"></i>Review devices needing attention</span>
-                                            <span class="badge bg-secondary text-white">${s.devicesAttention}</span>
-                                        </a>
-                                        <a href="#!/patch-posture" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                            <span><i class="ti ti-shield-check text-warning me-2"></i>Install missing Microsoft updates</span>
-                                            <span class="badge bg-${patch.openAlerts > 0 ? 'warning' : 'success'} text-white">${patch.openAlerts} open</span>
-                                        </a>
-                                        ${!isPersonal ? html`
-                                            <a href="#!/alerts" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                                <span><i class="ti ti-bell-ringing text-warning me-2"></i>Close actions</span>
-                                                <span class="badge bg-${s.actionsOpen > 0 ? 'warning' : 'success'} text-white">${s.actionsOpen} open</span>
-                                            </a>
-                                        ` : ''}
-                                        <a href="#!/apps" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                            <span><i class="ti ti-apps me-2"></i>Inspect risky software footprint</span>
-                                            <span class="badge bg-blue text-white">${s.appsTotal > 0 ? `${s.appsTotal} apps` : 'Inventory'}</span>
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     <div class="card border-0 shadow-sm mb-3">
                         <div class="card-header">

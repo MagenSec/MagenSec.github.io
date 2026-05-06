@@ -12,17 +12,6 @@ const STORY_STEPS = [
 ];
 
 const NARRATIVES = {
-    security: {
-        kicker: 'Protect / Daily safety',
-        title: 'Security command',
-        question: 'Are we secure today?',
-        answer: 'Device health, active exposures, patch status, and fix-first actions show what needs attention now.',
-        source: 'Dashboard bundle, alert summary, patch posture, and fleet evidence',
-        actionLabel: 'Open actions',
-        actionHref: '#!/alerts',
-        focus: ['security'],
-        tone: 'security'
-    },
     devices: {
         kicker: 'Protect / Fleet coverage',
         title: 'Device fleet',
