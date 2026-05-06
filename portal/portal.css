@@ -82,6 +82,232 @@ html, body {
 }
 
 /* ========================================
+   Portal Narrative Shell
+   ======================================== */
+
+.portal-page-shell {
+  min-width: 0;
+}
+
+.portal-narrative {
+  --portal-narrative-accent: var(--tblr-primary, #0054a6);
+  --portal-narrative-soft: rgba(0, 84, 166, 0.08);
+  margin: 0 0 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-left: 4px solid var(--portal-narrative-accent);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, var(--portal-narrative-soft), transparent 42%),
+    var(--card-bg, #fff);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.035);
+}
+
+.portal-narrative-magi {
+  --portal-narrative-accent: #6d28d9;
+  --portal-narrative-soft: rgba(109, 40, 217, 0.1);
+}
+
+.portal-narrative-security {
+  --portal-narrative-accent: var(--tblr-blue, #0054a6);
+  --portal-narrative-soft: rgba(0, 84, 166, 0.1);
+}
+
+.portal-narrative-compliance {
+  --portal-narrative-accent: var(--tblr-green, #2fb344);
+  --portal-narrative-soft: rgba(47, 179, 68, 0.1);
+}
+
+.portal-narrative-audit,
+.portal-narrative-admin {
+  --portal-narrative-accent: #3b82f6;
+  --portal-narrative-soft: rgba(59, 130, 246, 0.1);
+}
+
+.portal-narrative-business {
+  --portal-narrative-accent: #0f766e;
+  --portal-narrative-soft: rgba(15, 118, 110, 0.1);
+}
+
+.portal-narrative-warning {
+  --portal-narrative-accent: var(--tblr-warning, #f76707);
+  --portal-narrative-soft: rgba(247, 103, 7, 0.11);
+}
+
+.portal-narrative-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 340px);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.portal-narrative-copy {
+  min-width: 0;
+}
+
+.portal-narrative-kicker {
+  color: var(--portal-narrative-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.portal-narrative-title {
+  color: var(--body-color, #1e293b);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.portal-narrative-question {
+  color: var(--body-color, #1e293b);
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-top: 0.3rem;
+}
+
+.portal-narrative-answer {
+  color: var(--tblr-muted, #667085);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-top: 0.25rem;
+  max-width: 74ch;
+}
+
+.portal-narrative-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  align-items: flex-start;
+}
+
+.portal-narrative-source {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  color: var(--tblr-muted, #667085);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.portal-narrative-source .ti {
+  color: var(--portal-narrative-accent);
+  font-size: 1rem;
+  line-height: 1.2;
+  margin-top: 0.02rem;
+}
+
+.portal-narrative-badges,
+.portal-story-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.portal-narrative-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+
+.portal-story-chain {
+  margin-top: 0.7rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.portal-story-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 28px;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  border-radius: 999px;
+  color: var(--tblr-muted, #667085);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.portal-story-step.is-active {
+  color: #fff;
+  border-color: var(--portal-narrative-accent);
+  background: var(--portal-narrative-accent);
+}
+
+.portal-story-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.18);
+  color: currentColor;
+  font-size: 0.68rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+[data-bs-theme="dark"] .portal-narrative {
+  background:
+    linear-gradient(135deg, var(--portal-narrative-soft), transparent 42%),
+    rgba(15, 23, 42, 0.88);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.22);
+}
+
+[data-bs-theme="dark"] .portal-story-step {
+  background: rgba(15, 23, 42, 0.68);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+@media (max-width: 991.98px) {
+  .portal-narrative-main {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-narrative-side {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .portal-narrative-action {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .portal-narrative {
+    padding: 0.875rem;
+    border-radius: 6px;
+  }
+
+  .portal-narrative-title {
+    font-size: 1rem;
+  }
+
+  .portal-narrative-side {
+    align-items: stretch;
+  }
+
+  .portal-narrative-action {
+    width: 100%;
+  }
+
+  .portal-story-step {
+    flex: 1 1 calc(50% - 0.4rem);
+    justify-content: flex-start;
+  }
+}
+
+/* ========================================
    Dashboard Hero / Glassmorphism Variables
    ======================================== */
 

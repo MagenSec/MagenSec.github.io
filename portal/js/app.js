@@ -43,6 +43,7 @@ import { ManagePage } from './pages/siteAdmin/manage/ManagePage.js';
 import { ActivityPage } from './pages/siteAdmin/activity/ActivityPage.js';
 import { PreviewPage } from './pages/siteAdmin/preview/PreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
+import { PageNarrative } from './components/shared/PageNarrative.js';
 import { DocumentationHub } from './pages/docs/DocumentationHub/index.js';
 import { GettingStartedPage } from './pages/getting-started/GettingStarted.js';
 import { ClientDevicePage } from './pages/client-device/ClientDevicePage.js';
@@ -269,6 +270,10 @@ function applyOrgUiRestrictions() {
 
 }
 
+function shouldShowPageNarrative() {
+    return auth.isAuthenticated() && !['login', 'device-hub'].includes(currentPage);
+}
+
 // Main app component
 function App() {
     // Check for OAuth callback
@@ -283,7 +288,16 @@ function App() {
         `;
     }
 
-    // Render current page
+    const pageContent = renderCurrentPage();
+    return html`
+        <div class="portal-page-shell">
+            ${shouldShowPageNarrative() ? html`<${PageNarrative} page=${currentPage} />` : null}
+            ${pageContent}
+        </div>
+    `;
+}
+
+function renderCurrentPage() {
     switch (currentPage) {
         case 'login':
             return html`<${LoginPage} />`;
