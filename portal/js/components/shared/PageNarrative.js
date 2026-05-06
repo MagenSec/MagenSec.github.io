@@ -277,83 +277,6 @@ const NARRATIVES = {
         actionHref: '#!/apps',
         focus: ['security', 'insurance']
     },
-    'siteadmin/business': {
-        kicker: 'Site Admin / Economics',
-        title: 'Business command center',
-        question: 'Is the platform economically healthy and operationally efficient?',
-        answer: 'Settled revenue, Azure actuals, cost trends, and signal volume explain margin and operating pressure.',
-        source: 'Business dossiers, Azure Cost API actuals, and cache performance',
-        actionLabel: 'Open activity',
-        actionHref: '#!/siteadmin/activity',
-        focus: ['hygiene', 'insurance'],
-        tone: 'business'
-    },
-    'siteadmin/manage': {
-        kicker: 'Site Admin / Control plane',
-        title: 'Manage',
-        question: 'Can we manage customers, accounts, MAGI codes, and platform switches without losing traceability?',
-        answer: 'Operational changes belong here; evidence and business outcomes remain visible on activity and business pages.',
-        source: 'Admin org, account, license, invoice, and platform settings APIs',
-        actionLabel: 'Open activity',
-        actionHref: '#!/siteadmin/activity',
-        focus: ['audit', 'hygiene'],
-        tone: 'admin'
-    },
-    'siteadmin/activity': {
-        kicker: 'Site Admin / Operations',
-        title: 'Activity',
-        question: 'Is the platform processing evidence on time?',
-        answer: 'Cron, API, device, and ingestion activity show freshness, backlogs, failures, and throughput.',
-        source: 'Cron status, API audit, device activity, and operational logs',
-        actionLabel: 'Open business',
-        actionHref: '#!/siteadmin/business',
-        focus: ['audit', 'hygiene'],
-        tone: 'admin'
-    },
-    'siteadmin/preview': {
-        kicker: 'Site Admin / Report QA',
-        title: 'Preview',
-        question: 'Do generated communications match the evidence and brand?',
-        answer: 'Preview lets operators inspect generated report HTML and delivery variants before customer use.',
-        source: 'Generated report cache and preview APIs',
-        actionLabel: 'Open reports',
-        actionHref: '#!/reports',
-        focus: ['audit', 'insurance'],
-        tone: 'admin'
-    },
-    'siteadmin/review': {
-        kicker: 'Site Admin / Vulnerability review',
-        title: 'App vulnerability review',
-        question: 'Which app intelligence rows need deterministic curation?',
-        answer: 'Manual review keeps CPE matching deterministic while AdminHub handles offline/local AI assistance.',
-        source: 'AppVersionIntel, curated CPE mapping, and review queue state',
-        actionLabel: 'Open activity',
-        actionHref: '#!/siteadmin/activity',
-        focus: ['security', 'audit'],
-        tone: 'admin'
-    },
-    'siteadmin/ai-responses': {
-        kicker: 'Site Admin / MAGI quality',
-        title: 'AI responses',
-        question: 'Are MAGI answers clear, useful, and grounded?',
-        answer: 'Response review separates answer quality from source evidence so prompts can improve safely.',
-        source: 'AI response logs, ratings, and prompt metadata',
-        actionLabel: 'Open MAGI',
-        actionHref: '#!/analyst',
-        focus: ['audit', 'hygiene'],
-        tone: 'admin'
-    },
-    review: {
-        kicker: 'Site Admin / Feature catalog',
-        title: 'Feature catalog',
-        question: 'Which surfaces are shipped, wired, or under review?',
-        answer: 'The catalog tracks navigation placement and readiness so portal wiring remains explicit.',
-        source: 'Static feature catalog and route map',
-        actionLabel: 'Open dashboard',
-        actionHref: '#!/dashboard',
-        focus: ['audit'],
-        tone: 'admin'
-    },
     account: {
         kicker: 'Settings / Identity',
         title: 'Account',
@@ -363,16 +286,6 @@ const NARRATIVES = {
         actionLabel: 'Open settings',
         actionHref: '#!/settings',
         focus: ['audit']
-    },
-    settings: {
-        kicker: 'Settings / Policy',
-        title: 'Settings',
-        question: 'Are platform preferences aligned with how the org operates?',
-        answer: 'Settings alter notification, report, team, and license behavior; read-only mode blocks mutating changes.',
-        source: 'Org settings, team, license, and report preference APIs',
-        actionLabel: 'Open account',
-        actionHref: '#!/account',
-        focus: ['audit', 'hygiene']
     },
     'getting-started': {
         kicker: 'Setup / First proof',

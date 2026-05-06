@@ -2056,19 +2056,19 @@ export default class UnifiedDashboard extends Component {
           <div style="order:2;margin:0 0 16px;padding:0 2px;">
             <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(124,58,237,0.36),transparent);margin:0 0 10px;"></div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-              <div title="When the dashboard evidence package was last generated. If it looks stale, click Refresh before reviewing or exporting." style="display:inline-flex;align-items:center;gap:8px;color:var(--db-faint-text,#6b7280);font-size:0.76rem;font-weight:650;">
+              <div title="When the current Dossier was last submitted. Use Get Intel Update when you want MAGI to re-check the latest evidence before reviewing or exporting." style="display:inline-flex;align-items:center;gap:8px;color:var(--db-faint-text,#6b7280);font-size:0.76rem;font-weight:650;">
                 <i class=${`ti ${freshness?.isStale ? 'ti-clock-exclamation' : 'ti-clock-check'}`} style="color:var(--db-tone-primary,#4f46e5);"></i>
-                <span>${freshness ? `Updated ${freshness.ageText}${freshness.isStale ? ' · stale evidence' : ''}` : 'Current readiness data'}</span>
+                <span>${freshness ? `Last Dossier submitted ${freshness.ageText}${freshness.isStale ? ' · Intel update available' : ''}` : 'Current Dossier ready'}</span>
               </div>
               <button
                 class=${refreshing ? 'btn btn-sm btn-outline-indigo btn-loading' : 'btn btn-sm btn-outline-indigo'}
                 onClick=${() => this.refreshDashboard()}
-                title="Reload the dashboard evidence package before reviewing or exporting reports."
+                title="Get the latest intelligence before reviewing or exporting reports."
                 disabled=${refreshing}
                 style="display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:6px 10px;border-radius:9px;white-space:nowrap;"
               >
                 <i class="ti ti-refresh"></i>
-                ${refreshing ? 'Refreshing' : 'Refresh'}
+                ${refreshing ? 'Getting Intel' : 'Get Intel Update'}
               </button>
             </div>
           </div>

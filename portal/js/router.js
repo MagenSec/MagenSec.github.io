@@ -39,6 +39,19 @@ function guardAddOnRoute(page, addOnKey) {
     return false;
 }
 
+function isSiteAdminUser() {
+    return auth.getUser()?.userType === 'SiteAdmin' || window.orgContext?.isSiteAdmin?.() === true;
+}
+
+function guardSiteAdminRoute(page) {
+    if (!isSiteAdminUser()) {
+        window.toast?.show?.('Site Admin access required', 'warning', 3000);
+        redirectToHome(page);
+        return true;
+    }
+    return false;
+}
+
 function isLikelyCacheBust(value) {
     return typeof value === 'string' && /^[0-9]{8}[a-z0-9._-]*$/i.test(value.trim());
 }
@@ -336,12 +349,13 @@ export function initRouter(renderApp) {
         renderApp({ page: 'reports', ctx });
     });
 
-    // Feature Review catalog (protected)
+    // Feature Review catalog (site-admin only)
     page('/review', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
+        if (guardSiteAdminRoute(page)) return;
         renderApp({ page: 'review', ctx });
     });
 
@@ -397,6 +411,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardSiteAdminRoute(page)) return;
         renderApp({ page: 'siteadmin/business', ctx });
     });
 
@@ -406,6 +421,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardSiteAdminRoute(page)) return;
         renderApp({ page: 'siteadmin/manage', ctx });
     });
 
@@ -415,6 +431,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardSiteAdminRoute(page)) return;
         renderApp({ page: 'siteadmin/activity', ctx });
     });
 
@@ -424,6 +441,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardSiteAdminRoute(page)) return;
         renderApp({ page: 'siteadmin/preview', ctx });
     });
 
@@ -433,6 +451,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardSiteAdminRoute(page)) return;
         renderApp({ page: 'siteadmin/review', ctx });
     });
 
@@ -442,6 +461,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardSiteAdminRoute(page)) return;
         renderApp({ page: 'siteadmin/ai-responses', ctx });
     });
 

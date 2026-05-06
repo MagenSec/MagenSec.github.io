@@ -271,7 +271,9 @@ function applyOrgUiRestrictions() {
 }
 
 function shouldShowPageNarrative() {
-    return auth.isAuthenticated() && !['login', 'device-hub', 'dashboard'].includes(currentPage);
+    if (!auth.isAuthenticated()) return false;
+    if (currentPage.startsWith('siteadmin/')) return false;
+    return !['login', 'device-hub', 'dashboard', 'settings', 'review'].includes(currentPage);
 }
 
 // Main app component
