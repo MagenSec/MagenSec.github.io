@@ -8,6 +8,7 @@ import { auth } from '@auth';
 import toast from '@toast';
 import { logger } from '@config';
 import { getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
+import { TrendSnapshotStrip, getTrendDateRange } from '../../components/TrendSnapshotStrip.js';
 import { 
     getBaseType, 
     getEventName, 
@@ -104,6 +105,8 @@ export function AuditPage() {
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [creditJobEvents, setCreditJobEvents] = useState([]);
     const [analytics, setAnalytics] = useState(null);
+    const [trendSnapshots, setTrendSnapshots] = useState([]);
+    const [trendLoading, setTrendLoading] = useState(false);
     const [loadingAnalytics, setLoadingAnalytics] = useState(false);
     const [filters, setFilters] = useState({
         eventType: 'all',
@@ -117,13 +120,37 @@ export function AuditPage() {
     const currentOrgId = orgContext.getCurrentOrg()?.orgId;
     const maxSelectableDate = getEffectiveMaxInputDate();
 
+    const loadTrendSnapshots = async () => {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId) {
+            setTrendSnapshots([]);
+            return;
+        }
+
+        try {
+            setTrendLoading(true);
+            const range = getTrendDateRange(Math.max(30, Math.min(90, rangeDays)));
+            const res = await api.getTrendSnapshots(currentOrg.orgId, range);
+            const payload = res?.data || res;
+            const trends = payload?.data || payload?.snapshots || [];
+            setTrendSnapshots(Array.isArray(trends) ? trends : []);
+        } catch (err) {
+            console.warn('[Audit] Failed to load trend snapshots:', err);
+            setTrendSnapshots([]);
+        } finally {
+            setTrendLoading(false);
+        }
+    };
+
     useEffect(() => {
         loadEvents();
+        loadTrendSnapshots();
 
         const handler = () => {
             setLoadedPages(1);
             nextPageTokenRef.current = null;
             loadEvents(true);
+            loadTrendSnapshots();
         };
         const unsubscribe = orgContext.onChange(handler);
         window.addEventListener('orgChanged', handler);
@@ -1568,6 +1595,22 @@ export function AuditPage() {
                     </select>
                 </div>
             </div>
+
+            ${trendLoading ? html`
+                <div class="card mb-3">
+                    <div class="card-body d-flex align-items-center gap-2 text-muted">
+                        <span class="spinner-border spinner-border-sm"></span>
+                        Loading snapshot trend context...
+                    </div>
+                </div>
+            ` : html`
+                <${TrendSnapshotStrip}
+                    trends=${trendSnapshots}
+                    context="audit"
+                    title="Audit Evidence Trend"
+                    subtitle="Security and compliance context for the selected audit window"
+                />
+            `}
 
             ${loadingAnalytics ? html`
                 <div class="text-center py-5">

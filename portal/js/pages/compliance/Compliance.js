@@ -10,6 +10,7 @@ import { rewindContext } from '@rewindContext';
 import { getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 import ChatDrawer from '../../components/ChatDrawer.js';
 import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { TrendSnapshotStrip, getTrendDateRange } from '../../components/TrendSnapshotStrip.js';
 
 const { html, Component } = window;
 
@@ -356,9 +357,8 @@ export class CompliancePage extends Component {
     if (!orgId) return;
     this.setState({ trendLoading: true });
     try {
-      const from = toInputDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
-      const to   = toInputDate(new Date());
-      const resp = await api.getTrendSnapshots(orgId, from, to);
+      const range = getTrendDateRange(30);
+      const resp = await api.getTrendSnapshots(orgId, range);
       if (resp.success && Array.isArray(resp.data)) {
         this.setState({ trendData: resp.data, trendLoading: false });
       } else {
@@ -876,6 +876,14 @@ export class CompliancePage extends Component {
         ${this.state.evidence ? html`<div class="container-xl"><${EvidenceBanner} evidence=${this.state.evidence} pageName="compliance" /></div>` : null}
         ${this.renderCommandDeck()}
         ${this.renderFrameworkGrid(frameworkCards)}
+        <div class="container-xl">
+          <${TrendSnapshotStrip}
+            trends=${this.state.trendData}
+            context="compliance"
+            title="Compliance Trend"
+            subtitle="Readiness score, fix velocity, and at-risk devices from daily snapshots"
+          />
+        </div>
         ${this.renderTrendChart()}
         ${this.renderGapBoard(topGaps)}
         ${this.renderReportPanel()}

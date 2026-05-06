@@ -3,6 +3,7 @@ import { logger } from '@config';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { TrendSnapshotStrip, getTrendDateRange as getSharedTrendDateRange } from '../../components/TrendSnapshotStrip.js';
 
 const { html, Component } = window;
 
@@ -212,13 +213,7 @@ export class PosturePage extends Component {
     }
 
     getTrendDateRange(days = 30) {
-        const end = new Date();
-        const start = new Date();
-        start.setDate(end.getDate() - days);
-        return {
-            from: start.toISOString().slice(0, 10),
-            to: end.toISOString().slice(0, 10)
-        };
+        return getSharedTrendDateRange(days);
     }
 
     async loadTrendSnapshots(orgId) {
@@ -860,6 +855,13 @@ export class PosturePage extends Component {
             <div class="container py-4">
 
                 ${this.renderHero()}
+
+                <${TrendSnapshotStrip}
+                    trends=${this.state.trendSnapshots}
+                    context="posture"
+                    title="Posture Trend"
+                    subtitle="Risk, compliance, and remediation movement from daily snapshots"
+                />
 
                 <div class="row g-4">
                     <div class="col-lg-6">

@@ -8,6 +8,7 @@ import { rewindContext } from '@rewindContext';
 import { SWRHelper } from '@utils/SWRHelper.js';
 import { bundleToUnifiedPayload } from '../dashboard/bundleAdapter.js';
 import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { TrendSnapshotStrip } from '../../components/TrendSnapshotStrip.js';
 
 const { html, Component } = window;
 
@@ -121,6 +122,7 @@ export class SecurityOverview extends Component {
             topActions: [],
             patchStatus: buildPatchStatus(null),
             evidence: null,
+            trendSnapshots: [],
         };
 
         this.orgUnsub = null;
@@ -204,6 +206,7 @@ export class SecurityOverview extends Component {
             topActions,
             patchStatus: buildPatchStatus(patchResp),
             evidence: dashboard?.evidence || dashboard?._bundle?.evidence || null,
+            trendSnapshots: Array.isArray(dashboard?.snapshots) ? dashboard.snapshots : [],
         };
     }
 
@@ -574,6 +577,12 @@ export class SecurityOverview extends Component {
                     </div>
 
                     ${this.renderVisualInsights()}
+                    <${TrendSnapshotStrip}
+                        trends=${s.trendSnapshots}
+                        context="security"
+                        title="Security Trend"
+                        subtitle="Score, CVE exposure, and fleet movement over the last 30 days"
+                    />
 
                     <div class="row row-cards mb-4">
                         <div class="col-lg-5">

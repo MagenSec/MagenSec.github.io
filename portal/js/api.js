@@ -527,14 +527,6 @@ export class ApiClient {
     }
 
     // === SNAPSHOTS ===
-    async getTrendSnapshots(orgId, params = {}) {
-        const query = {
-            from: params.from,
-            to: params.to
-        };
-        return this.get(`/api/v1/orgs/${orgId}/snapshots/trends`, query);
-    }
-
     async triggerSnapshotCron(taskId) {
         return this.post('/api/v1/admin/cron/trigger', { taskId });
     }
@@ -1144,10 +1136,13 @@ export class ApiClient {
     }
 
     // Endpoint: GET /api/v1/orgs/{orgId}/snapshots/trends
-    async getTrendSnapshots(orgId, from, to) {
-        const params = {};
-        if (from) params.from = from;
-        if (to)   params.to   = to;
+    async getTrendSnapshots(orgId, fromOrParams = {}, to) {
+        const params = (fromOrParams && typeof fromOrParams === 'object')
+            ? { ...fromOrParams }
+            : {};
+
+        if (fromOrParams && typeof fromOrParams !== 'object') params.from = fromOrParams;
+        if (to) params.to = to;
         return this.get(`/api/v1/orgs/${orgId}/snapshots/trends`, params);
     }
 

@@ -17,6 +17,7 @@ import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { SavingsCalculator } from '@components/SavingsCalculator.js';
 import { CveDetailsModal } from '@components/CveDetailsModal.js';
+import { TrendSnapshotStrip, coerceTrendSnapshots, getTrendDateRange as getSharedTrendDateRange } from '@components/TrendSnapshotStrip.js';
 import { SWRHelper } from '@utils/SWRHelper.js';
 import { buildOfficerNoteStatusCopy } from './OfficerNoteCopy.js';
 import { bundleToUnifiedPayload } from './bundleAdapter.js';
@@ -412,6 +413,7 @@ export class DashboardPage extends Component {
             coverage,
             actions,
             reportCard: normalizedDashboard.reportCard || null,
+            trendSnapshots: coerceTrendSnapshots(dashboard?.snapshots || []),
             generatedAt
         };
     }
@@ -461,7 +463,8 @@ export class DashboardPage extends Component {
                 const dashboard = bundleToUnifiedPayload(dashboardRes.data);
                 console.debug('[Dashboard] bundle freshness=%s missing=%o live=%o elapsedMs=%d',
                     dashboardRes.data.freshness, dashboardRes.data.missingAtoms, dashboardRes.data.livePresent, dashboardRes.data.elapsedMs);
-                const trendSnapshots = await this.loadTrendSnapshots(orgId);
+                const bundledTrends = coerceTrendSnapshots(dashboard.snapshots || []);
+                const trendSnapshots = bundledTrends.length >= 2 ? bundledTrends : await this.loadTrendSnapshots(orgId);
                 this.swr.setCached(dashboard);
                 this.writeSharedDashboardSessionCache(orgId, dashboard);
 
@@ -498,7 +501,8 @@ export class DashboardPage extends Component {
                 const dashboard = bundleToUnifiedPayload(dashboardRes.data);
                 console.debug('[Dashboard] bg-bundle freshness=%s missing=%o live=%o elapsedMs=%d',
                     dashboardRes.data.freshness, dashboardRes.data.missingAtoms, dashboardRes.data.livePresent, dashboardRes.data.elapsedMs);
-                const trendSnapshots = await this.loadTrendSnapshots(orgId);
+                const bundledTrends = coerceTrendSnapshots(dashboard.snapshots || []);
+                const trendSnapshots = bundledTrends.length >= 2 ? bundledTrends : await this.loadTrendSnapshots(orgId);
                 this.swr.setCached(dashboard);
                 this.writeSharedDashboardSessionCache(orgId, dashboard);
 
@@ -590,13 +594,7 @@ export class DashboardPage extends Component {
     }
 
     getTrendDateRange(days = 30) {
-        const end = new Date();
-        const start = new Date();
-        start.setDate(end.getDate() - days);
-        return {
-            from: start.toISOString().slice(0, 10),
-            to: end.toISOString().slice(0, 10)
-        };
+        return getSharedTrendDateRange(days);
     }
 
     async loadTrendSnapshots(orgId) {
@@ -605,7 +603,7 @@ export class DashboardPage extends Component {
             const res = await api.getTrendSnapshots(orgId, range);
             const payload = res?.data || res;
             const trends = payload?.data || payload?.snapshots || [];
-            return Array.isArray(trends) ? trends : [];
+            return coerceTrendSnapshots(trends);
         } catch (err) {
             console.warn('[Dashboard] Failed to load trend snapshots:', err);
             return [];
@@ -1326,6 +1324,12 @@ export class DashboardPage extends Component {
             ${this.renderHighlights()}
             ${this.renderVisualChartsRow()}
             ${this.renderRadarAndKPIsRow(role, riskScore, riskColor)}
+            <${TrendSnapshotStrip}
+                trends=${this.state.trendSnapshots}
+                context="dashboard"
+                title="30-Day Security Trend"
+                subtitle="Score, exposure, and device movement over the last 30 days"
+            />
 
             <div class="row row-cards mt-3">
                 <div class="col-lg-8">
