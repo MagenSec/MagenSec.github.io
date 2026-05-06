@@ -78,7 +78,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const latestCostDate = latestCostSnapshot?.date ? new Date(latestCostSnapshot.date) : null;
     const latestCostDateLabel = latestCostDate && !Number.isNaN(latestCostDate.getTime())
         ? latestCostDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
-        : 'cost snapshot pending';
+        : 'cost dossier pending';
 
     const rawMrr = Number(s.mrr || 0);
     const rawArr = Number(s.arr || (rawMrr * 12));
@@ -298,7 +298,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
     const selectedDailyBurn = actualCostDays > 0 ? selectedWindowCost / actualCostDays : 0;
     const projectedDailyAzureBurn = projectedAzureEom / daysInCurrentMonth;
     const projectedDailyLoadedBurn = projectedDailyAzureBurn + (monthlyOverhead / daysInCurrentMonth);
-    const azureCostAuthorityLabel = mtdAzureActualRaw > 0 ? 'Azure Cost API MTD' : `${actualCostDays}d daily snapshots`;
+    const azureCostAuthorityLabel = mtdAzureActualRaw > 0 ? 'Azure Cost API MTD' : `${actualCostDays}d daily dossiers`;
     const serviceBreakdownLabel = monthlySvcEntries.length > 0
         ? 'month to date'
         : `${actualCostDays}d available`;
@@ -400,7 +400,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
             detail: `${ccySymbol}${selectedDailyBurn.toFixed(2)}/day average`,
             tone: selectedWindowCost <= projectedAzureEom ? 'info' : 'watch',
             ribbon: 'Window',
-            tooltip: 'Azure daily cost trend for the selected window, sourced from Azure Cost API daily service totals when available and DAILY_COST snapshots as fallback.'
+            tooltip: 'Azure daily cost trend for the selected window, sourced from Azure Cost API daily service totals when available and DAILY_COST dossiers as fallback.'
         },
         {
             label: 'Azure Actual',
@@ -408,7 +408,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
             detail: azureCostAuthorityLabel,
             tone: mtdAzureActual <= mrr * 0.15 ? 'good' : mtdAzureActual <= mrr * 0.25 ? 'watch' : 'risk',
             ribbon: 'Actual',
-            tooltip: 'Financial authority for current billing-month Azure spend. This value is overlaid from Azure Cost Management even when the dashboard serves a cached snapshot.'
+            tooltip: 'Financial authority for current billing-month Azure spend. This value is overlaid from Azure Cost Management even when the dashboard serves a cached dossier.'
         },
         {
             label: 'EOM Projection',
@@ -416,7 +416,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
             detail: `${daysRemainingInMonth} day(s) left in month`,
             tone: projectedAzureEom <= mrr * 0.15 ? 'good' : projectedAzureEom <= mrr * 0.25 ? 'watch' : 'risk',
             ribbon: 'Forecast',
-            tooltip: 'Projected Azure end-of-month bill based on the current month-to-date Azure Cost API burn rate. If the live MTD value is unavailable, the selected daily snapshot average is used.'
+            tooltip: 'Projected Azure end-of-month bill based on the current month-to-date Azure Cost API burn rate. If the live MTD value is unavailable, the selected daily dossier average is used.'
         },
         {
             label: 'Loaded EOM',
@@ -646,10 +646,10 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                     <div class="business-section-kicker">Key Indicators</div>
                     <h3 class="business-section-title">Business health now</h3>
                 </div>
-                <div class="business-section-note">Snapshot financial basis with Azure Cost actuals overlaid where current-month billing matters.</div>
+                <div class="business-section-note">Dossier financial basis with Azure Cost actuals overlaid where current-month billing matters.</div>
             </div>
 
-            <div class="business-health-strip mb-3" aria-label="Snapshot business health">
+            <div class="business-health-strip mb-3" aria-label="Dossier business health">
                 <div class="business-health-tile business-health-grade">
                     <div class="business-health-label">Grade</div>
                     <div class="business-health-value"><span class="badge ${grade.badge} px-3 py-2">${grade.grade}</span></div>
@@ -679,7 +679,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
 
             ${d.mrrChange != null && html`
                 <div class="alert alert-light py-2 mb-3 d-flex gap-3 flex-wrap align-items-center small" style="color: var(--tblr-body-color, #182433);">
-                    <span class="fw-medium text-muted me-1">Snapshot Delta:</span>
+                    <span class="fw-medium text-muted me-1">Dossier Delta:</span>
                     <span>MRR <span class="badge ${d.mrrChange >= 0 ? 'bg-success' : 'bg-danger'} text-white">${d.mrrChange >= 0 ? '+' : ''}${ccySymbol}${convert(d.mrrChange || 0, revenueCcy).toFixed(0)}</span></span>
                     <span>Cost <span class="badge ${d.costChange <= 0 ? 'bg-success' : 'bg-danger'} text-white">${d.costChange >= 0 ? '+' : ''}${ccySymbol}${convert(d.costChange || 0, costCcy).toFixed(2)}</span></span>
                     <span>Margin <span class="badge ${marginDeltaDisplay == null ? 'bg-secondary' : marginDeltaDisplay >= 0 ? 'bg-success' : 'bg-danger'} text-white">${marginDeltaDisplay == null ? 'baseline updated' : `${marginDeltaDisplay >= 0 ? '+' : ''}${marginDeltaDisplay.toFixed(1)}pp`}</span></span>
@@ -740,7 +740,7 @@ export function ExecutiveSummary({ snapshot, history, catalog, displayCcy, billi
                     <${KpiCard}
                         icon="devices" label="Daily Active Footprint" color="success"
                         value=${formatCompact(totalDevices)}
-                        subtitle=${activeDevices > 0 ? `${formatCompact(activeDevices)} seen in latest daily snapshot` : 'registered fleet baseline'}
+                        subtitle=${activeDevices > 0 ? `${formatCompact(activeDevices)} seen in latest daily dossier` : 'registered fleet baseline'}
                     />
                 </div>
                 <div class="col-sm-6 col-lg-3 d-flex">

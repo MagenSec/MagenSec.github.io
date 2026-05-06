@@ -148,7 +148,7 @@ export function BusinessPage() {
     }
 
     const views = [
-        { key: 'business', icon: 'ti-chart-dots-2', label: 'Business', description: 'Snapshots, billing, margin' },
+        { key: 'business', icon: 'ti-chart-dots-2', label: 'Business', description: 'Dossiers, billing, margin' },
         { key: 'operations', icon: 'ti-heart-rate-monitor', label: 'Operations', description: 'Signal volume, fleet pressure' },
         { key: 'profitability', icon: 'ti-cash', label: 'Profitability', description: 'COGS, org margins, planner' },
     ];
@@ -156,7 +156,7 @@ export function BusinessPage() {
     const snapshotDate = snapshot?.date ? new Date(snapshot.date) : null;
     const snapshotDateLabel = snapshotDate && !Number.isNaN(snapshotDate.getTime())
         ? snapshotDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-        : 'Snapshot pending';
+        : 'Dossier pending';
     const generatedAt = snapshot?.generatedAt ? new Date(snapshot.generatedAt) : null;
     const generatedAtLabel = generatedAt && !Number.isNaN(generatedAt.getTime())
         ? generatedAt.toLocaleString()
@@ -172,7 +172,7 @@ export function BusinessPage() {
     const coveragePercent = Number(snapshot?.coveragePercent || 0);
     const dataSourceLabel = snapshot?.dataSource === 'live-generated'
         ? 'Live regenerated'
-        : 'Snapshot served';
+        : 'Dossier served';
 
     return html`
         <div class="container-xl business-intelligence-shell business-dashboard py-3">
@@ -182,7 +182,7 @@ export function BusinessPage() {
                     <div class="col">
                         <div class="page-pretitle">Site Admin</div>
                         <h2 class="page-title">Business Intelligence</h2>
-                        <div class="text-white opacity-75 small mt-1">Business view is snapshot-first. Current-day telemetry is displayed as indicative operating pressure only.</div>
+                        <div class="text-white opacity-75 small mt-1">Business view is Dossier-first. Current-day telemetry is displayed as indicative operating pressure only.</div>
                     </div>
                     <div class="col-auto d-flex gap-2 align-items-center">
                         <!-- Currency Toggle -->
@@ -250,7 +250,7 @@ export function BusinessPage() {
                 <div class="d-flex align-items-center justify-content-between mb-3">
                     <div>
                         <h3 class="mb-1"><i class="ti ti-cash me-2"></i>Profitability Matrix</h3>
-                        <div class="text-muted small">Daily revenue, allocated COGS, package margins, and pricing scenarios from the same snapshot/cost basis.</div>
+                        <div class="text-muted small">Daily revenue, allocated COGS, package margins, and pricing scenarios from the same dossier/cost basis.</div>
                     </div>
                 </div>
                 <${ProfitabilityPage}

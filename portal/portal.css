@@ -446,6 +446,41 @@ html, body {
   color: var(--db-answer-text, #1f2937);
 }
 
+.dashboard-api-reveal {
+  animation: dashboardReveal 420ms ease-out both;
+}
+
+.dashboard-api-reveal .magi-hero-card {
+  animation: dashboardRevealLift 520ms ease-out both;
+}
+
+@keyframes dashboardReveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dashboardRevealLift {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-api-reveal,
+  .dashboard-api-reveal .magi-hero-card {
+    animation: none;
+  }
+}
+
 .proof-chain-strip {
   --proof-chain-bg: linear-gradient(135deg, rgba(236, 254, 255, 0.96), rgba(239, 246, 255, 0.94) 46%, rgba(245, 243, 255, 0.92));
   --proof-chain-border: rgba(14, 165, 233, 0.32);

@@ -271,7 +271,7 @@ function applyOrgUiRestrictions() {
 }
 
 function shouldShowPageNarrative() {
-    return auth.isAuthenticated() && !['login', 'device-hub'].includes(currentPage);
+    return auth.isAuthenticated() && !['login', 'device-hub', 'dashboard'].includes(currentPage);
 }
 
 // Main app component

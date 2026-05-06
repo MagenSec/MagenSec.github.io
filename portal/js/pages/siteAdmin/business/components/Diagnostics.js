@@ -333,7 +333,7 @@ export class DiagnosticsPage extends Component {
                         onClick=${(e) => { e.preventDefault(); this.handleViewChange('snapshots'); }}
                     >
                         <i class="ti ti-database me-2"></i>
-                        Business Snapshots
+                        Business Dossiers
                     </a>
                 </li>
             </ul>
@@ -638,7 +638,7 @@ export class DiagnosticsPage extends Component {
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-body">
-                            <div class="text-muted mb-1">Latest Snapshot Date</div>
+                            <div class="text-muted mb-1">Latest Dossier Date</div>
                             <div class="h2 mb-0">${snapshotDiagnostics.latestDate || 'N/A'}</div>
                         </div>
                     </div>
@@ -646,7 +646,7 @@ export class DiagnosticsPage extends Component {
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-body">
-                            <div class="text-muted mb-1">Snapshot Age</div>
+                            <div class="text-muted mb-1">Dossier Age</div>
                             <div class="h2 mb-0">
                                 <span class="badge ${ageBadgeClass}">
                                     ${ageMinutes == null ? 'Unknown' : `${ageMinutes} min`}
@@ -688,7 +688,7 @@ export class DiagnosticsPage extends Component {
                     <div class="d-flex">
                         <div class="me-2"><i class="ti ti-bug"></i></div>
                         <div>
-                            Snapshot gap detected in rolling 450-day coverage.
+                            Dossier gap detected in rolling 450-day coverage.
                             Missing days: ${formatNumber(missingCount)}
                             ${metadata.lastBackfilledCount > 0 ? html`· Backfilled this sync: ${formatNumber(metadata.lastBackfilledCount)}` : null}
                             ${metadata.lastSyncAtUtc ? html`· Synced: ${formatRelativeTime(metadata.lastSyncAtUtc)}` : null}

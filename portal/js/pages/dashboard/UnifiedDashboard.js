@@ -1763,7 +1763,7 @@ export default class UnifiedDashboard extends Component {
             <path d=${mainGeometry.linePath} fill="none" stroke=${hygieneTone} stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>
           </svg>
         ` : html`
-          <div style="height:${isSmallScreen ? '130px' : '160px'};display:flex;align-items:center;justify-content:center;border:1px dashed var(--db-tile-border,rgba(148,163,184,0.3));border-radius:12px;color:var(--db-faint-text,#6b7280);font-size:0.82rem;">Waiting for the next daily snapshot</div>
+          <div style="height:${isSmallScreen ? '130px' : '160px'};display:flex;align-items:center;justify-content:center;border:1px dashed var(--db-tile-border,rgba(148,163,184,0.3));border-radius:12px;color:var(--db-faint-text,#6b7280);font-size:0.82rem;">Waiting for the next daily Dossier</div>
         `}
 
         <details
@@ -3862,8 +3862,8 @@ export default class UnifiedDashboard extends Component {
                 animation: spin 0.8s linear infinite;
                 margin-bottom: 12px;
               "></div>
-              <div style="color:#111827;font-size:0.95rem;font-weight:600;">Loading intelligence...</div>
-              <div style="color:#6b7280;font-size:0.82rem;margin-top:4px;">Building your current readiness view.</div>
+              <div style="color:#111827;font-size:0.95rem;font-weight:600;">Summoning MAGI...</div>
+              <div style="color:#6b7280;font-size:0.82rem;margin-top:4px;">Preparing your readiness Dossier.</div>
             </div>
           </div>
           <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
@@ -3889,7 +3889,7 @@ export default class UnifiedDashboard extends Component {
     }
 
     return html`
-      <div style="min-height: calc(100vh - 120px); display: flex; flex-direction: column;">
+      <div class="dashboard-api-reveal" style="min-height: calc(100vh - 120px); display: flex; flex-direction: column;">
         ${this.renderBillingNoticeBanner()}
         ${this.state.data?.evidence && rewindContext.isActive?.() ? html`
           <div class="container-xl pt-3">

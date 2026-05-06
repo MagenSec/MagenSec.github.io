@@ -1942,7 +1942,7 @@ export function BusinessMatrixPage() {
                 <div class="col-md-4">
                     <div class="card h-100">
                         <div class="card-body text-center">
-                            <div class="text-body-secondary small mb-2">Avg Daily Azure Spend (${kpiWindowDays}D) ${renderInfoTooltip('Average daily spend over selected time window using Azure Cost snapshots.')}</div>
+                            <div class="text-body-secondary small mb-2">Avg Daily Azure Spend (${kpiWindowDays}D) ${renderInfoTooltip('Average daily spend over selected time window using Azure Cost dossiers.')}</div>
                             <div class="h2 mb-0 text-danger">${formatCurrency(avgDailyAzureSpend || 0)}</div>
                             ${platformSummary.trends && platformSummary.trends.length >= 2
                                 ? renderTrendIndicator(calculateTrend(avgDailyAzureSpend || 0, platformSummary.trends, 'cost'), true)

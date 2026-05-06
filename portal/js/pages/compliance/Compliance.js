@@ -881,7 +881,7 @@ export class CompliancePage extends Component {
             trends=${this.state.trendData}
             context="compliance"
             title="Compliance Trend"
-            subtitle="Readiness score, fix velocity, and at-risk devices from daily snapshots"
+            subtitle="Readiness score, fix velocity, and at-risk devices from daily dossiers"
           />
         </div>
         ${this.renderTrendChart()}

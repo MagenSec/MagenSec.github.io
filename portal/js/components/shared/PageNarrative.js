@@ -12,17 +12,6 @@ const STORY_STEPS = [
 ];
 
 const NARRATIVES = {
-    dashboard: {
-        kicker: 'Home / MAGI proof',
-        title: 'Insurance readiness',
-        question: 'Can we prove readiness today?',
-        answer: 'Security and compliance evidence roll into audit proof, hygiene behavior, and the current insurance position.',
-        source: 'MAGI dossier, daily snapshots, and live evidence overlays',
-        actionLabel: 'Ask Officer MAGI',
-        actionHref: '#!/analyst',
-        focus: ['insurance', 'hygiene', 'audit'],
-        tone: 'magi'
-    },
     security: {
         kicker: 'Protect / Daily safety',
         title: 'Security command',
@@ -130,7 +119,7 @@ const NARRATIVES = {
         title: 'Compliance readiness',
         question: 'Are controls passing and provable?',
         answer: 'Framework alignment turns security evidence into control gaps, affected scope, and audit-ready proof.',
-        source: 'Compliance snapshot, framework catalog, and trend atoms',
+        source: 'Compliance dossier, framework catalog, and trend evidence',
         actionLabel: 'Open reports',
         actionHref: '#!/reports',
         focus: ['compliance', 'audit'],
@@ -140,8 +129,8 @@ const NARRATIVES = {
         kicker: 'Prove / Hygiene trend',
         title: 'Posture trends',
         question: 'Are we improving over time?',
-        answer: 'Daily snapshots expose behavior: patch cadence, recurring gaps, remediation movement, and drift.',
-        source: 'Snapshot trends and posture atoms',
+        answer: 'Dossier history exposes behavior: patch cadence, recurring gaps, remediation movement, and drift.',
+        source: 'Posture dossier history and trend evidence',
         actionLabel: 'Open readiness',
         actionHref: '#!/dashboard',
         focus: ['hygiene', 'compliance']
@@ -151,7 +140,7 @@ const NARRATIVES = {
         title: 'Mission briefing',
         question: 'What changed, why does it matter, and what should we say?',
         answer: 'MAGI summarizes evidence movement into stakeholder-ready narrative without replacing source proof.',
-        source: 'AI report payloads and underlying evidence snapshots',
+        source: 'AI report payloads and underlying evidence dossiers',
         actionLabel: 'Open reports',
         actionHref: '#!/reports',
         focus: ['audit', 'hygiene']
@@ -161,7 +150,7 @@ const NARRATIVES = {
         title: 'Mission briefing',
         question: 'What changed, why does it matter, and what should we say?',
         answer: 'MAGI summarizes evidence movement into stakeholder-ready narrative without replacing source proof.',
-        source: 'AI report payloads and underlying evidence snapshots',
+        source: 'AI report payloads and underlying evidence dossiers',
         actionLabel: 'Open reports',
         actionHref: '#!/reports',
         focus: ['audit', 'hygiene']
@@ -253,7 +242,7 @@ const NARRATIVES = {
         title: 'Insurance attestation',
         question: 'What can we attest to today?',
         answer: 'Attestation packages today\'s proof state into underwriter-facing evidence and caveats.',
-        source: 'Insurance readiness model and proof snapshots',
+        source: 'Insurance readiness model and proof dossiers',
         actionLabel: 'Open reports',
         actionHref: '#!/reports',
         focus: ['insurance', 'audit']
@@ -262,7 +251,7 @@ const NARRATIVES = {
         kicker: 'Prove / Advanced controls',
         title: 'Compliance Plus',
         question: 'Which deeper controls need proof?',
-        answer: 'Advanced compliance views expand control evidence beyond the base readiness snapshot.',
+        answer: 'Advanced compliance views expand control evidence beyond the base readiness dossier.',
         source: 'Compliance add-on evidence and framework detail',
         actionLabel: 'Open compliance',
         actionHref: '#!/compliance',
@@ -273,7 +262,7 @@ const NARRATIVES = {
         title: 'Peer benchmark',
         question: 'How does our behavior compare with peers?',
         answer: 'Benchmarks add cohort context to hygiene and readiness without replacing internal proof.',
-        source: 'Peer cohorts, hygiene scores, and org snapshots',
+        source: 'Peer cohorts, hygiene scores, and org dossiers',
         actionLabel: 'Open hygiene trends',
         actionHref: '#!/posture',
         focus: ['hygiene', 'insurance']
@@ -292,8 +281,8 @@ const NARRATIVES = {
         kicker: 'Site Admin / Economics',
         title: 'Business command center',
         question: 'Is the platform economically healthy and operationally efficient?',
-        answer: 'Snapshot-first revenue, Azure actuals, cost trends, and signal volume explain margin and operating pressure.',
-        source: 'Business snapshots, Azure Cost API actuals, and cache performance',
+        answer: 'Settled revenue, Azure actuals, cost trends, and signal volume explain margin and operating pressure.',
+        source: 'Business dossiers, Azure Cost API actuals, and cache performance',
         actionLabel: 'Open activity',
         actionHref: '#!/siteadmin/activity',
         focus: ['hygiene', 'insurance'],

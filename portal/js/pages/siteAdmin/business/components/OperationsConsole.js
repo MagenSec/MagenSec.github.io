@@ -381,7 +381,7 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
             <div class="card mb-3">
                 <div class="card-header">
                     <h3 class="card-title"><i class="ti ti-route-square me-2"></i>Signal Economics Path</h3>
-                    <span class="badge bg-blue-lt text-blue ms-auto">Latest daily snapshot</span>
+                    <span class="badge bg-blue-lt text-blue ms-auto">Latest daily dossier</span>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">

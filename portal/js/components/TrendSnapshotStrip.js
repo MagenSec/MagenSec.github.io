@@ -175,7 +175,7 @@ function buildSparkline(points, key) {
     return { coords: coords.join(' '), width, height };
 }
 
-export function TrendSnapshotStrip({ trends = [], title = 'Snapshot Trends', subtitle = '30-day cooked evidence trend', context = 'dashboard', className = '' }) {
+export function TrendSnapshotStrip({ trends = [], title = 'Dossier Trends', subtitle = '30-day evidence trend', context = 'dashboard', className = '' }) {
     const points = coerceTrendSnapshots(trends).slice(-30);
     if (points.length < 2) return null;
 

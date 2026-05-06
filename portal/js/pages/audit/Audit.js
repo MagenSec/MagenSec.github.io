@@ -1600,7 +1600,7 @@ export function AuditPage() {
                 <div class="card mb-3">
                     <div class="card-body d-flex align-items-center gap-2 text-muted">
                         <span class="spinner-border spinner-border-sm"></span>
-                        Loading snapshot trend context...
+                        Loading dossier trend context...
                     </div>
                 </div>
             ` : html`

@@ -860,7 +860,7 @@ export class PosturePage extends Component {
                     trends=${this.state.trendSnapshots}
                     context="posture"
                     title="Posture Trend"
-                    subtitle="Risk, compliance, and remediation movement from daily snapshots"
+                    subtitle="Risk, compliance, and remediation movement from daily dossiers"
                 />
 
                 <div class="row g-4">
