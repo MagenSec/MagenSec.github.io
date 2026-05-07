@@ -11,6 +11,7 @@ const ACTION_CATALOG = [
     { type: 'Probe', label: 'Probe', icon: 'ti ti-radar-2', tooltip: 'Collect a comprehensive security posture dossier from the device', enabled: true },
     { type: 'TriggerScan', label: 'Scan', icon: 'ti ti-shield-search', tooltip: 'Initiate a full system vulnerability and malware scan', enabled: true },
     { type: 'Resync', label: 'Full Resync', icon: 'ti ti-refresh', tooltip: 'Resync inventory and compliance data without a hard reset', enabled: true },
+    { type: 'Refingerprint', label: 'Refingerprint', icon: 'ti ti-fingerprint', tooltip: 'Force fresh fingerprint emission without resetting local inventory state', enabled: true, siteAdminOnly: true },
     { type: 'InventoryScan', label: 'Inventory Scan', icon: 'ti ti-apps', tooltip: 'Refresh software inventory from device telemetry', enabled: true },
     { type: 'ComplianceCheck', label: 'Compliance Check', icon: 'ti ti-clipboard-check', tooltip: 'Refresh compliance controls and policy evaluation state', enabled: true },
     { type: 'HardResync', label: 'Hard Resync', icon: 'ti ti-refresh-alert', tooltip: 'Hard refresh by resetting stale local markers and rebuilding fingerprints', enabled: true, siteAdminOnly: true },
@@ -169,14 +170,24 @@ function getActionByType(type) {
     return ACTION_CATALOG.find(a => a.type === type) || ACTION_CATALOG[0];
 }
 
-function buildResyncOptions(actionType, isSiteAdmin) {
+function buildResyncOptions(actionType) {
     if (!actionType) return null;
 
     if (actionType === 'Resync') {
         return {
             inventory: 'resync',
             compliance: 'resync',
-            reset: isSiteAdmin ? 'hard' : 'none'
+            reset: 'none'
+        };
+    }
+
+    if (actionType === 'Refingerprint') {
+        return {
+            inventory: 'none',
+            compliance: 'none',
+            machine: 'none',
+            fingerprint: 'resync',
+            reset: 'none'
         };
     }
 
@@ -200,6 +211,8 @@ function buildResyncOptions(actionType, isSiteAdmin) {
         return {
             inventory: 'resync',
             compliance: 'resync',
+            machine: 'resync',
+            fingerprint: 'resync',
             reset: 'hard'
         };
     }
@@ -542,9 +555,10 @@ export class ResponseActionsPage extends Component {
             return;
         }
 
+        const resyncOptions = buildResyncOptions(action.type);
         let parameters = null;
         try {
-            parameters = this.state.isSiteAdmin ? this.parseParameters() : null;
+            parameters = this.state.isSiteAdmin && !resyncOptions ? this.parseParameters() : null;
         } catch (err) {
             window.toast?.show?.(err.message, 'error');
             return;
@@ -552,8 +566,7 @@ export class ResponseActionsPage extends Component {
 
         this.setState({ queueing: true });
         try {
-            const resyncOptions = buildResyncOptions(action.type, this.state.isSiteAdmin);
-            const effectiveCommandType = resyncOptions ? 'Resync' : action.type;
+            const effectiveCommandType = action.type === 'HardResync' ? 'HardResync' : (resyncOptions ? 'Resync' : action.type);
 
             const result = await api.queueCommand(
                 orgId,
