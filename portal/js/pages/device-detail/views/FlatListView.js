@@ -26,6 +26,7 @@ export function renderFlatListView(component) {
                         <th>Application</th>
                         <th>Vendor</th>
                         <th>Version</th>
+                        <th>Type</th>
                         <th>Status</th>
                         <th>
                             <a href="#" onclick=${(e)=>{e.preventDefault(); component.setState({ appSortKey: component.state.appSortKey==='severity' ? 'cveCount' : 'severity', appSortDir: component.state.appSortDir==='desc' ? 'asc':'desc' });}} class="text-reset text-decoration-none">Risk & CVEs</a>
@@ -42,6 +43,7 @@ export function renderFlatListView(component) {
                                              cves.length > 0 ? 'LOW' : 'CLEAN';
                         const daysInstalled = app.firstSeen ? Math.round((Date.now() - new Date(app.firstSeen).getTime()) / (1000 * 60 * 60 * 24)) : null;
                         const isFiltered = component.state.cveFilterApp === app.appName;
+                        const installKindMeta = component.getInstallKindMeta(app);
                         return html`
                             <tr style="cursor: pointer; transition: background 0.15s;" onclick=${() => component.setState({ cveFilterApp: isFiltered ? null : app.appName, activeTab: 'risks' })} title="Click to filter CVEs by this app">
                                 <td class="font-weight-medium d-flex align-items-center gap-2">
@@ -67,9 +69,13 @@ export function renderFlatListView(component) {
                                 <td>${app.vendor || '—'}</td>
                                 <td><code class="text-sm">${app.version || '—'}</code></td>
                                 <td>
+                                    <span class=${`badge ${installKindMeta.className}`}>${installKindMeta.label}</span>
+                                    ${component.isPortableApp(app) && app.appPath ? html`<div class="text-muted small text-truncate" style="max-width: 220px;" title=${app.appPath}>${app.appPath}</div>` : ''}
+                                </td>
+                                <td>
                                                                             ${app.status === 'updated' ? html`<span class="badge bg-warning-lt text-warning">Updated${app.updatedFromVersion ? ` from v${app.updatedFromVersion}` : ''}</span>` : 
                                                                                 app.status === 'uninstalled' ? html`<span class="badge bg-success-lt text-success">Uninstalled</span>` : 
-                                                                                html`<span class="badge bg-blue-lt text-info">Installed</span>`}
+                                                                                html`<span class="badge bg-primary-lt text-primary">Installed</span>`}
                                 </td>
                                 <td>
                                     ${cves.length > 0 ? html`

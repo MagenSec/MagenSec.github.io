@@ -439,11 +439,19 @@ export class DeviceDetailPage extends window.Component {
     }
 
     getLatestInstallerVersion() {
-        return this.state.latestClientVersion
-            || this.state.updatePosture?.latest
-            || this.state.installers?.ENGINE?.VERSION
-            || config.INSTALLERS?.ENGINE?.VERSION
-            || null;
+        const candidates = [
+            this.state.latestClientVersion,
+            this.state.updatePosture?.latest,
+            this.state.device?.LastUpdateRequiredTargetVersion,
+            this.state.device?.lastUpdateRequiredTargetVersion,
+            this.state.device?.LastUpdateTargetVersion,
+            this.state.device?.lastUpdateTargetVersion,
+            this.state.installers?.ENGINE?.VERSION,
+            config.INSTALLERS?.ENGINE?.VERSION
+        ].filter(Boolean);
+
+        if (candidates.length === 0) return null;
+        return candidates.reduce((latest, candidate) => this.compareVersions(candidate, latest) > 0 ? candidate : latest, candidates[0]);
     }
 
     getClientUpdateState() {
@@ -801,15 +809,19 @@ export class DeviceDetailPage extends window.Component {
                 uninstalled: backendSummary.uninstalled ?? backendSummary.uninstalledCount ?? computedSummary.uninstalled
             };
             const appList = appPayload.map(x => ({
-                    appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
-                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || x.appVendor || ''),
+                    appName: x.appName || x.AppName || '',
+                    vendor: x.vendor || x.AppVendor || x.appVendor || '',
                     version: x.applicationVersion || x.ApplicationVersion,
                     matchType: x.matchType ?? x.MatchType ?? 0,
                     isInstalled: x.isInstalled ?? x.IsInstalled,
                     lastSeen: x.lastSeen || x.LastSeen,
                     firstSeen: x.firstSeen || x.FirstSeen,
                     appRowKey: x.appRowKey || x.RowKey || x.rowKey || '',
-                    appStatus: x.appStatus || x.AppStatus || 'installed'
+                    appStatus: x.appStatus || x.AppStatus || 'installed',
+                    appSource: x.appSource || x.AppSource || '',
+                    appPath: x.appPath || x.AppPath || '',
+                    installKind: x.installKind || x.InstallKind || '',
+                    installKindLabel: x.installKindLabel || x.InstallKindLabel || ''
                 }));
 
             // Process CVE data from unified response
@@ -817,8 +829,8 @@ export class DeviceDetailPage extends window.Component {
             const mitigatedCvePayload = cvesData?.mitigatedCves || [];
                 
             const cveList = cvePayload.map(x => ({
-                    appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
-                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || x.appVendor || ''),
+                    appName: x.appName || x.AppName || '',
+                    vendor: x.vendor || x.AppVendor || x.appVendor || '',
                     cveId: x.cveId || x.CveId,
                     severity: x.severity || x.Severity,
                     epss: x.epssProbability || x.epss || x.EPSS,
@@ -830,8 +842,8 @@ export class DeviceDetailPage extends window.Component {
                 }));
                 
             const mitigatedCveList = mitigatedCvePayload.map(x => ({
-                    appName: PiiDecryption.decryptIfEncrypted(x.appName || x.AppName || ''),
-                    vendor: PiiDecryption.decryptIfEncrypted(x.vendor || x.AppVendor || x.appVendor || ''),
+                    appName: x.appName || x.AppName || '',
+                    vendor: x.vendor || x.AppVendor || x.appVendor || '',
                     cveId: x.cveId || x.CveId,
                     severity: x.severity || x.Severity,
                     epss: x.epssProbability || x.epss || x.EPSS,
@@ -1088,7 +1100,7 @@ export class DeviceDetailPage extends window.Component {
     }
 
     computeAppStatus(apps) {
-        // Group by appName to ensure only the newest version shows as installed
+        // Group by app identity to ensure only the newest version of the same install source shows as installed.
         const groups = new Map();
         const normalizeDate = (d) => {
             const dt = d ? new Date(d) : null;
@@ -1096,7 +1108,7 @@ export class DeviceDetailPage extends window.Component {
         };
 
         for (const app of apps) {
-            const key = (app.appName || '').toLowerCase();
+            const key = this.getAppIdentityKey(app);
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key).push(app);
         }
@@ -1156,8 +1168,40 @@ export class DeviceDetailPage extends window.Component {
         return apps.filter(a => 
             (a.appName && a.appName.toLowerCase().includes(lq)) ||
             (a.vendor && a.vendor.toLowerCase().includes(lq)) ||
-            (a.version && a.version.toLowerCase().includes(lq))
+            (a.version && a.version.toLowerCase().includes(lq)) ||
+            (a.installKindLabel && a.installKindLabel.toLowerCase().includes(lq)) ||
+            (a.appPath && a.appPath.toLowerCase().includes(lq))
         );
+    }
+
+    getAppIdentityKey(app) {
+        const appName = (app.appName || '').trim().toLowerCase();
+        const vendor = (app.vendor || '').trim().toLowerCase();
+        const portablePath = this.isPortableApp(app)
+            ? (app.appPath || '').trim().replace(/\//g, '\\').toLowerCase()
+            : '';
+        return `${appName}|${vendor}|${portablePath}`;
+    }
+
+    isPortableApp(app) {
+        const installKind = (app.installKind || '').trim().toLowerCase();
+        const source = (app.appSource || '').trim().toLowerCase();
+        return installKind === 'portable' || source === 'process' || source === 'portable' || source === 'folder';
+    }
+
+    getInstallKindMeta(app) {
+        const installKind = (app.installKind || '').trim().toLowerCase();
+        const source = (app.appSource || '').trim().toLowerCase();
+        if (installKind === 'msix' || source === 'store' || source === 'appx' || source === 'msix') {
+            return { label: app.installKindLabel || 'Store Apps', className: 'bg-info-lt text-info', bucket: 'store' };
+        }
+        if (installKind === 'portable' || source === 'process' || source === 'portable' || source === 'folder') {
+            return { label: app.installKindLabel || 'Portable Apps', className: 'bg-warning-lt text-warning', bucket: 'portable' };
+        }
+        if (installKind === 'system' || source === 'system') {
+            return { label: app.installKindLabel || 'System Apps', className: 'bg-secondary-lt text-secondary', bucket: 'system' };
+        }
+        return { label: app.installKindLabel || 'Installed Apps', className: 'bg-primary-lt text-primary', bucket: 'installed' };
     }
 
     getCvesByApp(appRowKey, appNameFallback) {
@@ -1424,7 +1468,7 @@ export class DeviceDetailPage extends window.Component {
         const grouped = {};
         
         apps.forEach(app => {
-            const key = `${(app.appName || '').toLowerCase()}|${(app.vendor || '').toLowerCase()}`;
+            const key = this.getAppIdentityKey(app);
             if (!grouped[key]) {
                 grouped[key] = { latest: app, older: [] };
             } else {
@@ -2311,8 +2355,8 @@ export class DeviceDetailPage extends window.Component {
         // Group by appName, return array of groups with versions sorted by date
         const groups = {};
         for (const app of apps) {
-            const key = app.appName.toLowerCase();
-            if (!groups[key]) groups[key] = { appName: app.appName, vendor: app.vendor, versions: [] };
+            const key = this.getAppIdentityKey(app);
+            if (!groups[key]) groups[key] = { key, appName: app.appName, vendor: app.vendor, versions: [], installKindMeta: this.getInstallKindMeta(app), appPath: app.appPath || '' };
             groups[key].versions.push(app);
         }
         // Sort versions by firstSeen descending (newest first)

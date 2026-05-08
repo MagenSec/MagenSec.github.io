@@ -26,7 +26,10 @@ export function renderInventoryTab(component) {
         total: enrichedApps.length,
         installed: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'installed').length,
         updated: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'updated').length,
-        uninstalled: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'uninstalled').length
+        uninstalled: enrichedApps.filter(a => (a.status || '').toLowerCase() === 'uninstalled').length,
+        msi: enrichedApps.filter(a => component.getInstallKindMeta(a).bucket === 'installed').length,
+        store: enrichedApps.filter(a => component.getInstallKindMeta(a).bucket === 'store').length,
+        portable: enrichedApps.filter(a => component.getInstallKindMeta(a).bucket === 'portable').length
     };
     const vulnerableApps = component.getAppVulnerabilityBreakdown().vulnerableApps;
     const statusFilter = component.state.appStatusFilter || 'installed';
@@ -66,24 +69,24 @@ export function renderInventoryTab(component) {
             <div class="col-md-3">
                 <div class="card">
                     <div class="card-body text-center">
-                        <div class="text-muted small">Total Applications</div>
-                        <div class="h3">${appSummary.total ?? enrichedApps.length}</div>
+                        <div class="text-muted small">Installed Apps</div>
+                        <div class="h3"><span class="badge bg-primary-lt text-primary">${appSummary.msi ?? 0}</span></div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card">
                     <div class="card-body text-center">
-                        <div class="text-muted small">Updated</div>
-                        <div class="h3"><span class="badge bg-warning-lt text-warning">${appSummary.updated ?? enrichedApps.filter(a => a.status === 'updated').length}</span></div>
+                        <div class="text-muted small">Store Apps</div>
+                        <div class="h3"><span class="badge bg-info-lt text-info">${appSummary.store ?? 0}</span></div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card">
                     <div class="card-body text-center">
-                        <div class="text-muted small">Uninstalled</div>
-                        <div class="h3"><span class="badge bg-success-lt text-success">${appSummary.uninstalled ?? enrichedApps.filter(a => a.status === 'uninstalled').length}</span></div>
+                        <div class="text-muted small">Portable Apps</div>
+                        <div class="h3"><span class="badge bg-warning-lt text-warning">${appSummary.portable ?? 0}</span></div>
                     </div>
                 </div>
             </div>

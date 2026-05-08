@@ -53,9 +53,10 @@ export function renderVendorGroupedView(component) {
                                 ${appGroups.map(appGroup => {
                                     const latestVersion = appGroup.versions[0];
                                     const hasMultipleVersions = appGroup.versions.length > 1;
-                                    const appKey = appGroup.appName.toLowerCase();
+                                    const appKey = appGroup.key || appGroup.appName.toLowerCase();
                                     const isVersionsExpanded = component.state.expandedApps.has(appKey);
                                     const cves = component.getCvesByApp(latestVersion.appRowKey, appGroup.appName);
+                                    const installKindMeta = appGroup.installKindMeta || component.getInstallKindMeta(latestVersion);
                                     const worstSeverity = cves.some(c => c.severity === 'CRITICAL') ? 'CRITICAL' : 
                                                          cves.some(c => c.severity === 'HIGH') ? 'HIGH' : 
                                                          cves.some(c => c.severity === 'MEDIUM') ? 'MEDIUM' : 
@@ -90,9 +91,13 @@ export function renderVendorGroupedView(component) {
                                                             </svg>
                                                         ` : ''}
                                                         <span class="fw-medium">${appGroup.appName}</span>
+                                                        <span class=${`badge ${installKindMeta.className}`}>${installKindMeta.label}</span>
                                                         ${hasMultipleVersions ? html`<span class="badge bg-blue-lt text-blue">${appGroup.versions.length} versions</span>` : ''}
                                                     </div>
-                                                    <div class="text-muted small">v${latestVersion.version || '—'} • ${formatDate(latestVersion.lastSeen)}</div>
+                                                    <div class="text-muted small">
+                                                        v${latestVersion.version || '—'} • ${formatDate(latestVersion.lastSeen)}
+                                                        ${component.isPortableApp(latestVersion) && latestVersion.appPath ? html`<span title=${latestVersion.appPath}> • ${latestVersion.appPath}</span>` : ''}
+                                                    </div>
                                                 </div>
                                                 <div class="d-flex gap-2 align-items-center">
                                                     ${worstSeverity !== 'CLEAN' ? html`
@@ -123,7 +128,7 @@ export function renderVendorGroupedView(component) {
                                                                                 </div>
                                                                             </div>
                                                                             <div class="col-auto">
-                                                                                ${version.isInstalled ? html`<span class="badge bg-success-lt text-success">Installed</span>` : html`<span class="badge bg-warning-lt text-warning">Disk</span>`}
+                                                                                <span class=${`badge ${component.getInstallKindMeta(version).className}`}>${component.getInstallKindMeta(version).label}</span>
                                                                             </div>
                                                                         </div>
                                                                     </div>
