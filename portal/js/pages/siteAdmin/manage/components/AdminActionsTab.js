@@ -586,13 +586,16 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 }));
             }
         } catch (error) {
+            const envelope = error?.response || {};
+            const conflictData = envelope?.data || envelope?.Data || null;
+            const conflictReason = conflictData?.conflictReason || conflictData?.ConflictReason || null;
             setResultByGroup((prev) => ({
                 ...prev,
                 [group.groupId]: {
                     success: false,
                     jobTitle: job.title,
-                    data: null,
-                    error: error.message
+                    data: conflictData,
+                    error: conflictReason || error.message
                 }
             }));
         } finally {
@@ -686,6 +689,12 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                     ${result?.error && html`
                         <div class="alert alert-danger mt-3 mb-0" style="word-break: break-word;">
                             <code>${result.error}</code>
+                        </div>
+                    `}
+                    ${result?.data?.canForceClearStale && html`
+                        <div class="alert alert-warning mt-3 mb-0">
+                            <i class="ti ti-alert-triangle me-1"></i>
+                            Another run is still active for this task and scope. Enable <strong>Force clear stale on conflict</strong> only when the Activity page shows the prior run is no longer moving, then queue the job again.
                         </div>
                     `}
                 </div>
