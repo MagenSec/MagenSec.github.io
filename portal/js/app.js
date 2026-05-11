@@ -19,7 +19,6 @@ import { DeviceDetailPage } from './pages/device-detail/DeviceDetail.js';
 import { ResponseActionsPage } from './pages/response-actions/ResponseActions.js';
 import { AnalystPage } from './pages/analyst/Analyst.js';
 import AIAnalystChatPage from './pages/ai/aiAnalystChat.js';
-import AIReportsPage from './pages/ai/aiReports.js';
 import { PosturePage } from './pages/posture/Posture.js';
 import { PatchPosturePage } from './pages/posture/PatchPosture.js';
 import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
@@ -325,8 +324,6 @@ function renderCurrentPage() {
         
         case 'analyst':
             return html`<${AIAnalystChatPage} />`;
-        case 'ai-reports':
-            return html`<${AIReportsPage} />`;
         case 'analyst-old':
             return html`<${AnalystPage} />`;
         case 'posture':

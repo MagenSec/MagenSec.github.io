@@ -73,9 +73,9 @@ export function renderFlatListView(component) {
                                     ${component.isPortableApp(app) && app.appPath ? html`<div class="text-muted small text-truncate" style="max-width: 220px;" title=${app.appPath}>${app.appPath}</div>` : ''}
                                 </td>
                                 <td>
-                                                                            ${app.status === 'updated' ? html`<span class="badge bg-warning-lt text-warning">Updated${app.updatedFromVersion ? ` from v${app.updatedFromVersion}` : ''}</span>` : 
-                                                                                app.status === 'uninstalled' ? html`<span class="badge bg-success-lt text-success">Uninstalled</span>` : 
-                                                                                html`<span class="badge bg-primary-lt text-primary">Installed</span>`}
+                                    <span class=${`badge ${app.statusClassName || 'bg-primary-lt text-primary'}`}>
+                                        ${app.statusLabel || 'Installed'}${app.status === 'updated' && app.updatedFromVersion ? ` from v${app.updatedFromVersion}` : ''}
+                                    </span>
                                 </td>
                                 <td>
                                     ${cves.length > 0 ? html`

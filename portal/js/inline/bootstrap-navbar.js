@@ -127,7 +127,7 @@ function setNavbarActiveState() {
         targetHref = '#!/review';
 
     // --- MAGI (top-level) ---
-    } else if (routePath.startsWith('/analyst') || routePath.startsWith('/ai-reports')) {
+    } else if (routePath.startsWith('/analyst')) {
         targetHref = '#!/analyst';
 
     // --- Home / Security dashboard ---

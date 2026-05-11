@@ -86,9 +86,11 @@ class DevicesPage extends window.Component {
         this.cvesChartEl = null;
 
         this.summaryRefreshInFlight = false;
+        this._isUnmounted = false;
     }
 
     componentDidMount() {
+        this._isUnmounted = false;
         this.orgChangeUnsubscribe = orgContext.onChange(() => this.loadDevices(true));
         this._rewindUnsub = rewindContext.onChange(() => this.loadDevices(true));
         this.loadInstallerConfig();
@@ -286,13 +288,6 @@ class DevicesPage extends window.Component {
         if (mins < 4320) return `Stale (${days}d)`;
         if (mins < 10080) return `Dormant (${days}d)`;
         return `Ghosted (${days}d)`;
-    }
-
-    componentWillUnmount() {
-        if (this.orgChangeUnsubscribe) this.orgChangeUnsubscribe();
-        if (this._rewindUnsub) this._rewindUnsub();
-        this.destroyApexCharts();
-        this.destroyTableApexCharts();
     }
 
     // Modal rendering moved to render() method
@@ -1047,10 +1042,13 @@ class DevicesPage extends window.Component {
     }
 
     componentWillUnmount() {
-        // Unsubscribe from org changes
-        if (this.orgUnsubscribe) {
-            this.orgUnsubscribe();
-        }
+        this._isUnmounted = true;
+        if (this.orgChangeUnsubscribe) this.orgChangeUnsubscribe();
+        if (this.orgUnsubscribe) this.orgUnsubscribe();
+        if (this._rewindUnsub) this._rewindUnsub();
+        this.summaryRefreshInFlight = false;
+        this.destroyApexCharts();
+        this.destroyTableApexCharts();
     }
 
     async enrichDeviceScoresAsync(devices, summaries) {
@@ -1243,6 +1241,8 @@ class DevicesPage extends window.Component {
                 return;
             }
 
+            if (this._isUnmounted) return;
+
             // Extract summaries from response
             const freshSummaries = {};
             response.data.devices.forEach(device => {
@@ -1269,13 +1269,16 @@ class DevicesPage extends window.Component {
             console.log(`[DevicesPage] ✅ Background fetch complete: ${Object.keys(freshSummaries).length} summaries loaded`);
         } catch (err) {
             console.warn('[DevicesPage] Background summary fetch error:', err);
+            if (this._isUnmounted) return;
             this.setState({
                 summarySignalState: 'stale',
                 summarySignalMessage: 'Using last verified device signals while the live summary refresh is unavailable.'
             });
         } finally {
             this.summaryRefreshInFlight = false;
-            this.setState({ isRefreshingInBackground: false });
+            if (!this._isUnmounted) {
+                this.setState({ isRefreshingInBackground: false });
+            }
         }
     }
 

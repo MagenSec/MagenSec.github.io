@@ -16,6 +16,7 @@ import { rewindContext } from '@rewindContext';
 import { getAlertRemediationTemplate } from '../../data/compliance-remediation-cache.js';
 import { metricPhrase, metricTitle } from '../../utils/metricUnits.js';
 import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
+import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
 import { SegmentedControl, CollapsibleSectionCard, resolveDeviceLabel } from '../../components/shared/CommonComponents.js';
 
 const { html, Component } = window;
@@ -217,10 +218,13 @@ export class AlertsPage extends Component {
         }
 
         try {
-            const [alertsResp, summaryResp, devicesResp] = await Promise.all([
+            const [alertsResp, summaryResp, devicesResp, evidenceResp] = await Promise.all([
                 api.getAlerts(orgId, { state: this.state.stateFilter, limit: 500 }),
                 api.getAlertSummary(orgId),
                 api.getDevices(orgId),
+                rewindContext.isActive?.()
+                    ? api.getPageBundle(orgId, 'alerts', { include: 'summary' })
+                    : Promise.resolve(null),
             ]);
 
             if (!alertsResp.success) throw new Error(alertsResp.message || 'Failed to load alerts');
@@ -235,12 +239,14 @@ export class AlertsPage extends Component {
             const data = {
                 alerts: alertsResp.data?.alerts || [],
                 summary: summaryResp.success ? summaryResp.data : null,
+                evidence: evidenceResp?.success ? (evidenceResp.data?.evidence || null) : null,
             };
 
             this.setCache(data);
             this.setState({
                 alerts: data.alerts,
                 summary: data.summary,
+                evidence: data.evidence,
                 deviceMap,
                 loading: false,
                 isRefreshingInBackground: false,
@@ -1250,7 +1256,7 @@ export class AlertsPage extends Component {
     }
 
     render() {
-        const { loading, error, alerts, isRefreshingInBackground } = this.state;
+        const { loading, error, alerts, isRefreshingInBackground, evidence } = this.state;
         const filtered = this.getFiltered();
 
         if (loading && !alerts.length) {
@@ -1292,6 +1298,7 @@ export class AlertsPage extends Component {
 
             <div class="page-body">
                 <div class="container-xl">
+                    <${EvidenceBanner} evidence=${evidence} pageName="alerts" />
                     ${this.renderSummaryBar()}
                     ${this.renderMagiGuide(filtered)}
                     ${this.renderFilters()}

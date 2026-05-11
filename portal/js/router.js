@@ -233,12 +233,15 @@ export function initRouter(renderApp) {
         renderApp({ page: 'analyst', ctx });
     });
 
-    // AI Reports (protected, add-on gated)
+    // Retired legacy AI Reports surface. Typed report flows live under Mission Briefing.
     page('/ai-reports', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
-        if (guardAddOnRoute(page, 'MAGI')) return;
-        renderApp({ page: 'ai-reports', ctx });
+        page.redirect('/mission-brief');
+    });
+
+    page('/ai-reports/:id', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        page.redirect('/mission-brief');
     });
 
     // Security Posture - New PostureEngine Snapshot (protected)

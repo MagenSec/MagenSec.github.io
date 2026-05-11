@@ -206,16 +206,6 @@ const NARRATIVES = {
         focus: ['security', 'compliance', 'audit', 'hygiene', 'insurance'],
         tone: 'magi'
     },
-    'ai-reports': {
-        kicker: 'MAGI / Report intelligence',
-        title: 'AI reports',
-        question: 'Which generated narratives need review or delivery?',
-        answer: 'AI report surfaces help operators inspect narrative quality while keeping generated proof traceable.',
-        source: 'AI report jobs and generated artifacts',
-        actionLabel: 'Open reports',
-        actionHref: '#!/reports',
-        focus: ['audit', 'insurance']
-    },
     'add-on/hygiene-coach': {
         kicker: 'Hygiene / Coaching',
         title: 'Hygiene coach',
@@ -344,8 +334,7 @@ export function PageNarrative({ page }) {
                 <div class="portal-narrative-copy">
                     <div class="portal-narrative-kicker">${meta.kicker}</div>
                     <div class="portal-narrative-title">${meta.title}</div>
-                    <div class="portal-narrative-question">${meta.question}</div>
-                    <div class="portal-narrative-answer">${meta.answer}</div>
+                    <div class="portal-narrative-question" title=${meta.answer}>${meta.question}</div>
                 </div>
                 <div class="portal-narrative-side">
                     <div class="portal-narrative-source" title="Evidence source for this page">
@@ -365,17 +354,20 @@ export function PageNarrative({ page }) {
                     ` : null}
                 </div>
             </div>
-            <div class="portal-story-chain" aria-label="MagenSec story chain">
-                ${STORY_STEPS.map((step, index) => {
-                    const isActive = focus.has(step.id);
-                    return html`
-                        <span class=${`portal-story-step ${isActive ? 'is-active' : ''}`} title=${step.title}>
-                            <span class="portal-story-index">${index + 1}</span>
-                            ${step.label}
-                        </span>
-                    `;
-                })}
-            </div>
+            <details class="portal-story-details">
+                <summary>Evidence flow</summary>
+                <div class="portal-story-chain" aria-label="MagenSec story chain">
+                    ${STORY_STEPS.map((step, index) => {
+                        const isActive = focus.has(step.id);
+                        return html`
+                            <span class=${`portal-story-step ${isActive ? 'is-active' : ''}`} title=${step.title}>
+                                <span class="portal-story-index">${index + 1}</span>
+                                ${step.label}
+                            </span>
+                        `;
+                    })}
+                </div>
+            </details>
         </section>
     `;
 }

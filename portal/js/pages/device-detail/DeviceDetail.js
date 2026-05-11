@@ -7,6 +7,7 @@
 import { auth } from '@auth';
 import { api } from '@api';
 import { orgContext } from '@orgContext';
+import { rewindContext } from '@rewindContext';
 import { config } from '@config';
 import { PiiDecryption } from '@utils/piiDecryption.js';
 import { getKevSet } from '@utils/kevCache.js';
@@ -682,9 +683,14 @@ export class DeviceDetailPage extends window.Component {
     }
 
     
+    getDetailCacheKey(orgId, deviceId) {
+        const effectiveDate = api.getEffectiveDate?.() || 'live';
+        return `ms-device-detail-${orgId}-${deviceId}-${effectiveDate}`;
+    }
+
     tryGetCachedDetail(orgId, deviceId) {
         try {
-            const cached = localStorage.getItem(`ms-device-detail-${orgId}-${deviceId}`);
+            const cached = localStorage.getItem(this.getDetailCacheKey(orgId, deviceId));
             if (cached) {
                 const parsed = JSON.parse(cached);
                 const age = Date.now() - parsed.timestamp;
@@ -700,7 +706,7 @@ export class DeviceDetailPage extends window.Component {
 
     setCachedDetail(orgId, deviceId, data) {
         try {
-            localStorage.setItem(`ms-device-detail-${orgId}-${deviceId}`, JSON.stringify({
+            localStorage.setItem(this.getDetailCacheKey(orgId, deviceId), JSON.stringify({
                 timestamp: Date.now(),
                 data: data
             }));
@@ -751,7 +757,7 @@ export class DeviceDetailPage extends window.Component {
             }
 
             const payload = detailResp.data || {};
-            const {
+            let {
                 device: deviceData,
                 summary: payloadSummary,
                 summaryMeta,
@@ -760,6 +766,75 @@ export class DeviceDetailPage extends window.Component {
                 cves: cvesData,
                 telemetryStatus
             } = payload;
+
+            const historicalSnapshot = !deviceData && payload?.isHistorical ? payload : null;
+            if (historicalSnapshot) {
+                const snapshotCveTotal = Number(historicalSnapshot.criticalCount || 0)
+                    + Number(historicalSnapshot.highCount || 0)
+                    + Number(historicalSnapshot.mediumCount || 0)
+                    + Number(historicalSnapshot.lowCount || 0);
+                const snapshotTime = historicalSnapshot.lastSeen || historicalSnapshot.snapshotDate || null;
+
+                deviceData = {
+                    DeviceId: historicalSnapshot.deviceId || this.state.deviceId,
+                    deviceId: historicalSnapshot.deviceId || this.state.deviceId,
+                    DeviceName: historicalSnapshot.deviceName || historicalSnapshot.deviceId || this.state.deviceId,
+                    deviceName: historicalSnapshot.deviceName || historicalSnapshot.deviceId || this.state.deviceId,
+                    State: historicalSnapshot.state || historicalSnapshot.connectivity || 'Historical',
+                    state: historicalSnapshot.state || historicalSnapshot.connectivity || 'Historical',
+                    LastHeartbeat: snapshotTime,
+                    lastHeartbeat: snapshotTime,
+                    LastSeen: snapshotTime,
+                    lastSeen: snapshotTime,
+                    OperatingSystem: historicalSnapshot.os || 'OS unknown',
+                    operatingSystem: historicalSnapshot.os || 'OS unknown',
+                    ClientVersion: historicalSnapshot.clientVersion || null,
+                    clientVersion: historicalSnapshot.clientVersion || null,
+                    Telemetry: {
+                        osEdition: historicalSnapshot.os || 'OS unknown',
+                        timestamp: snapshotTime
+                    },
+                    telemetry: {
+                        osEdition: historicalSnapshot.os || 'OS unknown',
+                        timestamp: snapshotTime
+                    }
+                };
+
+                telemetryData = telemetryData || {
+                    latest: {
+                        timestamp: snapshotTime,
+                        fields: {
+                            Hostname: historicalSnapshot.deviceName || historicalSnapshot.deviceId || this.state.deviceId,
+                            OSEdition: historicalSnapshot.os || 'OS unknown'
+                        }
+                    },
+                    history: [],
+                    changes: []
+                };
+
+                payloadSummary = payloadSummary || {
+                    score: historicalSnapshot.riskScore || 0,
+                    criticalCveCount: historicalSnapshot.criticalCount || 0,
+                    highCveCount: historicalSnapshot.highCount || 0,
+                    mediumCveCount: historicalSnapshot.mediumCount || 0,
+                    lowCveCount: historicalSnapshot.lowCount || 0,
+                    totalCveCount: snapshotCveTotal,
+                    appCount: historicalSnapshot.installedAppCount || 0,
+                    lastScanTime: historicalSnapshot.snapshotDate || snapshotTime,
+                    highestRiskBucket: historicalSnapshot.criticalCount > 0 ? 'CRITICAL'
+                        : historicalSnapshot.highCount > 0 ? 'HIGH'
+                        : historicalSnapshot.mediumCount > 0 ? 'MEDIUM'
+                        : historicalSnapshot.lowCount > 0 ? 'LOW'
+                        : 'CLEAN'
+                };
+
+                summaryMeta = summaryMeta || {
+                    source: 'historical',
+                    generatedAt: historicalSnapshot.snapshotDate || snapshotTime,
+                    cachedAt: historicalSnapshot.snapshotDate || snapshotTime
+                };
+            }
+
             if (!deviceData) {
                 throw new Error('Device detail payload is incomplete');
             }
@@ -1106,6 +1181,23 @@ export class DeviceDetailPage extends window.Component {
             const dt = d ? new Date(d) : null;
             return dt && !Number.isNaN(dt.getTime()) ? dt.getTime() : 0;
         };
+        const statusMeta = (rawStatus) => {
+            const normalized = String(rawStatus || '').trim().toLowerCase();
+            switch (normalized) {
+                case 'updated':
+                    return { status: 'updated', label: 'Updated', className: 'bg-warning-lt text-warning' };
+                case 'uninstalled':
+                    return { status: 'uninstalled', label: 'Uninstalled', className: 'bg-success-lt text-success' };
+                case 'cloud-reconciled-uninstall':
+                    return { status: 'uninstalled', label: 'Reconciled uninstall', className: 'bg-success-lt text-success' };
+                case 'hardresync-pending':
+                    return { status: 'uninstalled', label: 'Resync pending', className: 'bg-secondary-lt text-secondary' };
+                case 'hardresync-uninstalled':
+                    return { status: 'uninstalled', label: 'Hard-resync uninstall', className: 'bg-success-lt text-success' };
+                default:
+                    return { status: 'installed', label: 'Installed', className: 'bg-primary-lt text-primary' };
+            }
+        };
 
         for (const app of apps) {
             const key = this.getAppIdentityKey(app);
@@ -1128,7 +1220,7 @@ export class DeviceDetailPage extends window.Component {
 
             sorted.forEach((app, idx) => {
                 // Prefer backend-provided status, fall back to local heuristics
-                let status = (app.status || app.Status || '').toString().toLowerCase();
+                let status = (app.appStatus || app.AppStatus || app.status || app.Status || '').toString().toLowerCase();
 
                 if (!status) {
                     status = 'installed';
@@ -1145,17 +1237,14 @@ export class DeviceDetailPage extends window.Component {
                     }
                 }
 
-                // Normalize to expected values
-                if (status !== 'updated' && status !== 'uninstalled') {
-                    status = 'installed';
-                }
+                let meta = statusMeta(status);
 
                 // Any non-latest version in the group should be marked uninstalled/updated
-                if (idx > 0) {
-                    status = 'uninstalled';
+                if (idx > 0 && meta.status === 'installed') {
+                    meta = statusMeta('uninstalled');
                 }
 
-                result.push({ ...app, status });
+                result.push({ ...app, status: meta.status, statusRaw: status, statusLabel: meta.label, statusClassName: meta.className });
             });
         });
 
@@ -1196,7 +1285,7 @@ export class DeviceDetailPage extends window.Component {
             return { label: app.installKindLabel || 'Store Apps', className: 'bg-info-lt text-info', bucket: 'store' };
         }
         if (installKind === 'portable' || source === 'process' || source === 'portable' || source === 'folder') {
-            return { label: app.installKindLabel || 'Portable Apps', className: 'bg-warning-lt text-warning', bucket: 'portable' };
+            return { label: app.installKindLabel || 'Portable Observations', className: 'bg-warning-lt text-warning', bucket: 'portable' };
         }
         if (installKind === 'system' || source === 'system') {
             return { label: app.installKindLabel || 'System Apps', className: 'bg-secondary-lt text-secondary', bucket: 'system' };
@@ -2610,15 +2699,18 @@ export class DeviceDetailPage extends window.Component {
                                 <div class="col-auto ms-auto d-print-none">
                                     ${(() => {
                                         const s = String(device.State || device.state || '').toLowerCase();
-                                        const agentBlock =
+                                        const isObserverMode = rewindContext.isActive?.() || false;
+                                        const observerBlock = isObserverMode ? 'Time Warp is read-only. Return to present day to send agent commands or change lifecycle state.' : null;
+                                        const stateBlock =
                                             s === 'disabled' ? 'Device is disabled — agent is muted and will not run remote commands. Enable the device first.' :
                                             s === 'blocked'  ? 'Device is blocked — agent has removed itself. Enable the device to allow remote commands.' :
                                             s === 'deleted'  ? 'Device has been deleted — no agent is available to receive commands.' :
                                             null;
+                                        const agentBlock = observerBlock || stateBlock;
                                         const agentDisabled = !!agentBlock;
-                                        const isReadOnly = orgContext.isReadOnly();
-                                        const canEnable = s === 'blocked' || s === 'disabled' || s === 'deleted';
-                                        const canBlock  = s === 'active' || s === 'enabled' || s === 'inactive' || s === 'disabled' || s === '';
+                                        const isReadOnly = orgContext.isReadOnly() || isObserverMode;
+                                        const canEnable = !isObserverMode && (s === 'blocked' || s === 'disabled' || s === 'deleted');
+                                        const canBlock  = !isObserverMode && (s === 'active' || s === 'enabled' || s === 'inactive' || s === 'disabled' || s === '');
                                         const isDeleted = s === 'deleted';
 
                                         // Tooltip + disabled flag for agent commands
@@ -2631,6 +2723,7 @@ export class DeviceDetailPage extends window.Component {
                                             Save as PDF
                                         </button>
                                         <button class=${`btn ${updateAvailable && !agentDisabled ? 'btn-warning' : ''}`}
+                                            data-mutates-state="true"
                                                 title=${agentBtnTitle}
                                                 disabled=${agentDisabled || undefined}
                                                 aria-disabled=${agentDisabled ? 'true' : undefined}
@@ -2663,12 +2756,13 @@ export class DeviceDetailPage extends window.Component {
                                                 <div class="dropdown-divider"></div>
                                                 <div class="dropdown-header">Operate ${agentDisabled ? html`<span class="text-muted small">(unavailable)</span>` : ''}</div>
                                                 ${isReadOnly ? html`
-                                                    <span class="dropdown-item text-muted disabled" style="cursor:default;" title="Auditor role cannot send remote commands">
+                                                    <span class="dropdown-item text-muted disabled" style="cursor:default;" title=${isObserverMode ? 'Time Warp is read-only' : 'Auditor role cannot send remote commands'}>
                                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M12 3a4 4 0 0 1 4 4v4h-8v-4a4 4 0 0 1 4 -4z"/></svg>
-                                                        Auditor — no actions
+                                                        ${isObserverMode ? 'Time Warp — no actions' : 'Auditor — no actions'}
                                                     </span>
                                                 ` : html`
                                                 <a class="dropdown-item${agentDisabled ? ' disabled' : ''}"
+                                                   data-mutates-state="true"
                                                    href="#"
                                                    title=${agentBlock || 'Run an on-demand security scan on this device'}
                                                    aria-disabled=${agentDisabled ? 'true' : undefined}
@@ -2677,6 +2771,7 @@ export class DeviceDetailPage extends window.Component {
                                                     Trigger Scan
                                                 </a>
                                                 <a class="dropdown-item${agentDisabled ? ' disabled' : ''}"
+                                                                    data-mutates-state="true"
                                                    href="#"
                                                    title=${agentBlock || 'Pull diagnostic logs from this device'}
                                                    aria-disabled=${agentDisabled ? 'true' : undefined}
@@ -2687,6 +2782,7 @@ export class DeviceDetailPage extends window.Component {
                                                 <div class="dropdown-divider"></div>
                                                 <div class="dropdown-header">Lifecycle</div>
                                                 <a class="dropdown-item${canEnable ? ' text-success' : ' disabled'}"
+                                                                    data-mutates-state="true"
                                                    href="#"
                                                    title=${canEnable ? 'Re-enable this device so the agent resumes telemetry' : 'Device is already active'}
                                                    aria-disabled=${canEnable ? undefined : 'true'}
@@ -2695,6 +2791,7 @@ export class DeviceDetailPage extends window.Component {
                                                     Enable Device
                                                 </a>
                                                 <a class="dropdown-item${canBlock ? ' text-danger' : ' disabled'}"
+                                                                    data-mutates-state="true"
                                                    href="#"
                                                    title=${canBlock ? 'Block device, keep telemetry data for analysis' : (s === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state')}
                                                    aria-disabled=${canBlock ? undefined : 'true'}
@@ -2703,6 +2800,7 @@ export class DeviceDetailPage extends window.Component {
                                                     Block Device
                                                 </a>
                                                 <a class="dropdown-item${canBlock ? ' text-danger' : ' disabled'}"
+                                                                    data-mutates-state="true"
                                                    href="#"
                                                    title=${canBlock ? 'Block device and permanently delete all telemetry data' : (s === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state')}
                                                    aria-disabled=${canBlock ? undefined : 'true'}
@@ -2718,6 +2816,13 @@ export class DeviceDetailPage extends window.Component {
                                 </div>
                             </div>
                         </div>
+
+                        ${this.state.summaryMeta?.source === 'historical' ? html`
+                            <div class="alert alert-warning py-2 mb-3 d-flex align-items-center gap-2">
+                                <i class="ti ti-history"></i>
+                                <span>Historical snapshot. Showing the Dossier facts available for the selected Time Warp date.</span>
+                            </div>
+                        ` : null}
 
                         ${html`
 <!-- Metrics Row -->

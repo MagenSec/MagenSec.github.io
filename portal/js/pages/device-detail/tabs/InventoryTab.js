@@ -85,7 +85,7 @@ export function renderInventoryTab(component) {
             <div class="col-md-3">
                 <div class="card">
                     <div class="card-body text-center">
-                        <div class="text-muted small">Portable Apps</div>
+                        <div class="text-muted small">Portable Observations</div>
                         <div class="h3"><span class="badge bg-warning-lt text-warning">${appSummary.portable ?? 0}</span></div>
                     </div>
                 </div>

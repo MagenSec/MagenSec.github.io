@@ -592,12 +592,24 @@ export class ApiClient {
 
     // === PATCH POSTURE ===
     async getPatchPosture(orgId, options = {}) {
-        return this.get(`/api/v1/orgs/${orgId}/patch-posture`, null, options);
+        const effectiveDate = options?.date || this.getEffectiveDate();
+        return this.get(
+            `/api/v1/orgs/${orgId}/patch-posture`,
+            effectiveDate ? { date: effectiveDate } : null,
+            options
+        );
     }
 
     async getDevicePatchPosture(orgId, deviceId, options = {}) {
-        const qs = `?deviceId=${encodeURIComponent(deviceId)}`;
-        return this.get(`/api/v1/orgs/${orgId}/patch-posture${qs}`, null, options);
+        const effectiveDate = options?.date || this.getEffectiveDate();
+        return this.get(
+            `/api/v1/orgs/${orgId}/patch-posture`,
+            {
+                deviceId,
+                date: effectiveDate || undefined
+            },
+            options
+        );
     }
 
     async getPatchPostureIntel(orgId, options = {}) {
@@ -795,8 +807,10 @@ export class ApiClient {
             cveLimit = 500,
             telemetryHistoryLimit = 50,
             includeSummary = false,
-            includeCachedSummary = false
+            includeCachedSummary = false,
+            date = null
         } = options;
+        const effectiveDate = date || this.getEffectiveDate();
 
         const includeParts = String(include || '')
             .split(',')
@@ -818,7 +832,8 @@ export class ApiClient {
             telemetryHistoryDays,
             appLimit,
             cveLimit,
-            telemetryHistoryLimit
+            telemetryHistoryLimit,
+            date: effectiveDate || undefined
         });
     }
 
@@ -1187,10 +1202,10 @@ export class ApiClient {
 
     // === AI ANALYST (ORG-SCOPED) ===
     // Note: All AI endpoints are org-scoped. Use these methods from pages:
-    // - POST /api/v1/orgs/{orgId}/ai-analyst/run - Generate report
     // - POST /api/v1/orgs/{orgId}/ai-analyst/ask - Ask question
-    // - GET /api/v1/orgs/{orgId}/ai-analyst/reports - List reports
-    // - GET /api/v1/orgs/{orgId}/ai-analyst/reports/{reportId} - Get report detail
+    // - POST /api/v1/orgs/{orgId}/ai/reports/generate - Generate typed report
+    // - GET /api/v1/orgs/{orgId}/ai/reports/latest - Latest typed report
+    // - GET /api/v1/orgs/{orgId}/ai/reports/{date} - Date-scoped typed report
     
     async generateAIReport(orgId, data = {}) {
         // Use unified AI report generation endpoint
@@ -1199,14 +1214,6 @@ export class ApiClient {
 
     async askAIAnalyst(orgId, data) {
         return this.post(`/api/v1/orgs/${orgId}/ai-analyst/ask`, data);
-    }
-
-    async getAIReports(orgId, params = {}) {
-        // Listing endpoint is not currently mapped server-side; placeholder
-        // Prefer fetching by specific date via getAIReportByDate
-        const today = new Date();
-        const yyyymmdd = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
-        return this.getAIReportByDate(orgId, yyyymmdd);
     }
 
     async getAIReportByDate(orgId, date, params = {}) {

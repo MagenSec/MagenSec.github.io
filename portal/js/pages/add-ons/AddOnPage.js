@@ -88,11 +88,13 @@ export function AddOnPage({
     const [error, setError]     = useState(null);
 
     const orgId = window.orgContext?.getCurrentOrg?.()?.orgId;
+    const effectiveDate = api.getEffectiveDate?.() || '';
+    const isHistorical = !!effectiveDate;
 
     useEffect(() => {
         if (!isEnabled || !orgId) { setLoading(false); return; }
         load();
-    }, [isEnabled, isLicensedForOrg, orgId]);
+    }, [isEnabled, isLicensedForOrg, orgId, effectiveDate]);
 
     const load = async () => {
         setLoading(true);
@@ -156,7 +158,7 @@ export function AddOnPage({
                             </span>
                         ` : null}
                         <button class="btn btn-sm btn-outline-secondary ms-2" onClick=${load} disabled=${loading}>
-                            <i class="ti ti-refresh me-1"></i> Get Intel Update
+                            <i class="ti ti-refresh me-1"></i> ${isHistorical ? 'Reload snapshot' : 'Refresh evidence'}
                         </button>
                     </div>
                 </div>
@@ -173,11 +175,16 @@ export function AddOnPage({
                 </div>
             ` : data ? renderContent(data) : html`
                 <div class="empty mt-4">
-                    <p class="empty-title">No data yet</p>
-                    <p class="empty-subtitle text-muted">Evidence will appear after the next Dossier is prepared.</p>
+                    <div class="empty-icon text-muted"><i class="ti ti-clipboard-data" style="font-size:2rem"></i></div>
+                    <p class="empty-title">${isHistorical ? 'No plan for this date' : 'No weekly plan yet'}</p>
+                    <p class="empty-subtitle text-muted">
+                        ${isHistorical
+                            ? 'Try a newer Time Warp date or return to present day to see the latest coaching plan.'
+                            : 'The next Dossier will turn recurring gaps into a short coaching plan.'}
+                    </p>
                     <div class="empty-action">
                         <button class="btn btn-primary" onClick=${load}>
-                            <i class="ti ti-refresh me-1"></i> Try again
+                            <i class="ti ti-refresh me-1"></i> Reload evidence
                         </button>
                     </div>
                 </div>
