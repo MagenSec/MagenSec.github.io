@@ -65,6 +65,17 @@ export function bundleToUnifiedPayload(bundle) {
             return [];
         }
     };
+    const parseJsonObject = (value) => {
+        if (!value) return {};
+        if (typeof value === 'object') return value;
+        if (typeof value !== 'string') return {};
+        try {
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    };
     const parseDateMs = (value) => {
         if (!value) return null;
         const ms = new Date(value).getTime();
@@ -121,6 +132,8 @@ export function bundleToUnifiedPayload(bundle) {
             businessImpact: normalizeImpact(readField(row, 'businessImpact', 'BusinessImpact')),
             assignedLabels: parseLabels(readField(row, 'assignedLabelsJson', 'AssignedLabelsJson', 'assignedLabels')),
             notes: readField(row, 'notes', 'Notes') || '',
+            observedContext: parseJsonObject(readField(row, 'observedContextJson', 'ObservedContextJson')),
+            derivedRisk: parseJsonObject(readField(row, 'derivedRiskJson', 'DerivedRiskJson')),
             source: readField(row, 'source', 'Source') || readField(row, 'blobPath', 'BlobPath') || 'atom'
         };
         contextByDeviceId.set(context.deviceId, context);
@@ -220,7 +233,14 @@ export function bundleToUnifiedPayload(bundle) {
             mbiDeviceCount: Number(a.mbiDeviceCount ?? contextCounts.mbiDeviceCount ?? 0),
             lbiDeviceCount: Number(a.lbiDeviceCount ?? contextCounts.lbiDeviceCount ?? 0),
             unclassifiedDeviceCount: Number(a.unclassifiedDeviceCount ?? contextCounts.unclassifiedDeviceCount ?? 0),
-            contextCaveat: a.contextCaveat || (contextCounts.unclassifiedDeviceCount > 0 ? `${contextCounts.unclassifiedDeviceCount} affected device${contextCounts.unclassifiedDeviceCount === 1 ? '' : 's'} still need a business-impact label.` : '')
+            contextCaveat: a.contextCaveat || (contextCounts.unclassifiedDeviceCount > 0 ? `${contextCounts.unclassifiedDeviceCount} affected device${contextCounts.unclassifiedDeviceCount === 1 ? '' : 's'} still need a business-impact label.` : ''),
+            pathDerivedImpact: a.pathDerivedImpact || '',
+            pathRiskReason: a.pathRiskReason || '',
+            derivedRiskReason: a.derivedRiskReason || '',
+            observedContextCaveat: a.observedContextCaveat || '',
+            insuranceCaveat: a.insuranceCaveat || '',
+            fixQueueReason: a.fixQueueReason || '',
+            reportContextSummary: a.reportContextSummary || ''
         };
     });
 

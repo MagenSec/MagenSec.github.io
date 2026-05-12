@@ -720,7 +720,10 @@ export default class UnifiedDashboard extends Component {
 
     return items.map((item) => {
       const deviceNames = item.deviceNames.length > 0 ? item.deviceNames.join(', ') : 'not identified in current data';
-      const support = item.supportText ? `; detail=${item.supportText}` : '';
+      const details = [item.supportText, item.pathRiskReason, item.insuranceCaveat]
+        .filter(Boolean)
+        .join('; ');
+      const support = details ? `; detail=${details}` : '';
       return `${item.index}. ${item.title}; urgency=${item.badge}; devices=${deviceNames}; ${item.deviceText}${support}`;
     }).join('\n');
   }
@@ -1021,7 +1024,13 @@ export default class UnifiedDashboard extends Component {
           title: this.cleanActionTitle(action.title || action.name || `Action ${index + 1}`),
           deviceText: this.formatActionDeviceText(action),
           deviceNames,
-          supportText: action.deadlineText || action.description || action.reason || '',
+          supportText: action.fixQueueReason || action.pathRiskReason || action.businessImpactReason || action.contextCaveat || action.deadlineText || action.description || action.reason || '',
+          pathRiskReason: action.pathRiskReason || '',
+          derivedRiskReason: action.derivedRiskReason || '',
+          observedContextCaveat: action.observedContextCaveat || '',
+          insuranceCaveat: action.insuranceCaveat || '',
+          reportContextSummary: action.reportContextSummary || '',
+          pathDerivedImpact: action.pathDerivedImpact || '',
           icon: 'ti-bolt'
         };
       });
@@ -1927,12 +1936,31 @@ export default class UnifiedDashboard extends Component {
       return ['HBI', 'MBI', 'LBI'].includes(impactValue) ? impactValue : 'UNCLASSIFIED';
     };
     const topImpact = normalizeImpact(topAction?.businessImpact || impact.topActionImpact);
+    const topPathImpact = normalizeImpact(topAction?.pathDerivedImpact);
     const toneMap = {
       HBI: { tone: '#dc2626', soft: 'rgba(220,38,38,0.10)', label: 'HBI' },
       MBI: { tone: '#f59f00', soft: 'rgba(245,159,0,0.13)', label: 'MBI' },
       LBI: { tone: '#2fb344', soft: 'rgba(47,179,68,0.12)', label: 'LBI' },
       UNCLASSIFIED: { tone: '#64748b', soft: 'rgba(100,116,139,0.12)', label: 'Unclassified' }
     };
+    const topToneKey = topPathImpact === 'HBI' && topImpact !== 'HBI' ? 'HBI' : topImpact;
+    const topTone = { ...(toneMap[topToneKey] || toneMap.UNCLASSIFIED) };
+    if (topPathImpact === 'HBI' && topImpact !== 'HBI') topTone.label = 'HBI path';
+    const fixQueue = actions.slice(0, 3).map((action, index) => {
+      const actionImpact = normalizeImpact(action?.businessImpact);
+      const pathImpact = normalizeImpact(action?.pathDerivedImpact);
+      const toneKey = pathImpact === 'HBI' && actionImpact !== 'HBI' ? 'HBI' : actionImpact;
+      const tone = { ...(toneMap[toneKey] || toneMap.UNCLASSIFIED) };
+      if (pathImpact === 'HBI' && actionImpact !== 'HBI') tone.label = 'HBI path';
+      return {
+        key: action?.actionId || `fix-${index}`,
+        index: index + 1,
+        title: this.cleanActionTitle(action?.title || `Fix ${index + 1}`),
+        href: action?.actionUrl || action?.href || '#!/posture',
+        tone,
+        reason: action?.fixQueueReason || action?.pathRiskReason || action?.businessImpactReason || action?.contextCaveat || 'Ranked by current risk and proof readiness.'
+      };
+    });
 
     return {
       hbi: Number(impact.hbiDeviceCount || 0),
@@ -1944,9 +1972,10 @@ export default class UnifiedDashboard extends Component {
       labelled: Number(impact.labelledDeviceCount || 0),
       topAction,
       topImpact,
-      topTone: toneMap[topImpact] || toneMap.UNCLASSIFIED,
+      topTone,
+      fixQueue,
       isLiveContext: !!impact.isLiveContext,
-      reason: topAction?.businessImpactReason || impact.topActionReason || 'Business impact labels sharpen the Fix First order.'
+      reason: topAction?.pathRiskReason || topAction?.businessImpactReason || impact.topActionReason || 'Business impact labels sharpen the Fix First order.'
     };
   }
 
@@ -1959,6 +1988,7 @@ export default class UnifiedDashboard extends Component {
     const coverageText = impact.total > 0
       ? `${Math.max(0, impact.total - impact.missing)}/${impact.total} classified`
       : 'No managed devices';
+    const queue = impact.fixQueue || [];
 
     const tileStyle = `min-width:0;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid rgba(148,163,184,0.20);border-radius:14px;padding:13px 14px;box-shadow:0 4px 16px rgba(15,23,42,0.04);`;
     const metric = (label, value, color, title) => html`
@@ -1981,6 +2011,9 @@ export default class UnifiedDashboard extends Component {
             ${metric('LBI', impact.lbi, '#2fb344', 'Low-business-impact devices')}
             ${impact.unclassified ? metric('Unclassified', impact.unclassified, '#64748b', 'Devices without a business-impact label') : null}
           </div>
+          <div style="margin-top:8px;font-size:0.76rem;color:${impact.missing ? 'var(--db-tone-warning,#b45309)' : 'var(--db-faint-text,#6b7280)'};line-height:1.35;">
+            ${coverageText} · ${impact.missing ? `${impact.missing} still need labels for sharper proof.` : 'ready for fix ordering and proof grouping.'}
+          </div>
         </div>
 
         <a href=${topHref} title=${impact.reason} style=${`${tileStyle}text-decoration:none;color:var(--db-answer-text,#111827);display:flex;gap:12px;align-items:flex-start;`}>
@@ -1999,13 +2032,24 @@ export default class UnifiedDashboard extends Component {
         <div style=${tileStyle}>
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
             <div>
-              <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Context Coverage</div>
-              <div style="margin-top:5px;font-size:1.15rem;font-weight:850;color:var(--db-answer-text,#111827);line-height:1;">${coverageText}</div>
+              <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Fix Queue</div>
+              <div style="margin-top:5px;font-size:1.02rem;font-weight:850;color:var(--db-answer-text,#111827);line-height:1;">${queue.length ? `${queue.length} prioritized` : 'No blockers'}</div>
             </div>
-            <span style="width:34px;height:34px;border-radius:11px;background:rgba(0,84,166,0.10);color:var(--tblr-blue,#0054a6);display:inline-flex;align-items:center;justify-content:center;"><i class="ti ti-tags"></i></span>
+            <span style="width:34px;height:34px;border-radius:11px;background:rgba(0,84,166,0.10);color:var(--tblr-blue,#0054a6);display:inline-flex;align-items:center;justify-content:center;"><i class="ti ti-list-check"></i></span>
           </div>
-          <div style="margin-top:7px;font-size:0.76rem;color:${impact.missing ? 'var(--db-tone-warning,#b45309)' : 'var(--db-faint-text,#6b7280)'};line-height:1.35;">
-            ${impact.missing ? `${impact.missing} device${impact.missing === 1 ? '' : 's'} still need impact labels for sharper proof.` : 'Impact labels are ready for fix ordering and proof grouping.'}
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            ${queue.length ? queue.map(item => html`
+              <a href=${item.href} title=${item.reason} style="display:grid;grid-template-columns:22px minmax(0,1fr);gap:7px;align-items:start;text-decoration:none;color:var(--db-answer-text,#111827);">
+                <span style="width:22px;height:22px;border-radius:8px;background:${item.tone.soft};color:${item.tone.tone};font-size:0.72rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">${item.index}</span>
+                <span style="min-width:0;display:block;">
+                  <span style="display:flex;gap:6px;align-items:center;min-width:0;">
+                    <span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.78rem;font-weight:820;">${item.title}</span>
+                    <span class="badge badge-pill" style="background:${item.tone.tone};color:#fff;border:1px solid ${item.tone.tone};font-size:0.62rem;font-weight:850;">${item.tone.label}</span>
+                  </span>
+                  <span style="display:block;margin-top:2px;font-size:0.7rem;color:var(--db-faint-text,#6b7280);line-height:1.28;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${item.reason}</span>
+                </span>
+              </a>
+            `) : html`<div style="font-size:0.76rem;color:var(--db-faint-text,#6b7280);line-height:1.35;">No high-priority fix is queued from the current proof bundle.</div>`}
           </div>
         </div>
       </section>

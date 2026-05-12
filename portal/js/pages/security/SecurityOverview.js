@@ -457,6 +457,7 @@ export class SecurityOverview extends Component {
         const s = this.state;
         const patch = s.patchStatus || buildPatchStatus(null);
         const isPersonal = orgContext.isIndividualUser?.();
+        const isEducation = orgContext.isEducationOrg?.();
         const cards = [
             {
                 label: 'Coverage',
@@ -483,12 +484,12 @@ export class SecurityOverview extends Component {
                 href: '#!/patch-posture'
             },
             {
-                label: isPersonal ? 'Fixes' : 'Actions',
+                label: (isPersonal || isEducation) ? 'Fixes' : 'Actions',
                 value: `${s.topActions.length || s.actionsOpen}`,
-                detail: s.topActions.length ? 'fix-first items ready' : (isPersonal ? 'security checks ready' : `${s.actionsOpen} open alerts`),
+                detail: s.topActions.length ? 'fix-first items ready' : ((isPersonal || isEducation) ? 'security checks ready' : `${s.actionsOpen} open alerts`),
                 icon: 'ti-list-check',
                 tone: (s.topActions.length || s.actionsOpen) > 0 ? 'warning' : 'success',
-                href: isPersonal ? '#!/vulnerabilities' : '#!/alerts'
+                href: (isPersonal || isEducation) ? '#!/vulnerabilities' : '#!/alerts'
             }
         ];
 
@@ -575,6 +576,8 @@ export class SecurityOverview extends Component {
     renderDeepDive() {
         const s = this.state;
         const isPersonal = orgContext.isIndividualUser?.();
+        const isEducation = orgContext.isEducationOrg?.();
+        const protectionFirst = isPersonal || isEducation;
         return html`
             <div class="card-body">
                 <div class="row g-3 mb-3">
@@ -625,8 +628,8 @@ export class SecurityOverview extends Component {
                 ` : ''}
 
                 <div class="d-flex gap-2 flex-wrap">
-                    <a href=${isPersonal ? '#!/devices' : '#!/dashboard'} class="btn btn-primary btn-sm">
-                        <i class=${`ti ${isPersonal ? 'ti-devices' : 'ti-layout-dashboard'} me-1`}></i>${isPersonal ? 'Open devices' : 'Open full command center'}
+                    <a href=${protectionFirst ? '#!/devices' : '#!/dashboard'} class="btn btn-primary btn-sm">
+                        <i class=${`ti ${protectionFirst ? 'ti-devices' : 'ti-layout-dashboard'} me-1`}></i>${protectionFirst ? 'Open devices' : 'Open full command center'}
                     </a>
                     <a href=${isPersonal ? '#!/apps' : '#!/posture'} class="btn btn-outline-secondary btn-sm">
                         <i class=${`ti ${isPersonal ? 'ti-apps' : 'ti-shield-check'} me-1`}></i>${isPersonal ? 'Review software' : 'View posture detail'}
@@ -640,6 +643,8 @@ export class SecurityOverview extends Component {
         const s = this.state;
         const org = orgContext.getCurrentOrg();
         const isPersonal = org?.type === 'Personal';
+        const isEducation = org?.type === 'Education';
+        const heroLabel = isPersonal ? 'Personal Protection Dashboard' : isEducation ? 'Education Protection Dashboard' : 'Security Coverage Dashboard';
         const scoreTone = s.score >= 80 ? 'success' : s.score >= 65 ? 'warning' : 'danger';
         const patch = s.patchStatus || buildPatchStatus(null);
         const needsAttention = s.devicesAttention > 0 || s.critical > 0 || patch.openAlerts > 0;
@@ -684,7 +689,7 @@ export class SecurityOverview extends Component {
                             <div class="row align-items-center g-4">
                                 <div class="col-lg-7">
                                     <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                                        <div class="text-uppercase text-white-50 fw-semibold">${isPersonal ? 'Personal Protection Dashboard' : 'Security Coverage Dashboard'}</div>
+                                        <div class="text-uppercase text-white-50 fw-semibold">${heroLabel}</div>
                                         ${s.isRefreshing ? html`<span class="badge bg-white text-primary">Refreshing…</span>` : ''}
                                     </div>
                                     <h2 class="mb-2 text-white">Am I secure today?</h2>
