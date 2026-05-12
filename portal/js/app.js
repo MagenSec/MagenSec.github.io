@@ -165,6 +165,41 @@ function observeRewindGuardTargets() {
     rewindGuardObserver.observe(root, { childList: true, subtree: true });
 }
 
+function applyPersonaNavigationLabels(orgType) {
+    const labelsByOrgType = {
+        Personal: {
+            'nav-home-item': 'Security Home',
+            'nav-protect-item': 'Protect',
+            'nav-prove-item': 'Proof',
+            'nav-audit-item': 'Audit',
+            'nav-insure-item': 'Insurance',
+            'nav-magi-item': 'MAGI',
+        },
+        Education: {
+            'nav-home-item': 'Campus Home',
+            'nav-protect-item': 'Protect',
+            'nav-prove-item': 'Readiness',
+            'nav-audit-item': 'Evidence',
+            'nav-insure-item': 'Coverage',
+            'nav-magi-item': 'MAGI',
+        },
+        Business: {
+            'nav-home-item': 'Command',
+            'nav-protect-item': 'Protect',
+            'nav-prove-item': 'Prove',
+            'nav-audit-item': 'Audit',
+            'nav-insure-item': 'Insure',
+            'nav-magi-item': 'Officer MAGI',
+        },
+    };
+
+    const labels = labelsByOrgType[orgType] || labelsByOrgType.Business;
+    for (const [id, label] of Object.entries(labels)) {
+        const title = document.querySelector(`#${id} > .nav-link .nav-link-title`);
+        if (title) title.textContent = label;
+    }
+}
+
 function applyOrgUiRestrictions() {
     const body = document.body;
     if (!body) return;
@@ -175,6 +210,7 @@ function applyOrgUiRestrictions() {
     body.classList.toggle('org-education', isEducation);
     body.classList.toggle('org-business', !isPersonal && !isEducation);
     body.classList.toggle('readonly-active', orgContext.isReadOnly() && !orgContext.isSiteAdmin());
+    applyPersonaNavigationLabels(orgType);
 
     const businessOnlyItems = document.querySelectorAll('.business-license-only');
     businessOnlyItems.forEach((item) => {
@@ -263,7 +299,9 @@ function applyOrgUiRestrictions() {
         addonGatedItems.forEach(el => {
             const addOnKey = el.getAttribute('data-addon');
             if (!addOnKey) return;
-            const hasIt = isSiteAdminUser || (orgContext.hasAddOn?.(addOnKey) ?? false);
+            const hasIt = isSiteAdminUser || (addOnKey.toLowerCase() === 'magi'
+                ? (orgContext.hasMagi?.() ?? false)
+                : (orgContext.hasAddOn?.(addOnKey) ?? false));
             // The static markup ships with a `ti-lock` glyph on every gated item; toggle its
             // visibility based on entitlement so an Ultimate/Site-Admin user does not see padlocks.
             const lockIcon = el.querySelector('.ti-lock');

@@ -260,6 +260,7 @@ class OrgContext {
      */
     hasRewind() {
         if (this.isSiteAdmin()) return true;
+        if (this.currentOrg?.type !== 'Business') return false;
         const addOns = this.currentOrg?.addOns;
         return Array.isArray(addOns) && addOns.some(a => a.toLowerCase() === 'rewind');
     }
@@ -291,12 +292,12 @@ class OrgContext {
     hasSupplyChainIntel()   { return this.hasAddOn('SupplyChainIntel'); }
 
     /**
-     * Whether this org can access MAGI historical mode (Time Warp + AI analyst combo).
-     * Requires both historical access and a non-ReadOnly role (ReadOnly has minimal AI quota).
+     * Whether this org can access Officer MAGI.
+     * MAGI is Business-only and requires the MAGI entitlement. SiteAdmin may preview it.
      */
     hasMagi() {
-        // All orgs with an active license get basic MAGI; historical MAGI requires Time Warp access.
-        return !!this.currentOrg;
+        if (this.isSiteAdmin()) return true;
+        return this.currentOrg?.type === 'Business' && this.hasAddOn('MAGI');
     }
 
     hasHistoricalMagi() {

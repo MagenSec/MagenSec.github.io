@@ -339,43 +339,50 @@ export function PageNarrative({ page }) {
     const tone = meta.tone || 'default';
 
     return html`
-        <section class=${`portal-narrative portal-narrative-${tone}`} aria-label="Page story and evidence context">
-            <div class="portal-narrative-main">
-                <div class="portal-narrative-copy">
-                    <div class="portal-narrative-kicker">${meta.kicker}</div>
-                    <div class="portal-narrative-title">${meta.title}</div>
-                    <div class="portal-narrative-question">${meta.question}</div>
-                    <div class="portal-narrative-answer">${meta.answer}</div>
+        <section class=${`portal-page-header portal-page-header-${tone}`} aria-label="Page context">
+            <div class="portal-page-header-main">
+                <div class="portal-page-header-copy">
+                    <div class="portal-page-header-kicker">${meta.kicker}</div>
+                    <div class="portal-page-header-title">${meta.title}</div>
+                    <div class="portal-page-header-outcome">${meta.question}</div>
                 </div>
-                <div class="portal-narrative-side">
-                    <div class="portal-narrative-source" title="Evidence source for this page">
-                        <i class="ti ti-database-search"></i>
-                        <span>${meta.source}</span>
-                    </div>
-                    <div class="portal-narrative-badges">
+                <div class="portal-page-header-side">
+                    <div class="portal-page-header-badges">
                         ${modeBadges.map((badge) => html`
                             <span class=${`badge ${badge.className}`} title=${badge.title}>${badge.label}</span>
                         `)}
                     </div>
                     ${meta.actionHref ? html`
-                        <a class="btn btn-sm btn-outline-primary portal-narrative-action" href=${meta.actionHref} title=${`Next action: ${meta.actionLabel}`}>
+                        <a class="btn btn-sm btn-outline-primary portal-page-header-action" href=${meta.actionHref} title=${`Next action: ${meta.actionLabel}`}>
                             <i class="ti ti-arrow-right"></i>
                             ${meta.actionLabel}
                         </a>
                     ` : null}
                 </div>
             </div>
-            <div class="portal-story-chain" aria-label="MagenSec story chain">
-                ${STORY_STEPS.map((step, index) => {
-                    const isActive = focus.has(step.id);
-                    return html`
-                        <span class=${`portal-story-step ${isActive ? 'is-active' : ''}`} title=${step.title}>
-                            <span class="portal-story-index">${index + 1}</span>
-                            ${step.label}
-                        </span>
-                    `;
-                })}
-            </div>
+            <details class="portal-evidence-flow">
+                <summary>
+                    <span>Evidence Flow</span>
+                    <span class="portal-evidence-flow-source" title="Evidence source for this page">
+                        <i class="ti ti-database-search"></i>
+                        ${meta.source}
+                    </span>
+                </summary>
+                <div class="portal-evidence-flow-body">
+                    <div class="portal-page-header-answer">${meta.answer}</div>
+                    <div class="portal-story-chain" aria-label="MagenSec story chain">
+                        ${STORY_STEPS.map((step, index) => {
+                            const isActive = focus.has(step.id);
+                            return html`
+                                <span class=${`portal-story-step ${isActive ? 'is-active' : ''}`} title=${step.title}>
+                                    <span class="portal-story-index">${index + 1}</span>
+                                    ${step.label}
+                                </span>
+                            `;
+                        })}
+                    </div>
+                </div>
+            </details>
         </section>
     `;
 }
