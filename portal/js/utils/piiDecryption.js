@@ -52,7 +52,7 @@ export class PiiDecryption {
             // Step 3: Normalize + validate base64 AFTER unrotation
             const unrotated = this.normalizeBase64(unrotatedRaw);
             if (!unrotated) {
-                return encryptedData;
+                return encryptedData.includes('-') ? encryptedData : this.decodePlainBase64OrOriginal(encryptedData);
             }
 
             // Step 4: Base64 decode
@@ -60,16 +60,45 @@ export class PiiDecryption {
             const decrypted = new TextDecoder().decode(bytes);
             
             // Sanity check: decrypted text should be printable ASCII/UTF-8
-            if (this.isPrintable(decrypted)) {
+            if (this.isPrintable(decrypted) && this.looksLikeHumanAlias(decrypted)) {
                 return decrypted;
             }
             
             // If not printable, return original (wasn't actually encrypted)
-            return encryptedData;
+            return encryptedData.includes('-') ? encryptedData : this.decodePlainBase64OrOriginal(encryptedData);
         } catch (error) {
             console.warn('[PiiDecryption] Decryption failed, returning original:', error);
-            return encryptedData;
+            return encryptedData.includes('-') ? encryptedData : this.decodePlainBase64OrOriginal(encryptedData);
         }
+    }
+
+    static decodePlainBase64OrOriginal(value) {
+        const normalized = this.normalizeBase64(value);
+        if (!normalized) return value;
+
+        try {
+            const bytes = Uint8Array.from(atob(normalized), c => c.charCodeAt(0));
+            const decoded = new TextDecoder().decode(bytes);
+            return this.isPrintable(decoded) && this.looksLikeHumanAlias(decoded) ? decoded : value;
+        } catch {
+            return value;
+        }
+    }
+
+    static looksLikeHumanAlias(value) {
+        const text = String(value || '').trim();
+        if (!text || text.length > 128) return false;
+        return /^[A-Za-z0-9._@\\ -]+$/.test(text);
+    }
+
+    static looksLikeRotatedPii(value) {
+        if (typeof value !== 'string' || !value.includes('-')) return false;
+
+        const dashCount = (value.match(/-/g) || []).length;
+        if (dashCount < 2 && !value.includes('=')) return false;
+
+        const compact = value.replace(/-/g, '');
+        return compact.length >= 12 && /^[A-Za-z0-9+/=]+$/.test(compact);
     }
 
     /**
@@ -171,9 +200,12 @@ export class PiiDecryption {
      */
     static decryptIfEncrypted(value) {
         if (!value) return value;
-        
-        // Check if looks encrypted (has dashes in dash-inserted positions)
-        if (typeof value === 'string' && (value.includes('-') || value.match(/^[A-Za-z0-9+/]+={0,2}$/))) {
+
+        if (typeof value === 'string' && this.looksLikeRotatedPii(value)) {
+            return this.decrypt(value);
+        }
+
+        if (typeof value === 'string' && value.match(/^[A-Za-z0-9+/]+={0,2}$/)) {
             return this.decrypt(value);
         }
         return value;

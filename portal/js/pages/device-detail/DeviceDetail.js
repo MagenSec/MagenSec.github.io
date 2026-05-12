@@ -494,7 +494,8 @@ export class DeviceDetailPage extends window.Component {
 
     getRecommendedNextStep() {
         const { activeCves } = this.getActiveAppsAndCves();
-        const { vulnerableApps } = this.getAppVulnerabilityBreakdown();
+        const appBreakdown = this.getAppVulnerabilityBreakdown();
+        const { vulnerableApps } = appBreakdown;
         const updateState = this.getClientUpdateState();
         const knownExploitCount = this.state.knownExploits
             ? activeCves.filter(c => this.state.knownExploits.has(c.cveId)).length
@@ -521,9 +522,11 @@ export class DeviceDetailPage extends window.Component {
         if (vulnerableApps > 0) {
             return {
                 label: `Patch ${vulnerableApps} vulnerable app${vulnerableApps === 1 ? '' : 's'}`,
-                detail: 'Open the software view and remediate the riskiest apps first.',
+                detail: appBreakdown.projectionPending
+                    ? 'Current CVE evidence is available while the app projection catches up.'
+                    : 'Open the software view and remediate the riskiest apps first.',
                 badgeClass: 'bg-warning-lt text-warning',
-                action: 'inventory'
+                action: appBreakdown.projectionPending ? 'risks' : 'inventory'
             };
         }
 
@@ -692,13 +695,26 @@ export class DeviceDetailPage extends window.Component {
         return `ms-device-detail-${orgId}-${deviceId}-${effectiveDate}`;
     }
 
+    getDetailCacheTtlMs() {
+        const effectiveDate = api.getEffectiveDate?.();
+        return effectiveDate ? 15 * 60 * 1000 : 2 * 60 * 1000;
+    }
+
+    isVolatileLiveDetail(data) {
+        if (api.getEffectiveDate?.()) return false;
+
+        const health = data?.device?.health || data?.device?.Health || null;
+        const status = String(health?.status || health?.Status || '').toLowerCase();
+        return health?.hasSplitBrain === true || health?.HasSplitBrain === true || status === 'error';
+    }
+
     tryGetCachedDetail(orgId, deviceId) {
         try {
             const cached = localStorage.getItem(this.getDetailCacheKey(orgId, deviceId));
             if (cached) {
                 const parsed = JSON.parse(cached);
                 const age = Date.now() - parsed.timestamp;
-                if (age < 15 * 60 * 1000) { // 15 mins cache
+                if (age < this.getDetailCacheTtlMs() && !this.isVolatileLiveDetail(parsed.data)) {
                     return parsed.data;
                 }
             }
@@ -710,6 +726,8 @@ export class DeviceDetailPage extends window.Component {
 
     setCachedDetail(orgId, deviceId, data) {
         try {
+            if (this.isVolatileLiveDetail(data)) return;
+
             localStorage.setItem(this.getDetailCacheKey(orgId, deviceId), JSON.stringify({
                 timestamp: Date.now(),
                 data: data
@@ -904,7 +922,8 @@ export class DeviceDetailPage extends window.Component {
                 telemetryHistoryLimit: 100,
                 appLimit: 1000,
                 cveLimit: 500,
-                includeCachedSummary: true 
+                includeCachedSummary: true,
+                skipCache: true
             });
 
 
@@ -1598,6 +1617,11 @@ export class DeviceDetailPage extends window.Component {
         const activeAppNames = new Set(
             this.getActiveApps().map(app => this.normalizeAppName(app.appName))
         );
+
+        if (activeAppNames.size === 0 && this.state.cveInventory.length > 0) {
+            return this.state.cveInventory.filter(cve => cve.isPatched !== true);
+        }
+
         return this.state.cveInventory.filter(cve => {
             const cveAppName = this.normalizeAppName(cve.appName);
             return activeAppNames.has(cveAppName);
@@ -1617,14 +1641,15 @@ export class DeviceDetailPage extends window.Component {
         const vulnerableAppNames = new Set(
             activeCves
                 .map(cve => this.normalizeAppName(cve.appName))
-                .filter(name => name && activeAppNames.has(name))
+                .filter(name => name && (activeAppNames.size === 0 || activeAppNames.has(name)))
         );
 
-        const totalApps = activeAppNames.size;
+        const projectionPending = activeAppNames.size === 0 && vulnerableAppNames.size > 0;
+        const totalApps = projectionPending ? vulnerableAppNames.size : activeAppNames.size;
         const vulnerableApps = vulnerableAppNames.size;
-        const cleanApps = Math.max(0, totalApps - vulnerableApps);
+        const cleanApps = projectionPending ? 0 : Math.max(0, totalApps - vulnerableApps);
 
-        return { totalApps, vulnerableApps, cleanApps };
+        return { totalApps, vulnerableApps, cleanApps, projectionPending };
     }
 
     getMitigatedCves() {
@@ -1637,6 +1662,11 @@ export class DeviceDetailPage extends window.Component {
         const activeAppNames = new Set(
             this.getActiveApps().map(app => this.normalizeAppName(app.appName))
         );
+
+        if (activeAppNames.size === 0 && this.state.cveInventory.length > 0) {
+            return [];
+        }
+
         return this.state.cveInventory.filter(cve => {
             const cveAppName = this.normalizeAppName(cve.appName);
             return !activeAppNames.has(cveAppName);
@@ -3095,6 +3125,9 @@ export class DeviceDetailPage extends window.Component {
                                                     const totalApps = breakdown.totalApps;
                                                     const vulnerableApps = breakdown.vulnerableApps;
                                                     const cleanApps = breakdown.cleanApps;
+                                                    const appProjectionText = breakdown.projectionPending
+                                                        ? `${vulnerableApps} vulnerable · app projection pending`
+                                                        : `${vulnerableApps} vulnerable · ${cleanApps} clean`;
                                                     const radius = 34;
                                                     const circumference = 2 * Math.PI * radius;
                                                     const vulnPct = totalApps > 0 ? vulnerableApps / totalApps : 0;
@@ -3104,7 +3137,7 @@ export class DeviceDetailPage extends window.Component {
                                                             <div ref=${(el) => { this.detailAppsChartEl = el; }} style="min-height: 120px; width: 120px;"></div>
                                                             <div>
                                                                 <div class="fw-semibold">Apps With CVEs</div>
-                                                                <div class="text-muted small">${vulnerableApps} vulnerable · ${cleanApps} clean</div>
+                                                                <div class="text-muted small">${appProjectionText}</div>
                                                             </div>
                                                         </div>
                                                     `;

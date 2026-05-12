@@ -13,6 +13,7 @@ export function renderHealthStatus(device) {
     const inactiveMinutes = device.inactiveMinutes || 0;
     const lastHeartbeat = device.lastHeartbeat ? new Date(device.lastHeartbeat) : null;
     const lastTelemetry = device.lastTelemetry ? new Date(device.lastTelemetry) : null;
+    const health = device.health || {};
     const state = (device.state || '').toLowerCase();
     
     let status, icon, color, text, animated, reason;
@@ -33,6 +34,13 @@ export function renderHealthStatus(device) {
             reason = 'Blocked by admin. Click Enable to restore.';
         }
         animated = false;
+    } else if (health.hasSplitBrain || (health.status || '').toLowerCase() === 'error') {
+        status = 'error';
+        icon = '!';
+        color = 'danger';
+        text = 'Error';
+        animated = false;
+        reason = health.reason || 'Telemetry is flowing but heartbeat is failing; management commands may not reach this device';
     } else if (!lastHeartbeat) {
         status = 'ghosted';
         icon = '●';

@@ -834,7 +834,8 @@ export class ApiClient {
             telemetryHistoryLimit = 50,
             includeSummary = false,
             includeCachedSummary = false,
-            date = null
+            date = null,
+            skipCache = false
         } = options;
         const effectiveDate = date || this.getEffectiveDate();
 
@@ -860,7 +861,7 @@ export class ApiClient {
             cveLimit,
             telemetryHistoryLimit,
             date: effectiveDate || undefined
-        });
+        }, { skipCache });
     }
 
     // === LICENSES ===

@@ -52,7 +52,8 @@ export default class UnifiedDashboard extends Component {
       evidenceGapsOpen: false,
       hygieneDetailsOpen: false,
       officerNoteOpen: false,
-      officerNoteDismissed: false
+      officerNoteDismissed: false,
+      isSmallScreen: typeof window !== 'undefined' ? window.innerWidth < 768 : false
     };
     this.cyberChartRef = null;
     this._cyberChart = null;
@@ -61,6 +62,7 @@ export default class UnifiedDashboard extends Component {
     this._sheetDismissHandler = null;
     this._orgChangeUnsub = null;
     this._rewindUnsub = null;
+    this._resizeHandler = null;
     this._unmounted = false;
     this._currentOrgId = null;
   }
@@ -103,6 +105,11 @@ export default class UnifiedDashboard extends Component {
       this.loadDashboard();
     });
     this._rewindUnsub = rewindContext.onChange(() => this.loadDashboard({ skipCache: true }));
+    this._resizeHandler = () => {
+      const isSmallScreen = window.innerWidth < 768;
+      if (this.state.isSmallScreen !== isSmallScreen) this.setState({ isSmallScreen });
+    };
+    window.addEventListener('resize', this._resizeHandler, { passive: true });
   }
 
   componentWillUnmount() {
@@ -111,6 +118,7 @@ export default class UnifiedDashboard extends Component {
     this._unmounted = true;
     if (this._orgChangeUnsub) this._orgChangeUnsub();
     if (this._rewindUnsub) this._rewindUnsub();
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
     if (this._cyberChart) {
       this._cyberChart.destroy();
       this._cyberChart = null;
@@ -336,12 +344,22 @@ export default class UnifiedDashboard extends Component {
     const summary = patch.summary || {};
     const intel = patch.intel || {};
     const hosts = Array.isArray(patch.hosts) ? patch.hosts : [];
+    const hostNames = [];
+    const pushHostName = (value) => {
+      const text = String(value || '').trim();
+      if (text && !hostNames.some(existing => existing.toLowerCase() === text.toLowerCase())) hostNames.push(text);
+    };
+    hosts.forEach((host) => {
+      if (typeof host === 'string') pushHostName(host);
+      else pushHostName(host?.deviceName || host?.DeviceName || host?.hostName || host?.HostName || host?.deviceId || host?.DeviceId);
+    });
 
     return {
       unavailable: patch.unavailable === true,
       message: patch.message || '',
       openAlerts: Number(summary.openAlerts ?? 0),
       hostsAffected: Number(summary.hostsAffected ?? hosts.length ?? 0),
+      hostNames,
       critical: Number(summary.critical ?? 0),
       high: Number(summary.high ?? 0),
       exploited: Number(summary.exploited ?? 0),
@@ -715,16 +733,16 @@ export default class UnifiedDashboard extends Component {
   };
 
   buildMagiActionContext(data = this.state.data) {
-    const items = this.getTopActionViewItems(data).filter(item => item.kind === 'action').slice(0, 3);
+    const items = this.getBusinessImpactData(data).fixQueue.slice(0, 3);
     if (items.length === 0) return null;
 
     return items.map((item) => {
-      const deviceNames = item.deviceNames.length > 0 ? item.deviceNames.join(', ') : 'not identified in current data';
-      const details = [item.supportText, item.pathRiskReason, item.insuranceCaveat]
+      const deviceNames = item.deviceNames?.length > 0 ? item.deviceNames.join(', ') : item.deviceText;
+      const details = [item.reason]
         .filter(Boolean)
         .join('; ');
       const support = details ? `; detail=${details}` : '';
-      return `${item.index}. ${item.title}; urgency=${item.badge}; devices=${deviceNames}; ${item.deviceText}${support}`;
+      return `${item.index}. ${item.title}; impact=${item.tone?.label || 'Unclassified'}; target=${deviceNames}; ${item.deviceText}${support}`;
     }).join('\n');
   }
 
@@ -964,6 +982,27 @@ export default class UnifiedDashboard extends Component {
     return { hs, label, tier, tone, readableTone, summary, blockers };
   }
 
+  buildReadinessPulseText(data = this.state.data) {
+    const proof = this.getProofReadinessData(data);
+    const parts = (proof.blockers || []).slice(0, 3).map((blocker) => {
+      if (blocker.href === '#!/patch-posture') {
+        return `${blocker.value} missing update${Number(blocker.value) === 1 ? '' : 's'}`;
+      }
+      if (blocker.href === '#!/vulnerabilities') {
+        return `${blocker.value} critical/high CVE${Number(blocker.value) === 1 ? '' : 's'}`;
+      }
+      if (blocker.href === '#!/devices') {
+        return `${blocker.value} devices need review`;
+      }
+      if (blocker.href === '#!/compliance') {
+        return `${blocker.value} control gap${Number(blocker.value) === 1 ? '' : 's'}`;
+      }
+      return blocker.label || 'readiness blocker';
+    }).filter(Boolean);
+
+    return parts.length ? parts.join(' · ') : 'No active readiness blockers';
+  }
+
   getActionDeviceNames(action) {
     if (!action) return [];
     const names = [];
@@ -990,7 +1029,7 @@ export default class UnifiedDashboard extends Component {
   }
 
   formatActionDeviceText(action) {
-    if (!action) return 'Device: not identified yet';
+    if (!action) return 'Target: open posture evidence';
 
     const names = this.getActionDeviceNames(action);
 
@@ -998,8 +1037,8 @@ export default class UnifiedDashboard extends Component {
     if (names.length) {
       return count > 1 ? `Device: ${names[0]} + ${count - 1} more` : `Device: ${names[0]}`;
     }
-    if (count > 0) return `Device: ${count} unnamed device${count === 1 ? '' : 's'}`;
-    return 'Device: not identified yet';
+    if (count > 0) return `Target: ${count} affected device${count === 1 ? '' : 's'}`;
+    return 'Target: open posture evidence';
   }
 
   getTopActionViewItems(data = this.state.data) {
@@ -1078,6 +1117,73 @@ export default class UnifiedDashboard extends Component {
     });
 
     return updateNames.size;
+  }
+
+  getTopVulnerableAppSummary(data = this.state.data, limit = 2) {
+    const appRisks = [
+      ...(Array.isArray(data?.itAdmin?.appRisks) ? data.itAdmin.appRisks : []),
+      ...(Array.isArray(data?.securityPro?.top20AppRisks) ? data.securityPro.top20AppRisks : [])
+    ];
+    const seen = new Set();
+    const names = [];
+
+    appRisks.forEach((app) => {
+      const name = String(app?.appName || app?.AppName || app?.name || app?.Name || '').trim();
+      if (!name || seen.has(name.toLowerCase())) return;
+      seen.add(name.toLowerCase());
+      names.push(name);
+    });
+
+    if (!names.length) return '';
+    const shown = names.slice(0, limit).join(', ');
+    const remaining = Math.max(0, names.length - limit);
+    return remaining > 0 ? `${shown} + ${remaining} more` : shown;
+  }
+
+  getActionRiskTone(kind, { critical = 0, high = 0, hasExploited = false } = {}) {
+    if (hasExploited || Number(critical) > 0) {
+      return {
+        label: 'Critical risk',
+        tone: '#dc2626',
+        soft: 'rgba(220,38,38,0.09)',
+        border: 'rgba(220,38,38,0.32)',
+        readableTone: 'var(--db-tone-danger,#dc2626)'
+      };
+    }
+    if (Number(high) > 0 || kind === 'patch' || kind === 'vulnerability') {
+      return {
+        label: 'High risk',
+        tone: '#d97706',
+        soft: 'rgba(217,119,6,0.10)',
+        border: 'rgba(217,119,6,0.30)',
+        readableTone: 'var(--db-tone-warning,#b45309)'
+      };
+    }
+    if (kind === 'compliance') {
+      return {
+        label: 'Evidence risk',
+        tone: '#7c3aed',
+        soft: 'rgba(124,58,237,0.08)',
+        border: 'rgba(124,58,237,0.24)',
+        readableTone: 'var(--db-tone-purple,#7c3aed)'
+      };
+    }
+    if (kind === 'coverage') {
+      return {
+        label: 'Coverage risk',
+        tone: '#2563eb',
+        soft: 'rgba(37,99,235,0.08)',
+        border: 'rgba(37,99,235,0.24)',
+        readableTone: 'var(--db-tone-info,#1d4ed8)'
+      };
+    }
+    return {
+      label: 'Readiness risk',
+      tone: '#64748b',
+      soft: 'rgba(100,116,139,0.07)',
+      border: 'rgba(100,116,139,0.20)',
+      readableTone: 'var(--db-tone-neutral,#475569)'
+    };
   }
 
   getDeviceCoverageDetail(data = this.state.data) {
@@ -1399,7 +1505,7 @@ export default class UnifiedDashboard extends Component {
     const { data } = this.state;
     if (!data) return null;
 
-    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
+    const isSmallScreen = this.state.isSmallScreen;
     const items = this.getTopActionViewItems(data);
 
     if (items.length === 0) {
@@ -1930,6 +2036,8 @@ export default class UnifiedDashboard extends Component {
   getBusinessImpactData(data = this.state.data) {
     const impact = data?.businessOwner?.businessImpact || data?.quickStats?.businessImpact || {};
     const actions = Array.isArray(data?.businessOwner?.topActions) ? data.businessOwner.topActions : [];
+    const proof = this.getProofReadinessData(data);
+    const patch = this.getPatchStatusSummary(data);
     const topAction = actions[0] || null;
     const normalizeImpact = (value) => {
       const impactValue = String(value || '').trim().toUpperCase();
@@ -1946,21 +2054,105 @@ export default class UnifiedDashboard extends Component {
     const topToneKey = topPathImpact === 'HBI' && topImpact !== 'HBI' ? 'HBI' : topImpact;
     const topTone = { ...(toneMap[topToneKey] || toneMap.UNCLASSIFIED) };
     if (topPathImpact === 'HBI' && topImpact !== 'HBI') topTone.label = 'HBI path';
-    const fixQueue = actions.slice(0, 3).map((action, index) => {
+
+    const targetFromNames = (names, count, fallback) => {
+      const distinctNames = Array.isArray(names) ? names.filter(Boolean) : [];
+      const targetCount = Math.max(Number(count || 0), distinctNames.length);
+      if (distinctNames.length) {
+        return targetCount > 1 ? `Device: ${distinctNames[0]} + ${targetCount - 1} more` : `Device: ${distinctNames[0]}`;
+      }
+      if (targetCount > 0) return `Target: ${targetCount} affected device${targetCount === 1 ? '' : 's'}`;
+      return fallback;
+    };
+
+    const actionItems = actions.map((action, index) => {
       const actionImpact = normalizeImpact(action?.businessImpact);
       const pathImpact = normalizeImpact(action?.pathDerivedImpact);
       const toneKey = pathImpact === 'HBI' && actionImpact !== 'HBI' ? 'HBI' : actionImpact;
       const tone = { ...(toneMap[toneKey] || toneMap.UNCLASSIFIED) };
       if (pathImpact === 'HBI' && actionImpact !== 'HBI') tone.label = 'HBI path';
+      const deviceText = this.formatActionDeviceText(action);
+      const urgencyText = String(action?.urgency || action?.priority || '').toLowerCase();
       return {
         key: action?.actionId || `fix-${index}`,
-        index: index + 1,
+        source: 'business-action',
         title: this.cleanActionTitle(action?.title || `Fix ${index + 1}`),
         href: action?.actionUrl || action?.href || '#!/posture',
         tone,
+        risk: this.getActionRiskTone('vulnerability', {
+          critical: urgencyText.includes('critical') ? 1 : 0,
+          high: /high|urgent|important/.test(urgencyText) ? 1 : 0
+        }),
+        deviceText,
+        deviceNames: this.getActionDeviceNames(action),
         reason: action?.fixQueueReason || action?.pathRiskReason || action?.businessImpactReason || action?.contextCaveat || 'Ranked by current risk and proof readiness.'
       };
     });
+
+    const blockerItems = proof.blockers
+      .filter(blocker => !(actionItems.length > 0 && blocker.href === '#!/vulnerabilities'))
+      .map((blocker, index) => {
+        const isPatch = blocker.href === '#!/patch-posture';
+        const isVulnerability = blocker.href === '#!/vulnerabilities';
+        const isCompliance = blocker.href === '#!/compliance';
+        const isCoverage = blocker.href === '#!/devices';
+        const vulnerableAppSummary = isVulnerability ? this.getTopVulnerableAppSummary(data) : '';
+        const title = isPatch
+          ? 'Review missing Microsoft updates'
+          : isVulnerability
+            ? (vulnerableAppSummary ? 'Review vulnerable apps' : 'Review critical/high CVE exposure')
+            : isCompliance
+              ? 'Close compliance evidence gaps'
+              : isCoverage
+                ? 'Review devices reducing coverage'
+                : this.cleanActionTitle(blocker.label || `Readiness action ${index + 1}`);
+        const deviceText = isPatch
+          ? targetFromNames(patch.hostNames, patch.hostsAffected, 'Target: affected patch hosts')
+          : isVulnerability
+            ? (vulnerableAppSummary
+                ? `Apps: ${vulnerableAppSummary}`
+                : `Scope: ${blocker.value} critical/high CVE${Number(blocker.value) === 1 ? '' : 's'}`)
+          : isCoverage
+            ? `Target: ${blocker.value} device${Number(blocker.value) === 1 ? '' : 's'} needing review`
+            : isCompliance
+              ? `Scope: ${blocker.value} control gap${Number(blocker.value) === 1 ? '' : 's'}`
+              : 'Scope: organization readiness';
+        const risk = isPatch
+          ? this.getActionRiskTone('patch', { critical: patch.critical, high: patch.high, hasExploited: patch.exploited > 0 })
+          : isVulnerability
+            ? this.getActionRiskTone('vulnerability', { critical: Number(data?.quickStats?.cves?.criticalCount ?? data?.securityPro?.threatIntel?.criticalCveCount ?? 0), high: Number(data?.quickStats?.cves?.highCount ?? data?.securityPro?.threatIntel?.highCveCount ?? 0) })
+            : isCompliance
+              ? this.getActionRiskTone('compliance')
+              : isCoverage
+                ? this.getActionRiskTone('coverage')
+                : this.getActionRiskTone('readiness');
+
+        return {
+          key: `blocker-${blocker.href || index}-${index}`,
+          source: 'proof-blocker',
+          title,
+          href: blocker.href || '#!/security',
+          tone: { ...(toneMap.UNCLASSIFIED) },
+          risk,
+          deviceText,
+          deviceNames: isPatch ? patch.hostNames : [],
+          reason: blocker.detail || 'Resolve this proof blocker before the evidence package is ready.'
+        };
+      });
+
+    const fixQueue = [];
+    const seenQueueKeys = new Set();
+    const pushQueueItem = (item) => {
+      if (!item || fixQueue.length >= 3) return;
+      const key = `${item.href || ''}|${String(item.title || '').toLowerCase()}|${String(item.deviceText || '').toLowerCase()}`;
+      if (seenQueueKeys.has(key)) return;
+      seenQueueKeys.add(key);
+      fixQueue.push({ ...item, index: fixQueue.length + 1 });
+    };
+    const preciseActionLimit = blockerItems.length > 0 ? 2 : 3;
+    actionItems.slice(0, preciseActionLimit).forEach(pushQueueItem);
+    blockerItems.forEach(pushQueueItem);
+    actionItems.slice(preciseActionLimit).forEach(pushQueueItem);
 
     return {
       hbi: Number(impact.hbiDeviceCount || 0),
@@ -1975,82 +2167,58 @@ export default class UnifiedDashboard extends Component {
       topTone,
       fixQueue,
       isLiveContext: !!impact.isLiveContext,
-      reason: topAction?.pathRiskReason || topAction?.businessImpactReason || impact.topActionReason || 'Business impact labels sharpen the Fix First order.'
+      reason: topAction?.pathRiskReason || topAction?.businessImpactReason || impact.topActionReason || 'Business impact labels sharpen the action order.'
     };
   }
 
   renderBusinessImpactCommandCenter(data = this.state.data, { isSmallScreen = false } = {}) {
     const impact = this.getBusinessImpactData(data);
-    const topAction = impact.topAction;
-    const topTitle = topAction?.title || 'No high-priority fix queued';
-    const topHref = topAction?.actionUrl || '#!/posture';
     const sourceText = impact.isLiveContext ? 'Live context' : 'Dossier context';
     const coverageText = impact.total > 0
-      ? `${Math.max(0, impact.total - impact.missing)}/${impact.total} classified`
+      ? `${Math.max(0, impact.total - impact.missing)}/${impact.total} labelled`
       : 'No managed devices';
     const queue = impact.fixQueue || [];
+    const impactCountsText = `HBI ${impact.hbi} · MBI ${impact.mbi} · LBI ${impact.lbi}${impact.unclassified ? ` · U ${impact.unclassified}` : ''}`;
+    const contextTooltip = impact.total > 0
+      ? `${sourceText} · ${coverageText} · ${impactCountsText}`
+      : sourceText;
 
-    const tileStyle = `min-width:0;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid rgba(148,163,184,0.20);border-radius:14px;padding:13px 14px;box-shadow:0 4px 16px rgba(15,23,42,0.04);`;
-    const metric = (label, value, color, title) => html`
-      <span title=${title || label} style="display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border-radius:10px;background:${color}12;border:1px solid ${color}22;color:${color};font-weight:850;min-width:0;">
-        <span style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;">${label}</span>
-        <span style="font-size:1rem;line-height:1;">${value}</span>
-      </span>
-    `;
+    const tileStyle = `min-width:0;width:100%;align-self:stretch;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid rgba(148,163,184,0.20);border-radius:16px;padding:${isSmallScreen ? '12px' : '13px'};box-shadow:0 4px 18px rgba(15,23,42,0.05);display:flex;flex-direction:column;`;
+    const queueDetail = (item) => {
+      return item?.deviceText || 'Target: open posture evidence';
+    };
+    const impactTooltip = (item) => item?.tone?.label === 'Unclassified'
+      ? 'No business-impact label'
+      : `Business impact: ${item?.tone?.label || 'No business-impact label'}`;
+    const riskTooltip = (item) => item?.risk?.label || 'Readiness risk';
 
     return html`
-      <section aria-label="Business command center" style="order:4;margin:0 0 14px;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(0,0.92fr) minmax(0,1.22fr) minmax(0,0.86fr)'};gap:${isSmallScreen ? '10px' : '12px'};align-items:stretch;">
-        <div style=${tileStyle}>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
-            <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Business Impact Map</div>
-            <span class="badge bg-blue-lt text-blue-lt-fg badge-pill" title="${sourceText} used by this dashboard">${sourceText}</span>
+      <section aria-label="Action items" style=${tileStyle}>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+          <div style="min-width:0;">
+            <div style="display:flex;align-items:center;gap:5px;min-width:0;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">
+              <span>Action Items</span>
+              <span title=${contextTooltip} aria-label=${`Context used to rank actions: ${contextTooltip}`} style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:999px;color:var(--tblr-primary,#206bc4);background:rgba(32,107,196,0.10);font-size:0.78rem;letter-spacing:0;flex:0 0 auto;">
+                <i class="ti ti-info-circle"></i>
+              </span>
+            </div>
+            <div style="margin-top:3px;font-size:${isSmallScreen ? '0.98rem' : '1.04rem'};font-weight:900;color:var(--db-answer-text,#111827);line-height:1.1;">${queue.length ? `Top ${queue.length} actions` : 'No blockers'}</div>
           </div>
-          <div style="display:flex;gap:7px;flex-wrap:wrap;">
-            ${metric('HBI', impact.hbi, '#dc2626', 'High-business-impact devices')}
-            ${metric('MBI', impact.mbi, '#f59f00', 'Medium-business-impact devices')}
-            ${metric('LBI', impact.lbi, '#2fb344', 'Low-business-impact devices')}
-            ${impact.unclassified ? metric('Unclassified', impact.unclassified, '#64748b', 'Devices without a business-impact label') : null}
-          </div>
-          <div style="margin-top:8px;font-size:0.76rem;color:${impact.missing ? 'var(--db-tone-warning,#b45309)' : 'var(--db-faint-text,#6b7280)'};line-height:1.35;">
-            ${coverageText} · ${impact.missing ? `${impact.missing} still need labels for sharper proof.` : 'ready for fix ordering and proof grouping.'}
-          </div>
+          <a href="#!/posture" title="Open posture evidence and prioritized action details." class="btn btn-sm btn-icon btn-outline-primary" aria-label="Open posture evidence" style="white-space:nowrap;flex:0 0 auto;">
+            <i class="ti ti-list-details"></i>
+          </a>
         </div>
 
-        <a href=${topHref} title=${impact.reason} style=${`${tileStyle}text-decoration:none;color:var(--db-answer-text,#111827);display:flex;gap:12px;align-items:flex-start;`}>
-          <span style="width:36px;height:36px;border-radius:12px;background:${impact.topTone.soft};color:${impact.topTone.tone};display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="ti ti-target-arrow" style="font-size:1.12rem;"></i></span>
-          <span style="min-width:0;display:block;flex:1;">
-            <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
-              <span style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Fix First</span>
-              <span class="badge badge-pill" style="background:${impact.topTone.tone};color:#fff;border:1px solid ${impact.topTone.tone};font-weight:850;">${impact.topTone.label}</span>
-            </span>
-            <span style="display:block;font-size:0.92rem;font-weight:820;line-height:1.26;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${topTitle}</span>
-            <span style="display:block;margin-top:4px;font-size:0.76rem;color:var(--db-faint-text,#6b7280);line-height:1.35;">${impact.reason}</span>
-          </span>
-          <i class="ti ti-chevron-right" style="margin-top:3px;color:var(--db-muted-text,#94a3b8);"></i>
-        </a>
-
-        <div style=${tileStyle}>
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
-            <div>
-              <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Fix Queue</div>
-              <div style="margin-top:5px;font-size:1.02rem;font-weight:850;color:var(--db-answer-text,#111827);line-height:1;">${queue.length ? `${queue.length} prioritized` : 'No blockers'}</div>
-            </div>
-            <span style="width:34px;height:34px;border-radius:11px;background:rgba(0,84,166,0.10);color:var(--tblr-blue,#0054a6);display:inline-flex;align-items:center;justify-content:center;"><i class="ti ti-list-check"></i></span>
-          </div>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px;">
             ${queue.length ? queue.map(item => html`
-              <a href=${item.href} title=${item.reason} style="display:grid;grid-template-columns:22px minmax(0,1fr);gap:7px;align-items:start;text-decoration:none;color:var(--db-answer-text,#111827);">
-                <span style="width:22px;height:22px;border-radius:8px;background:${item.tone.soft};color:${item.tone.tone};font-size:0.72rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">${item.index}</span>
+              <a href=${item.href} title=${`${item.title} · ${queueDetail(item)} · ${riskTooltip(item)} · ${impactTooltip(item)}`} aria-label=${`${item.index}. ${item.title}. ${queueDetail(item)}. ${riskTooltip(item)}. ${impactTooltip(item)}.`} style="display:grid;grid-template-columns:20px minmax(0,1fr);gap:7px;align-items:center;text-decoration:none;color:var(--db-answer-text,#111827);border:1px solid ${item.risk?.border || 'rgba(148,163,184,0.14)'};border-left:3px solid ${item.risk?.tone || '#64748b'};border-radius:10px;padding:5px 7px 5px 5px;background:${item.risk?.soft || (item.index === 1 ? item.tone.soft : 'rgba(255,255,255,0.18)')};">
+                <span title=${impactTooltip(item)} aria-hidden="true" style="width:20px;height:20px;border-radius:7px;background:${item.tone.tone};color:#fff;font-size:0.66rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px ${item.tone.tone}24;">${item.index}</span>
                 <span style="min-width:0;display:block;">
-                  <span style="display:flex;gap:6px;align-items:center;min-width:0;">
-                    <span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.78rem;font-weight:820;">${item.title}</span>
-                    <span class="badge badge-pill" style="background:${item.tone.tone};color:#fff;border:1px solid ${item.tone.tone};font-size:0.62rem;font-weight:850;">${item.tone.label}</span>
-                  </span>
-                  <span style="display:block;margin-top:2px;font-size:0.7rem;color:var(--db-faint-text,#6b7280);line-height:1.28;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${item.reason}</span>
+                  <span style="display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.76rem;font-weight:850;color:${item.risk?.readableTone || 'var(--db-answer-text,#111827)'};">${item.title}</span>
+                  <span style="display:block;margin-top:1px;font-size:0.66rem;color:var(--db-faint-text,#6b7280);line-height:1.18;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${queueDetail(item)}</span>
                 </span>
               </a>
-            `) : html`<div style="font-size:0.76rem;color:var(--db-faint-text,#6b7280);line-height:1.35;">No high-priority fix is queued from the current proof bundle.</div>`}
-          </div>
+            `) : html`<div style="font-size:0.8rem;color:var(--db-faint-text,#6b7280);line-height:1.4;border:1px dashed rgba(148,163,184,0.28);border-radius:12px;padding:12px;">No high-priority fix is queued from the current proof bundle.</div>`}
         </div>
       </section>
     `;
@@ -2063,14 +2231,15 @@ export default class UnifiedDashboard extends Component {
     const hs = this.getHealthScoreData(data);
     const freshness = this.getFreshnessInfo();
     const proof = this.getProofReadinessData(data);
-    const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
+    const isSmallScreen = this.state.isSmallScreen;
+    const readinessPulseText = this.buildReadinessPulseText(data);
     const aiPlaceholder = isSmallScreen
       ? 'Ask about readiness or risk...'
       : 'Ask MAGI about readiness, risk, or next actions...';
     const aiButtonLabel = aiLoading ? 'Thinking...' : (isSmallScreen ? 'Ask' : 'Ask MAGI');
     const scoreColor = this.getScoreTone(hs.score);
     const scoreReadableColor = this.getReadableScoreTone(hs.score);
-    const magiHeroTip = 'Ask MAGI to explain the readiness model and name the Security, Compliance, Audit, or Hygiene action to take next.';
+    const magiHeroTip = 'Ask MAGI what blocks readiness or what to fix next.';
     const proofCardTip = 'Insurance readiness is today\'s outcome. Open Reports for evidence, or ask MAGI what blocks readiness.';
 
     return html`
@@ -2086,30 +2255,28 @@ export default class UnifiedDashboard extends Component {
         overflow: visible;
       ">
         <div style="max-width: 1120px; margin: 0 auto; position: relative; display:flex; flex-direction:column;">
-          <section aria-label="MAGI search" class="card card-lg magi-hero-card" style="order:1;min-width:0;margin:0 0 12px;border-radius:16px;">
+          <div style="order:1;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(0,1fr) minmax(270px,310px)'};gap:${isSmallScreen ? '10px' : '12px'};align-items:start;margin:0 0 12px;">
+          <section aria-label="MAGI search" class="card card-lg magi-hero-card" style="min-width:0;margin:0;border-radius:16px;">
             <div class="card-status-top bg-purple"></div>
-            <div class="card-body" style="padding:${isSmallScreen ? '16px' : '18px 20px'};display:flex;flex-direction:column;gap:14px;">
+            <div class="card-body" style="padding:${isSmallScreen ? '16px' : '18px 20px'};display:flex;flex-direction:column;gap:12px;">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;">
                 <div style="min-width:0;flex:1 1 300px;">
                   <div class="badges-list" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:7px;">
                     <span class="badge bg-indigo-lt text-indigo-lt-fg badge-pill" title="Ask Officer MAGI to explain evidence and name the next action." style="font-weight:850;letter-spacing:0.08em;text-transform:uppercase;">MAGI</span>
-                    <span class="badge bg-azure-lt text-azure-lt-fg badge-pill" title="Review the readiness model below, then open the weak area.">Readiness model</span>
-                    <span class="badge bg-purple-lt text-purple-lt-fg badge-pill" title="Use Recommended Fixes or ask MAGI for the next action.">Next action</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                     <span style="width:38px;height:38px;border-radius:13px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--db-tone-primary,#4f46e5),var(--db-tone-purple,#7c3aed));color:#fff;box-shadow:0 10px 20px rgba(79,70,229,0.24);"><i class="ti ti-sparkles" style="font-size:1.18rem;"></i></span>
                     <span style="font-size:${isSmallScreen ? '1.35rem' : '1.65rem'};font-weight:900;line-height:1;color:var(--db-answer-text,#111827);">Officer MAGI</span>
                   </div>
-                  <div style="margin-top:7px;color:var(--db-faint-text,#6b7280);font-size:0.86rem;line-height:1.42;max-width:680px;">${magiHeroTip}</div>
                 </div>
-                <a href="#!/analyst" class=${this.isPersonalOrg() ? 'btn btn-outline-indigo business-license-only' : 'btn btn-outline-indigo'} title=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : 'Open Officer MAGI'} data-business-tooltip=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''} onClick=${(event) => {
+                <a href="#!/analyst" aria-label="Open Officer MAGI" class=${this.isPersonalOrg() ? `btn btn-sm ${isSmallScreen ? 'btn-icon ' : ''}btn-outline-indigo business-license-only` : `btn btn-sm ${isSmallScreen ? 'btn-icon ' : ''}btn-outline-indigo`} title=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : 'Open Officer MAGI'} data-business-tooltip=${this.isPersonalOrg() ? BUSINESS_ONLY_TOOLTIP : ''} onClick=${(event) => {
                   if (this.isPersonalOrg()) {
                     event.preventDefault();
                     window.toast?.show(BUSINESS_ONLY_TOOLTIP, 'warning', 3000);
                   }
-                }} style="white-space:nowrap;align-self:${isSmallScreen ? 'stretch' : 'flex-start'};justify-content:center;">
+                }} style="white-space:nowrap;align-self:flex-start;justify-content:center;flex:0 0 auto;">
                   <i class="ti ti-messages"></i>
-                  Analyst view
+                  ${isSmallScreen ? null : 'Analyst view'}
                 </a>
               </div>
 
@@ -2141,6 +2308,11 @@ export default class UnifiedDashboard extends Component {
                     >${aiButtonLabel}</button>
                   </div>
                 </form>
+              </div>
+
+              <div title="Live readiness pulse from the current Dossier evidence." style="min-height:30px;display:flex;align-items:center;gap:8px;border:1px solid rgba(124,58,237,0.12);background:linear-gradient(90deg,rgba(124,58,237,0.08),rgba(32,107,196,0.05));border-radius:12px;padding:6px 10px;color:var(--db-faint-text,#6b7280);font-size:0.74rem;font-weight:750;line-height:1.2;min-width:0;">
+                <span aria-hidden="true" style="width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:rgba(124,58,237,0.12);color:var(--db-tone-purple,#7c3aed);flex:0 0 auto;"><i class="ti ti-trending-up" style="font-size:0.9rem;"></i></span>
+                <span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Readiness pulse · ${readinessPulseText}</span>
               </div>
 
               ${aiAnswer ? html`
@@ -2191,6 +2363,9 @@ export default class UnifiedDashboard extends Component {
             </div>
           </section>
 
+          ${this.renderBusinessImpactCommandCenter(data, { isSmallScreen })}
+          </div>
+
           <div style="order:2;margin:0 0 16px;padding:0 2px;">
             <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(124,58,237,0.36),transparent);margin:0 0 10px;"></div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
@@ -2200,13 +2375,19 @@ export default class UnifiedDashboard extends Component {
               </div>
             </div>
           </div>
-
-          ${this.renderBusinessImpactCommandCenter(data, { isSmallScreen })}
-
-          <details style="order:5;margin-top:14px;border:1px solid var(--db-tile-border, rgba(148,163,184,0.18));border-radius:14px;background:var(--db-glass-bg, rgba(255,255,255,0.72));box-shadow:0 4px 18px rgba(15,23,42,0.04);overflow:hidden;">
-            <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;font-size:0.82rem;font-weight:800;color:var(--db-answer-text,#111827);list-style:none;">
-              <span><i class="ti ti-folder-search me-2" style="color:var(--db-tone-primary,#4f46e5);"></i>Evidence details, readiness, and reports</span>
-              <span class="text-muted" style="font-size:0.72rem;font-weight:650;">Open when preparing an audit or insurance packet</span>
+          <details aria-label="Proof packet" title="Open audit and insurance evidence." style="order:5;margin-top:14px;border:1px solid var(--db-tile-border, rgba(148,163,184,0.18));border-radius:14px;background:var(--db-glass-bg, rgba(255,255,255,0.72));box-shadow:0 4px 18px rgba(15,23,42,0.04);overflow:hidden;">
+            <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;font-size:0.82rem;font-weight:800;color:var(--db-answer-text,#111827);list-style:none;">
+              <span style="display:flex;align-items:center;gap:10px;min-width:0;">
+                <span aria-hidden="true" style="width:32px;height:32px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;background:rgba(79,70,229,0.10);color:var(--db-tone-primary,#4f46e5);flex:0 0 auto;"><i class="ti ti-folder-check"></i></span>
+                <span style="display:block;min-width:0;">
+                  <span style="display:block;font-size:0.9rem;font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Proof Packet</span>
+                  <span style="display:block;margin-top:2px;font-size:0.72rem;font-weight:650;color:var(--db-faint-text,#6b7280);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Readiness ${proof.label} · Hygiene ${hs.grade}</span>
+                </span>
+              </span>
+              <span style="display:inline-flex;align-items:center;gap:6px;color:var(--tblr-primary,#206bc4);font-size:0.74rem;font-weight:850;white-space:nowrap;flex:0 0 auto;">
+                <span>${isSmallScreen ? 'Open' : 'Open packet'}</span>
+                <i class="ti ti-chevron-down"></i>
+              </span>
             </summary>
             <div style="padding:0 14px 16px;">
               ${this.renderProofChain(data, { isSmallScreen })}

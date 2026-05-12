@@ -202,7 +202,7 @@ export function bundleToUnifiedPayload(bundle) {
                 ? `Touches ${contextCounts.mbiDeviceCount || 1} medium-business-impact device${(contextCounts.mbiDeviceCount || 1) === 1 ? '' : 's'}.`
                 : businessImpact === 'LBI'
                     ? 'Currently scoped to low-business-impact devices.'
-                    : 'Business impact is not labelled yet.';
+                    : 'Label device business impact to rank this fix.';
         const affectedDeviceNames = affectedDevices.map((device) => {
             const id = typeof device === 'string' ? device : (device.deviceId || device.DeviceId || '');
             const name = typeof device === 'string'

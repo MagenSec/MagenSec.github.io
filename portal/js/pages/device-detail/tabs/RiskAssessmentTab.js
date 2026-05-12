@@ -20,7 +20,8 @@ export function renderRiskAssessment(component) {
         return Math.max(0, Math.min(100, Math.round(n)));
     })();
     const knownExploitCount = component.state.knownExploits ? activeCves.filter(c => component.state.knownExploits.has(c.cveId)).length : 0;
-    const vulnerableApps = component.getAppVulnerabilityBreakdown().vulnerableApps;
+    const appBreakdown = component.getAppVulnerabilityBreakdown();
+    const vulnerableApps = appBreakdown.vulnerableApps;
     const maxEpss = activeCves.reduce((max, c) => Math.max(max, Number(c.epss || 0)), 0);
     const epssBadge = maxEpss >= 0.5 ? 'bg-danger-lt text-danger' : maxEpss >= 0.3 ? 'bg-warning-lt text-warning' : maxEpss > 0 ? 'bg-info-lt text-info' : 'bg-secondary-lt text-secondary';
 
@@ -190,7 +191,11 @@ export function renderRiskAssessment(component) {
                     </div>
                     <div class="card-body">
                         <ol class="small mb-3">
-                            ${vulnerableApps > 0 ? html`<li class="mb-2">Patch ${vulnerableApps} vulnerable application${vulnerableApps > 1 ? 's' : ''} to reduce exposure fastest.</li>` : html`<li class="mb-2">Keep applications updated; no vulnerable apps detected.</li>`}
+                            ${vulnerableApps > 0
+                                ? appBreakdown.projectionPending
+                                    ? html`<li class="mb-2">Review ${vulnerableApps} vulnerable application${vulnerableApps > 1 ? 's' : ''} from current CVE evidence while the app projection catches up.</li>`
+                                    : html`<li class="mb-2">Patch ${vulnerableApps} vulnerable application${vulnerableApps > 1 ? 's' : ''} to reduce exposure fastest.</li>`
+                                : html`<li class="mb-2">Keep applications updated; no vulnerable apps detected.</li>`}
                             ${(critical.length + high.length) > 0 ? html`<li class="mb-2">Prioritize the ${critical.length + high.length} Critical/High CVEs first.</li>` : html`<li class="mb-2">No Critical/High CVEs detected right now.</li>`}
                             <li class="mb-2">Review network exposure (${networkRisk?.label || 'latest telemetry'}) and ensure firewall/VPN/gateway coverage.</li>
                         </ol>
@@ -199,11 +204,13 @@ export function renderRiskAssessment(component) {
                                 e.preventDefault();
                                 if (updateState.updateAvailable) {
                                     component.queueDeviceCommand('CheckUpdates');
+                                } else if (appBreakdown.projectionPending) {
+                                    component.scrollToCveTable();
                                 } else {
                                     component.openAdvancedDetails('detailApps');
                                 }
                             }}>
-                                ${updateState.updateAvailable && updateState.latest ? `Update client to v${updateState.latest}` : 'Review vulnerable software'}
+                                ${updateState.updateAvailable && updateState.latest ? `Update client to v${updateState.latest}` : appBreakdown.projectionPending ? 'Review CVE evidence' : 'Review vulnerable software'}
                             </button>
                             <button class="btn btn-outline-secondary" onclick=${(e) => { e.preventDefault(); component.openAdvancedDetails(); }}>
                                 Open technical evidence
