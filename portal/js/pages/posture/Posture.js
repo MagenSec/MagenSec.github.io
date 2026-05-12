@@ -157,6 +157,88 @@ export class PosturePage extends Component {
         };
     }
 
+    normalizePostureSnapshot(snapshot, atoms) {
+        if (!snapshot || snapshot.risk || snapshot.findings || snapshot.actions) return snapshot;
+
+        const security = this.readAtomRows(atoms, 'security-snapshot')[0] || {};
+        const compliance = this.readAtomRows(atoms, 'compliance-snapshot')[0] || {};
+        const dailyTrends = this.readAtomRows(atoms, 'org-trends-daily');
+        const standards = Array.isArray(compliance.standards) ? compliance.standards : [];
+        const nistStandard = standards.find(s => String(s.standardId || '').toUpperCase().startsWith('NIST'));
+        const allGaps = standards.flatMap(standard => (standard.gaps || []).map(gap => ({ ...gap, standardId: standard.standardId, standardName: standard.displayName })));
+        const controls = {};
+
+        allGaps.slice(0, 8).forEach((gap) => {
+            const key = `${gap.standardId || 'CTRL'} ${gap.controlId || gap.title || 'Gap'}`.trim();
+            controls[key] = {
+                status: 'noncompliant',
+                description: gap.description || gap.title || 'Control gap requires review.'
+            };
+        });
+
+        const topFindings = [
+            ...(security.top20AppRisks || []).map(item => ({
+                title: `${item.appName || 'Application risk'}${item.version ? ` ${item.version}` : ''}`,
+                domain: 'Software',
+                severity: item.kevCount > 0 ? 'Critical' : item.cveCount > 0 ? 'High' : 'Medium',
+                affectedDevices: item.deviceCount ? [`${item.deviceCount} device${item.deviceCount === 1 ? '' : 's'}`] : [],
+                affectedApplications: item.appName ? [item.appName] : [],
+                affectedCount: item.deviceCount || item.cveCount || 0,
+                agingDays: 0
+            })),
+            ...(security.top20Devices || []).map(item => ({
+                title: `${item.deviceName || item.deviceId || 'Device'} requires attention`,
+                domain: 'Device',
+                severity: (item.critical || 0) > 0 ? 'Critical' : (item.high || 0) > 0 ? 'High' : 'Medium',
+                affectedDevices: [item.deviceName || item.deviceId || 'Device'],
+                affectedApplications: [],
+                affectedCount: (item.critical || 0) + (item.high || 0) + (item.medium || 0) + (item.low || 0),
+                agingDays: item.offlineDays || 0
+            }))
+        ].slice(0, 10);
+
+        const prioritizedActions = (snapshot.prioritizedActions || []).map(action => ({
+            title: action.title || action.actionId || 'Review evidence gap',
+            priority: action.priority || 'Medium',
+            riskReduction: action.riskReduction ?? 0,
+            affectedCount: action.affectedDevices ?? action.affectedDevicesList?.length ?? 0,
+            effort: action.effort || 'Medium',
+            sla: action.sla || 'Review'
+        }));
+
+        return {
+            ...snapshot,
+            risk: {
+                orgScore: snapshot.hygieneScore ?? snapshot.securityScore ?? snapshot.riskPostureScore ?? 0,
+                grade: snapshot.hygieneGrade || snapshot.grade || this.gradeForScore(snapshot.hygieneScore ?? snapshot.securityScore ?? 0),
+                scoreDelta: snapshot.scoreDelta ?? 0,
+                history: dailyTrends.map(point => ({
+                    date: point.date || point.Date,
+                    score: this.readNumber(point, ['hygieneScore', 'HygieneScore', 'securityScore', 'SecurityScore'])
+                }))
+            },
+            findings: {
+                bySeverity: security.bySeverity || {},
+                byDomain: security.byDomain || snapshot.domainScores || {},
+                top10: topFindings
+            },
+            actions: { prioritized: prioritizedActions },
+            compliance: {
+                score: compliance.overallScore ?? snapshot.complianceScore ?? 0,
+                controls
+            },
+            nistComplianceGaps: nistStandard?.gaps || [],
+            metadata: {
+                generatedBy: 'Dossier evidence atoms',
+                generatorVersion: 'atom-bundle',
+                dataQuality: {
+                    deviceCoverage: snapshot.deviceCount ? Math.round(((snapshot.activeDevices || 0) / snapshot.deviceCount) * 100) : null
+                },
+                warnings: snapshot.dataStateMessage ? [snapshot.dataStateMessage] : []
+            }
+        };
+    }
+
     async loadSnapshot(force = false) {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg || !currentOrg.orgId) {
@@ -201,7 +283,7 @@ export class PosturePage extends Component {
             const res = await api.getPageBundle(currentOrg.orgId, 'posture', force ? { refresh: true } : {});
             const atoms = res?.data?.atoms || {};
             const evidence = res?.data?.evidence || res?.data?.Evidence || null;
-            const snapshot = this.readAtomRows(atoms, 'org-snapshot')[0] || null;
+            const snapshot = this.normalizePostureSnapshot(this.readAtomRows(atoms, 'org-snapshot')[0] || null, atoms);
             const triggeredGeneration = !!force;
             const freshness = res?.data?.freshness || res?.freshness || null;
 
@@ -269,7 +351,7 @@ export class PosturePage extends Component {
             const res = await api.getPageBundle(currentOrg.orgId, 'posture');
             const atoms = res?.data?.atoms || {};
             const evidence = res?.data?.evidence || res?.data?.Evidence || null;
-            const snapshot = this.readAtomRows(atoms, 'org-snapshot')[0] || null;
+            const snapshot = this.normalizePostureSnapshot(this.readAtomRows(atoms, 'org-snapshot')[0] || null, atoms);
             const freshness = res?.data?.freshness || res?.freshness || null;
 
             if (snapshot) {

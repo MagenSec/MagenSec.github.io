@@ -103,7 +103,7 @@ class DevicesPage extends window.Component {
             const devicesChanged = prevState.devices !== this.state.devices;
             const installerLoaded = prevState.installers?.ENGINE?.VERSION !== this.state.installers?.ENGINE?.VERSION;
             if ((devicesChanged || installerLoaded) && Array.isArray(this.state.devices) && this.state.devices.length > 0) {
-                const outdatedCount = this.state.devices.filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
+                const outdatedCount = this.state.devices.filter(d => this.isAgentUpdateRequired(d)).length;
                 const orgKey = orgContext.getCurrentOrg()?.orgId || 'none';
                 const noticeKey = `outdated-clients-notice:${orgKey}`;
                 if (outdatedCount > 0 && sessionStorage.getItem(noticeKey) !== '1') {
@@ -1145,6 +1145,8 @@ class DevicesPage extends window.Component {
                     lastHeartbeat: device.lastHeartbeat,
                     firstHeartbeat: device.firstHeartbeat || device.firstSeen || device.createdAt,
                     clientVersion: device.clientVersion,
+                    lastUpdateRequiredReason: device.lastUpdateRequiredReason || device.LastUpdateRequiredReason,
+                    lastUpdateRequiredTargetVersion: device.lastUpdateRequiredTargetVersion || device.LastUpdateRequiredTargetVersion,
                     licenseKey: maskedKey,
                     telemetry: {
                         osEdition: t.osEdition || t.OSEdition || t.oseEdition,
@@ -1597,11 +1599,12 @@ class DevicesPage extends window.Component {
         return `${diffDays}d ago`;
     }
 
-    isVersionOutdated(deviceVersion) {
+    isVersionOutdated(deviceVersion, targetVersion = null) {
         if (!deviceVersion) return false;
         
         // Use cached installer version (or fallback to config)
-        const latestVersion = this.state.installers.ENGINE.VERSION || config.INSTALLERS.ENGINE.VERSION;
+        const latestVersion = targetVersion || this.state.installers.ENGINE.VERSION || config.INSTALLERS.ENGINE.VERSION;
+        if (!latestVersion) return false;
         
         // Parse versions (format: major.minor.build)
         const parseVersion = (v) => {
@@ -1622,6 +1625,19 @@ class DevicesPage extends window.Component {
         if (device.major === latest.major && device.minor === latest.minor && device.build < latest.build) return true;
         
         return false;
+    }
+
+    getLatestAgentVersion(device = null) {
+        return device?.lastUpdateRequiredTargetVersion || this.state.installers.ENGINE.VERSION || config.INSTALLERS.ENGINE.VERSION;
+    }
+
+    isAgentUpdateRequired(device) {
+        if (!device) return false;
+        const targetVersion = this.getLatestAgentVersion(device);
+        if (device.lastUpdateRequiredReason || device.lastUpdateRequiredTargetVersion) {
+            return !device.clientVersion || this.isVersionOutdated(device.clientVersion, targetVersion);
+        }
+        return !!device.clientVersion && this.isVersionOutdated(device.clientVersion, targetVersion);
     }
 
     // Builds a device object with .summary attached from state, mapping normalized summary fields
@@ -1669,7 +1685,7 @@ class DevicesPage extends window.Component {
     getDeviceStatusColor(device, risk, summary) {
         const score = risk && Number.isFinite(risk.score) ? risk.score : null;
         const critHigh = summary ? (summary.criticalCves || 0) + (summary.highCves || 0) : 0;
-        const isAgentOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+        const isAgentOutdated = this.isAgentUpdateRequired(device);
         const osText = (device.telemetry?.osEdition || device.os || '').toLowerCase();
         const isWin10 = osText.includes('windows 10');
         if (score !== null && score >= 70) return 'danger';
@@ -1685,7 +1701,7 @@ class DevicesPage extends window.Component {
     getDeviceAlertBadges(device, risk, summary) {
         const badges = [];
         const score = risk && Number.isFinite(risk.score) ? risk.score : null;
-        const isAgentOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+        const isAgentOutdated = this.isAgentUpdateRequired(device);
         const osText = (device.telemetry?.osEdition || device.os || '').toLowerCase();
         const isWin10 = osText.includes('windows 10');
         if (score !== null && score >= 70) badges.push({ color: 'danger', label: 'High Risk' });
@@ -2454,7 +2470,7 @@ class DevicesPage extends window.Component {
                             Scan All
                         </button>
                         ${(() => {
-                            const outdatedCount = (this.state.devices || []).filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
+                            const outdatedCount = (this.state.devices || []).filter(d => this.isAgentUpdateRequired(d)).length;
                             const hasOutdated = outdatedCount > 0;
                             return html`<button type="button" class="btn btn-sm ${hasOutdated ? 'btn-warning update-glow' : 'btn-outline-secondary'} d-inline-flex align-items-center gap-1" data-mutates-state="true" onclick=${() => this.queueOrgCommand('CheckUpdates')} title=${hasOutdated ? `${outdatedCount} device${outdatedCount === 1 ? '' : 's'} running outdated agent — push update now` : 'Check for updates on all devices'}>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
@@ -2671,7 +2687,7 @@ class DevicesPage extends window.Component {
                                                             const displayScore = Number.isFinite(risk.score) ? risk.score : 0;
                                                             const scoreValue = Math.max(0, Math.min(100, 100 - Math.round(displayScore)));
                                                             const scoreColor = scoreValue >= 75 ? 'success' : scoreValue >= 50 ? 'warning' : 'danger';
-                                                            const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+                                                            const isOutdated = this.isAgentUpdateRequired(device);
                                                             const osEdition = device.telemetry?.osEdition || '';
                                                             const osVersion = device.telemetry?.osVersion || '';
                                                             const osLabel = osVersion ? `${osEdition} ${osVersion}`.trim() : (osEdition || 'Unknown OS');
@@ -2766,7 +2782,7 @@ class DevicesPage extends window.Component {
                                                                 const stateRaw = (device.state || '').toLowerCase();
                                                                 const agentBlock = this.getAgentCommandBlockReason(device.state);
                                                                 const agentDisabled = !!agentBlock;
-                                                                const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
+                                                                const isOutdated = this.isAgentUpdateRequired(device);
                                                                 const canEnable = this.canEnableDevice(device.state);
                                                                 const canBlock = this.canBlockDevice(device.state);
                                                                 const isDeleted = stateRaw === 'deleted';
