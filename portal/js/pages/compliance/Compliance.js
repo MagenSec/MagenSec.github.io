@@ -510,9 +510,6 @@ export class CompliancePage extends Component {
                   <button class="btn btn-primary" data-mutates-state="true" disabled=${this.state.generatingReport} onClick=${() => this.generateReport()}>
                     ${this.state.generatingReport ? 'Generating…' : 'Generate Compliance Report'}
                   </button>
-                  <button class="btn btn-outline-secondary" onClick=${() => this.loadPage()}>
-                    Refresh Evidence
-                  </button>
                   <a href="#!/mission-brief" class="btn btn-outline-primary">
                     Open Mission Briefing
                   </a>

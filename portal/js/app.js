@@ -199,15 +199,73 @@ function applyPersonaNavigationLabels(orgType) {
     }
 }
 
+function setFeatureLockBadge(target, show, label = 'Locked') {
+    if (!target) return;
+    let badge = target.querySelector(':scope > .feature-lock-badge');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'badge bg-secondary-lt text-secondary ms-2 feature-lock-badge';
+        target.appendChild(badge);
+    }
+    if (show && target.classList.contains('dropdown-item')) {
+        target.classList.add('d-flex', 'align-items-center');
+    }
+    if (label === 'Business') {
+        badge.innerHTML = '<i class="ti ti-briefcase" aria-hidden="true"></i><span class="visually-hidden">Business</span>';
+        badge.setAttribute('title', 'Business feature');
+        badge.setAttribute('aria-label', 'Business feature');
+    } else {
+        badge.textContent = label;
+        badge.removeAttribute('aria-label');
+        badge.removeAttribute('title');
+    }
+    badge.style.display = show ? '' : 'none';
+}
+
+function setFeatureLocked(target, locked, message, label = 'Locked') {
+    if (!target) return;
+    if (!target.dataset.featureOriginalTitle && target.hasAttribute('title')) {
+        target.dataset.featureOriginalTitle = target.getAttribute('title') || '';
+    }
+    target.classList.toggle('feature-locked', locked);
+    if (locked) {
+        target.setAttribute('data-feature-locked', 'true');
+        target.setAttribute('aria-disabled', 'true');
+        target.setAttribute('title', message);
+        setFeatureLockBadge(target, true, label);
+    } else {
+        target.classList.remove('feature-locked');
+        target.classList.remove('disabled');
+        target.removeAttribute('data-feature-locked');
+        target.removeAttribute('aria-disabled');
+        target.removeAttribute('tabindex');
+        if (Object.prototype.hasOwnProperty.call(target.dataset, 'featureOriginalTitle')) {
+            const originalTitle = target.dataset.featureOriginalTitle;
+            if (originalTitle) {
+                target.setAttribute('title', originalTitle);
+            } else {
+                target.removeAttribute('title');
+            }
+        } else {
+            target.removeAttribute('title');
+        }
+        setFeatureLockBadge(target, false);
+    }
+}
+
 function applyOrgUiRestrictions() {
     const body = document.body;
     if (!body) return;
     const orgType = orgContext.getCurrentOrg()?.type || 'Business';
     const isPersonal = orgType === 'Personal';
     const isEducation = orgType === 'Education';
+    const isBusiness = orgType === 'Business';
+    const isSiteAdminUser = auth.isAuthenticated() && auth.getUser()?.userType === 'SiteAdmin';
+    const hideBusinessMenus = isPersonal && !isSiteAdminUser;
     body.classList.toggle('org-personal', isPersonal);
     body.classList.toggle('org-education', isEducation);
-    body.classList.toggle('org-business', !isPersonal && !isEducation);
+    body.classList.toggle('org-business', isBusiness);
+    body.classList.toggle('org-site-admin', isSiteAdminUser);
     body.classList.toggle('readonly-active', orgContext.isReadOnly() && !orgContext.isSiteAdmin());
     applyPersonaNavigationLabels(orgType);
 
@@ -215,26 +273,31 @@ function applyOrgUiRestrictions() {
     businessOnlyItems.forEach((item) => {
         const tooltip = item.getAttribute('data-business-tooltip') || 'Feature available in Business License only';
         const navTrigger = item.querySelector(':scope > .nav-link.dropdown-toggle');
-        if (isPersonal) {
-            item.setAttribute('aria-disabled', 'true');
+        const directTrigger = item.querySelector(':scope > .nav-link:not(.dropdown-toggle)');
+        if (hideBusinessMenus) {
+            item.style.display = 'none';
+            item.classList.remove('feature-locked-container');
+            item.removeAttribute('title');
+            if (navTrigger) setFeatureLockBadge(navTrigger, false);
+            if (directTrigger) setFeatureLocked(directTrigger, false, tooltip, 'Business');
+            return;
+        }
+        item.style.display = '';
+        const locked = !isSiteAdminUser && !isBusiness;
+        item.classList.toggle('feature-locked-container', locked);
+        if (locked) {
             item.setAttribute('title', tooltip);
             if (navTrigger) {
-                navTrigger.classList.add('disabled');
-                navTrigger.setAttribute('aria-disabled', 'true');
-                navTrigger.setAttribute('tabindex', '-1');
-                if (navTrigger.hasAttribute('data-bs-toggle')) {
-                    navTrigger.setAttribute('data-disabled-bs-toggle', navTrigger.getAttribute('data-bs-toggle') || 'dropdown');
-                    navTrigger.removeAttribute('data-bs-toggle');
-                }
-                if (navTrigger.hasAttribute('href')) {
-                    navTrigger.setAttribute('data-disabled-href', navTrigger.getAttribute('href') || '#');
-                    navTrigger.removeAttribute('href');
-                }
+                navTrigger.setAttribute('title', tooltip);
+                setFeatureLockBadge(navTrigger, true, 'Business');
+            }
+            if (directTrigger) {
+                setFeatureLocked(directTrigger, true, tooltip, 'Business');
             }
         } else {
-            item.removeAttribute('aria-disabled');
             item.removeAttribute('title');
             if (navTrigger) {
+                navTrigger.removeAttribute('title');
                 navTrigger.classList.remove('disabled');
                 navTrigger.removeAttribute('aria-disabled');
                 navTrigger.removeAttribute('tabindex');
@@ -246,38 +309,41 @@ function applyOrgUiRestrictions() {
                     navTrigger.setAttribute('href', navTrigger.getAttribute('data-disabled-href') || '#');
                     navTrigger.removeAttribute('data-disabled-href');
                 }
+                setFeatureLockBadge(navTrigger, false);
+            }
+            if (directTrigger) {
+                setFeatureLocked(directTrigger, false, tooltip, 'Business');
             }
         }
     });
 
-    // Rewind nav: visible to SiteAdmins (already handled by site-admin-only) OR any user
-    // with the Rewind add-on on their current org license.
+    // Rewind nav: visible to Site Admins and visible-but-locked for end-user roles
+    // without Business/Rewind entitlement.
     const rewindNavItem = document.getElementById('rewind-nav-item');
     if (rewindNavItem && auth.isAuthenticated()) {
-        const user = auth.getUser();
-        const isSiteAdmin = user?.userType === 'SiteAdmin';
-        if (!isSiteAdmin && orgContext.hasRewind()) {
-            rewindNavItem.style.display = '';
-        } else if (!isSiteAdmin) {
+        const rewindTrigger = document.getElementById('rewind-trigger');
+        if (hideBusinessMenus) {
             rewindNavItem.style.display = 'none';
+            if (rewindTrigger) setFeatureLocked(rewindTrigger, false, 'Time Warp is available with a Business Rewind entitlement', 'Business');
+        } else {
+        const rewindLocked = !isSiteAdminUser && !orgContext.hasRewind();
+        rewindNavItem.style.display = '';
+        if (rewindTrigger) {
+            setFeatureLocked(rewindTrigger, rewindLocked, 'Time Warp is available with a Business Rewind entitlement', 'Business');
         }
-        // SiteAdmin visibility is handled by site-admin-only logic in setAuthenticationState
+        }
     }
 
     // Add-on nav gating is now handled via [data-addon] attributes in the
     // four-pillar nav structure.  The old standalone Add-ons dropdown has been
     // removed; individual feature items live inside Protect / Prove / Monitor.
-    const isSiteAdminUser = auth.isAuthenticated() && auth.getUser()?.userType === 'SiteAdmin';
-
-    // Personal org: hide nav items that are business-only
-    const hideForPersonalNonAdmin = isPersonal && !isSiteAdminUser;
     const personalNavHideMap = {
         'nav-home-item':           false,
-        'nav-prove-item':          hideForPersonalNonAdmin,
-        'nav-audit-item':          hideForPersonalNonAdmin,
-        'nav-insure-item':         hideForPersonalNonAdmin,
-        'nav-magi-item':           hideForPersonalNonAdmin,
-        'required-actions-nav':    hideForPersonalNonAdmin,
+        'nav-prove-item':          hideBusinessMenus,
+        'nav-audit-item':          hideBusinessMenus,
+        'nav-insure-item':         hideBusinessMenus,
+        'nav-magi-item':           hideBusinessMenus,
+        'required-actions-nav':    hideBusinessMenus,
     };
     if (auth.isAuthenticated()) {
         for (const [id, hide] of Object.entries(personalNavHideMap)) {
@@ -289,6 +355,13 @@ function applyOrgUiRestrictions() {
         if (homeLink) {
             homeLink.setAttribute('href', isPersonal ? '#!/security' : '#!/dashboard');
         }
+
+        const actionsNavItem = document.getElementById('required-actions-nav');
+        const actionsLink = document.getElementById('required-actions-btn');
+        if (actionsNavItem && actionsLink) {
+            actionsNavItem.style.display = hideBusinessMenus ? 'none' : '';
+            setFeatureLocked(actionsLink, false, 'Alerts are available with Business security workflows', 'Business');
+        }
     }
 
     // Add-on gated nav items: elements with [data-addon] attribute
@@ -298,34 +371,69 @@ function applyOrgUiRestrictions() {
         addonGatedItems.forEach(el => {
             const addOnKey = el.getAttribute('data-addon');
             if (!addOnKey) return;
-            const hasIt = isSiteAdminUser || (addOnKey.toLowerCase() === 'magi'
+            const isBusinessOnlyNav = el.classList.contains('business-nav-only') || !!el.closest('.business-license-only');
+            if (hideBusinessMenus && isBusinessOnlyNav) {
+                el.style.display = 'none';
+                const hiddenTarget = el.classList.contains('nav-item') ? (el.querySelector(':scope > .nav-link') || el) : el;
+                setFeatureLocked(hiddenTarget, false, 'Feature available in Business License only', 'Business');
+                return;
+            }
+            const hasLicenseType = isSiteAdminUser || !isBusinessOnlyNav || isBusiness;
+            const lockTarget = el.classList.contains('nav-item') ? (el.querySelector(':scope > .nav-link') || el) : el;
+            const hasIt = isSiteAdminUser || (hasLicenseType && (addOnKey.toLowerCase() === 'magi'
                 ? (orgContext.hasMagi?.() ?? false)
-                : (orgContext.hasAddOn?.(addOnKey) ?? false));
+                : (orgContext.hasAddOn?.(addOnKey) ?? false)));
             // The static markup ships with a `ti-lock` glyph on every gated item; toggle its
             // visibility based on entitlement so an Ultimate/Site-Admin user does not see padlocks.
-            const lockIcon = el.querySelector('.ti-lock');
+            const lockIcon = lockTarget.querySelector('.ti-lock') || el.querySelector('.ti-lock');
+            el.style.display = '';
             if (hasIt) {
                 el.style.display = '';
-                el.classList.remove('disabled');
-                el.removeAttribute('aria-disabled');
-                el.removeAttribute('title');
+                setFeatureLocked(lockTarget, false, 'Not included in your current plan', 'Add-on');
                 if (lockIcon) lockIcon.style.display = 'none';
-            } else if (hideForPersonalNonAdmin) {
-                // Already hidden by personal-org logic above
-                el.style.display = 'none';
             } else {
-                // Business user without this add-on: show but disabled
-                el.classList.add('disabled');
-                el.setAttribute('aria-disabled', 'true');
-                el.setAttribute('title', 'Not included in your current plan');
+                const lockLabel = hasLicenseType ? 'Add-on' : 'Business';
+                const lockMessage = hasLicenseType
+                    ? 'Not included in your current plan'
+                    : 'Feature available in Business License only';
+                setFeatureLocked(lockTarget, true, lockMessage, lockLabel);
                 if (lockIcon) lockIcon.style.display = '';
             }
         });
 
-        // Business-nav-only items: hide for Personal, show for Business
+        const businessDropdownItems = document.querySelectorAll('.business-license-only .dropdown-item[href]:not([data-addon])');
+        businessDropdownItems.forEach(el => {
+            if (hideBusinessMenus) {
+                el.style.display = 'none';
+                setFeatureLocked(el, false, 'Feature available in Business License only', 'Business');
+                return;
+            }
+            const locked = !isSiteAdminUser && !isBusiness;
+            setFeatureLocked(el, locked, 'Feature available in Business License only', 'Business');
+        });
+
+        // Business-nav-only items: show for every role, lock when the selected org
+        // does not carry Business-level access. Site Admin stays unlocked.
         const businessNavItems = document.querySelectorAll('.business-nav-only');
         businessNavItems.forEach(el => {
-            el.style.display = hideForPersonalNonAdmin ? 'none' : '';
+            if (hideBusinessMenus) {
+                el.style.display = 'none';
+                el.classList.remove('feature-locked-divider');
+                if (el.matches('a,button,[role="button"]')) {
+                    setFeatureLocked(el, false, 'Feature available in Business License only', 'Business');
+                }
+                return;
+            }
+            const locked = !isSiteAdminUser && !isBusiness;
+            el.style.display = '';
+            if (el.hasAttribute('data-addon')) {
+                return;
+            }
+            if (el.matches('a,button,[role="button"]')) {
+                setFeatureLocked(el, locked, 'Feature available in Business License only', 'Business');
+            } else {
+                el.classList.toggle('feature-locked-divider', locked);
+            }
         });
     }
 
@@ -433,6 +541,9 @@ function renderCurrentPage() {
         case 'changelog':
             return html`<${InventoryChangelogPage} />`;
         case 'alerts':
+            if (orgContext.getCurrentOrg()?.type === 'Personal' && !orgContext.isSiteAdmin()) {
+                return html`<${SecurityOverview} />`;
+            }
             return html`
                 <div>
                     <${AlertsPage} />
@@ -849,8 +960,15 @@ async function init() {
         if (!badge || !btn || !wrapper) return;
 
         const isPersonalOrg = orgContext.getCurrentOrg()?.type === 'Personal';
-        wrapper.style.display = auth.isAuthenticated() && !isPersonalOrg ? '' : 'none';
+        const hideForPersonalCustomer = isPersonalOrg && !orgContext.isSiteAdmin();
+        wrapper.style.display = auth.isAuthenticated() && !hideForPersonalCustomer ? '' : 'none';
+        setFeatureLocked(btn, false, 'Alerts are available with Business security workflows', 'Business');
         btn.classList.remove('alert-active', 'alert-overdue');
+
+        if (hideForPersonalCustomer) {
+            badge.style.setProperty('display', 'none', 'important');
+            return;
+        }
 
         if (totalOpen > 0) {
             badge.textContent = totalOpen > 99 ? '99+' : String(totalOpen);
@@ -937,17 +1055,17 @@ async function init() {
     }
 
     document.addEventListener('click', (e) => {
-        const blocked = e.target.closest('.business-license-only');
+        const blocked = e.target.closest('[data-feature-locked="true"]');
         if (!blocked) {
             return;
         }
-        if (!document.body.classList.contains('org-personal')) {
+        if (orgContext.isSiteAdmin()) {
             return;
         }
 
         e.preventDefault();
         e.stopPropagation();
-        window.toast?.show('Feature available in Business License only', 'warning', 3000);
+        window.toast?.show(blocked.getAttribute('title') || 'This feature is not included in the selected org plan', 'warning', 3000);
     }, true);
 
     // Track open/close state of top navigation dropdowns for contextual layout shifts.

@@ -846,15 +846,9 @@ export class PosturePage extends Component {
                         <div class="col-lg-3 text-center text-lg-end">
                             <div class="d-flex flex-column gap-2">
                                 <div class="btn-group" role="group">
-                                    <button class="btn btn-light btn-sm" data-mutates-state="true" disabled=${this.state.refreshing} onClick=${() => this.loadSnapshot(true)}>
-                                        ${this.state.refreshing ? 'Refreshing…' : 'Refresh Evidence'}
-                                    </button>
-                                </div>
-                                <div class="btn-group" role="group">
                                     <button class="btn btn-sm ${this.state.period === 'daily' ? 'btn-light' : 'btn-outline-light'}" onClick=${() => this.setPeriod('daily')}>Daily</button>
                                     <button class="btn btn-sm ${this.state.period === 'weekly' ? 'btn-light' : 'btn-outline-light'}" onClick=${() => this.setPeriod('weekly')}>Weekly</button>
                                 </div>
-                                ${this.state.triggeredGeneration ? html`<span class="small opacity-75">Evidence refreshed just now</span>` : null}
                             </div>
                         </div>
                     </div>
@@ -991,16 +985,6 @@ export class PosturePage extends Component {
                                     <span class="badge bg-azure-lt text-azure ms-2">Trend evidence only</span>
                                 ` : null}
                             </div>
-                        </div>
-                        <div class="col-auto ms-auto">
-                            <button 
-                                class="btn btn-icon" 
-                                data-mutates-state="true"
-                                onClick=${() => this.loadSnapshot(true)}
-                                title="Refresh evidence"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
-                            </button>
                         </div>
                     </div>
                 </div>

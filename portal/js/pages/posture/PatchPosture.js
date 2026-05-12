@@ -636,6 +636,8 @@ export class PatchPosturePage extends Component {
             `;
         }
         const { summary, intel, hosts = [] } = data || {};
+        const isPersonal = orgContext.isIndividualUser?.() || orgContext.getCurrentOrg?.()?.type === 'Personal';
+        const canComparePatchPosture = !isPersonal && (orgContext.hasAddOnForOrg ? orgContext.hasAddOnForOrg('Audit') : orgContext.hasAddOn('Audit'));
         return html`
             <div class="page-body"><div class="container-xl">
                 <div class="d-flex align-items-center mb-3">
@@ -646,18 +648,13 @@ export class PatchPosturePage extends Component {
                         </h2>
                         <div class="text-muted">Missing Microsoft security updates across your fleet, prepared as daily evidence.</div>
                     </div>
-                    <div class="ms-auto">
-                        <button class="btn btn-outline-primary" onClick=${() => this.load()} disabled=${refreshing}>
-                            <i class="ti ti-refresh me-1"></i>${refreshing ? 'Refreshing…' : 'Get Patch Intel'}
-                        </button>
-                    </div>
                 </div>
 
                 ${this.renderDiagnostics(summary, intel, hosts)}
 
                 ${this.renderKpis(summary, intel)}
 
-                ${(orgContext.hasAddOnForOrg ? orgContext.hasAddOnForOrg('Audit') : orgContext.hasAddOn('Audit')) ? html`
+                ${canComparePatchPosture ? html`
                 <div class="card mb-3">
                     <div class="card-header pp-collapse-header" role="button" tabindex="0"
                         onClick=${() => this.toggleSection('whatChanged')}
@@ -753,7 +750,7 @@ export class PatchPosturePage extends Component {
                     </div>
                     </div>
                 </div>
-                ` : html`
+                ` : isPersonal ? null : html`
                 <div class="card mb-3 patch-diff-upsell" style="border:1px dashed var(--tblr-border-color); background:linear-gradient(135deg, rgba(102,126,234,0.04), rgba(118,75,162,0.04));">
                     <div class="card-body d-flex align-items-start gap-3">
                         <div class="flex-shrink-0" style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:#fff;">

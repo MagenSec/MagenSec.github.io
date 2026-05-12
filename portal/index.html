@@ -310,13 +310,54 @@
             background-color: rgba(0, 0, 0, 0.02);
         }
 
-        body.org-personal .business-license-only {
-            opacity: 0.55;
+        body.org-personal:not(.org-site-admin) .business-license-only,
+        body.org-education:not(.org-site-admin) .business-license-only {
+            opacity: 0.82;
         }
 
-        body.org-personal .business-license-only,
-        body.org-personal .business-license-only * {
+        [data-feature-locked="true"],
+        [data-feature-locked="true"] * {
             cursor: not-allowed !important;
+        }
+
+        .feature-locked {
+            color: var(--tblr-muted) !important;
+        }
+
+        .nav-link .feature-lock-badge,
+        .dropdown-item .feature-lock-badge,
+        #rewind-trigger .feature-lock-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.62rem;
+            line-height: 1.15;
+            letter-spacing: 0;
+            white-space: nowrap;
+        }
+
+        .feature-lock-badge .ti {
+            font-size: 0.78rem;
+            line-height: 1;
+        }
+
+        #navbar-menu {
+            position: relative;
+            z-index: 5200;
+        }
+
+        #navbar-menu .navbar,
+        #navbar-menu .nav-item.dropdown {
+            position: relative;
+            z-index: 5200;
+        }
+
+        #navbar-menu .dropdown-menu {
+            z-index: 5300 !important;
+        }
+
+        .dropdown-item.feature-locked .ti-lock {
+            display: inline-flex !important;
         }
     </style>
 </head>

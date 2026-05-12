@@ -173,9 +173,6 @@ export function AddOnPage({
                                 Evidence prepared ${new Date(meta.computedAt).toLocaleString()}
                             </span>
                         ` : null}
-                        <button class="btn btn-sm btn-outline-secondary ms-2" onClick=${load} disabled=${loading}>
-                            <i class="ti ti-refresh me-1"></i> ${isHistorical ? 'Reload evidence' : 'Refresh evidence'}
-                        </button>
                     </div>
                 </div>
             </div>

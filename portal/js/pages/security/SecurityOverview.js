@@ -96,6 +96,13 @@ function cleanActionTitle(action) {
         .replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
+function personalSafeActionHref(action, fallback = '#!/security') {
+    const href = String(action?.actionUrl || '').trim();
+    if (!orgContext.isIndividualUser?.()) return href || fallback;
+    if (!href || href.includes('#!/alerts')) return fallback;
+    return href;
+}
+
 export class SecurityOverview extends Component {
     constructor(props) {
         super(props);
@@ -313,7 +320,7 @@ export class SecurityOverview extends Component {
         if (patch.openAlerts > 0 || patch.hostsAffected > 0) {
             weaknesses.push({ icon: 'ti-shield-x', href: '#!/patch-posture', tone: 'warning', text: `${patch.openAlerts} patch alert${patch.openAlerts === 1 ? '' : 's'} across ${patch.hostsAffected} affected device${patch.hostsAffected === 1 ? '' : 's'}.` });
         }
-        if (s.actionsOpen > 0) {
+        if (s.actionsOpen > 0 && !orgContext.isIndividualUser?.()) {
             weaknesses.push({ icon: 'ti-bell-ringing', href: '#!/alerts', tone: 'warning', text: `${s.actionsOpen} open action${s.actionsOpen === 1 ? '' : 's'} still need closure.` });
         }
         if (!weaknesses.length) {
@@ -449,6 +456,7 @@ export class SecurityOverview extends Component {
     renderFocusMatrix() {
         const s = this.state;
         const patch = s.patchStatus || buildPatchStatus(null);
+        const isPersonal = orgContext.isIndividualUser?.();
         const cards = [
             {
                 label: 'Coverage',
@@ -475,12 +483,12 @@ export class SecurityOverview extends Component {
                 href: '#!/patch-posture'
             },
             {
-                label: 'Actions',
+                label: isPersonal ? 'Fixes' : 'Actions',
                 value: `${s.topActions.length || s.actionsOpen}`,
-                detail: s.topActions.length ? 'fix-first items ready' : `${s.actionsOpen} open alerts`,
+                detail: s.topActions.length ? 'fix-first items ready' : (isPersonal ? 'security checks ready' : `${s.actionsOpen} open alerts`),
                 icon: 'ti-list-check',
                 tone: (s.topActions.length || s.actionsOpen) > 0 ? 'warning' : 'success',
-                href: '#!/alerts'
+                href: isPersonal ? '#!/vulnerabilities' : '#!/alerts'
             }
         ];
 
@@ -530,7 +538,7 @@ export class SecurityOverview extends Component {
                 <div class="card-body">
                     <div class="list-group list-group-flush">
                         ${s.topActions.slice(0, 3).map((item) => html`
-                            <a href=${item?.actionUrl || '#!/alerts'} class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3">
+                            <a href=${personalSafeActionHref(item, '#!/vulnerabilities')} class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3">
                                 <span class="flex-fill">
                                     <span class="d-block fw-semibold">${cleanActionTitle(item)}</span>
                                     <span class="d-block text-muted small mt-1">${formatActionDeviceText(item)}</span>
@@ -566,6 +574,7 @@ export class SecurityOverview extends Component {
 
     renderDeepDive() {
         const s = this.state;
+        const isPersonal = orgContext.isIndividualUser?.();
         return html`
             <div class="card-body">
                 <div class="row g-3 mb-3">
@@ -603,7 +612,7 @@ export class SecurityOverview extends Component {
                         <div class="text-muted text-uppercase fw-semibold small mb-2">Fix first</div>
                         <div class="list-group list-group-flush">
                             ${s.topActions.map((item) => html`
-                                <a href=${item?.actionUrl || '#!/posture'} class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3">
+                                <a href=${personalSafeActionHref(item, '#!/posture')} class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-3">
                                     <span class="flex-fill">
                                         <span class="d-block fw-semibold">${cleanActionTitle(item)}</span>
                                         <span class="d-block text-muted small mt-1">${formatActionDeviceText(item)}</span>
@@ -616,11 +625,11 @@ export class SecurityOverview extends Component {
                 ` : ''}
 
                 <div class="d-flex gap-2 flex-wrap">
-                    <a href="#!/dashboard" class="btn btn-primary btn-sm">
-                        <i class="ti ti-layout-dashboard me-1"></i>Open full command center
+                    <a href=${isPersonal ? '#!/devices' : '#!/dashboard'} class="btn btn-primary btn-sm">
+                        <i class=${`ti ${isPersonal ? 'ti-devices' : 'ti-layout-dashboard'} me-1`}></i>${isPersonal ? 'Open devices' : 'Open full command center'}
                     </a>
-                    <a href="#!/posture" class="btn btn-outline-secondary btn-sm">
-                        <i class="ti ti-shield-check me-1"></i>View posture detail
+                    <a href=${isPersonal ? '#!/apps' : '#!/posture'} class="btn btn-outline-secondary btn-sm">
+                        <i class=${`ti ${isPersonal ? 'ti-apps' : 'ti-shield-check'} me-1`}></i>${isPersonal ? 'Review software' : 'View posture detail'}
                     </a>
                 </div>
             </div>
@@ -685,7 +694,7 @@ export class SecurityOverview extends Component {
                                         ${rewindContext.isActive() ? html` Viewing a historical Time Warp dossier.` : ''}
                                     </div>
                                     <div class="btn-list">
-                                        <a href=${patch.openAlerts > 0 ? '#!/patch-posture' : '#!/alerts'} class="btn btn-white ${needsAttention ? '' : 'disabled'}">
+                                        <a href=${patch.openAlerts > 0 ? '#!/patch-posture' : '#!/vulnerabilities'} class="btn btn-white ${needsAttention ? '' : 'disabled'}">
                                             <i class="ti ti-tool me-1"></i>${needsAttention ? 'Fix first' : 'No urgent fix'}
                                         </a>
                                         <a href="#!/vulnerabilities" class="btn btn-outline-light">

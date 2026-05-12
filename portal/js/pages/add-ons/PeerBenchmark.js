@@ -459,16 +459,11 @@ export function PeerBenchmarkPage() {
                     </div>
                     <div class="col-auto ms-auto">
                         ${meta?.computedAt ? html`
-                            <span class="text-muted small me-2">
+                            <span class="text-muted small">
                                 <i class="ti ti-clock me-1"></i>
                                 Evidence prepared ${new Date(meta.computedAt).toLocaleString()}
                             </span>
                         ` : null}
-                        <button class="btn btn-sm btn-outline-secondary"
-                                onClick=${() => load(isTimewarp ? window.rewindContext?.getDate?.() : '')}
-                                disabled=${loading}>
-                            <i class="ti ti-refresh me-1"></i> Refresh evidence
-                        </button>
                     </div>
                 </div>
             </div>

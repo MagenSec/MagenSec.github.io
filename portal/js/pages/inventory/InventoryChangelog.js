@@ -333,6 +333,196 @@ export class InventoryChangelogPage extends Component {
         };
     }
 
+    getSortedEvents(events = this.getFiltered()) {
+        return [...events].sort((left, right) => {
+            const leftTime = new Date(this._eventMoment(left) || 0).getTime();
+            const rightTime = new Date(this._eventMoment(right) || 0).getTime();
+            return rightTime - leftTime;
+        });
+    }
+
+    getChangedApps(events = this.getFiltered()) {
+        const apps = new Map();
+        for (const event of events) {
+            const key = `${event.vendor || 'Unknown vendor'}|${event.appName || 'Unknown app'}`;
+            if (!apps.has(key)) {
+                apps.set(key, {
+                    key,
+                    vendor: event.vendor || 'Unknown vendor',
+                    appName: event.appName || 'Unknown app',
+                    installs: 0,
+                    updates: 0,
+                    removals: 0,
+                    devices: new Set(),
+                    latest: null,
+                });
+            }
+
+            const item = apps.get(key);
+            if (event.changeType === 'Installed') item.installs += 1;
+            else if (event.changeType === 'Updated') item.updates += 1;
+            else if (event.changeType === 'Uninstalled') item.removals += 1;
+            if (event.deviceId) item.devices.add(event.deviceId);
+            const eventTime = this._eventMoment(event);
+            if (!item.latest || new Date(eventTime || 0).getTime() > new Date(item.latest || 0).getTime()) {
+                item.latest = eventTime;
+            }
+        }
+
+        return [...apps.values()]
+            .map(item => ({ ...item, deviceCount: item.devices.size }))
+            .sort((a, b) => {
+                const riskRank = (b.removals + b.updates) - (a.removals + a.updates);
+                if (riskRank !== 0) return riskRank;
+                return new Date(b.latest || 0).getTime() - new Date(a.latest || 0).getTime();
+            })
+            .slice(0, 8);
+    }
+
+    getDeviceRollups(events = this.getFiltered()) {
+        const devices = new Map();
+        for (const event of events) {
+            const key = event.deviceId || 'unknown-device';
+            if (!devices.has(key)) {
+                devices.set(key, {
+                    key,
+                    deviceId: event.deviceId || '',
+                    deviceName: event.deviceName || event.deviceId || 'Unknown device',
+                    installs: 0,
+                    updates: 0,
+                    removals: 0,
+                    apps: new Set(),
+                    latest: null,
+                });
+            }
+
+            const item = devices.get(key);
+            if (event.changeType === 'Installed') item.installs += 1;
+            else if (event.changeType === 'Updated') item.updates += 1;
+            else if (event.changeType === 'Uninstalled') item.removals += 1;
+            if (event.appName) item.apps.add(event.appName);
+            const eventTime = this._eventMoment(event);
+            if (!item.latest || new Date(eventTime || 0).getTime() > new Date(item.latest || 0).getTime()) {
+                item.latest = eventTime;
+            }
+        }
+
+        return [...devices.values()]
+            .map(item => ({ ...item, appCount: item.apps.size, total: item.installs + item.updates + item.removals }))
+            .sort((a, b) => b.total - a.total || new Date(b.latest || 0).getTime() - new Date(a.latest || 0).getTime())
+            .slice(0, 8);
+    }
+
+    versionText(event) {
+        if (event.changeType === 'Updated') {
+            const fromVersion = event.previousVersion || event.version || 'previous build';
+            const toVersion = event.nextVersion || event.version || 'current build';
+            return `${fromVersion} -> ${toVersion}`;
+        }
+        return event.version || event.nextVersion || 'version not reported';
+    }
+
+    changeMeaning(event) {
+        if (event.changeType === 'Uninstalled') return 'Removed from this device; exposure should close if no other active install remains.';
+        if (event.changeType === 'Updated') return 'Version changed; verify vulnerable versions were replaced.';
+        return 'First observed on this device; inventory baseline expanded.';
+    }
+
+    renderChangedApps(apps) {
+        return html`
+            <div class="card h-100">
+                <div class="card-header">
+                    <h3 class="card-title">Changed applications</h3>
+                </div>
+                <div class="list-group list-group-flush">
+                    ${apps.length ? apps.map(app => html`
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between gap-3">
+                                <div class="min-width-0">
+                                    <div class="fw-semibold text-truncate">${app.appName}</div>
+                                    <div class="text-muted small text-truncate">${app.vendor} · ${app.deviceCount} device${app.deviceCount === 1 ? '' : 's'} · latest ${fmtDateTime(app.latest)}</div>
+                                </div>
+                                <div class="d-flex gap-1 flex-wrap justify-content-end">
+                                    ${app.installs ? html`<span class="badge bg-success text-white">${app.installs} installed</span>` : null}
+                                    ${app.updates ? html`<span class="badge bg-primary text-white">${app.updates} updated</span>` : null}
+                                    ${app.removals ? html`<span class="badge bg-danger text-white">${app.removals} removed</span>` : null}
+                                </div>
+                            </div>
+                        </div>
+                    `) : html`<div class="list-group-item text-muted">No applications match the current filters.</div>`}
+                </div>
+            </div>
+        `;
+    }
+
+    renderDeviceRollups(devices) {
+        return html`
+            <div class="card h-100">
+                <div class="card-header">
+                    <h3 class="card-title">Devices with movement</h3>
+                </div>
+                <div class="list-group list-group-flush">
+                    ${devices.length ? devices.map(device => html`
+                        <a href=${device.deviceId ? `#!/devices/${device.deviceId}` : '#!/devices'} class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between gap-3">
+                                <div class="min-width-0">
+                                    <div class="fw-semibold text-truncate">${device.deviceName}</div>
+                                    <div class="text-muted small">${device.appCount} app${device.appCount === 1 ? '' : 's'} touched · latest ${fmtDateTime(device.latest)}</div>
+                                </div>
+                                <span class="badge bg-secondary text-white">${device.total}</span>
+                            </div>
+                        </a>
+                    `) : html`<div class="list-group-item text-muted">No devices match the current filters.</div>`}
+                </div>
+            </div>
+        `;
+    }
+
+    renderLedgerRows(events) {
+        return html`
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Change ledger</h3>
+                    <div class="card-actions text-muted small">Newest first</div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-vcenter card-table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:150px;">When</th>
+                                <th style="width:112px;">Action</th>
+                                <th>Application</th>
+                                <th>Version</th>
+                                <th>Device</th>
+                                <th>Meaning</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${events.slice(0, 120).map((event, index) => html`
+                                <tr key=${`${event.deviceId || 'device'}_${this._eventMoment(event) || index}_${event.appName || 'app'}`}>
+                                    <td class="text-muted small" style="white-space:nowrap;">${fmtDateTime(this._eventMoment(event))}</td>
+                                    <td><span class="badge ${CHANGE_BADGE[event.changeType] || 'bg-secondary text-white'}">${event.changeType || '?'}</span></td>
+                                    <td>
+                                        <div class="fw-medium">${event.appName || 'Unknown app'}</div>
+                                        <div class="text-muted small">${event.vendor || 'Unknown vendor'}</div>
+                                    </td>
+                                    <td class="text-muted small"><code>${this.versionText(event)}</code></td>
+                                    <td>
+                                        <a href=${event.deviceId ? `#!/devices/${event.deviceId}` : '#!/devices'} class="text-reset small">
+                                            ${event.deviceName || event.deviceId || 'Unknown device'}
+                                        </a>
+                                    </td>
+                                    <td class="text-muted small">${this.changeMeaning(event)}</td>
+                                </tr>
+                            `)}
+                        </tbody>
+                    </table>
+                </div>
+                ${events.length > 120 ? html`<div class="card-footer text-muted small">Showing the newest 120 of ${events.length} matching events.</div>` : null}
+            </div>
+        `;
+    }
+
     getGroupedEvents() {
         const filtered = this.getFiltered();
         const { groupBy } = this.state;
@@ -488,9 +678,12 @@ export class InventoryChangelogPage extends Component {
                 changeTypeFilter, searchText, deviceFilter, groupBy } = this.state;
         const filtered = this.getFiltered();
         const devices  = this.getUniqueDevices();
-        const groupedEvents = this.getGroupedEvents();
         const stats = this.getSummaryStats();
         const recentStats = this.getRecentActivityStats();
+        const sortedEvents = this.getSortedEvents(filtered);
+        const changedApps = this.getChangedApps(filtered);
+        const deviceRollups = this.getDeviceRollups(filtered);
+        const latestEvent = sortedEvents[0] || null;
 
         if (loading && !events.length) {
             return html`
@@ -529,12 +722,6 @@ export class InventoryChangelogPage extends Component {
                                 ${events.length > 0 ? html` · <span class="text-muted">${events.length} events loaded${this.state.total > events.length ? ` of ${this.state.total}` : ''}</span>` : ''}
                                 ${rewindContext.isActive() ? html` · <span class="badge bg-azure-lt text-azure">As of ${api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
                             </p>
-                        </div>
-                        <div class="col-auto">
-                            <button class="btn btn-primary" onClick=${() => this.loadChangelog(true)}>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
-                                Refresh
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -578,11 +765,16 @@ export class InventoryChangelogPage extends Component {
                         </div>
                     </div>
 
-                    <div class="card card-sm mb-3">
-                        <div class="card-body py-2 d-flex flex-wrap justify-content-between gap-2 align-items-center">
+                    <div class="card mb-3 border-0 shadow-sm">
+                        <div class="card-body d-flex flex-wrap justify-content-between gap-3 align-items-center">
                             <div>
-                                <div class="fw-medium">Inventory Dossier submitted ${fmtDateTime(recentStats.signalUpdatedAt)}</div>
-                                <div class="text-muted small">${recentStats.recent7dCount} changes in the last 7 days across ${recentStats.recentDevices || stats.devices} device${(recentStats.recentDevices || stats.devices) === 1 ? '' : 's'}.</div>
+                                <div class="text-muted text-uppercase fw-semibold small">What changed most recently</div>
+                                <div class="h3 mb-1">${latestEvent ? `${latestEvent.changeType || 'Change'}: ${latestEvent.appName || 'Unknown app'}` : 'No movement yet'}</div>
+                                <div class="text-muted small">
+                                    ${latestEvent
+                                        ? `${latestEvent.vendor || 'Unknown vendor'} on ${latestEvent.deviceName || latestEvent.deviceId || 'unknown device'} · ${fmtDateTime(this._eventMoment(latestEvent))}`
+                                        : 'Install, update, and uninstall events will appear when devices report software changes.'}
+                                </div>
                             </div>
                             <div class="d-flex gap-2 flex-wrap">
                                 <span class="badge bg-primary text-white">${recentStats.recent7dCount} this week</span>
@@ -648,10 +840,10 @@ export class InventoryChangelogPage extends Component {
                             </div>
                             <div class="text-muted small mt-2">
                                 ${groupBy === 'application'
-                                    ? 'Timeline follows each app across versions and devices.'
+                                    ? 'Application mode highlights products with recent installs, updates, or removals.'
                                     : groupBy === 'vendor'
-                                        ? 'Vendor mode shows rollout and removal patterns by publisher.'
-                                        : 'Device mode shows a per-endpoint software journey.'}
+                                        ? 'Vendor mode highlights publisher rollout and removal patterns.'
+                                        : 'Device mode highlights endpoints with the most software movement.'}
                             </div>
                         </div>
                     </div>
@@ -669,65 +861,12 @@ export class InventoryChangelogPage extends Component {
                             </p>
                         </div>
                     ` : html`
-                        ${groupedEvents.map(section => this.renderTimelineSection(section))}
-
-                        <div class="accordion mt-3" id="rawEventLedger">
-                            <div class="accordion-item">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rawEventLedgerBody">
-                                        Raw event ledger (${filtered.length} events)
-                                    </button>
-                                </h2>
-                                <div id="rawEventLedgerBody" class="accordion-collapse collapse">
-                                    <div class="accordion-body p-0">
-                                        <div class="table-responsive">
-                                            <table class="table table-vcenter card-table mb-0">
-                                                <thead>
-                                                    <tr>
-                                                        <th>When</th>
-                                                        <th>Change</th>
-                                                        <th>Application</th>
-                                                        <th>Version</th>
-                                                        <th>Device</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${filtered.map((e, idx) => html`
-                                                        <tr key=${e.deviceId + '_' + (e.eventTime || idx)}>
-                                                            <td class="text-muted small" style="white-space:nowrap;">
-                                                                ${fmtDateTime(this._eventMoment(e))}
-                                                            </td>
-                                                            <td>
-                                                                <span class="badge ${CHANGE_BADGE[e.changeType] || 'bg-secondary text-white'}">
-                                                                    ${e.changeType || '?'}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <div class="fw-medium">${e.appName || '—'}</div>
-                                                                ${e.vendor ? html`<div class="text-muted small">${e.vendor}</div>` : ''}
-                                                            </td>
-                                                            <td class="text-muted small">
-                                                                <div>${e.version || '—'}</div>
-                                                                ${e.changeType === 'Updated' && (e.nextVersion || e.previousVersion) ? html`
-                                                                    <div class="text-muted" style="font-size:0.75rem;">
-                                                                        to ${e.nextVersion || e.previousVersion}
-                                                                    </div>
-                                                                ` : ''}
-                                                            </td>
-                                                            <td>
-                                                                <a href=${'#!/devices/' + e.deviceId} class="text-reset small">
-                                                                    ${e.deviceName || e.deviceId}
-                                                                </a>
-                                                            </td>
-                                                        </tr>
-                                                    `)}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="row row-cards mb-3">
+                            <div class="col-lg-7">${this.renderChangedApps(changedApps)}</div>
+                            <div class="col-lg-5">${this.renderDeviceRollups(deviceRollups)}</div>
                         </div>
+
+                        ${this.renderLedgerRows(sortedEvents)}
                     `}
                 </div>
             </div>

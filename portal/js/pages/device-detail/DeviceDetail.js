@@ -801,6 +801,8 @@ export class DeviceDetailPage extends window.Component {
 
     renderDeviceContextCard() {
         const { html } = window;
+        if (orgContext.isIndividualUser?.()) return null;
+
         const context = this.normalizeDeviceContext(this.state.deviceContext);
         const draft = this.state.contextDraft || this.contextToDraft(context);
         const readOnly = orgContext.isReadOnly?.() || rewindContext.isActive?.();

@@ -2150,102 +2150,64 @@ export default class UnifiedDashboard extends Component {
           <div style="order:2;margin:0 0 16px;padding:0 2px;">
             <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(124,58,237,0.36),transparent);margin:0 0 10px;"></div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-              <div title="When the current Dossier was last submitted. Use Get Intel Update when you want MAGI to re-check the latest evidence before reviewing or exporting." style="display:inline-flex;align-items:center;gap:8px;color:var(--db-faint-text,#6b7280);font-size:0.76rem;font-weight:650;">
+              <div title="When the current Dossier was last submitted." style="display:inline-flex;align-items:center;gap:8px;color:var(--db-faint-text,#6b7280);font-size:0.76rem;font-weight:650;">
                 <i class=${`ti ${freshness?.isStale ? 'ti-clock-exclamation' : 'ti-clock-check'}`} style="color:var(--db-tone-primary,#4f46e5);"></i>
-                <span>${freshness ? `Last Dossier submitted ${freshness.ageText}${freshness.isStale ? ' · Intel update available' : ''}` : 'Current Dossier ready'}</span>
+                <span>${freshness ? `Last Dossier submitted ${freshness.ageText}` : 'Current Dossier ready'}</span>
               </div>
-              <button
-                class=${refreshing ? 'btn btn-sm btn-outline-indigo btn-loading' : 'btn btn-sm btn-outline-indigo'}
-                onClick=${() => this.refreshDashboard()}
-                title="Get the latest intelligence before reviewing or exporting reports."
-                disabled=${refreshing}
-                style="display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:6px 10px;border-radius:9px;white-space:nowrap;"
-              >
-                <i class="ti ti-refresh"></i>
-                ${refreshing ? 'Getting Intel' : 'Get Intel Update'}
-              </button>
             </div>
           </div>
 
-          ${this.renderProofChain(data, { isSmallScreen })}
-
           ${this.renderBusinessImpactCommandCenter(data, { isSmallScreen })}
 
-          <section
-            aria-label="Insurance outcome and hygiene behavior trend"
-            style="order:5;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(330px,0.82fr) minmax(500px,1.18fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:stretch;"
-          >
-            <section aria-label="Insurance readiness" style="min-width:0;">
-              <div
-                class="card proof-readiness-card"
-                style="
-                  --proof-readiness-tone: ${proof.tone};
-                  --proof-readiness-shadow: ${proof.tone}18;
-                  width: 100%;
-                  height: 100%;
-                  margin: 0 auto;
-                  padding: 16px 18px;
-                  background: linear-gradient(135deg, rgba(99,102,241,0.055), var(--db-glass-bg, rgba(255,255,255,0.76)) 44%, var(--db-glass-bg, rgba(255,255,255,0.76)));
-                  backdrop-filter: blur(14px);
-                  -webkit-backdrop-filter: blur(14px);
-                  border: 1px solid var(--db-tile-border, rgba(148,163,184,0.18));
-                  border-top: 4px solid ${proof.tone};
-                  border-left: 1px solid ${proof.tone}26;
-                  border-radius: 16px;
-                  box-shadow: 0 6px 22px ${proof.tone}12, 0 4px 18px rgba(15,23,42,0.05);
-                  display:flex;
-                  flex-direction:column;
-                "
-                title=${proofCardTip}
+          <details style="order:5;margin-top:14px;border:1px solid var(--db-tile-border, rgba(148,163,184,0.18));border-radius:14px;background:var(--db-glass-bg, rgba(255,255,255,0.72));box-shadow:0 4px 18px rgba(15,23,42,0.04);overflow:hidden;">
+            <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;font-size:0.82rem;font-weight:800;color:var(--db-answer-text,#111827);list-style:none;">
+              <span><i class="ti ti-folder-search me-2" style="color:var(--db-tone-primary,#4f46e5);"></i>Evidence details, readiness, and reports</span>
+              <span class="text-muted" style="font-size:0.72rem;font-weight:650;">Open when preparing an audit or insurance packet</span>
+            </summary>
+            <div style="padding:0 14px 16px;">
+              ${this.renderProofChain(data, { isSmallScreen })}
+
+              <section
+                aria-label="Insurance outcome and hygiene behavior trend"
+                style="display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(330px,0.82fr) minmax(500px,1.18fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:stretch;margin-top:12px;"
               >
-                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-                  <div style="text-align:left;min-width:220px;flex:1;">
-                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-                      <div title="The underwriter-facing outcome. Open Reports for the evidence pack or click gaps below." style="font-size:0.72rem;color:var(--db-muted-text,#6b7280);text-transform:uppercase;letter-spacing:0.12em;font-weight:800;">Insurance Readiness</div>
-                      <span class="badge badge-pill" title=${proofCardTip} style="font-weight:850;background:${proof.tone};color:#fff;border:1px solid ${proof.tone};box-shadow:0 6px 14px ${proof.tone}24;">${proof.label}</span>
+                <section aria-label="Insurance readiness" style="min-width:0;">
+                  <div class="card proof-readiness-card" title=${proofCardTip} style="height:100%;padding:16px 18px;border-radius:14px;border:1px solid var(--db-tile-border, rgba(148,163,184,0.18));border-top:4px solid ${proof.tone};background:var(--db-glass-bg, rgba(255,255,255,0.78));">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                      <div style="text-align:left;min-width:220px;flex:1;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                          <div style="font-size:0.72rem;color:var(--db-muted-text,#6b7280);text-transform:uppercase;letter-spacing:0.12em;font-weight:800;">Insurance Readiness</div>
+                          <span class="badge badge-pill" style="font-weight:850;background:${proof.tone};color:#fff;border:1px solid ${proof.tone};">${proof.label}</span>
+                        </div>
+                        <div style="font-size:1.45rem;font-weight:850;color:var(--db-answer-text,#111827);line-height:1.08;">Coverage outcome</div>
+                        <div style="font-size:0.84rem;color:var(--db-answer-text,#374151);font-weight:550;margin-top:7px;line-height:1.4;">${proof.summary}</div>
+                      </div>
+                      <a href="#!/reports" title="Open evidence reports for the hygiene score and insurance package." style="min-width:132px;padding:11px 12px;border-radius:12px;background:${this.getTranslucentSurface(scoreColor, '07')};border:1px solid ${scoreColor}24;text-align:left;text-decoration:none;color:var(--db-answer-text,#111827);">
+                        <div style="font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--db-muted-text,#6b7280);font-weight:800;">Hygiene Score</div>
+                        <div style="display:flex;align-items:center;gap:9px;margin-top:3px;">
+                          <span style="font-size:1.95rem;font-weight:850;color:${scoreReadableColor};line-height:1;">${hs.score}</span>
+                          <span style="min-width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;background:${scoreColor};border-radius:10px;line-height:1;">${hs.grade}</span>
+                        </div>
+                        <div style="font-size:0.7rem;color:var(--db-faint-text,#6b7280);margin-top:4px;">Evidence reports</div>
+                      </a>
                     </div>
-                    <div title="This is the insurance decision view. Use Evidence gaps to choose what to fix." style="font-size:${isSmallScreen ? '1.45rem' : '1.72rem'};font-weight:850;color:var(--db-answer-text,#111827);line-height:1.08;">Coverage outcome</div>
-                    <div style="font-size:0.84rem;color:var(--db-answer-text,#374151);font-weight:550;margin-top:7px;line-height:1.4;">${proof.summary}</div>
+                    <div style="margin-top:18px;text-align:left;border-left:3px solid ${proof.tone};padding-left:10px;">
+                      <div style="font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--db-muted-text,#6b7280);font-weight:850;margin-bottom:3px;">Why this outcome</div>
+                      <div style="font-size:0.82rem;color:var(--db-answer-text,#374151);font-weight:500;line-height:1.42;">${hs.narration}</div>
+                    </div>
+                    ${this.renderProofBlockerList(proof)}
                   </div>
-                  <a href="#!/reports" title="Open evidence reports for the hygiene score and insurance package." style="min-width:132px;padding:11px 12px;border-radius:12px;background:${this.getTranslucentSurface(scoreColor, '07')};border:1px solid ${scoreColor}24;text-align:left;text-decoration:none;color:var(--db-answer-text,#111827);">
-                    <div style="font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--db-muted-text,#6b7280);font-weight:800;">Hygiene Score</div>
-                    <div style="display:flex;align-items:center;gap:9px;margin-top:3px;">
-                      <span style="font-size:1.95rem;font-weight:850;color:${scoreReadableColor};line-height:1;">${hs.score}</span>
-                      <span style="min-width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;background:${scoreColor};border-radius:10px;line-height:1;box-shadow:0 8px 18px ${scoreColor}33;">${hs.grade}</span>
-                    </div>
-                    <div style="font-size:0.7rem;color:var(--db-faint-text,#6b7280);margin-top:4px;">Evidence reports</div>
-                  </a>
-                </div>
+                </section>
 
-                <div title="The strongest reason the current outcome is not cleaner. Use the gap list below to open the right workflow." style="margin-top:22px;text-align:left;border-left:3px solid ${proof.tone};padding-left:10px;">
-                  <div style="font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--db-muted-text,#6b7280);font-weight:850;margin-bottom:3px;">Why this outcome</div>
-                  <div style="font-size:0.82rem;color:var(--db-answer-text,#374151);font-weight:500;line-height:1.42;">${hs.narration}</div>
-                  ${hs.narrationImpact ? html`
-                    <div style="font-size:0.72rem;color:var(--db-tone-success,#15803d);font-weight:650;margin-top:3px;">${hs.narrationImpact}</div>
-                  ` : null}
-                </div>
+                ${this.renderSecurityHygieneTrendPanel(data, { isSmallScreen })}
+              </section>
 
-                ${this.renderProofBlockerList(proof)}
-
-                <div style="margin-top:auto;padding-top:12px;display:flex;align-items:center;gap:10px;font-size:0.74rem;flex-wrap:wrap;">
-                  ${hs.hasCriticalPenalty ? html`
-                    <span style="color:var(--db-tone-danger,#dc2626);font-weight:700;font-size:0.72rem;">Critical penalty applied</span>
-                  ` : null}
-                  ${freshness ? html`<span style="color:var(--db-faint-text,#9ca3af);">Evidence: ${freshness.ageText}${freshness.isStale ? ' stale' : ''}</span>` : null}
-                </div>
-              </div>
-            </section>
-
-            ${this.renderSecurityHygieneTrendPanel(data, { isSmallScreen })}
-          </section>
-
-          <section
-            aria-label="Readiness details and next steps"
-            style="order:6;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(0,1fr) minmax(320px,0.92fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:start;margin-top:14px;"
-          >
-            <div style="min-width:0;">${this.renderDossierStack({ embedded: true })}</div>
-            <div style="min-width:0;">${this.renderTopActionDropdown({ embedded: true })}</div>
-          </section>
+              <section aria-label="Readiness details and next steps" style="display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(0,1fr) minmax(320px,0.92fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:start;margin-top:14px;">
+                <div style="min-width:0;">${this.renderDossierStack({ embedded: true })}</div>
+                <div style="min-width:0;">${this.renderTopActionDropdown({ embedded: true })}</div>
+              </section>
+            </div>
+          </details>
         </div>
       </div>
     `;

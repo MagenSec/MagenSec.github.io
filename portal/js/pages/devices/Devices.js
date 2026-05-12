@@ -284,6 +284,8 @@ class DevicesPage extends window.Component {
 
     renderDeviceContextChips(device) {
         const { html } = window;
+        if (orgContext.isIndividualUser?.()) return null;
+
         const context = this.normalizeDeviceContext(device.deviceContext);
         const labels = context.assignedLabels || [];
         const hasImpact = context.businessImpact && context.businessImpact !== 'UNCLASSIFIED';

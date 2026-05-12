@@ -250,6 +250,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
         renderApp({ page: 'posture', ctx });
     });
 
@@ -474,6 +475,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
         renderApp({ page: 'audit', ctx });
     });
 
@@ -483,6 +485,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
+        if (guardPersonalRestrictedRoute(ctx, page)) return;
         renderApp({ page: 'audit', ctx }); // Embedded in audit page
     });
 
