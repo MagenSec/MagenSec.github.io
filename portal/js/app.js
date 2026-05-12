@@ -42,7 +42,6 @@ import { ManagePage } from './pages/siteAdmin/manage/ManagePage.js';
 import { ActivityPage } from './pages/siteAdmin/activity/ActivityPage.js';
 import { PreviewPage } from './pages/siteAdmin/preview/PreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
-import { PageNarrative } from './components/shared/PageNarrative.js';
 import { DocumentationHub } from './pages/docs/DocumentationHub/index.js';
 import { GettingStartedPage } from './pages/getting-started/GettingStarted.js';
 import { ClientDevicePage } from './pages/client-device/ClientDevicePage.js';
@@ -332,12 +331,6 @@ function applyOrgUiRestrictions() {
 
 }
 
-function shouldShowPageNarrative() {
-    if (!auth.isAuthenticated()) return false;
-    if (currentPage.startsWith('siteadmin/')) return false;
-    return !['login', 'device-hub', 'dashboard', 'security', 'settings', 'review'].includes(currentPage);
-}
-
 // Main app component
 function App() {
     // Check for OAuth callback
@@ -355,7 +348,6 @@ function App() {
     const pageContent = renderCurrentPage();
     return html`
         <div class="portal-page-shell">
-            ${shouldShowPageNarrative() ? html`<${PageNarrative} page=${currentPage} />` : null}
             ${pageContent}
         </div>
     `;

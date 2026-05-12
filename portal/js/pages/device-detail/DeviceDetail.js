@@ -102,7 +102,11 @@ export class DeviceDetailPage extends window.Component {
             perfError: null,
             missingPatches: null,
             missingPatchesLoading: false,
-            missingPatchesError: null
+            missingPatchesError: null,
+            deviceContext: null,
+            contextDraft: { assignedLabelsText: '', businessImpact: 'UNCLASSIFIED', notes: '' },
+            contextSaving: false,
+            contextError: null
         };
     }
 
@@ -713,6 +717,154 @@ export class DeviceDetailPage extends window.Component {
         } catch (e) { }
     }
 
+    normalizeDeviceContext(context) {
+        const source = context || {};
+        const labels = Array.isArray(source.assignedLabels)
+            ? source.assignedLabels
+            : Array.isArray(source.AssignedLabels)
+                ? source.AssignedLabels
+                : [];
+        const businessImpact = source.businessImpact || source.BusinessImpact || 'UNCLASSIFIED';
+        return {
+            orgId: source.orgId || source.OrgId || null,
+            deviceId: source.deviceId || source.DeviceId || this.state.deviceId,
+            assignedLabels: labels.map(label => String(label || '').trim()).filter(Boolean),
+            businessImpact: String(businessImpact || 'UNCLASSIFIED').toUpperCase(),
+            notes: source.notes || source.Notes || '',
+            contextVersion: source.contextVersion ?? source.ContextVersion ?? 0,
+            updatedAtUtc: source.updatedAtUtc || source.UpdatedAtUtc || null,
+            updatedBy: source.updatedBy || source.UpdatedBy || null
+        };
+    }
+
+    contextToDraft(context) {
+        const normalized = this.normalizeDeviceContext(context);
+        return {
+            assignedLabelsText: normalized.assignedLabels.join(', '),
+            businessImpact: normalized.businessImpact || 'UNCLASSIFIED',
+            notes: normalized.notes || ''
+        };
+    }
+
+    parseAssignedLabels(value) {
+        return String(value || '')
+            .split(',')
+            .map(label => label.trim())
+            .filter(Boolean);
+    }
+
+    setContextDraft(field, value) {
+        this.setState(prev => ({
+            contextDraft: { ...(prev.contextDraft || {}), [field]: value },
+            contextError: null
+        }));
+    }
+
+    async saveDeviceContext() {
+        const currentOrg = orgContext.getCurrentOrg();
+        if (!currentOrg?.orgId || !this.state.deviceId || this.state.contextSaving) return;
+        if (orgContext.isReadOnly?.() || rewindContext.isActive?.()) return;
+
+        const draft = this.state.contextDraft || {};
+        this.setState({ contextSaving: true, contextError: null });
+
+        try {
+            const response = await api.updateDeviceContext(currentOrg.orgId, this.state.deviceId, {
+                assignedLabels: this.parseAssignedLabels(draft.assignedLabelsText),
+                businessImpact: draft.businessImpact || 'UNCLASSIFIED',
+                notes: draft.notes || null
+            });
+
+            if (!response?.success) {
+                throw new Error(response?.message || 'Device context update failed');
+            }
+
+            const context = this.normalizeDeviceContext(response.data);
+            this.setState({
+                deviceContext: context,
+                contextDraft: this.contextToDraft(context),
+                contextSaving: false,
+                contextError: null
+            });
+
+            const currentCache = this.tryGetCachedDetail(currentOrg.orgId, this.state.deviceId);
+            if (currentCache) {
+                this.setCachedDetail(currentOrg.orgId, this.state.deviceId, {
+                    ...currentCache,
+                    deviceContext: context
+                });
+            }
+        } catch (error) {
+            this.setState({ contextSaving: false, contextError: error.message || 'Device context update failed' });
+        }
+    }
+
+    renderDeviceContextCard() {
+        const { html } = window;
+        const context = this.normalizeDeviceContext(this.state.deviceContext);
+        const draft = this.state.contextDraft || this.contextToDraft(context);
+        const readOnly = orgContext.isReadOnly?.() || rewindContext.isActive?.();
+        const labels = context.assignedLabels || [];
+        const impactClass = context.businessImpact === 'HBI'
+            ? 'bg-danger-lt text-danger'
+            : context.businessImpact === 'MBI'
+                ? 'bg-warning-lt text-warning'
+                : context.businessImpact === 'LBI'
+                    ? 'bg-success-lt text-success'
+                    : 'bg-secondary-lt text-secondary';
+
+        return html`
+            <div class="card mb-3">
+                <div class="card-body py-3">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-lg-3">
+                            <div class="text-muted small font-weight-medium">Business impact</div>
+                            <div class="d-flex align-items-center gap-2 mt-1">
+                                <span class=${`badge ${impactClass}`}>${context.businessImpact || 'UNCLASSIFIED'}</span>
+                                ${context.updatedAtUtc ? html`<span class="text-muted small">v${context.contextVersion}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="text-muted small font-weight-medium">Assigned labels</div>
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                ${labels.length ? labels.map(label => html`<span class="badge bg-azure-lt text-azure">${label}</span>`) : html`<span class="text-muted small">Unclassified</span>`}
+                            </div>
+                        </div>
+                        <div class="col-lg-4 text-lg-end">
+                            ${context.updatedAtUtc ? html`<div class="text-muted small">Updated ${DateUtils.formatDate(context.updatedAtUtc)}${context.updatedBy ? ` by ${context.updatedBy}` : ''}</div>` : html`<div class="text-muted small">No context assigned yet</div>`}
+                        </div>
+                    </div>
+
+                    <div class="row g-2 align-items-end mt-2">
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1">Impact</label>
+                            <select class="form-select form-select-sm" value=${draft.businessImpact || 'UNCLASSIFIED'} disabled=${readOnly || undefined} onchange=${(event) => this.setContextDraft('businessImpact', event.target.value)}>
+                                <option value="UNCLASSIFIED">Unclassified</option>
+                                <option value="HBI">HBI</option>
+                                <option value="MBI">MBI</option>
+                                <option value="LBI">LBI</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small mb-1">Labels</label>
+                            <input class="form-control form-control-sm" value=${draft.assignedLabelsText || ''} placeholder="executive, public-exposed, mobile" disabled=${readOnly || undefined} oninput=${(event) => this.setContextDraft('assignedLabelsText', event.target.value)} />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1">Note</label>
+                            <input class="form-control form-control-sm" value=${draft.notes || ''} placeholder="Optional" disabled=${readOnly || undefined} oninput=${(event) => this.setContextDraft('notes', event.target.value)} />
+                        </div>
+                        <div class="col-md-1 d-grid">
+                            <button class="btn btn-sm btn-primary" data-mutates-state="true" disabled=${readOnly || this.state.contextSaving || undefined} onclick=${() => this.saveDeviceContext()} title=${readOnly ? 'Read-only mode' : 'Save device context'}>
+                                ${this.state.contextSaving ? '...' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                    ${this.state.contextError ? html`<div class="text-danger small mt-2">${this.state.contextError}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
     async loadDeviceData() {
         try { 
             const currentOrg = orgContext.getCurrentOrg();
@@ -736,6 +888,8 @@ export class DeviceDetailPage extends window.Component {
                     appSummary: cached.appSummary || null,
                     cveInventory: cached.cves || [],
                     mitigatedCveInventory: cached.mitigatedCves || [],
+                    deviceContext: this.normalizeDeviceContext(cached.deviceContext),
+                    contextDraft: this.contextToDraft(cached.deviceContext),
                     isRefreshingInBackground: true
                 });
             } else {
@@ -764,6 +918,7 @@ export class DeviceDetailPage extends window.Component {
                 telemetry: telemetryData,
                 apps: appsData,
                 cves: cvesData,
+                deviceContext,
                 telemetryStatus
             } = payload;
 
@@ -974,6 +1129,9 @@ export class DeviceDetailPage extends window.Component {
                 appSummary,
                 cveInventory: uniqueCves,
                 mitigatedCveInventory: uniqueMitigatedCves,
+                deviceContext: this.normalizeDeviceContext(deviceContext),
+                contextDraft: this.contextToDraft(deviceContext),
+                contextError: null,
                 telemetryHistory: telemetryData?.history || [],
                 timeline,
                 deviceSummary,
@@ -998,7 +1156,8 @@ export class DeviceDetailPage extends window.Component {
                 apps: appList,
                 appSummary,
                 cves: uniqueCves,
-                mitigatedCves: uniqueMitigatedCves
+                mitigatedCves: uniqueMitigatedCves,
+                deviceContext: this.normalizeDeviceContext(deviceContext)
             });
 
             this.destroySessionChart();
@@ -2823,6 +2982,8 @@ export class DeviceDetailPage extends window.Component {
                                 <span>Historical snapshot. Showing the Dossier facts available for the selected Time Warp date.</span>
                             </div>
                         ` : null}
+
+                        ${this.renderDeviceContextCard()}
 
                         ${html`
 <!-- Metrics Row -->

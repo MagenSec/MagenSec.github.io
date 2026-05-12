@@ -808,6 +808,14 @@ export class ApiClient {
         });
     }
 
+    async getDeviceContext(orgId, deviceId) {
+        return this.get(`/api/v1/orgs/${orgId}/devices/${encodeURIComponent(deviceId)}/context`);
+    }
+
+    async updateDeviceContext(orgId, deviceId, context) {
+        return this.put(`/api/v1/orgs/${orgId}/devices/${encodeURIComponent(deviceId)}/context`, context);
+    }
+
     async deleteDevice(deviceId) {
         return this.delete(`/api/v1/devices/${deviceId}`);
     }

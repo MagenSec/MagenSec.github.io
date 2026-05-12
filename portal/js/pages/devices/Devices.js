@@ -266,6 +266,44 @@ class DevicesPage extends window.Component {
         return name.substring(0, 2).toUpperCase();
     }
 
+    normalizeDeviceContext(context) {
+        const source = context || {};
+        const labels = Array.isArray(source.assignedLabels)
+            ? source.assignedLabels
+            : Array.isArray(source.AssignedLabels)
+                ? source.AssignedLabels
+                : [];
+        const businessImpact = source.businessImpact || source.BusinessImpact || 'UNCLASSIFIED';
+        return {
+            assignedLabels: labels.map(label => String(label || '').trim()).filter(Boolean),
+            businessImpact: String(businessImpact || 'UNCLASSIFIED').toUpperCase(),
+            contextVersion: source.contextVersion ?? source.ContextVersion ?? 0,
+            updatedAtUtc: source.updatedAtUtc || source.UpdatedAtUtc || null
+        };
+    }
+
+    renderDeviceContextChips(device) {
+        const { html } = window;
+        const context = this.normalizeDeviceContext(device.deviceContext);
+        const labels = context.assignedLabels || [];
+        const hasImpact = context.businessImpact && context.businessImpact !== 'UNCLASSIFIED';
+        if (!labels.length && !hasImpact) return null;
+
+        const impactClass = context.businessImpact === 'HBI'
+            ? 'bg-danger-lt text-danger'
+            : context.businessImpact === 'MBI'
+                ? 'bg-warning-lt text-warning'
+                : 'bg-success-lt text-success';
+
+        return html`
+            <div class="d-flex flex-wrap gap-1 mt-1">
+                ${hasImpact ? html`<span class=${`badge badge-sm ${impactClass}`}>${context.businessImpact}</span>` : ''}
+                ${labels.slice(0, 3).map(label => html`<span class="badge badge-sm bg-azure-lt text-azure">${label}</span>`)}
+                ${labels.length > 3 ? html`<span class="badge badge-sm bg-secondary-lt text-secondary">+${labels.length - 3}</span>` : ''}
+            </div>
+        `;
+    }
+
     getStatusDot(lastHeartbeat) {
         if (!lastHeartbeat) return 'status-red';
         const mins = (Date.now() - new Date(lastHeartbeat)) / 60000;
@@ -1094,7 +1132,7 @@ class DevicesPage extends window.Component {
             }
 
             // Step 1: Fast load with cached-summary (< 12s instead of 35s)
-            const response = await api.getDevices(currentOrg.orgId, { include: 'cached-summary' }, { skipCache: true });
+            const response = await api.getDevices(currentOrg.orgId, { include: 'cached-summary,context' }, { skipCache: true });
             if (!response.success) {
                 throw new Error(response.message || response.error || 'Failed to load devices');
             }
@@ -1165,6 +1203,7 @@ class DevicesPage extends window.Component {
                         timestamp: t.timestamp || t.Timestamp,
                         rowKey: t.rowKey || t.RowKey
                     },
+                    deviceContext: this.normalizeDeviceContext(device.deviceContext || device.DeviceContext),
                     // Calculate inactiveMinutes client-side
                     inactiveMinutes: device.lastHeartbeat ? Math.floor((Date.now() - new Date(device.lastHeartbeat).getTime()) / 60000) : null,
                     perfSessions: device.perfSessions || device.PerfSessions
@@ -1231,7 +1270,7 @@ class DevicesPage extends window.Component {
             
             // Fetch fresh summaries (skip cached, get real-time data)
             const response = await Promise.race([
-                api.getDevices(orgId, { include: 'summary' }, { skipCache: true, skipDegradedHandling: true }),
+                api.getDevices(orgId, { include: 'summary,context' }, { skipCache: true, skipDegradedHandling: true }),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Background summary fetch timed out')), 12000))
             ]);
             
@@ -1250,8 +1289,18 @@ class DevicesPage extends window.Component {
                 }
             });
 
+            const freshContexts = {};
+            response.data.devices.forEach(device => {
+                const deviceId = device.DeviceId || device.deviceId;
+                const context = this.normalizeDeviceContext(device.deviceContext || device.DeviceContext);
+                if (deviceId) {
+                    freshContexts[deviceId] = context;
+                }
+            });
+
             // Update UI with fresh data (silent update)
             this.setState(prev => ({
+                devices: (prev.devices || []).map(device => freshContexts[device.id] ? { ...device, deviceContext: freshContexts[device.id] } : device),
                 deviceSummaries: { ...prev.deviceSummaries, ...freshSummaries },
                 isRefreshingInBackground: false,
                 summarySignalState: 'ready',
@@ -2715,6 +2764,7 @@ class DevicesPage extends window.Component {
                                                                             <span class="${getStatusDotClass(health.status)} me-1"></span>
                                                                             ${health.text} · ${osLabel}
                                                                         </div>
+                                                                        ${this.renderDeviceContextChips(device)}
                                                                     </div>
                                                                 </div>
                                                             </td>
