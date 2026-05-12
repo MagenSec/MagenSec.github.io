@@ -138,6 +138,8 @@ export function CompliancePlusPage() {
         isEnabled=${isEnabled}
         upgradeDesc="Extended compliance checks for ISO 27001, SOC 2, and PCI-DSS. Available on BusinessUltimate."
         upgradeIcon="ti-certificate-2"
+        emptyTitle="No compliance-plus evidence yet"
+        emptySubtitle="The next evidence update will populate framework readiness, critical gaps, and recommended actions."
         renderContent=${renderCompliancePlus}
     />`;
 }

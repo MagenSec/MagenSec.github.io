@@ -27,7 +27,7 @@ function renderHygieneCoach(data) {
                         ` : null}
                     </div>
                     <div class="card-body">
-                        <p class="text-muted mb-2">${data.coachMessage || 'Your AI coach will post fresh weekly homework after the next dossier run.'}</p>
+                        <p class="text-muted mb-2">${data.coachMessage || 'Your AI coach will post fresh weekly homework after the next hygiene evidence update.'}</p>
                         <div class="text-muted small">Trend: <span class="fw-medium text-body">${data.hygieneScoreTrend || 'Stable'}</span></div>
                     </div>
                 </div>
@@ -121,6 +121,8 @@ export function HygieneCoachPage() {
         isEnabled=${isEnabled}
         upgradeDesc="Get weekly AI-generated security hygiene plans personalized to your org's risk profile. Available on BusinessUltimate."
         upgradeIcon="ti-heart-rate-monitor"
+        emptyTitle="No hygiene coach evidence yet"
+        emptySubtitle="Weekly coaching needs posture, vulnerability, and remediation signals. This page will populate after the next hygiene evidence package is prepared."
         renderContent=${renderHygieneCoach}
     />`;
 }

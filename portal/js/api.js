@@ -136,7 +136,25 @@ export class ApiClient {
         }
         sessionStorage.setItem(key, '1');
 
-        const atomText = missing.length ? ` Missing: ${missing.join(', ')}.` : '';
+        const evidenceLabels = {
+            'org-snapshot': 'posture dossier',
+            'security-snapshot': 'security evidence',
+            'compliance-snapshot': 'compliance evidence',
+            'audit-snapshot': 'audit evidence',
+            'device-fleet': 'device fleet',
+            'daily-changelog': 'daily changes',
+            'device-app-matrix': 'software summary',
+            'inventory-facts': 'software inventory',
+            'inventory-change-facts': 'software changes',
+            'alert-facts': 'alert evidence',
+            'audit-facts': 'audit events',
+            'cve-list': 'CVE evidence',
+            'cve-device-facts': 'device CVE evidence',
+            'compliance-control-facts': 'control evidence'
+        };
+        const atomText = missing.length
+            ? ` Missing: ${missing.map(name => evidenceLabels[String(name || '').toLowerCase()] || 'required evidence').join(', ')}.`
+            : '';
         const message = status === 'blocked'
             ? `Historical evidence is incomplete for ${date}.${atomText}`
             : `Historical data is partial for ${date}.${atomText}`;

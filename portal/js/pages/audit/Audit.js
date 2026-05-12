@@ -65,10 +65,26 @@ const getActorLabel = (evt, isSiteAdmin = false) => {
     const currentUser = auth.getUser();
     const isCurrentUserSiteAdmin = isSiteAdmin || currentUser?.userType === 'SiteAdmin';
     const label = evt?.performedByDisplay || evt?.performedBy || 'System';
-    
-    // If current user is not a SiteAdmin and the performer is a SiteAdmin (has @ indicating email)
-    if (!isCurrentUserSiteAdmin && label && label.includes('@')) {
-        // This is likely a SiteAdmin email; show 'SiteAdmin' instead for privacy
+
+    const actorType = String(
+        evt?.performedByType
+        || evt?.actorType
+        || evt?.userType
+        || evt?.metadata?.performedByType
+        || evt?.metadata?.actorType
+        || evt?.metadata?.userType
+        || ''
+    ).toLowerCase();
+    const isSiteAdminActor = Boolean(
+        evt?.performedByIsSiteAdmin === true
+        || evt?.isSiteAdminActor === true
+        || evt?.metadata?.performedByIsSiteAdmin === true
+        || evt?.metadata?.isSiteAdminActor === true
+        || actorType.includes('siteadmin')
+        || actorType.includes('site admin')
+    );
+
+    if (!isCurrentUserSiteAdmin && isSiteAdminActor) {
         return 'SiteAdmin';
     }
     return label;
@@ -654,13 +670,23 @@ export function AuditPage() {
 
             const start = new Date(s.startUtc || s.startTime || s.start);
             const end   = new Date(s.endUtc   || s.endTime  || s.end);
+            const startMs = start.getTime();
+            const endMs = end.getTime();
+            if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+                return;
+            }
+
+            const normalizedEnd = endMs <= startMs
+                ? new Date(startMs + 60 * 1000)
+                : end;
+
             grouped[groupKey].push({
                 user:         groupKey,
                 actorDisplay,
                 actorRole:    s.actorRole    || 'Unknown',
                 actorEmail,
                 startTime:    start,
-                endTime:      end,
+                endTime:      normalizedEnd,
                 eventCount:   Number(s.eventCount || 0),
                 events:       []
             });
@@ -837,7 +863,10 @@ export function AuditPage() {
 
             setEvents(prevEvents => {
                 const merged = [...prevEvents, ...(pageData.events || [])];
-                const cacheKey = `audit_${currentOrg.orgId}_${rangeDays}`;
+                const warpDate = window.rewindContext?.getDate?.() || null;
+                const cacheKey = warpDate
+                    ? `audit_${currentOrg.orgId}_${rangeDays}_warp_${warpDate}`
+                    : `audit_${currentOrg.orgId}_${rangeDays}`;
                 setCachedAuditData(cacheKey, {
                     events: merged,
                     hasMore: Boolean(pageData.continuationToken),
@@ -1313,10 +1342,13 @@ export function AuditPage() {
             actorSessions.forEach(session => {
                 const startMs = session.startTime.getTime();
                 const endMs = session.endTime.getTime();
+                if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+                    return;
+                }
 
                 roleSeriesMap[role].push({
                     x: actorDisplay,
-                    y: [startMs, endMs],
+                    y: [startMs, endMs <= startMs ? startMs + 60 * 1000 : endMs],
                     actorEmail: session.actorEmail || null
                 });
             });
@@ -1335,15 +1367,22 @@ export function AuditPage() {
 
         const uniqueLabels = new Set();
         series.forEach(s => s.data.forEach(d => uniqueLabels.add(d.x)));
+        if (series.every(s => !s.data.length)) {
+            chartEl.innerHTML = '<p class="text-muted text-center p-4">No valid user activity sessions available</p>';
+            return;
+        }
+
+        const chartHeight = Math.max(280, uniqueLabels.size * 44 + 90);
         const container = chartEl.parentElement;
         if (container) {
-            container.style.height = `${Math.max(280, uniqueLabels.size * 44 + 90)}px`;
+            container.style.height = `${chartHeight}px`;
         }
+        chartEl.style.height = `${chartHeight}px`;
 
         const options = {
             chart: {
                 type: 'rangeBar',
-                height: '100%',
+                height: chartHeight,
                 animations: {
                     enabled: false
                 },
@@ -1961,7 +2000,7 @@ export function AuditPage() {
                         <div class="mt-3 text-muted small">
                             <i class="ti ti-info-circle me-1"></i>
                             <strong>Stacked bar chart:</strong> Visualizes event distribution by type and date.
-                            Empty days indicate no activity and may signal issues (e.g., cron not running, credit consumption paused).
+                            Empty days indicate no activity and may signal issues (for example, scheduled processing or credit consumption paused).
                             Hover over bars for details.
                         </div>
                     </div>

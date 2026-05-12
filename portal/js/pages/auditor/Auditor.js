@@ -86,10 +86,10 @@ const buildEvidenceChecklist = (data) => {
     },
     {
       id: 'ai-report',
-      label: 'AI posture report generated',
-      description: 'Latest AI security posture report available for auditors',
+      label: 'Mission briefing prepared',
+      description: 'Latest mission briefing report available for auditors',
       status: 'manual',
-      detail: 'Generate from AI Posture page'
+      detail: 'Open Mission Briefing to prepare a new report'
     }
   ];
 };
@@ -435,7 +435,7 @@ export class AuditorPage extends Component {
       this.setState({ reportData: result.data, reportLoading: false });
     } else {
       this.setState({
-        reportError: result?.message || 'No AI Posture Report found for this date. Reports are generated daily.',
+        reportError: result?.message || 'No Mission Briefing report found for this date. Reports are prepared daily.',
         reportLoading: false
       });
     }
@@ -527,7 +527,7 @@ export class AuditorPage extends Component {
                 </div>
               </div>
               <div class="col-lg-auto d-flex gap-2">
-                <a href="#!/mission-brief" class="btn btn-sm btn-primary">Create Executive Brief</a>
+                <a href="#!/mission-brief" class="btn btn-sm btn-primary">Open Briefing Builder</a>
                 <a href="#!/reports" class="btn btn-sm btn-outline-secondary">Open Board Report</a>
               </div>
             </div>
@@ -556,7 +556,7 @@ export class AuditorPage extends Component {
           <div class="card-header">
             <h3 class="card-title">Audit Mission Flow</h3>
             <div class="card-options">
-              <span class="badge bg-secondary-lt text-muted">${pct}% checklist completion</span>
+              <span class="badge bg-secondary-lt text-secondary">${pct}% checklist completion</span>
             </div>
           </div>
           <div class="card-body">
@@ -660,7 +660,7 @@ export class AuditorPage extends Component {
                     <i class="ti ti-message-chatbot me-1"></i> Ask AI Analyst
                   </a>
                   <a href="#!/mission-brief" class="btn btn-outline-light">
-                    <i class="ti ti-brain me-1"></i> Build Mission Brief
+                    <i class="ti ti-brain me-1"></i> Open Mission Briefing
                   </a>
                   <a href="#!/reports" class="btn btn-outline-light">
                     <i class="ti ti-chart-bar me-1"></i> Open Reports
@@ -798,7 +798,7 @@ export class AuditorPage extends Component {
           <div class="card-header">
             <h3 class="card-title">Audit Readiness</h3>
             <div class="card-options d-flex align-items-center gap-2">
-              ${asOf ? html`<span class="badge bg-secondary-lt text-muted fw-normal" title=${asOfTitle}>as of ${asOf}</span>` : ''}
+              ${asOf ? html`<span class="badge bg-secondary-lt text-secondary fw-normal" title=${asOfTitle}>as of ${asOf}</span>` : ''}
               <a href="#!/auditor" class="btn btn-sm btn-outline-secondary" onClick=${(e) => { e.preventDefault(); this.loadAll(); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                 Refresh
@@ -845,7 +845,7 @@ export class AuditorPage extends Component {
 
             <div class="mt-3 d-flex flex-wrap gap-2 justify-content-center">
               <a href="#!/compliance" class="btn btn-sm btn-outline-${complianceColor}">Validate Controls</a>
-              <a href="#!/mission-brief" class="btn btn-sm btn-outline-primary">Generate Briefing</a>
+              <a href="#!/mission-brief" class="btn btn-sm btn-outline-primary">Open Briefing Builder</a>
               <a href="#!/reports" class="btn btn-sm btn-outline-secondary">Executive Reports</a>
             </div>
           </div>
@@ -900,7 +900,7 @@ export class AuditorPage extends Component {
                   </div>
                   ${item.id === 'ai-report' ? html`
                     <div class="col-auto">
-                      <a href="#!/mission-brief" class="btn btn-sm btn-outline-primary">Generate →</a>
+                      <a href="#!/mission-brief" class="btn btn-sm btn-outline-primary">Open →</a>
                     </div>
                   ` : ''}
                 </div>
@@ -1259,7 +1259,7 @@ export class AuditorPage extends Component {
                 Vulnerability Findings
               </h3>
               <div class="card-options">
-                <span class="badge bg-secondary-lt text-muted">Total: ${deltaData.findings?.totalFrom ?? 0} → ${deltaData.findings?.totalTo ?? 0}</span>
+                <span class="badge bg-secondary-lt text-secondary">Total: ${deltaData.findings?.totalFrom ?? 0} → ${deltaData.findings?.totalTo ?? 0}</span>
                 ${this.renderDeltaArrow(deltaData.findings?.totalChange)}
               </div>
             </div>
@@ -1277,7 +1277,7 @@ export class AuditorPage extends Component {
                       <span class="badge bg-danger-lt text-danger font-monospace">${cve}</span>
                     `)}
                     ${deltaData.findings.newCves.length > 20 ? html`
-                      <span class="badge bg-secondary-lt text-muted">+${deltaData.findings.newCves.length - 20} more</span>
+                      <span class="badge bg-secondary-lt text-secondary">+${deltaData.findings.newCves.length - 20} more</span>
                     ` : ''}
                   </div>
                 </div>
@@ -1293,7 +1293,7 @@ export class AuditorPage extends Component {
                       <span class="badge bg-success-lt text-success font-monospace">${cve}</span>
                     `)}
                     ${deltaData.findings.resolvedCves.length > 20 ? html`
-                      <span class="badge bg-secondary-lt text-muted">+${deltaData.findings.resolvedCves.length - 20} more</span>
+                      <span class="badge bg-secondary-lt text-secondary">+${deltaData.findings.resolvedCves.length - 20} more</span>
                     ` : ''}
                   </div>
                 </div>
@@ -1309,7 +1309,7 @@ export class AuditorPage extends Component {
                 Compliance Score
               </h3>
               <div class="card-options">
-                <span class="badge bg-secondary-lt text-muted">${deltaData.compliance?.overallScoreFrom ?? 0}% → ${deltaData.compliance?.overallScoreTo ?? 0}%</span>
+                <span class="badge bg-secondary-lt text-secondary">${deltaData.compliance?.overallScoreFrom ?? 0}% → ${deltaData.compliance?.overallScoreTo ?? 0}%</span>
                 ${this.renderDeltaArrow(deltaData.compliance?.overallChange)}
               </div>
             </div>
@@ -1353,7 +1353,7 @@ export class AuditorPage extends Component {
                 Device Fleet
               </h3>
               <div class="card-options">
-                <span class="badge bg-secondary-lt text-muted">${deltaData.devices?.countFrom ?? 0} → ${deltaData.devices?.countTo ?? 0} devices</span>
+                <span class="badge bg-secondary-lt text-secondary">${deltaData.devices?.countFrom ?? 0} → ${deltaData.devices?.countTo ?? 0} devices</span>
                 ${this.renderDeltaArrow(deltaData.devices?.countChange)}
               </div>
             </div>
@@ -1533,7 +1533,7 @@ export class AuditorPage extends Component {
                     ? html`<span class="spinner-border spinner-border-sm me-1"></span>Loading…`
                     : html`<i class="ti ti-refresh me-1"></i>${reportData ? 'Reload' : 'Load Today\'s Report'}`}
                 </button>
-                <a href="#!/mission-brief" class="btn btn-sm btn-outline-secondary">Generate New →</a>
+                <a href="#!/mission-brief" class="btn btn-sm btn-outline-secondary">Open Briefing Builder →</a>
               </div>
             `}
           </div>
@@ -1676,7 +1676,7 @@ export class AuditorPage extends Component {
                         ${f.mitigation ? html`<div class="small mt-1 text-success"><i class="ti ti-check me-1"></i>${f.mitigation}</div>` : ''}
                       </div>
                       <div class="col-auto">
-                        <span class="badge bg-secondary-lt text-muted">${Math.round(f.impactScore)}</span>
+                        <span class="badge bg-secondary-lt text-secondary">${Math.round(f.impactScore)}</span>
                       </div>
                     </div>
                   </div>
@@ -1735,7 +1735,7 @@ export class AuditorPage extends Component {
           ` : ''}
 
           <div class="d-flex gap-2 mb-4">
-            <a href="#!/mission-brief" class="btn btn-outline-primary btn-sm">Generate New Report</a>
+            <a href="#!/mission-brief" class="btn btn-outline-primary btn-sm">Open Briefing Builder</a>
             <a href="#!/reports" class="btn btn-outline-secondary btn-sm">View Board Report</a>
           </div>
         ` : ''}

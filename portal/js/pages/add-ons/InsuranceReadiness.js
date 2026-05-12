@@ -24,7 +24,7 @@ function renderInsuranceContent(data, { regenerating, regenMsg, onRegenerate }) 
                 <button class="btn btn-outline-primary btn-sm" data-mutates-state="true" onClick=${onRegenerate} disabled=${regenerating}>
                 ${regenerating
                     ? html`<span class="spinner-border spinner-border-sm me-1"></span> Generating...`
-                    : html`<i class="ti ti-refresh me-1"></i> Update Readiness Dossier`}
+                    : html`<i class="ti ti-refresh me-1"></i> Update Readiness Evidence`}
             </button>
         </div>
 
@@ -42,7 +42,7 @@ function renderInsuranceContent(data, { regenerating, regenMsg, onRegenerate }) 
             <div class="col-md-3">
                 <div class="card text-center">
                     <div class="card-body">
-                        <div class="subheader">Hygiene Score</div>
+                        <div class="subheader">Security Score</div>
                         <div class="h1 mb-0 text-success">${data.securityScore ?? 0}</div>
                     </div>
                 </div>
@@ -109,7 +109,7 @@ function renderInsuranceContent(data, { regenerating, regenMsg, onRegenerate }) 
                         <div class="progress progress-sm mb-3">
                             <div class="progress-bar bg-primary" style=${`width:${Math.max(0, Math.min(100, Number(data.fleetCoveragePercent || 0)))}%`}></div>
                         </div>
-                        <div class="text-muted">Active telemetry coverage supports insurance-grade evidence generation for the current org dossier.</div>
+                        <div class="text-muted">Active telemetry coverage supports insurance-grade evidence generation for the current organization.</div>
                     </div>
                 </div>
             </div>
@@ -135,7 +135,7 @@ export function InsuranceReadinessPage() {
             const resp = await api.getPageBundle(orgId, 'add-on/insurance-readiness', { refresh: true });
             if (!resp?.success) throw new Error(resp?.message || 'Generation failed');
             const refreshed = (resp?.data?.refreshedAtoms || []).includes('addon-insurance');
-            setRegenMsg({ type: 'success', text: refreshed ? 'Readiness Dossier updated.' : 'No readiness evidence is available yet.' });
+            setRegenMsg({ type: 'success', text: refreshed ? 'Readiness evidence updated.' : 'No readiness evidence is available yet.' });
             setReloadKey(k => k + 1);
         } catch (ex) {
             logger.error('[InsuranceReadiness] regenerate failed', ex);
@@ -156,6 +156,8 @@ export function InsuranceReadinessPage() {
         isEnabled=${isEnabled}
         upgradeDesc="Understand your cyber insurance readiness with scored control assessments. Available on BusinessUltimate."
         upgradeIcon="ti-shield-lock"
+        emptyTitle="No insurance-readiness evidence yet"
+        emptySubtitle="The next evidence update will score controls, fleet coverage, and remediation velocity."
         renderContent=${renderContent}
     />`;
 }

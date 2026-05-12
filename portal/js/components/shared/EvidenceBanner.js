@@ -14,6 +14,28 @@ function formatPageName(pageName) {
     return String(pageName || 'page').replace(/[-_]/g, ' ');
 }
 
+function formatEvidenceLabel(atomName) {
+    const known = {
+        'org-snapshot': 'posture dossier',
+        'security-snapshot': 'security evidence',
+        'compliance-snapshot': 'compliance evidence',
+        'audit-snapshot': 'audit evidence',
+        'device-fleet': 'device fleet',
+        'daily-changelog': 'daily changes',
+        'device-app-matrix': 'software summary',
+        'inventory-facts': 'software inventory',
+        'inventory-change-facts': 'software changes',
+        'alert-facts': 'alert evidence',
+        'audit-facts': 'audit events',
+        'cve-list': 'CVE evidence',
+        'cve-device-facts': 'device CVE evidence',
+        'compliance-control-facts': 'control evidence'
+    };
+
+    const key = String(atomName || '').toLowerCase();
+    return known[key] || key.replace(/[-_]/g, ' ');
+}
+
 function getEvidenceStatus(evidence) {
     const status = String(readField(evidence, 'status', 'Status') || '').toLowerCase();
     const isComplete = readField(evidence, 'isComplete', 'IsComplete') === true;
@@ -49,10 +71,10 @@ export function EvidenceBanner({ evidence, pageName }) {
             ? 'Evidence complete'
             : 'Evidence incomplete';
     const message = isBlocked
-        ? `Historical ${pageLabel} proof is blocked for ${dateLabel} until required atoms are cooked.`
+        ? `Historical ${pageLabel} evidence for ${dateLabel} is not ready yet. Required evidence is still being prepared.`
         : isComplete
-            ? `Historical ${pageLabel} proof is backed by the required atoms for ${dateLabel}.`
-            : `Historical ${pageLabel} proof is partial for ${dateLabel}; totals may be limited to available atoms.`;
+            ? `Complete historical ${pageLabel} evidence is available for ${dateLabel}.`
+            : `Partial historical ${pageLabel} evidence is available for ${dateLabel}; totals may reflect only prepared evidence.`;
 
     return html`
         <div class=${`alert ${alertClass} border-0 shadow-sm mb-3`} role="status" aria-live="polite">
@@ -65,9 +87,9 @@ export function EvidenceBanner({ evidence, pageName }) {
                     </div>
                 </div>
                 <div class="d-flex flex-wrap gap-1 justify-content-lg-end">
-                    ${missing.map(atom => html`<span class="badge bg-danger-lt text-danger">Missing: ${atom}</span>`)}
-                    ${!missing.length && required.length ? html`<span class="badge bg-secondary-lt text-secondary">${required.length} required atom${required.length === 1 ? '' : 's'}</span>` : null}
-                    ${empty.length ? html`<span class="badge bg-azure-lt text-azure">${empty.length} empty atom${empty.length === 1 ? '' : 's'}</span>` : null}
+                    ${missing.map(atom => html`<span class="badge bg-danger-lt text-danger">Missing: ${formatEvidenceLabel(atom)}</span>`)}
+                    ${!missing.length && required.length ? html`<span class="badge bg-secondary-lt text-secondary">${required.length} evidence requirement${required.length === 1 ? '' : 's'}</span>` : null}
+                    ${empty.length ? html`<span class="badge bg-azure-lt text-azure">${empty.length} empty evidence set${empty.length === 1 ? '' : 's'}</span>` : null}
                 </div>
             </div>
         </div>

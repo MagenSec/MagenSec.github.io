@@ -162,8 +162,12 @@ export class CompliancePage extends Component {
   }
 
   componentDidMount() {
-    this.orgUnsubscribe = orgContext.onChange(() => this.loadPage());
-    this._rewindUnsub = rewindContext.onChange(() => this.loadPage());
+    const reload = () => {
+      this.loadPage();
+      this.loadTrendData();
+    };
+    this.orgUnsubscribe = orgContext.onChange(reload);
+    this._rewindUnsub = rewindContext.onChange(reload);
     this.loadPage();
     this.loadTrendData();
   }
@@ -180,7 +184,8 @@ export class CompliancePage extends Component {
   }
 
   _cacheKey() {
-    return `ms-compliance-${this.getOrgId()}`;
+    const effectiveDate = rewindContext.isActive?.() ? rewindContext.getDate?.() : 'live';
+    return `ms-compliance-${this.getOrgId()}-${effectiveDate || 'live'}`;
   }
 
   _getCached() {
@@ -195,6 +200,19 @@ export class CompliancePage extends Component {
 
   _setCache(data) {
     try { localStorage.setItem(this._cacheKey(), JSON.stringify({ data, timestamp: Date.now() })); } catch { /* quota */ }
+  }
+
+  buildFallbackSnapshot(bundleResp) {
+    const data = bundleResp?.data || bundleResp?.Data || {};
+    const evidence = data?.evidence || data?.Evidence || null;
+    const freshness = data?.freshness || data?.Freshness || null;
+    const asOf = evidence?.asOf || evidence?.AsOf || freshness?.asOf || freshness?.AsOf || new Date().toISOString();
+    return {
+      generatedAt: asOf,
+      overallScore: 0,
+      standards: [],
+      isEvidenceFallback: true
+    };
   }
 
   async loadPage(forceRefresh = false) {
@@ -233,24 +251,22 @@ export class CompliancePage extends Component {
       }
       const evidence = bundleResp?.data?.evidence || bundleResp?.data?.Evidence || null;
       const atom = bundleResp?.data?.atoms?.['compliance-snapshot'];
-      const snapshot = Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
+      const atomRows = atom?.data || atom?.Data || [];
+      const snapshot = Array.isArray(atomRows) && atomRows.length > 0 ? atomRows[0] : null;
       // compliance-control-facts is per-device per-control state — cache for drilldowns.
-      const controlFacts = bundleResp?.data?.atoms?.['compliance-control-facts']?.data || [];
-      if (!snapshot) {
-        const error = new Error('No compliance dossier available');
-        error.evidence = evidence;
-        throw error;
-      }
+      const controlFactsAtom = bundleResp?.data?.atoms?.['compliance-control-facts'];
+      const controlFacts = controlFactsAtom?.data || controlFactsAtom?.Data || [];
+      const effectiveSnapshot = snapshot || this.buildFallbackSnapshot(bundleResp);
 
-      this._setCache(snapshot);
+      if (snapshot) this._setCache(snapshot);
       this.setState({
-        snapshot,
+        snapshot: effectiveSnapshot,
         evidence,
         controlFacts: Array.isArray(controlFacts) ? controlFacts : [],
         loading: false,
         isRefreshingInBackground: false,
         error: null,
-        selectedDate: toInputDate(snapshot?.generatedAt)
+        selectedDate: toInputDate(effectiveSnapshot?.generatedAt)
       }, () => {
         this.loadLatestReport();
       });
@@ -319,9 +335,13 @@ export class CompliancePage extends Component {
         selectedFramework: framework
       });
 
+      window.toast?.show?.('Compliance report generated.', 'success', 3500);
+
       await this.loadLatestReport();
     } catch (err) {
-      this.setState({ generatingReport: false, reportError: err?.message || 'Failed to generate compliance report' });
+      const message = err?.message || 'Failed to generate compliance report';
+      this.setState({ generatingReport: false, reportError: message });
+      window.toast?.show?.(message, 'error', 5000);
     }
   }
 
@@ -359,8 +379,10 @@ export class CompliancePage extends Component {
     try {
       const range = getTrendDateRange(30);
       const resp = await api.getTrendSnapshots(orgId, range);
-      if (resp.success && Array.isArray(resp.data)) {
-        this.setState({ trendData: resp.data, trendLoading: false });
+      const payload = resp?.data || resp;
+      const trends = Array.isArray(payload) ? payload : (payload?.data || payload?.snapshots || []);
+      if (Array.isArray(trends)) {
+        this.setState({ trendData: trends, trendLoading: false });
       } else {
         this.setState({ trendLoading: false });
       }
@@ -399,7 +421,8 @@ export class CompliancePage extends Component {
               <h2 class="page-title">Your Readiness</h2>
               <div class="text-muted mt-1">
                 Are you audit-ready? Track compliance alignment and generate evidence.
-                ${snapshot.generatedAt ? html`<span class="badge bg-secondary-lt text-secondary ms-2">Dossier submitted ${formatRelativeTimeShort(snapshot.generatedAt)}</span>` : ''}
+                ${snapshot.generatedAt ? html`<span class="badge bg-secondary-lt text-secondary ms-2">Evidence prepared ${formatRelativeTimeShort(snapshot.generatedAt)}</span>` : ''}
+                ${snapshot.isEvidenceFallback ? html`<span class="badge bg-azure-lt text-azure ms-2">Evidence pending</span>` : ''}
               </div>
             </div>
           </div>
@@ -412,8 +435,8 @@ export class CompliancePage extends Component {
                   <div class="text-uppercase small opacity-75 mb-1">Audit Score</div>
                   <div class="display-3 fw-bold mb-0">${score}%</div>
                   <div class="d-flex align-items-center gap-2 mt-1 justify-content-center justify-content-lg-start">
-                    <span class="badge bg-light text-dark">Grade ${grade}</span>
-                    <span class="badge bg-outline-light border opacity-75">${liveCount} live standard${liveCount !== 1 ? 's' : ''}</span>
+                    <span class="badge bg-white text-dark">Grade ${grade}</span>
+                    <span class="badge border border-white text-white opacity-75">${liveCount} live standard${liveCount !== 1 ? 's' : ''}</span>
                   </div>
                 </div>
                 <div class="col-lg-5">
@@ -421,7 +444,7 @@ export class CompliancePage extends Component {
                     <div class="text-uppercase small opacity-75 mb-2">Top Compliance Gaps</div>
                     ${topGaps.map((gap, i) => html`
                       <div class="d-flex align-items-start gap-2 mb-2">
-                        <span class="badge bg-light text-dark rounded-circle" style="width:24px;height:24px;line-height:24px;padding:0;text-align:center;">${i + 1}</span>
+                        <span class="badge bg-white text-dark rounded-circle" style="width:24px;height:24px;line-height:24px;padding:0;text-align:center;">${i + 1}</span>
                         <div>
                           <div class="fw-semibold">${gap.controlName || gap.controlId || 'Control gap'}</div>
                           <div class="small opacity-75">${gap.frameworkName || ''} \u00b7 ${gap.affectedAssets || 0} device${(gap.affectedAssets || 0) === 1 ? '' : 's'} non-compliant</div>
@@ -437,7 +460,7 @@ export class CompliancePage extends Component {
                 </div>
                 <div class="col-lg-3 text-center text-lg-end">
                   <div class="d-inline-flex flex-column gap-2">
-                    <span class="badge bg-light text-dark">${totalGaps} priority gap${totalGaps !== 1 ? 's' : ''}</span>
+                    <span class="badge bg-white text-dark">${totalGaps} priority gap${totalGaps !== 1 ? 's' : ''}</span>
                   </div>
                 </div>
               </div>
@@ -504,7 +527,7 @@ export class CompliancePage extends Component {
               </div>
               <div class="col-lg-4">
                 <div class="small text-muted text-lg-end">
-                  ${snapshotDate ? html`Latest compliance dossier: <strong>${toInputDate(snapshotDate)}</strong>` : 'No dossier timestamp available'}
+                  ${snapshotDate ? html`Latest compliance evidence: <strong>${toInputDate(snapshotDate)}</strong>` : 'No evidence timestamp available'}
                 </div>
               </div>
             </div>
@@ -552,7 +575,7 @@ export class CompliancePage extends Component {
                         <div class="progress-bar bg-${tone}" style="width: ${item.score}%"></div>
                       </div>
                       <div class="small text-muted mb-3" style="min-height: 3rem;">
-                        ${topGap ? html`Top gap: <strong>${topGap.controlId}</strong> · ${topGap.title}` : 'No recorded gaps in this dossier.'}
+                        ${topGap ? html`Top gap: <strong>${topGap.controlId}</strong> · ${topGap.title}` : 'No recorded gaps in this evidence.'}
                       </div>
                       <div class="mt-auto d-flex gap-2">
                         <button class="btn btn-sm btn-primary flex-fill" data-mutates-state="true" onClick=${() => this.generateReport(item.id)}>
@@ -592,13 +615,14 @@ export class CompliancePage extends Component {
                   <th>Why It Matters</th>
                   <th>Affected Assets</th>
                   <th>Priority</th>
-                  <th>Action</th>
+                  <th>Remediation</th>
+                  <th>Evidence</th>
                 </tr>
               </thead>
               <tbody>
                 ${gaps.length === 0 ? html`
                   <tr>
-                    <td colspan="7" class="text-center py-5 text-muted">No live compliance gaps are available in the latest dossier.</td>
+                    <td colspan="7" class="text-center py-5 text-muted">No live compliance gaps are available in the latest evidence.</td>
                   </tr>
                 ` : gaps.map((gap) => {
                   const urgency = getUrgencyTone(gap.priority || 0);
@@ -874,6 +898,13 @@ export class CompliancePage extends Component {
       <div style="padding-bottom: 88px;">
         ${this.renderHeader(frameworkCards)}
         ${this.state.evidence ? html`<div class="container-xl"><${EvidenceBanner} evidence=${this.state.evidence} pageName="compliance" /></div>` : null}
+        ${this.state.snapshot?.isEvidenceFallback ? html`
+          <div class="container-xl mb-4">
+            <div class="alert alert-info border-0 shadow-sm">
+              Compliance dossier evidence is still being prepared. The framework catalog, dated report controls, and available trend evidence remain visible so you can see what will populate when control facts arrive.
+            </div>
+          </div>
+        ` : null}
         ${this.renderCommandDeck()}
         ${this.renderFrameworkGrid(frameworkCards)}
         <div class="container-xl">

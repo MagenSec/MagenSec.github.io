@@ -17,6 +17,15 @@ const REPORTS = [
     icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><line x1="9" y1="12" x2="15" y2="12" /><line x1="9" y1="16" x2="15" y2="16" /></svg>`
   },
   {
+    id: 'brief-preview',
+    title: 'Brief Preview',
+    description: 'Daily and weekly email brief previews with the same evidence formatting customers receive.',
+    href: '#!/reports/preview',
+    viewHref: '#!/reports/preview',
+    businessOnly: true,
+    icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M3 7l9 6l9 -6" /></svg>`
+  },
+  {
     id: 'security',
     title: 'Security Report',
     description: 'Detailed threat analysis, CVE exposure, risk scores, and vulnerability breakdown by severity.',
@@ -93,7 +102,7 @@ export class ReportsPage extends Component {
                 Reports
               </h2>
               <div class="page-subtitle text-muted">
-                Security, compliance, and operational reports
+                Security, compliance, and operational report views
                 <span class="badge bg-success-lt text-success ms-2">${liveCount} available</span>
                 ${isHistorical ? html`<span class="badge bg-blue-lt text-blue ms-2">As of ${dateLabel}</span>` : null}
               </div>
@@ -114,9 +123,11 @@ export class ReportsPage extends Component {
             </div>
           ` : null}
           <div class="row row-cols-1 row-cols-md-2 g-4">
-            ${REPORTS.map(r => html`
+            ${REPORTS.map(r => {
+              const locked = isPersonalOrg && r.businessOnly;
+              return html`
               <div class="col">
-                <div class="card h-100 ${r.href ? '' : 'opacity-75'}">
+                <div class="card h-100 ${r.href && !locked ? '' : 'opacity-75'}">
                   <div class="card-body">
                     <div class="d-flex align-items-start justify-content-between mb-2">
                       <div class="d-flex align-items-center gap-2">
@@ -125,23 +136,25 @@ export class ReportsPage extends Component {
                         </span>
                         <h3 class="card-title mb-0">${r.title}</h3>
                       </div>
-                      ${!r.href ? html`<span class="badge bg-secondary text-white">Coming Soon</span>` : ''}
+                      ${locked ? html`<span class="badge bg-warning-lt text-warning">Business only</span>` : !r.href ? html`<span class="badge bg-secondary text-white">Coming Soon</span>` : ''}
                     </div>
 
                     <p class="text-muted mb-3">${r.description}</p>
 
-                    ${r.href ? html`
+                    ${r.href && !locked ? html`
                       <div class="d-flex gap-2 flex-wrap">
                         <a
                           href="${r.viewHref || r.href}"
-                          class=${`btn btn-sm btn-primary ${(isPersonalOrg && r.businessOnly) ? 'business-license-only' : ''}`}
-                          title=${(isPersonalOrg && r.businessOnly) ? BUSINESS_ONLY_TOOLTIP : ''}
-                          data-business-tooltip=${(isPersonalOrg && r.businessOnly) ? BUSINESS_ONLY_TOOLTIP : ''}
+                          class="btn btn-sm btn-primary"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7" /></svg>
                           View ${r.title}
                         </a>
                       </div>
+                    ` : locked ? html`
+                      <button class="btn btn-sm btn-outline-secondary" disabled title=${BUSINESS_ONLY_TOOLTIP}>
+                        Business license required
+                      </button>
                     ` : html`
                       <button class="btn btn-sm btn-outline-secondary" disabled>
                         Not yet available
@@ -150,7 +163,7 @@ export class ReportsPage extends Component {
                   </div>
                 </div>
               </div>
-            `)}
+            `})}
           </div>
         </div>
       </div>

@@ -9,14 +9,16 @@ const { html, Component } = window;
 
 export class PreviewPage extends Component {
     render() {
+        const isBusinessReportsRoute = window.location.hash.startsWith('#!/reports/preview');
+
         return html`
             <div class="container-xl">
                 <!-- Page header -->
                 <div class="page-header d-print-none mb-3">
                     <div class="row align-items-center">
                         <div class="col">
-                            <div class="page-pretitle">Site Admin</div>
-                            <h2 class="page-title">Report Previews</h2>
+                            <div class="page-pretitle">${isBusinessReportsRoute ? 'Reports' : 'Site Admin'}</div>
+                            <h2 class="page-title">${isBusinessReportsRoute ? 'Report Preview' : 'Report Previews'}</h2>
                         </div>
                     </div>
                 </div>

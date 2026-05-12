@@ -18,6 +18,7 @@ class ReportPreviewPage extends Component {
             sendingEmail: false,
             emailSent: false,
             emailMessage: null,
+            customEmail: '',
             showSendMenu: false,
             refreshing: false,
             isFromCache: false,
@@ -305,6 +306,7 @@ class ReportPreviewPage extends Component {
                     <div className="send-group">
                         <button
                             className="btn btn-primary"
+                            data-mutates-state="true"
                             onClick=${() => this.handleSendEmail('owner')}
                             disabled=${sendingEmail || !snapshot}
                         >
@@ -319,18 +321,30 @@ class ReportPreviewPage extends Component {
                         </button>
                         ${showSendMenu && html`
                             <div className="split-menu">
-                                <button onClick=${() => {
-                                    const email = window.prompt('Send to which email?');
-                                    if (email) this.handleSendEmail('custom', email);
-                                }}>Send To Custom…</button>
+                                <div className="split-menu-form">
+                                    <label className="split-menu-label">Custom recipient</label>
+                                    <input
+                                        className="split-menu-input"
+                                        type="email"
+                                        placeholder="name@example.com"
+                                        value=${this.state.customEmail}
+                                        onInput=${(e) => this.setState({ customEmail: e.target.value })}
+                                    />
+                                    <button
+                                        data-mutates-state="true"
+                                        disabled=${!this.state.customEmail || sendingEmail}
+                                        onClick=${() => this.handleSendEmail('custom', this.state.customEmail)}
+                                    >Send To Custom</button>
+                                </div>
                             </div>
                         `}
                     </div>
                     <button
                         className="btn btn-outline"
+                        data-mutates-state="true"
                         onClick=${this.handleRefreshPreview}
                         disabled=${refreshing || !snapshot}
-                        title="Regenerate preview from current backend logic (does not overwrite cached sent email)"
+                        title="Refresh preview from current backend logic"
                     >
                         ${refreshing ? 'Refreshing\u2026' : '\u21ba Refresh Preview'}
                     </button>
@@ -447,6 +461,15 @@ class ReportPreviewPage extends Component {
                         z-index: 20;
                         display: flex;
                         flex-direction: column;
+                    }
+                    .split-menu-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+                    .split-menu-label { font-size: 12px; font-weight: 700; color: #475569; }
+                    .split-menu-input {
+                        border: 1px solid #cbd5e1;
+                        border-radius: 6px;
+                        padding: 8px 10px;
+                        font-size: 13px;
+                        min-width: 220px;
                     }
                     .split-menu button {
                         background: white;

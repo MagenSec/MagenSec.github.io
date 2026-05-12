@@ -86,11 +86,9 @@ class DevicesPage extends window.Component {
         this.cvesChartEl = null;
 
         this.summaryRefreshInFlight = false;
-        this._isUnmounted = false;
     }
 
     componentDidMount() {
-        this._isUnmounted = false;
         this.orgChangeUnsubscribe = orgContext.onChange(() => this.loadDevices(true));
         this._rewindUnsub = rewindContext.onChange(() => this.loadDevices(true));
         this.loadInstallerConfig();
@@ -105,7 +103,7 @@ class DevicesPage extends window.Component {
             const devicesChanged = prevState.devices !== this.state.devices;
             const installerLoaded = prevState.installers?.ENGINE?.VERSION !== this.state.installers?.ENGINE?.VERSION;
             if ((devicesChanged || installerLoaded) && Array.isArray(this.state.devices) && this.state.devices.length > 0) {
-                const outdatedCount = this.state.devices.filter(d => this.isDeviceUpdateRequired(d)).length;
+                const outdatedCount = this.state.devices.filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
                 const orgKey = orgContext.getCurrentOrg()?.orgId || 'none';
                 const noticeKey = `outdated-clients-notice:${orgKey}`;
                 if (outdatedCount > 0 && sessionStorage.getItem(noticeKey) !== '1') {
@@ -288,6 +286,13 @@ class DevicesPage extends window.Component {
         if (mins < 4320) return `Stale (${days}d)`;
         if (mins < 10080) return `Dormant (${days}d)`;
         return `Ghosted (${days}d)`;
+    }
+
+    componentWillUnmount() {
+        if (this.orgChangeUnsubscribe) this.orgChangeUnsubscribe();
+        if (this._rewindUnsub) this._rewindUnsub();
+        this.destroyApexCharts();
+        this.destroyTableApexCharts();
     }
 
     // Modal rendering moved to render() method
@@ -1042,13 +1047,10 @@ class DevicesPage extends window.Component {
     }
 
     componentWillUnmount() {
-        this._isUnmounted = true;
-        if (this.orgChangeUnsubscribe) this.orgChangeUnsubscribe();
-        if (this.orgUnsubscribe) this.orgUnsubscribe();
-        if (this._rewindUnsub) this._rewindUnsub();
-        this.summaryRefreshInFlight = false;
-        this.destroyApexCharts();
-        this.destroyTableApexCharts();
+        // Unsubscribe from org changes
+        if (this.orgUnsubscribe) {
+            this.orgUnsubscribe();
+        }
     }
 
     async enrichDeviceScoresAsync(devices, summaries) {
@@ -1143,11 +1145,6 @@ class DevicesPage extends window.Component {
                     lastHeartbeat: device.lastHeartbeat,
                     firstHeartbeat: device.firstHeartbeat || device.firstSeen || device.createdAt,
                     clientVersion: device.clientVersion,
-                    lastUpdateRequiredReason: device.lastUpdateRequiredReason || device.LastUpdateRequiredReason || null,
-                    lastUpdateRequiredTargetVersion: device.lastUpdateRequiredTargetVersion || device.LastUpdateRequiredTargetVersion || null,
-                    lastUpdateStatus: device.lastUpdateStatus || device.LastUpdateStatus || null,
-                    lastUpdateTargetVersion: device.lastUpdateTargetVersion || device.LastUpdateTargetVersion || null,
-                    lastUpdateAttemptUtc: device.lastUpdateAttemptUtc || device.LastUpdateAttemptUtc || null,
                     licenseKey: maskedKey,
                     telemetry: {
                         osEdition: t.osEdition || t.OSEdition || t.oseEdition,
@@ -1241,8 +1238,6 @@ class DevicesPage extends window.Component {
                 return;
             }
 
-            if (this._isUnmounted) return;
-
             // Extract summaries from response
             const freshSummaries = {};
             response.data.devices.forEach(device => {
@@ -1269,16 +1264,13 @@ class DevicesPage extends window.Component {
             console.log(`[DevicesPage] ✅ Background fetch complete: ${Object.keys(freshSummaries).length} summaries loaded`);
         } catch (err) {
             console.warn('[DevicesPage] Background summary fetch error:', err);
-            if (this._isUnmounted) return;
             this.setState({
                 summarySignalState: 'stale',
                 summarySignalMessage: 'Using last verified device signals while the live summary refresh is unavailable.'
             });
         } finally {
             this.summaryRefreshInFlight = false;
-            if (!this._isUnmounted) {
-                this.setState({ isRefreshingInBackground: false });
-            }
+            this.setState({ isRefreshingInBackground: false });
         }
     }
 
@@ -1605,11 +1597,11 @@ class DevicesPage extends window.Component {
         return `${diffDays}d ago`;
     }
 
-    isVersionOutdated(deviceVersion, targetVersion = null) {
+    isVersionOutdated(deviceVersion) {
         if (!deviceVersion) return false;
         
-        const latestVersion = targetVersion || this.state.installers.ENGINE.VERSION || config.INSTALLERS.ENGINE.VERSION;
-        if (!latestVersion) return false;
+        // Use cached installer version (or fallback to config)
+        const latestVersion = this.state.installers.ENGINE.VERSION || config.INSTALLERS.ENGINE.VERSION;
         
         // Parse versions (format: major.minor.build)
         const parseVersion = (v) => {
@@ -1630,45 +1622,6 @@ class DevicesPage extends window.Component {
         if (device.major === latest.major && device.minor === latest.minor && device.build < latest.build) return true;
         
         return false;
-    }
-
-    getDeviceUpdateTargetVersion(device) {
-        const candidates = [
-            device?.lastUpdateRequiredTargetVersion,
-            device?.lastUpdateTargetVersion,
-            this.state.installers?.ENGINE?.VERSION,
-            config.INSTALLERS?.ENGINE?.VERSION
-        ].filter(Boolean);
-
-        if (candidates.length === 0) return null;
-        return candidates.reduce((latest, candidate) => this.compareVersionStrings(candidate, latest) > 0 ? candidate : latest, candidates[0]);
-    }
-
-    compareVersionStrings(left, right) {
-        const parseVersion = (version) => String(version || '').split('.').map(part => Number.parseInt(part, 10) || 0);
-        const a = parseVersion(left);
-        const b = parseVersion(right);
-        const length = Math.max(a.length, b.length, 4);
-
-        for (let i = 0; i < length; i += 1) {
-            const av = a[i] || 0;
-            const bv = b[i] || 0;
-            if (av > bv) return 1;
-            if (av < bv) return -1;
-        }
-
-        return 0;
-    }
-
-    isDeviceUpdateRequired(device) {
-        if (!device?.clientVersion) return false;
-
-        const targetVersion = this.getDeviceUpdateTargetVersion(device);
-        if (targetVersion && this.isVersionOutdated(device.clientVersion, targetVersion)) {
-            return true;
-        }
-
-        return !targetVersion && !!device.lastUpdateRequiredReason;
     }
 
     // Builds a device object with .summary attached from state, mapping normalized summary fields
@@ -1716,7 +1669,7 @@ class DevicesPage extends window.Component {
     getDeviceStatusColor(device, risk, summary) {
         const score = risk && Number.isFinite(risk.score) ? risk.score : null;
         const critHigh = summary ? (summary.criticalCves || 0) + (summary.highCves || 0) : 0;
-        const isAgentOutdated = this.isDeviceUpdateRequired(device);
+        const isAgentOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
         const osText = (device.telemetry?.osEdition || device.os || '').toLowerCase();
         const isWin10 = osText.includes('windows 10');
         if (score !== null && score >= 70) return 'danger';
@@ -1732,7 +1685,7 @@ class DevicesPage extends window.Component {
     getDeviceAlertBadges(device, risk, summary) {
         const badges = [];
         const score = risk && Number.isFinite(risk.score) ? risk.score : null;
-        const isAgentOutdated = this.isDeviceUpdateRequired(device);
+        const isAgentOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
         const osText = (device.telemetry?.osEdition || device.os || '').toLowerCase();
         const isWin10 = osText.includes('windows 10');
         if (score !== null && score >= 70) badges.push({ color: 'danger', label: 'High Risk' });
@@ -2373,17 +2326,10 @@ class DevicesPage extends window.Component {
             if (s) { totalApps += s.apps || 0; totalVulnApps += s.vulnerableApps || 0; }
         }
 
-        const updateRequiredDevices = devices.filter(d => this.isDeviceUpdateRequired(d));
-        const updateRequiredCount = updateRequiredDevices.length;
-        const updateTargetVersion = updateRequiredDevices
-            .map(d => this.getDeviceUpdateTargetVersion(d))
-            .filter(Boolean)
-            .reduce((latest, candidate) => this.compareVersionStrings(candidate, latest) > 0 ? candidate : latest, updateRequiredDevices[0] ? this.getDeviceUpdateTargetVersion(updateRequiredDevices[0]) : null);
-
         return html`
         <div class="row row-cards mb-3">
             <!-- Card 1: Fleet Overview -->
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-sm-6 col-lg-4">
                 <div class="card card-sm h-100">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
@@ -2411,7 +2357,7 @@ class DevicesPage extends window.Component {
                 </div>
             </div>
             <!-- Card 2: Active Threats -->
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-sm-6 col-lg-4">
                 <div class="card card-sm h-100${needActionCount > 0 ? ' border-danger' : ''}">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
@@ -2441,32 +2387,8 @@ class DevicesPage extends window.Component {
                     </div>
                 </div>
             </div>
-            <!-- Card 3: Client Updates -->
-            <div class="col-sm-6 col-lg-3">
-                <div class="card card-sm h-100${updateRequiredCount > 0 ? ' border-warning' : ''}">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <span class="${updateRequiredCount > 0 ? 'bg-warning' : 'bg-success'} text-white avatar rounded me-3">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
-                            </span>
-                            <div>
-                                <div class="d-flex align-items-baseline gap-2">
-                                    <div class="h1 mb-0 fw-bold">${updateRequiredCount}</div>
-                                    <span class="text-muted">client update${updateRequiredCount === 1 ? '' : 's'}</span>
-                                </div>
-                                <div class="mt-1">
-                                    ${updateRequiredCount > 0
-                                        ? html`<span class="text-warning">Target v${updateTargetVersion || 'latest'} · use Check Updates</span>`
-                                        : html`<span class="text-success">All agents current</span>`
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Card 4: Visibility -->
-            <div class="col-sm-6 col-lg-3">
+            <!-- Card 3: Visibility -->
+            <div class="col-sm-6 col-lg-4">
                 <div class="card card-sm h-100">
                     <div class="card-body">
                         <div class="d-flex align-items-center">
@@ -2532,7 +2454,7 @@ class DevicesPage extends window.Component {
                             Scan All
                         </button>
                         ${(() => {
-                            const outdatedCount = (this.state.devices || []).filter(d => this.isDeviceUpdateRequired(d)).length;
+                            const outdatedCount = (this.state.devices || []).filter(d => d.clientVersion && this.isVersionOutdated(d.clientVersion)).length;
                             const hasOutdated = outdatedCount > 0;
                             return html`<button type="button" class="btn btn-sm ${hasOutdated ? 'btn-warning update-glow' : 'btn-outline-secondary'} d-inline-flex align-items-center gap-1" data-mutates-state="true" onclick=${() => this.queueOrgCommand('CheckUpdates')} title=${hasOutdated ? `${outdatedCount} device${outdatedCount === 1 ? '' : 's'} running outdated agent — push update now` : 'Check for updates on all devices'}>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
@@ -2749,7 +2671,7 @@ class DevicesPage extends window.Component {
                                                             const displayScore = Number.isFinite(risk.score) ? risk.score : 0;
                                                             const scoreValue = Math.max(0, Math.min(100, 100 - Math.round(displayScore)));
                                                             const scoreColor = scoreValue >= 75 ? 'success' : scoreValue >= 50 ? 'warning' : 'danger';
-                                                            const isOutdated = this.isDeviceUpdateRequired(device);
+                                                            const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
                                                             const osEdition = device.telemetry?.osEdition || '';
                                                             const osVersion = device.telemetry?.osVersion || '';
                                                             const osLabel = osVersion ? `${osEdition} ${osVersion}`.trim() : (osEdition || 'Unknown OS');
@@ -2772,14 +2694,7 @@ class DevicesPage extends window.Component {
                                                                         ${this.getDeviceInitials(device.name || device.id)}
                                                                     </span>
                                                                     <div class="min-width-0">
-                                                                        <div class="d-flex align-items-center gap-1" style="max-width:220px;">
-                                                                            <a href="#!/devices/${device.id}" class="text-reset fw-medium d-block text-truncate" title="${device.name || device.id}">${device.name || device.id}</a>
-                                                                            ${isOutdated ? html`
-                                                                                <span class="text-warning flex-shrink-0" title="Agent update available">
-                                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
-                                                                                </span>
-                                                                            ` : ''}
-                                                                        </div>
+                                                                        <a href="#!/devices/${device.id}" class="text-reset fw-medium d-block text-truncate" style="max-width:220px;" title="${device.name || device.id}">${device.name || device.id}</a>
                                                                         <div class="text-muted small d-flex align-items-center gap-1">
                                                                             <span class="${getStatusDotClass(health.status)} me-1"></span>
                                                                             ${health.text} · ${osLabel}
@@ -2851,7 +2766,7 @@ class DevicesPage extends window.Component {
                                                                 const stateRaw = (device.state || '').toLowerCase();
                                                                 const agentBlock = this.getAgentCommandBlockReason(device.state);
                                                                 const agentDisabled = !!agentBlock;
-                                                                const isOutdated = this.isDeviceUpdateRequired(device);
+                                                                const isOutdated = device.clientVersion && this.isVersionOutdated(device.clientVersion);
                                                                 const canEnable = this.canEnableDevice(device.state);
                                                                 const canBlock = this.canBlockDevice(device.state);
                                                                 const isDeleted = stateRaw === 'deleted';

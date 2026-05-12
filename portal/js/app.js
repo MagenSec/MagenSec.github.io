@@ -140,6 +140,31 @@ function applyRewindUiGuards() {
     });
 }
 
+let rewindGuardScheduled = false;
+let rewindGuardObserver = null;
+
+function scheduleRewindUiGuards() {
+    if (rewindGuardScheduled) return;
+    rewindGuardScheduled = true;
+    requestAnimationFrame(() => {
+        rewindGuardScheduled = false;
+        applyRewindUiGuards();
+    });
+}
+
+function observeRewindGuardTargets() {
+    if (rewindGuardObserver || !window.MutationObserver) return;
+    const root = document.getElementById('app') || document.body;
+    rewindGuardObserver = new MutationObserver(() => {
+        const active = rewindContext.isActive();
+        const readOnlyMode = window.orgContext?.isReadOnly?.() && !window.orgContext?.isSiteAdmin?.();
+        if (active || readOnlyMode) {
+            scheduleRewindUiGuards();
+        }
+    });
+    rewindGuardObserver.observe(root, { childList: true, subtree: true });
+}
+
 function applyOrgUiRestrictions() {
     const body = document.body;
     if (!body) return;
@@ -586,7 +611,7 @@ function renderApp(state) {
     }
 
     // Re-apply rewind guards after every render (new page buttons may have appeared in the DOM)
-    setTimeout(applyRewindUiGuards, 0);
+    setTimeout(scheduleRewindUiGuards, 0);
 }
 
 function hasUserPhoneConfigured() {
@@ -759,6 +784,7 @@ async function init() {
     
     // Initialize theme service
     themeService.initialize();
+    observeRewindGuardTargets();
     
     // Theme toggle is now in the top bar (index.html #theme-toggle-btn)
     // Wired by themeService below — no dynamic injection needed
@@ -777,7 +803,7 @@ async function init() {
 
     orgContext.onChange(() => {
         applyOrgUiRestrictions();
-        applyRewindUiGuards();
+        scheduleRewindUiGuards();
         refreshActionsBadge();
     });
 
@@ -865,7 +891,7 @@ async function init() {
     // Re-render current page whenever rewind context changes (pages check rewindContext at render time)
     window.addEventListener('rewindChanged', () => {
         renderApp();
-        applyRewindUiGuards();
+        scheduleRewindUiGuards();
     });
 
     // Wire Rewind navbar panel buttons (the panel HTML lives in index.html)

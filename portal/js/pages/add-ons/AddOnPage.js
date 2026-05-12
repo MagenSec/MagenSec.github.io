@@ -9,6 +9,10 @@ import { logger } from '@config';
 const { html } = window;
 const { useState, useEffect } = window.preactHooks;
 
+function firstNonEmpty(...values) {
+    return values.find(value => value !== null && value !== undefined && String(value).trim() !== '') || null;
+}
+
 /**
  * Rich upgrade wall shown when the org doesn't have the add-on.
  * Presents the feature as a sales opportunity.
@@ -74,11 +78,13 @@ function UpgradeWall({ name, description, icon = 'ti-stars', features = [] }) {
  * @param {boolean}  props.isEnabled         - orgContext.has*() result
  * @param {string}   props.upgradeDesc       - Shown in upgrade wall subtitle
  * @param {string}   [props.upgradeIcon]     - Tabler icon class
+ * @param {string}   [props.emptyTitle]      - Empty-state title for current-day views
+ * @param {string}   [props.emptySubtitle]   - Empty-state subtitle for current-day views
  * @param {function} props.renderContent     - (data) => html`` for the main content
  */
 export function AddOnPage({
     addOnKey, title, pretitle = 'Add-ons', bundleName, atomName,
-    isEnabled, upgradeDesc, upgradeIcon, upgradeFeatures, renderContent
+    isEnabled, upgradeDesc, upgradeIcon, upgradeFeatures, emptyTitle, emptySubtitle, renderContent
 }) {
     const isLicensedForOrg = window.orgContext?.hasAddOnForOrg?.(addOnKey) ?? false;
     const isSiteAdmin      = window.orgContext?.isSiteAdmin?.() ?? false;
@@ -114,8 +120,18 @@ export function AddOnPage({
             setData(payload);
             setMeta({
                 cachedFromStore: true,
-                computedAt: atom?.meta?.asOf || payload?.computedAt || payload?.snapshotDate || payload?.weekStartDate || null,
-                schemaVersion: atom?.meta?.etag || null,
+                computedAt: firstNonEmpty(
+                    atom?.meta?.asOf,
+                    atom?.meta?.computedAt,
+                    atom?.meta?.generatedAt,
+                    bundle?.freshness?.asOf,
+                    bundle?.evidence?.asOf,
+                    payload?.computedAt,
+                    payload?.generatedAt,
+                    payload?.snapshotDate,
+                    payload?.weekStartDate
+                ),
+                schemaVersion: firstNonEmpty(atom?.meta?.etag, bundle?.evidence?.version),
             });
         } catch (ex) {
             logger.error(`[AddOn:${addOnKey}] load failed`, ex);
@@ -154,11 +170,11 @@ export function AddOnPage({
                         ${meta?.computedAt ? html`
                             <span class="text-muted small">
                                 <i class="ti ti-clock me-1"></i>
-                                Dossier submitted ${new Date(meta.computedAt).toLocaleString()}
+                                Evidence prepared ${new Date(meta.computedAt).toLocaleString()}
                             </span>
                         ` : null}
                         <button class="btn btn-sm btn-outline-secondary ms-2" onClick=${load} disabled=${loading}>
-                            <i class="ti ti-refresh me-1"></i> ${isHistorical ? 'Reload snapshot' : 'Refresh evidence'}
+                            <i class="ti ti-refresh me-1"></i> ${isHistorical ? 'Reload evidence' : 'Refresh evidence'}
                         </button>
                     </div>
                 </div>
@@ -176,11 +192,11 @@ export function AddOnPage({
             ` : data ? renderContent(data) : html`
                 <div class="empty mt-4">
                     <div class="empty-icon text-muted"><i class="ti ti-clipboard-data" style="font-size:2rem"></i></div>
-                    <p class="empty-title">${isHistorical ? 'No plan for this date' : 'No weekly plan yet'}</p>
+                    <p class="empty-title">${isHistorical ? 'No evidence for this date' : (emptyTitle || 'No evidence yet')}</p>
                     <p class="empty-subtitle text-muted">
                         ${isHistorical
-                            ? 'Try a newer Time Warp date or return to present day to see the latest coaching plan.'
-                            : 'The next Dossier will turn recurring gaps into a short coaching plan.'}
+                            ? 'Try a newer Time Warp date or return to present day to see the latest evidence.'
+                            : (emptySubtitle || 'The next evidence update will populate this page.')}
                     </p>
                     <div class="empty-action">
                         <button class="btn btn-primary" onClick=${load}>

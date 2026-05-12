@@ -68,6 +68,12 @@ class AccountPage extends Component {
                 return;
             }
 
+            const role = String(currentOrg?.role || currentOrg?.userRole || '').toLowerCase();
+            if (role === 'siteadmin' || role === 'site_admin') {
+                this.setState({ billingLoading: false, billingNotice: null, billingPayments: [], billingError: null });
+                return;
+            }
+
             const paymentsResponse = await api.get(`/api/v1/orgs/${currentOrgId}/payments`);
             if (paymentsResponse?.success === false) {
                 this.setState({ billingLoading: false, billingError: paymentsResponse?.message || 'Billing details unavailable.' });

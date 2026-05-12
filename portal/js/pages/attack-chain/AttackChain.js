@@ -2,7 +2,7 @@
  * Attack Chain Page
  *
  * Displays MAGI attack-chain graphs via D3 force-directed layout.
- * Data is sourced from the OrgSnapshot's AttackChain property.
+ * Data is sourced from the attack-chain evidence bundle.
  * Manual refresh calls POST /api/v1/orgs/{orgId}/ai/attack-chain/refresh.
  */
 
@@ -18,6 +18,18 @@ import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
 import { TACTICS, lookupTechnique } from '../../data/mitre-ttp-catalog.js';
 
 const { html, Component } = window;
+
+function formatMissingEvidenceName(atomName) {
+    const map = {
+        'org-snapshot': 'posture dossier',
+        'security-snapshot': 'security evidence',
+        'compliance-snapshot': 'compliance evidence',
+        'audit-snapshot': 'audit evidence',
+        'cve-device-facts': 'device CVE evidence',
+        'device-fleet': 'device fleet'
+    };
+    return map[String(atomName || '').toLowerCase()] || 'required evidence';
+}
 
 export class AttackChainPage extends Component {
     constructor(props) {
@@ -112,7 +124,7 @@ export class AttackChainPage extends Component {
 
             const missingRequired = evidence?.missingRequiredAtoms || evidence?.MissingRequiredAtoms || [];
             const evidenceMessage = evidenceBlocked
-                ? `Historical attack-chain evidence is incomplete for ${rewindContext.getDateLabel() || effectiveDate}. Missing: ${missingRequired.join(', ') || 'required atom data'}.`
+                ? `Historical attack-chain evidence is incomplete for ${rewindContext.getDateLabel() || effectiveDate}. Missing: ${missingRequired.map(formatMissingEvidenceName).join(', ') || 'required evidence'}.`
                 : null;
 
             this.setState({
@@ -125,11 +137,8 @@ export class AttackChainPage extends Component {
                 selectedGraph: chain?.graphs?.[0] ?? null,
             });
 
-            // Auto-generate only for current data. Historical Time Warp views must not
-            // borrow or regenerate current attack-chain state.
-            if (!chain && !effectiveDate && !this.state.refreshing) {
-                this.handleRefresh();
-            }
+            // Graph preparation mutates server-side evidence, so page load stays read-only.
+            // Users can explicitly update live attack paths from the guarded action button.
         } catch (err) {
             this.setState({ loading: false, error: err.message });
         }
@@ -568,8 +577,8 @@ export class AttackChainPage extends Component {
                                     <span class="badge bg-azure-lt text-azure ms-2">As of ${rewindLabel}</span>
                                 ` : ''}
                                 ${generatedAt ? html`
-                                    <span class="badge bg-secondary-lt text-muted ms-2">
-                                        Generated ${new Date(generatedAt).toLocaleString()}
+                                    <span class="badge bg-secondary-lt text-secondary ms-2">
+                                        Evidence prepared ${new Date(generatedAt).toLocaleString()}
                                     </span>
                                 ` : ''}
                                 ${generationSource ? html`

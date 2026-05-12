@@ -152,7 +152,7 @@ export class AIPosturePage extends Component {
             logger.error('[AI Posture] Failed to load report:', err);
             const rawMessage = err?.message || 'Failed to load AI reports';
             const friendlyMessage = rawMessage.includes('Unable to resolve service for type')
-                ? 'AI posture service is temporarily unavailable. You can continue using Security Posture for live risk and compliance insights.'
+                ? 'Mission Briefing is temporarily unavailable. You can continue using Security Posture for live risk and compliance insights.'
                 : rawMessage;
             this.setState({
                 error: friendlyMessage,
@@ -260,13 +260,15 @@ export class AIPosturePage extends Component {
             await api.emailAIReportPDF(currentOrg.orgId);
             this.setState({ emailingSending: false });
             logger.info('[AI Posture] Report PDF sent successfully');
-            alert('Security report has been sent to the organization owner via email');
+            window.toast?.show?.('Security report queued for email delivery.', 'success', 4500);
         } catch (err) {
             logger.error('[AI Posture] Failed to email report:', err);
+            const message = err?.message || 'Failed to send report email';
             this.setState({
-                error: err?.message || 'Failed to send report email',
+                error: message,
                 emailingSending: false
             });
+            window.toast?.show?.(message, 'error', 5000);
         }
     }
 
@@ -302,6 +304,7 @@ export class AIPosturePage extends Component {
             if (report?.report) {
                 // Server returned the full report synchronously
                 this.setState({ currentReport: report, generating: false, pollingForReport: false, error: null });
+                window.toast?.show?.('Mission report generated.', 'success', 3500);
             } else {
                 // Server queued the report (fire-and-forget) — poll /latest for completion
                 logger.info('[AI Posture] Report queued, starting polling...');
@@ -323,11 +326,13 @@ export class AIPosturePage extends Component {
                 this.setState({ generating: false, pollingForReport: true, error: null });
                 this.startPolling();
             } else {
+                const message = err?.message || 'Failed to generate report';
                 this.setState({
-                    error: err?.message || 'Failed to generate report',
+                    error: message,
                     generating: false,
                     pollingForReport: false
                 });
+                window.toast?.show?.(message, 'error', 5000);
             }
         }
     }
@@ -623,7 +628,7 @@ export class AIPosturePage extends Component {
                         Date: ${this.state.selectedDate} · Type: ${this.state.selectedReportKind}${this.state.selectedReportKind === COMPLIANCE_REPORT_KIND ? ` · Framework: ${this.state.selectedFramework}` : ''}
                     </p>
                     <div class="empty-action">
-                        <button class="btn btn-primary" onClick=${() => this.generateReport()} disabled=${this.state.generating || this.state.pollingForReport}>
+                        <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.generateReport()} disabled=${this.state.generating || this.state.pollingForReport}>
                             ${this.state.generating || this.state.pollingForReport ? 'Generating…' : 'Generate This Report'}
                         </button>
                     </div>
@@ -664,7 +669,7 @@ export class AIPosturePage extends Component {
                                     <div class="h2 mb-0">${reportKind}</div>
                                 `}
                                 <div class="text-muted small mt-1">Date: ${reportDate} · Framework: ${framework || 'n/a'}</div>
-                                <div class="text-muted small">Generated: ${dateStr}</div>
+                                <div class="text-muted small">Evidence prepared: ${dateStr}</div>
                             </div>
                         </div>
                     </div>
@@ -767,6 +772,7 @@ export class AIPosturePage extends Component {
                                 ${this.state.currentReport ? html`
                                     <button 
                                         class="btn btn-outline-primary"
+                                        data-mutates-state="true"
                                         title=${this.state.selectedReportKind === SECURITY_REPORT_KIND ? 'Email PDF' : 'Email PDF is currently available for Security Posture reports'}
                                         disabled=${this.state.selectedReportKind !== SECURITY_REPORT_KIND || this.state.emailingSending}
                                         onClick=${() => this.checkLastEmailSent()}
@@ -782,6 +788,7 @@ export class AIPosturePage extends Component {
                                 ` : null}
                                 <button 
                                     class="btn btn-primary" 
+                                    data-mutates-state="true"
                                     disabled=${this.state.generating || this.state.pollingForReport}
                                     onClick=${() => this.generateReport()}
                                 >
@@ -885,6 +892,7 @@ export class AIPosturePage extends Component {
                             <button 
                                 type="button" 
                                 class="btn btn-primary" 
+                                data-mutates-state="true"
                                 onClick=${() => this.confirmEmailSend()}
                             >
                                 ${hasRecent ? 'Send Anyway' : 'Send Email'}

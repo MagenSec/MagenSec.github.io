@@ -65,6 +65,10 @@ function PriorityBadge({ priority }) {
     return html`<span class="badge bg-${bg} text-white">${label}</span>`;
 }
 
+function firstNonEmpty(...values) {
+    return values.find(value => value !== null && value !== undefined && String(value).trim() !== '') || null;
+}
+
 // ── Main content renderer ────────────────────────────────────────────────────
 
 function renderBenchmarkContent(peer) {
@@ -319,6 +323,7 @@ export function PeerBenchmarkPage() {
 
     const [loading, setLoading] = useState(true);
     const [data,    setData]    = useState(null);
+    const [meta,    setMeta]    = useState(null);
     const [error,   setError]   = useState(null);
 
     const load = useCallback(async (date = '') => {
@@ -333,16 +338,35 @@ export function PeerBenchmarkPage() {
             void date; // rewind handled internally by api.getPageBundle
             const resp = await api.getPageBundle(orgId, 'add-on/peer-benchmark');
             if (!resp?.success) throw new Error(resp?.message || 'API error');
-            const atom = resp?.data?.atoms?.['addon-peer-benchmark'];
-            const row = Array.isArray(atom?.data) && atom.data.length > 0 ? atom.data[0] : null;
-            if (!row) throw new Error('No benchmark data returned');
+            const bundle = resp?.data || {};
+            const atom = bundle?.atoms?.['addon-peer-benchmark'];
+            const rows = atom?.data || atom?.Data || [];
+            const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+            if (!row) {
+                setData(null);
+                setMeta(null);
+                setError('No peer benchmark evidence is available yet. Check back after the next benchmark evidence package is prepared.');
+                return;
+            }
             if (row.ready === false) {
                 // Cohort not yet cooked for this org (new org or k<5).
                 setData(null);
-                setError('Peer cohort is still warming up. Check back after the next benchmark Dossier is prepared.');
+                setMeta(null);
+                setError('Peer cohort is still warming up. Check back after the next benchmark evidence package is prepared.');
                 return;
             }
             setData(row);
+            setMeta({
+                computedAt: firstNonEmpty(
+                    atom?.meta?.asOf,
+                    atom?.meta?.computedAt,
+                    bundle?.freshness?.asOf,
+                    bundle?.evidence?.asOf,
+                    row?.computedAt,
+                    row?.snapshotDate,
+                    row?.weekStartDate
+                )
+            });
         } catch (ex) {
             logger.error('[PeerBenchmark] load failed', ex);
             setError(ex.message || 'Failed to load data');
@@ -434,10 +458,16 @@ export function PeerBenchmarkPage() {
                         </h2>
                     </div>
                     <div class="col-auto ms-auto">
+                        ${meta?.computedAt ? html`
+                            <span class="text-muted small me-2">
+                                <i class="ti ti-clock me-1"></i>
+                                Evidence prepared ${new Date(meta.computedAt).toLocaleString()}
+                            </span>
+                        ` : null}
                         <button class="btn btn-sm btn-outline-secondary"
                                 onClick=${() => load(isTimewarp ? window.rewindContext?.getDate?.() : '')}
                                 disabled=${loading}>
-                            <i class="ti ti-refresh me-1"></i> Refresh
+                            <i class="ti ti-refresh me-1"></i> Refresh evidence
                         </button>
                     </div>
                 </div>
@@ -456,7 +486,7 @@ export function PeerBenchmarkPage() {
             ` : data ? renderBenchmarkContent(data) : html`
                 <div class="empty mt-4">
                     <p class="empty-title">No benchmark data yet</p>
-                    <p class="empty-subtitle text-muted">Data will appear after the next scheduled cron cycle.</p>
+                    <p class="empty-subtitle text-muted">Data will appear after the next benchmark evidence package is prepared.</p>
                     <div class="empty-action">
                         <button class="btn btn-primary" onClick=${() => load()}>
                             <i class="ti ti-refresh me-1"></i> Try again

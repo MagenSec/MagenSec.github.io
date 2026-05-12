@@ -3,6 +3,10 @@ import { AddOnPage } from './AddOnPage.js';
 const { html } = window;
 
 function renderSupplyChain(data) {
+    const impactedDevices = Array.isArray(data.alerts)
+        ? data.alerts.reduce((sum, alert) => sum + Number(alert.affectedDevices || 0), 0)
+        : Number(data.affectedDevices || 0);
+
     return html`
         <div class="row g-3 mb-4">
             <div class="col-md-4">
@@ -22,6 +26,15 @@ function renderSupplyChain(data) {
                         <div class="subheader">Critical Alerts</div>
                         <div class="h1 mb-0 ${(data.criticalAlertCount ?? 0) > 0 ? 'text-danger' : 'text-success'}">${data.criticalAlertCount ?? 0}</div>
                         <div class="text-muted small">require immediate review</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <div class="subheader">Impacted Devices</div>
+                        <div class="h1 mb-0 ${impactedDevices > 0 ? 'text-warning' : 'text-success'}">${impactedDevices}</div>
+                        <div class="text-muted small">linked to active advisories</div>
                     </div>
                 </div>
             </div>
@@ -76,6 +89,8 @@ export function SupplyChainPage() {
         isEnabled=${isEnabled}
         upgradeDesc="Cross-reference your software inventory against CISA advisories for proactive supply chain risk detection. Available on BusinessUltimate."
         upgradeIcon="ti-building-factory"
+        emptyTitle="No supply chain evidence yet"
+        emptySubtitle="The next evidence update will compare your software inventory with advisory signals."
         renderContent=${renderSupplyChain}
     />`;
 }

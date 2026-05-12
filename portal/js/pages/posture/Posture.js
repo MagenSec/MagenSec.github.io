@@ -86,6 +86,77 @@ export class PosturePage extends Component {
         return Array.isArray(gaps) ? gaps : null;
     }
 
+    readAtomRows(atoms, atomName) {
+        const atom = atoms?.[atomName] || null;
+        const rows = atom?.data || atom?.Data || [];
+        return Array.isArray(rows) ? rows : [];
+    }
+
+    readNumber(source, names, fallback = 0) {
+        for (const name of names) {
+            const value = source?.[name];
+            const number = Number(value);
+            if (Number.isFinite(number)) return number;
+        }
+        return fallback;
+    }
+
+    gradeForScore(score) {
+        if (score >= 90) return 'A';
+        if (score >= 75) return 'B';
+        if (score >= 60) return 'C';
+        if (score >= 40) return 'D';
+        return 'F';
+    }
+
+    toIsoFromDateKey(value) {
+        const text = String(value || '').trim();
+        if (/^\d{8}$/.test(text)) {
+            return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}T00:00:00Z`;
+        }
+        return text || new Date().toISOString();
+    }
+
+    buildTrendFallbackSnapshot(atoms, freshness) {
+        const dailyTrends = this.readAtomRows(atoms, 'org-trends-daily');
+        const weeklyTrends = this.readAtomRows(atoms, 'org-trends-weekly');
+        const trends = dailyTrends.length ? dailyTrends : weeklyTrends;
+        if (!trends.length) return null;
+
+        const latest = trends[trends.length - 1] || {};
+        const first = trends[0] || latest;
+        const latestScore = this.readNumber(latest, ['hygieneScore', 'HygieneScore', 'securityScore', 'SecurityScore', 'riskPostureScore', 'RiskPostureScore']);
+        const firstScore = this.readNumber(first, ['hygieneScore', 'HygieneScore', 'securityScore', 'SecurityScore', 'riskPostureScore', 'RiskPostureScore'], latestScore);
+        const complianceScore = this.readNumber(latest, ['complianceScore', 'ComplianceScore']);
+        const totalFindings = this.readNumber(latest, ['totalFindings', 'TotalFindings']);
+
+        return {
+            timestamp: this.toIsoFromDateKey(latest.date || latest.Date || latest.weekStart || latest.WeekStart || freshness?.asOf),
+            risk: {
+                orgScore: latestScore,
+                grade: this.gradeForScore(latestScore),
+                scoreDelta: Math.round((latestScore - firstScore) * 10) / 10,
+                history: trends.map((point) => ({
+                    date: point.date || point.Date || point.weekStart || point.WeekStart,
+                    score: this.readNumber(point, ['hygieneScore', 'HygieneScore', 'securityScore', 'SecurityScore', 'riskPostureScore', 'RiskPostureScore'])
+                }))
+            },
+            findings: {
+                bySeverity: {},
+                byDomain: totalFindings > 0 ? { 'Open evidence findings': totalFindings } : {},
+                top10: []
+            },
+            actions: { prioritized: [] },
+            compliance: { score: complianceScore, controls: {} },
+            metadata: {
+                generatedBy: 'Trend evidence fallback',
+                generatorVersion: 'trend-fallback',
+                warnings: ['Full posture dossier is not available; showing trend-backed evidence only.']
+            },
+            isTrendFallback: true
+        };
+    }
+
     async loadSnapshot(force = false) {
         const currentOrg = orgContext.getCurrentOrg();
         if (!currentOrg || !currentOrg.orgId) {
@@ -94,7 +165,8 @@ export class PosturePage extends Component {
         }
 
         const period = this.state?.period || 'daily';
-        const cacheKey = `posture_${currentOrg.orgId}_${period}`;
+        const effectiveDate = rewindContext.isActive?.() ? rewindContext.getDate?.() : 'live';
+        const cacheKey = `posture_${currentOrg.orgId}_${period}_${effectiveDate || 'live'}`;
 
         // Step 1: Try cache first (even if stale)
         if (!force) {
@@ -129,14 +201,26 @@ export class PosturePage extends Component {
             const res = await api.getPageBundle(currentOrg.orgId, 'posture', force ? { refresh: true } : {});
             const atoms = res?.data?.atoms || {};
             const evidence = res?.data?.evidence || res?.data?.Evidence || null;
-            const snapshot = atoms['org-snapshot']?.data?.[0] || null;
+            const snapshot = this.readAtomRows(atoms, 'org-snapshot')[0] || null;
             const triggeredGeneration = !!force;
             const freshness = res?.data?.freshness || res?.freshness || null;
 
             if (!snapshot) {
-                const error = new Error('Dossier unavailable');
-                error.evidence = evidence;
-                throw error;
+                const fallbackSnapshot = this.buildTrendFallbackSnapshot(atoms, freshness);
+                const trendSnapshots = this.readAtomRows(atoms, 'org-trends-daily');
+                this.setState({
+                    snapshot: fallbackSnapshot,
+                    evidence,
+                    trendSnapshots,
+                    triggeredGeneration,
+                    freshness,
+                    nistGaps: null,
+                    nistGapsLoading: false,
+                    loading: false,
+                    refreshing: false,
+                    isRefreshingInBackground: false
+                });
+                return;
             }
 
             // Cache the response
@@ -185,7 +269,7 @@ export class PosturePage extends Component {
             const res = await api.getPageBundle(currentOrg.orgId, 'posture');
             const atoms = res?.data?.atoms || {};
             const evidence = res?.data?.evidence || res?.data?.Evidence || null;
-            const snapshot = atoms['org-snapshot']?.data?.[0] || null;
+            const snapshot = this.readAtomRows(atoms, 'org-snapshot')[0] || null;
             const freshness = res?.data?.freshness || res?.freshness || null;
 
             if (snapshot) {
@@ -205,6 +289,20 @@ export class PosturePage extends Component {
                 }));
 
                 console.log('[Posture] ✅ Background refresh complete');
+            } else {
+                const fallbackSnapshot = this.buildTrendFallbackSnapshot(atoms, freshness);
+                const trendSnapshots = this.readAtomRows(atoms, 'org-trends-daily');
+                if (fallbackSnapshot) {
+                    this.setState({
+                        snapshot: fallbackSnapshot,
+                        evidence,
+                        trendSnapshots,
+                        freshness,
+                        nistGaps: null,
+                        nistGapsLoading: false,
+                        isRefreshingInBackground: false
+                    });
+                }
             }
         } catch (err) {
             console.warn('[Posture] Background refresh failed:', err);
@@ -254,7 +352,7 @@ export class PosturePage extends Component {
     }
 
     setPeriod(period) {
-        this.setState({ period }, () => this.loadSnapshot(true));
+        this.setState({ period }, () => this.loadSnapshot(false));
     }
 
     renderTrendHighlights() {
@@ -302,7 +400,7 @@ export class PosturePage extends Component {
                         <div class="p-3 rounded border bg-light">
                             <div class="fw-semibold">${action.title}</div>
                             <div class="text-muted small mb-1">Priority ${action.priority} · Effort ${action.effort}</div>
-                            <div class="badge bg-primary-subtle text-primary">${action.affectedCount} affected</div>
+                            <div class="badge bg-primary-lt text-primary">${action.affectedCount} affected</div>
                         </div>
                     `)}
                 </div>
@@ -324,10 +422,10 @@ export class PosturePage extends Component {
         const { critical, high, medium, low } = this.getSeverityCounts();
         return html`
             <div class="d-flex gap-2 flex-wrap">
-                <span class="badge bg-light border border-danger text-danger">Critical: ${critical}</span>
-                <span class="badge bg-light border border-warning text-warning">High: ${high}</span>
-                <span class="badge bg-light border border-info text-info">Medium: ${medium}</span>
-                <span class="badge bg-light border text-muted">Low: ${low}</span>
+                <span class="badge bg-danger-lt text-danger">Critical: ${critical}</span>
+                <span class="badge bg-warning-lt text-warning">High: ${high}</span>
+                <span class="badge bg-info-lt text-info">Medium: ${medium}</span>
+                <span class="badge bg-secondary-lt text-secondary">Low: ${low}</span>
             </div>
         `;
     }
@@ -364,8 +462,8 @@ export class PosturePage extends Component {
                             <div class="text-muted small">Priority: ${action.priority} · Effort: ${action.effort} · Risk Reduction: ${action.riskReduction}</div>
                         </div>
                         <div class="d-flex gap-2">
-                            <span class="badge bg-light border border-primary text-primary">${action.affectedCount} affected</span>
-                            <span class="badge bg-outline-secondary border">SLA: ${action.sla}</span>
+                            <span class="badge bg-primary-lt text-primary">${action.affectedCount} affected</span>
+                            <span class="badge bg-secondary-lt text-secondary">SLA: ${action.sla}</span>
                         </div>
                     </div>
                 `)}
@@ -437,10 +535,10 @@ export class PosturePage extends Component {
 
     severityToColor(severity) {
         const s = (severity || '').toLowerCase();
-        if (s === 'critical') return 'bg-light border border-danger text-danger';
-        if (s === 'high') return 'bg-light border border-warning text-warning';
-        if (s === 'medium') return 'bg-light border border-info text-info';
-        return 'bg-light border text-muted';
+        if (s === 'critical') return 'bg-danger-lt text-danger';
+        if (s === 'high') return 'bg-warning-lt text-warning';
+        if (s === 'medium') return 'bg-info-lt text-info';
+        return 'bg-secondary-lt text-secondary';
     }
 
     renderCompliance() {
@@ -469,9 +567,9 @@ export class PosturePage extends Component {
 
     controlColor(status) {
         const s = (status || '').toLowerCase();
-        if (s === 'compliant') return 'bg-light border border-success text-success';
-        if (s === 'noncompliant') return 'bg-light border border-danger text-danger';
-        return 'bg-light border border-secondary text-secondary';
+        if (s === 'compliant') return 'bg-success-lt text-success';
+        if (s === 'noncompliant') return 'bg-danger-lt text-danger';
+        return 'bg-secondary-lt text-secondary';
     }
 
     getGapsByFunction(gaps) {
@@ -616,7 +714,11 @@ export class PosturePage extends Component {
 
         const trendDelta = risk.scoreDelta ?? 0;
         const trendLabel = trendDelta > 0 ? `▲ ${trendDelta}` : trendDelta < 0 ? `▼ ${Math.abs(trendDelta)}` : '—';
-        const trendClass = trendDelta > 0 ? 'text-success' : trendDelta < 0 ? 'text-danger' : 'text-light';
+        const trendBadgeClass = trendDelta > 0
+            ? 'bg-success text-white'
+            : trendDelta < 0
+                ? 'bg-danger text-white'
+                : 'border border-white text-white opacity-75';
 
         // Hygiene Score = orgScore (0-100, higher = better)
         const hygieneScore = risk.orgScore ?? 0;
@@ -634,8 +736,8 @@ export class PosturePage extends Component {
                             <div class="text-uppercase small opacity-75 mb-1">Hygiene Score</div>
                             <div class="display-3 fw-bold mb-0">${hygieneScore}</div>
                             <div class="d-flex align-items-center gap-2 mt-1 justify-content-center justify-content-lg-start">
-                                <span class="badge bg-light text-dark">Grade ${risk.grade || 'N/A'}</span>
-                                <span class="badge bg-outline-light border ${trendClass}">
+                                <span class="badge bg-white text-dark">Grade ${risk.grade || 'N/A'}</span>
+                                <span class="badge ${trendBadgeClass}">
                                     ${trendLabel} week-over-week
                                 </span>
                             </div>
@@ -645,7 +747,7 @@ export class PosturePage extends Component {
                                 <div class="text-uppercase small opacity-75 mb-2">Top Priority Actions</div>
                                 ${topActions.map((action, i) => html`
                                     <div class="d-flex align-items-start gap-2 mb-2">
-                                        <span class="badge bg-light text-dark rounded-circle" style="width:24px;height:24px;line-height:24px;padding:0;text-align:center;">${i + 1}</span>
+                                        <span class="badge bg-white text-dark rounded-circle" style="width:24px;height:24px;line-height:24px;padding:0;text-align:center;">${i + 1}</span>
                                         <div>
                                             <div class="fw-semibold">${action.title}</div>
                                             <div class="small opacity-75">${action.affectedCount} affected · ${action.effort} effort</div>
@@ -662,15 +764,15 @@ export class PosturePage extends Component {
                         <div class="col-lg-3 text-center text-lg-end">
                             <div class="d-flex flex-column gap-2">
                                 <div class="btn-group" role="group">
-                                    <button class="btn btn-light btn-sm" disabled=${this.state.refreshing} onClick=${() => this.loadSnapshot(true)}>
-                                        ${this.state.refreshing ? 'Refreshing…' : 'Regenerate'}
+                                    <button class="btn btn-light btn-sm" data-mutates-state="true" disabled=${this.state.refreshing} onClick=${() => this.loadSnapshot(true)}>
+                                        ${this.state.refreshing ? 'Refreshing…' : 'Refresh Evidence'}
                                     </button>
                                 </div>
                                 <div class="btn-group" role="group">
                                     <button class="btn btn-sm ${this.state.period === 'daily' ? 'btn-light' : 'btn-outline-light'}" onClick=${() => this.setPeriod('daily')}>Daily</button>
                                     <button class="btn btn-sm ${this.state.period === 'weekly' ? 'btn-light' : 'btn-outline-light'}" onClick=${() => this.setPeriod('weekly')}>Weekly</button>
                                 </div>
-                                ${this.state.triggeredGeneration ? html`<span class="small opacity-75">Generated just now</span>` : null}
+                                ${this.state.triggeredGeneration ? html`<span class="small opacity-75">Evidence refreshed just now</span>` : null}
                             </div>
                         </div>
                     </div>
@@ -766,13 +868,18 @@ export class PosturePage extends Component {
             return html`
                 <div class="container py-4">
                     <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
-                    <div class="alert alert-warning">No dossier available.</div>
-                    <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.loadSnapshot(true)}>Prepare Dossier</button>
+                    <div class="alert alert-warning">No posture evidence is available yet.</div>
+                    <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.loadSnapshot(true)}>Prepare Evidence</button>
                 </div>
             `;
         }
 
-        const generatedAt = this.state.snapshot.timestamp ? new Date(this.state.snapshot.timestamp).toLocaleString() : 'Unknown';
+        const generatedAtRaw = this.state.snapshot.timestamp
+            || this.state.snapshot.generatedAt
+            || this.state.snapshot.generatedAtUtc
+            || this.state.snapshot.snapshotDate
+            || this.state.snapshot.asOf;
+        const generatedAt = generatedAtRaw ? new Date(generatedAtRaw).toLocaleString() : 'Unknown';
 
         return html`
             <div class="page-header d-print-none mb-3">
@@ -792,19 +899,23 @@ export class PosturePage extends Component {
                                 ` : ''}
                             </div>
                             <div class="page-subtitle">
-                                <span class="text-muted">Generated: ${generatedAt}</span>
+                                <span class="text-muted">Evidence prepared: ${generatedAt}</span>
                                 ${this.state.freshness?.degraded ? html`
                                     <span class="badge bg-warning text-white ms-2">
                                         Degraded dossier
                                     </span>
+                                ` : null}
+                                ${this.state.snapshot?.isTrendFallback ? html`
+                                    <span class="badge bg-azure-lt text-azure ms-2">Trend evidence only</span>
                                 ` : null}
                             </div>
                         </div>
                         <div class="col-auto ms-auto">
                             <button 
                                 class="btn btn-icon" 
+                                data-mutates-state="true"
                                 onClick=${() => this.loadSnapshot(true)}
-                                title="Refresh dossier"
+                                title="Refresh evidence"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                             </button>
@@ -815,6 +926,11 @@ export class PosturePage extends Component {
 
             <div class="container">
                 <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
+                ${this.state.snapshot?.isTrendFallback ? html`
+                    <div class="alert alert-info border-0 shadow-sm">
+                        Full posture dossier evidence is still being prepared. Showing the latest trend-backed posture signals that are available for this organization.
+                    </div>
+                ` : null}
             </div>
 
             <div class="page-header d-print-none mb-3" style="margin-top: 20px;">
