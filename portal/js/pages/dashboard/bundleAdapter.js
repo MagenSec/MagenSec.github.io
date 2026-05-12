@@ -33,6 +33,7 @@ export function bundleToUnifiedPayload(bundle) {
     const hygiene   = firstRow('addon-hygiene')       || {};
     const insurance = firstRow('addon-insurance')     || {};
     const fleetRows = rowsOf('device-fleet');
+    const contextRows = rowsOf('device-context-facts');
     const trendRows = rowsOf('org-trends-daily');
 
     const fleetSource = fleetRows.length ? fleetRows
@@ -40,6 +41,30 @@ export function bundleToUnifiedPayload(bundle) {
     const deviceNameById = new Map();
 
     const normalize = (value) => String(value || '').trim().toLowerCase();
+    const readField = (obj, ...keys) => {
+        if (!obj || typeof obj !== 'object') return undefined;
+        for (const key of keys) {
+            if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+            const found = Object.keys(obj).find(k => String(k).toLowerCase() === String(key).toLowerCase());
+            if (found && obj[found] !== undefined && obj[found] !== null) return obj[found];
+        }
+        return undefined;
+    };
+    const normalizeImpact = (value) => {
+        const impact = String(value || '').trim().toUpperCase();
+        return ['HBI', 'MBI', 'LBI'].includes(impact) ? impact : 'UNCLASSIFIED';
+    };
+    const impactRank = (impact) => ({ HBI: 3, MBI: 2, LBI: 1, UNCLASSIFIED: 0 }[normalizeImpact(impact)] || 0);
+    const parseLabels = (value) => {
+        if (Array.isArray(value)) return value.map(String).filter(Boolean);
+        if (!value || typeof value !== 'string') return [];
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+        } catch (_) {
+            return [];
+        }
+    };
     const parseDateMs = (value) => {
         if (!value) return null;
         const ms = new Date(value).getTime();
@@ -87,30 +112,59 @@ export function bundleToUnifiedPayload(bundle) {
         return ageMinutes !== null && ageMinutes < 60 ? 'online' : 'offline';
     };
 
+    const contextByDeviceId = new Map();
+    contextRows.forEach((row) => {
+        const id = readField(row, 'deviceId', 'DeviceId');
+        if (!id) return;
+        const context = {
+            deviceId: String(id),
+            businessImpact: normalizeImpact(readField(row, 'businessImpact', 'BusinessImpact')),
+            assignedLabels: parseLabels(readField(row, 'assignedLabelsJson', 'AssignedLabelsJson', 'assignedLabels')),
+            notes: readField(row, 'notes', 'Notes') || '',
+            source: readField(row, 'source', 'Source') || readField(row, 'blobPath', 'BlobPath') || 'atom'
+        };
+        contextByDeviceId.set(context.deviceId, context);
+    });
+    const strongestImpact = (items) => items.reduce((winner, item) => impactRank(item?.businessImpact) > impactRank(winner) ? item.businessImpact : winner, 'UNCLASSIFIED');
+    const countImpacts = (items) => items.reduce((counts, item) => {
+        const impact = normalizeImpact(item?.businessImpact);
+        if (impact === 'HBI') counts.hbiDeviceCount += 1;
+        else if (impact === 'MBI') counts.mbiDeviceCount += 1;
+        else if (impact === 'LBI') counts.lbiDeviceCount += 1;
+        else counts.unclassifiedDeviceCount += 1;
+        return counts;
+    }, { hbiDeviceCount: 0, mbiDeviceCount: 0, lbiDeviceCount: 0, unclassifiedDeviceCount: 0 });
+
     fleetSource.forEach((d) => {
         const id = d.deviceId || d.DeviceId;
         const name = d.deviceName || d.DeviceName || id;
         if (id) deviceNameById.set(String(id), name);
     });
 
-    const deviceHealth = fleetSource.map((d) => ({
-        deviceId:     d.deviceId,
-        deviceName:   d.deviceName,
-        os:           d.os || null,
+    const deviceHealth = fleetSource.map((d) => {
+        const deviceId = d.deviceId || d.DeviceId;
+        const context = contextByDeviceId.get(String(deviceId || ''));
+        return ({
+        deviceId,
+        deviceName:   d.deviceName || d.DeviceName,
+        os:           d.os || d.Os || null,
         status:       deriveVisibility(d),
         visibilityState: deriveVisibility(d),
         telemetryState: deriveTelemetryState(d),
         connectivityState: deriveConnectivity(d),
-        lastSeen:     d.lastSeen || null,
-        lastTelemetry: d.lastTelemetry || d.lastSeen || null,
-        lastHeartbeat: d.lastHeartbeat || d.lastSeen || null,
-        critical:     Number(d.criticalCount || 0),
-        high:         Number(d.highCount || 0),
-        medium:       Number(d.mediumCount || 0),
-        low:          Number(d.lowCount || 0),
-        kev:          Number(d.kevCount || 0),
-        threats:      Number(d.criticalCount || 0) + Number(d.highCount || 0)
-    }));
+        lastSeen:     d.lastSeen || d.LastSeen || null,
+        lastTelemetry: d.lastTelemetry || d.LastTelemetry || d.lastSeen || d.LastSeen || null,
+        lastHeartbeat: d.lastHeartbeat || d.LastHeartbeat || d.lastSeen || d.LastSeen || null,
+        businessImpact: context?.businessImpact || 'UNCLASSIFIED',
+        assignedLabels: context?.assignedLabels || [],
+        critical:     Number(d.criticalCount || d.CriticalCount || 0),
+        high:         Number(d.highCount || d.HighCount || 0),
+        medium:       Number(d.mediumCount || d.MediumCount || 0),
+        low:          Number(d.lowCount || d.LowCount || 0),
+        kev:          Number(d.kevCount || d.KevCount || 0),
+        threats:      Number(d.criticalCount || d.CriticalCount || 0) + Number(d.highCount || d.HighCount || 0)
+        });
+    });
 
     const sev = sec.bySeverity || {};
     const totalFindings = Number(sec.totalFindings || 0);
@@ -123,6 +177,19 @@ export function bundleToUnifiedPayload(bundle) {
         const affectedDevices = Array.isArray(a.affectedDevicesList)
             ? a.affectedDevicesList
             : (a.primaryDeviceId ? [a.primaryDeviceId] : []);
+        const affectedContexts = affectedDevices.map((device) => {
+            const id = typeof device === 'string' ? device : (device.deviceId || device.DeviceId || '');
+            return contextByDeviceId.get(String(id));
+        }).filter(Boolean);
+        const contextCounts = countImpacts(affectedContexts);
+        const businessImpact = normalizeImpact(a.businessImpact || strongestImpact(affectedContexts));
+        const fallbackReason = businessImpact === 'HBI'
+            ? `Touches ${contextCounts.hbiDeviceCount || 1} high-business-impact device${(contextCounts.hbiDeviceCount || 1) === 1 ? '' : 's'}.`
+            : businessImpact === 'MBI'
+                ? `Touches ${contextCounts.mbiDeviceCount || 1} medium-business-impact device${(contextCounts.mbiDeviceCount || 1) === 1 ? '' : 's'}.`
+                : businessImpact === 'LBI'
+                    ? 'Currently scoped to low-business-impact devices.'
+                    : 'Business impact is not labelled yet.';
         const affectedDeviceNames = affectedDevices.map((device) => {
             const id = typeof device === 'string' ? device : (device.deviceId || device.DeviceId || '');
             const name = typeof device === 'string'
@@ -145,7 +212,15 @@ export function bundleToUnifiedPayload(bundle) {
             primaryDeviceId,
             primaryDeviceName:   a.primaryDeviceName || (primaryDeviceId ? deviceNameById.get(String(primaryDeviceId)) : null) || affectedDeviceNames[0] || null,
             deviceCount:         Number(a.affectedDevices || affectedDeviceNames.length || affectedDevices.length || 0),
-            affectedApps:        Array.isArray(a.affectedApps) ? a.affectedApps : []
+            affectedApps:        Array.isArray(a.affectedApps) ? a.affectedApps : [],
+            businessImpact,
+            businessImpactReason: a.businessImpactReason || fallbackReason,
+            businessImpactMultiplier: Number(a.businessImpactMultiplier || 1),
+            hbiDeviceCount: Number(a.hbiDeviceCount ?? contextCounts.hbiDeviceCount ?? 0),
+            mbiDeviceCount: Number(a.mbiDeviceCount ?? contextCounts.mbiDeviceCount ?? 0),
+            lbiDeviceCount: Number(a.lbiDeviceCount ?? contextCounts.lbiDeviceCount ?? 0),
+            unclassifiedDeviceCount: Number(a.unclassifiedDeviceCount ?? contextCounts.unclassifiedDeviceCount ?? 0),
+            contextCaveat: a.contextCaveat || (contextCounts.unclassifiedDeviceCount > 0 ? `${contextCounts.unclassifiedDeviceCount} affected device${contextCounts.unclassifiedDeviceCount === 1 ? '' : 's'} still need a business-impact label.` : '')
         };
     });
 
@@ -175,6 +250,18 @@ export function bundleToUnifiedPayload(bundle) {
     };
 
     const evidence = bundle.evidence || bundle.Evidence || null;
+    const contextCounts = countImpacts([...contextByDeviceId.values()]);
+    const businessImpactSummary = {
+        ...contextCounts,
+        labelledDeviceCount: Math.max(0, contextCounts.hbiDeviceCount + contextCounts.mbiDeviceCount + contextCounts.lbiDeviceCount),
+        unclassifiedDeviceCount: Math.max(0, contextCounts.unclassifiedDeviceCount),
+        missingImpactLabelCount: Math.max(0, totalDevices - contextByDeviceId.size + contextCounts.unclassifiedDeviceCount),
+        totalContextRows: contextByDeviceId.size,
+        totalDevices,
+        topActionImpact: topActions[0]?.businessImpact || 'UNCLASSIFIED',
+        topActionReason: topActions[0]?.businessImpactReason || '',
+        isLiveContext: contextRows.some(row => String(readField(row, 'source', 'Source') || '').toLowerCase() === 'live')
+    };
 
     return {
         // Marker fields trigger isUnified=true in toLegacyDashboardPayload.
@@ -192,7 +279,8 @@ export function bundleToUnifiedPayload(bundle) {
                 remainingCredits: 0,
                 creditUtilization: 0
             },
-            topActions
+            topActions,
+            businessImpact: businessImpactSummary
         },
         itAdmin: {
             deviceHealth,
@@ -232,7 +320,8 @@ export function bundleToUnifiedPayload(bundle) {
             coverage,
             apps:    { trackedCount: 0, vendorCount: 0 },
             cves:    { totalCount: totalFindings, criticalCount, highCount },
-            license: { licenseType: 'Unknown', seatsTotal: 0, seatsUsed: 0, daysRemaining: 0, remainingCredits: 0, creditUtilization: 0 }
+            license: { licenseType: 'Unknown', seatsTotal: 0, seatsUsed: 0, daysRemaining: 0, remainingCredits: 0, creditUtilization: 0 },
+            businessImpact: businessImpactSummary
         },
         cyberHygiene: {
             score:      Number(hygiene?.hygieneScoreTrend?.current ?? org.hygieneScore ?? 0),

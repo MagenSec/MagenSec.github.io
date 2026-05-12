@@ -1918,6 +1918,100 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
+  getBusinessImpactData(data = this.state.data) {
+    const impact = data?.businessOwner?.businessImpact || data?.quickStats?.businessImpact || {};
+    const actions = Array.isArray(data?.businessOwner?.topActions) ? data.businessOwner.topActions : [];
+    const topAction = actions[0] || null;
+    const normalizeImpact = (value) => {
+      const impactValue = String(value || '').trim().toUpperCase();
+      return ['HBI', 'MBI', 'LBI'].includes(impactValue) ? impactValue : 'UNCLASSIFIED';
+    };
+    const topImpact = normalizeImpact(topAction?.businessImpact || impact.topActionImpact);
+    const toneMap = {
+      HBI: { tone: '#dc2626', soft: 'rgba(220,38,38,0.10)', label: 'HBI' },
+      MBI: { tone: '#f59f00', soft: 'rgba(245,159,0,0.13)', label: 'MBI' },
+      LBI: { tone: '#2fb344', soft: 'rgba(47,179,68,0.12)', label: 'LBI' },
+      UNCLASSIFIED: { tone: '#64748b', soft: 'rgba(100,116,139,0.12)', label: 'Unclassified' }
+    };
+
+    return {
+      hbi: Number(impact.hbiDeviceCount || 0),
+      mbi: Number(impact.mbiDeviceCount || 0),
+      lbi: Number(impact.lbiDeviceCount || 0),
+      unclassified: Number(impact.unclassifiedDeviceCount || 0),
+      missing: Number(impact.missingImpactLabelCount || 0),
+      total: Number(impact.totalDevices || data?.quickStats?.devices?.totalCount || 0),
+      labelled: Number(impact.labelledDeviceCount || 0),
+      topAction,
+      topImpact,
+      topTone: toneMap[topImpact] || toneMap.UNCLASSIFIED,
+      isLiveContext: !!impact.isLiveContext,
+      reason: topAction?.businessImpactReason || impact.topActionReason || 'Business impact labels sharpen the Fix First order.'
+    };
+  }
+
+  renderBusinessImpactCommandCenter(data = this.state.data, { isSmallScreen = false } = {}) {
+    const impact = this.getBusinessImpactData(data);
+    const topAction = impact.topAction;
+    const topTitle = topAction?.title || 'No high-priority fix queued';
+    const topHref = topAction?.actionUrl || '#!/posture';
+    const sourceText = impact.isLiveContext ? 'Live context' : 'Dossier context';
+    const coverageText = impact.total > 0
+      ? `${Math.max(0, impact.total - impact.missing)}/${impact.total} classified`
+      : 'No managed devices';
+
+    const tileStyle = `min-width:0;background:var(--db-glass-bg,rgba(255,255,255,0.78));border:1px solid rgba(148,163,184,0.20);border-radius:14px;padding:13px 14px;box-shadow:0 4px 16px rgba(15,23,42,0.04);`;
+    const metric = (label, value, color, title) => html`
+      <span title=${title || label} style="display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border-radius:10px;background:${color}12;border:1px solid ${color}22;color:${color};font-weight:850;min-width:0;">
+        <span style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;">${label}</span>
+        <span style="font-size:1rem;line-height:1;">${value}</span>
+      </span>
+    `;
+
+    return html`
+      <section aria-label="Business command center" style="order:4;margin:0 0 14px;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(0,0.92fr) minmax(0,1.22fr) minmax(0,0.86fr)'};gap:${isSmallScreen ? '10px' : '12px'};align-items:stretch;">
+        <div style=${tileStyle}>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
+            <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Business Impact Map</div>
+            <span class="badge bg-blue-lt text-blue-lt-fg badge-pill" title="${sourceText} used by this dashboard">${sourceText}</span>
+          </div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;">
+            ${metric('HBI', impact.hbi, '#dc2626', 'High-business-impact devices')}
+            ${metric('MBI', impact.mbi, '#f59f00', 'Medium-business-impact devices')}
+            ${metric('LBI', impact.lbi, '#2fb344', 'Low-business-impact devices')}
+            ${impact.unclassified ? metric('Unclassified', impact.unclassified, '#64748b', 'Devices without a business-impact label') : null}
+          </div>
+        </div>
+
+        <a href=${topHref} title=${impact.reason} style=${`${tileStyle}text-decoration:none;color:var(--db-answer-text,#111827);display:flex;gap:12px;align-items:flex-start;`}>
+          <span style="width:36px;height:36px;border-radius:12px;background:${impact.topTone.soft};color:${impact.topTone.tone};display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="ti ti-target-arrow" style="font-size:1.12rem;"></i></span>
+          <span style="min-width:0;display:block;flex:1;">
+            <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+              <span style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Fix First</span>
+              <span class="badge badge-pill" style="background:${impact.topTone.tone};color:#fff;border:1px solid ${impact.topTone.tone};font-weight:850;">${impact.topTone.label}</span>
+            </span>
+            <span style="display:block;font-size:0.92rem;font-weight:820;line-height:1.26;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${topTitle}</span>
+            <span style="display:block;margin-top:4px;font-size:0.76rem;color:var(--db-faint-text,#6b7280);line-height:1.35;">${impact.reason}</span>
+          </span>
+          <i class="ti ti-chevron-right" style="margin-top:3px;color:var(--db-muted-text,#94a3b8);"></i>
+        </a>
+
+        <div style=${tileStyle}>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div>
+              <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:850;color:var(--db-muted-text,#6b7280);">Context Coverage</div>
+              <div style="margin-top:5px;font-size:1.15rem;font-weight:850;color:var(--db-answer-text,#111827);line-height:1;">${coverageText}</div>
+            </div>
+            <span style="width:34px;height:34px;border-radius:11px;background:rgba(0,84,166,0.10);color:var(--tblr-blue,#0054a6);display:inline-flex;align-items:center;justify-content:center;"><i class="ti ti-tags"></i></span>
+          </div>
+          <div style="margin-top:7px;font-size:0.76rem;color:${impact.missing ? 'var(--db-tone-warning,#b45309)' : 'var(--db-faint-text,#6b7280)'};line-height:1.35;">
+            ${impact.missing ? `${impact.missing} device${impact.missing === 1 ? '' : 's'} still need impact labels for sharper proof.` : 'Impact labels are ready for fix ordering and proof grouping.'}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   renderSearchHeader() {
     const { data, aiLoading, aiAnswer, aiError, refreshing } = this.state;
     if (!data) return null;
@@ -2075,9 +2169,11 @@ export default class UnifiedDashboard extends Component {
 
           ${this.renderProofChain(data, { isSmallScreen })}
 
+          ${this.renderBusinessImpactCommandCenter(data, { isSmallScreen })}
+
           <section
             aria-label="Insurance outcome and hygiene behavior trend"
-            style="order:4;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(330px,0.82fr) minmax(500px,1.18fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:stretch;"
+            style="order:5;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(330px,0.82fr) minmax(500px,1.18fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:stretch;"
           >
             <section aria-label="Insurance readiness" style="min-width:0;">
               <div
@@ -2145,7 +2241,7 @@ export default class UnifiedDashboard extends Component {
 
           <section
             aria-label="Readiness details and next steps"
-            style="order:5;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(0,1fr) minmax(320px,0.92fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:start;margin-top:14px;"
+            style="order:6;display:grid;grid-template-columns:${isSmallScreen ? '1fr' : 'minmax(0,1fr) minmax(320px,0.92fr)'};gap:${isSmallScreen ? '10px' : '14px'};align-items:start;margin-top:14px;"
           >
             <div style="min-width:0;">${this.renderDossierStack({ embedded: true })}</div>
             <div style="min-width:0;">${this.renderTopActionDropdown({ embedded: true })}</div>
