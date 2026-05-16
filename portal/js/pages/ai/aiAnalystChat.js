@@ -1,7 +1,7 @@
 /**
  * MAGI — Security Intelligence Chat
  *
- * Full-page chat interface for MAGI, the AI security assistant.
+ * Full-page chat interface for Officer MAGI, the AI Security Officer.
  * - html`` template literals (Preact/HTM pattern)
  * - marked.js + DOMPurify for markdown rendering
  * - Mermaid diagram support in AI responses
@@ -556,8 +556,8 @@ export default class AIAnalystChatPage extends Component {
                                 <path d="M9 12l2 2l4-4"/>
                             </svg>
                         </div>
-                        <h2 style="font-size: 1.5rem; font-weight: 800; margin: 0 0 4px; color: var(--tblr-body-color, #1e293b);">MAGI</h2>
-                        <div style="font-size: 0.85rem; color: var(--tblr-secondary, #667085);">Your security intelligence assistant</div>
+                        <h2 style="font-size: 1.5rem; font-weight: 800; margin: 0 0 4px; color: var(--tblr-body-color, #1e293b);">Officer MAGI</h2>
+                        <div style="font-size: 0.85rem; color: var(--tblr-secondary, #667085);">Your AI Security Officer</div>
                     </div>
 
                     <!-- Live intel matrix -->
@@ -762,6 +762,8 @@ export default class AIAnalystChatPage extends Component {
                             <button
                                 type="submit"
                                 disabled=${!inputText.trim() || sending}
+                                aria-label=${sending ? 'Sending message to Officer MAGI' : 'Send message to Officer MAGI'}
+                                title=${sending ? 'Sending message to Officer MAGI' : 'Send message to Officer MAGI'}
                                 style="
                                     width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
                                     background: linear-gradient(135deg, #6366f1, #8b5cf6);
@@ -773,7 +775,7 @@ export default class AIAnalystChatPage extends Component {
                             >
                                 ${sending
                                     ? html`<span class="spinner-border spinner-border-sm" style="width:14px;height:14px;border-width:2px;" role="status"></span>`
-                                    : html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="10" y1="14" x2="21" y2="3" /><path d="M21 3l-6.5 18a0.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a0.55 .55 0 0 1 0 -1l18 -6.5" /></svg>`
+                                    : html`<svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="10" y1="14" x2="21" y2="3" /><path d="M21 3l-6.5 18a0.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a0.55 .55 0 0 1 0 -1l18 -6.5" /></svg>`
                                 }
                             </button>
                         </div>

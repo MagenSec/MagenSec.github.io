@@ -137,7 +137,7 @@ export class ApiClient {
         sessionStorage.setItem(key, '1');
 
         const evidenceLabels = {
-            'org-snapshot': 'posture dossier',
+            'org-snapshot': 'posture report',
             'security-snapshot': 'security evidence',
             'compliance-snapshot': 'compliance evidence',
             'audit-snapshot': 'audit evidence',
@@ -257,20 +257,12 @@ export class ApiClient {
         // Block state-changing requests while Time Warp is active.
         // Allow read-only analytical POST endpoints that explicitly support temporal snapshots.
         const method = options.method || 'GET';
-        const isMutatingMethod = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
-        const isTimeWarpReadOnlyPost =
-            method.toUpperCase() === 'POST'
-            && /\/ai-analyst\/ask(\?|$)/i.test(endpoint)
-            || method.toUpperCase() === 'POST'
-            && /\/ai\/chat-session(\?|$)/i.test(endpoint);
-        const isTimeWarpBoundedPost =
-            method.toUpperCase() === 'POST'
-            && /\/ai\/reports\/generate(\?|$)/i.test(endpoint);
-        const isTimeWarpBoundedSideEffectPost =
-            method.toUpperCase() === 'POST'
-            && /\/ai\/reports\/email-pdf(\?|$)/i.test(endpoint);
+        const upperMethod = method.toUpperCase();
+        const isMutatingMethod = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(upperMethod);
+        const isTimeWarpReadOnlyPost = upperMethod === 'POST'
+            && (/\/ai-analyst\/ask(\?|$)/i.test(endpoint) || /\/ai\/chat-session(\?|$)/i.test(endpoint));
 
-        if (isMutatingMethod && rewindContext.isActive() && !isTimeWarpReadOnlyPost && !isTimeWarpBoundedPost && !isTimeWarpBoundedSideEffectPost) {
+        if (isMutatingMethod && rewindContext.isActive() && !isTimeWarpReadOnlyPost) {
             const dateLabel = rewindContext.getDateLabel?.() || 'a past date';
             window.toast?.show(
                 `⏸ Observer Mode — you are viewing ${dateLabel}. Exit Time Warp to make changes.`,
@@ -1168,11 +1160,16 @@ export class ApiClient {
 
     // Endpoint: GET /api/v1/orgs/{orgId}/apps/changelog
     // Returns install/update/uninstall events for the org (or specific device)
-    async getInventoryChangelog(orgId, { deviceId, limit, date } = {}) {
+    async getInventoryChangelog(orgId, { deviceId, limit, pageSize, cursor, days, from, to, date } = {}) {
         const effectiveDate = date || this.getEffectiveDate();
         const params = {};
         if (deviceId) params.deviceId = deviceId;
         if (limit)    params.limit    = limit;
+        if (pageSize) params.pageSize = pageSize;
+        if (cursor)   params.cursor   = cursor;
+        if (days)     params.days     = days;
+        if (from)     params.from     = from;
+        if (to)       params.to       = to;
         if (effectiveDate) params.date = effectiveDate;
         return this.get(`/api/v1/orgs/${orgId}/apps/changelog`, params);
     }

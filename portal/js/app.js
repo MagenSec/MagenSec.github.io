@@ -23,6 +23,7 @@ import { PosturePage } from './pages/posture/Posture.js';
 import { PatchPosturePage } from './pages/posture/PatchPosture.js';
 import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
 import { AssetsPage } from './pages/inventory/Assets.js';
+import { InventoryHubPage } from './pages/inventory/InventoryHub.js';
 import { SoftwareInventoryPage } from './pages/inventory/SoftwareInventory.js';
 import { InventoryChangelogPage } from './pages/inventory/InventoryChangelog.js';
 import { Vulnerabilities } from './pages/vulnerabilities/index.js';
@@ -54,6 +55,7 @@ import { SecurityOverview }       from './pages/security/SecurityOverview.js';
 import { Upgrade }                from './pages/upgrade/Upgrade.js';
 import { AttackChainPage }        from './pages/attack-chain/AttackChain.js';
 import { AiResponsesAdminPage }   from './pages/siteAdmin/ai-responses/AiResponsesAdmin.js';
+import { scoreGuidancePage }      from './pages/help/ScoreGuidance.js';
 
 const { html, render } = window;
 
@@ -141,6 +143,8 @@ function applyRewindUiGuards() {
 
 let rewindGuardScheduled = false;
 let rewindGuardObserver = null;
+let iconAccessibilityScheduled = false;
+let iconAccessibilityObserver = null;
 
 function scheduleRewindUiGuards() {
     if (rewindGuardScheduled) return;
@@ -164,31 +168,74 @@ function observeRewindGuardTargets() {
     rewindGuardObserver.observe(root, { childList: true, subtree: true });
 }
 
+function applyIconAccessibility(root = document) {
+    const scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+    scope.querySelectorAll('.ti').forEach((icon) => {
+        icon.setAttribute('aria-hidden', 'true');
+        icon.setAttribute('role', 'presentation');
+    });
+
+    const privateUseGlyphs = /[\uE000-\uF8FF]/g;
+    scope.querySelectorAll('button, a').forEach((control) => {
+        if (control.hasAttribute('aria-label') || control.hasAttribute('aria-labelledby')) {
+            return;
+        }
+        const readableText = (control.textContent || '').replace(privateUseGlyphs, '').trim();
+        if (readableText) {
+            return;
+        }
+        const label = (control.getAttribute('title') || control.getAttribute('data-bs-title') || '').trim();
+        if (label) {
+            control.setAttribute('aria-label', label);
+        }
+    });
+}
+
+function scheduleIconAccessibility() {
+    if (iconAccessibilityScheduled) return;
+    iconAccessibilityScheduled = true;
+    requestAnimationFrame(() => {
+        iconAccessibilityScheduled = false;
+        applyIconAccessibility();
+    });
+}
+
+function observeIconAccessibilityTargets() {
+    if (iconAccessibilityObserver || !window.MutationObserver) return;
+    const root = document.body;
+    if (!root) return;
+    iconAccessibilityObserver = new MutationObserver(() => scheduleIconAccessibility());
+    iconAccessibilityObserver.observe(root, { childList: true, subtree: true });
+    scheduleIconAccessibility();
+}
+
 function applyPersonaNavigationLabels(orgType) {
     const labelsByOrgType = {
         Personal: {
-            'nav-home-item': 'Security Home',
-            'nav-protect-item': 'Protect',
-            'nav-prove-item': 'Proof',
-            'nav-audit-item': 'Audit',
-            'nav-insure-item': 'Insurance',
-            'nav-magi-item': 'MAGI',
+            'nav-home-item':        'Trust',
+            'nav-operations-item':  'Operations',
+            'nav-security-item':    'Security',
+            'nav-magi-item':        'MAGI',
         },
         Education: {
-            'nav-home-item': 'Campus Home',
-            'nav-protect-item': 'Protect',
-            'nav-prove-item': 'Readiness',
-            'nav-audit-item': 'Evidence',
-            'nav-insure-item': 'Coverage',
-            'nav-magi-item': 'MAGI',
+            'nav-home-item':        'Trust',
+            'nav-operations-item':  'Operations',
+            'nav-security-item':    'Security',
+            'nav-compliance-item':  'Readiness',
+            'nav-audit-item':       'Evidence',
+            'nav-magi-item':        'MAGI',
         },
         Business: {
-            'nav-home-item': 'Command',
-            'nav-protect-item': 'Protect',
-            'nav-prove-item': 'Prove',
-            'nav-audit-item': 'Audit',
-            'nav-insure-item': 'Insure',
-            'nav-magi-item': 'Officer MAGI',
+            'nav-home-item':        'Trust',
+            'nav-operations-item':  'Operations',
+            'nav-security-item':    'Security',
+            'nav-compliance-item':  'Compliance',
+            'nav-remediation-item': 'Remediation',
+            'nav-proof-item':       'Proof',
+            'nav-audit-item':       'Audit',
+            'nav-hygiene-item':     'Hygiene',
+            'nav-insurance-item':   'Insurance',
+            'nav-magi-item':        'Officer MAGI',
         },
     };
 
@@ -261,7 +308,11 @@ function applyOrgUiRestrictions() {
     const isEducation = orgType === 'Education';
     const isBusiness = orgType === 'Business';
     const isSiteAdminUser = auth.isAuthenticated() && auth.getUser()?.userType === 'SiteAdmin';
-    const hideBusinessMenus = isPersonal && !isSiteAdminUser;
+    // D-1 tier-aware nav: Education and Personal both hide Business-only journey stops
+    // (Remediation, Proof, Audit, Hygiene, Insurance, Officer MAGI). Education keeps
+    // Compliance visible (it's their second journey stop); Personal hides Compliance too,
+    // leaving only Security as the single visible stop. Business keeps the full 9-stop arc.
+    const hideBusinessMenus = (isPersonal || isEducation) && !isSiteAdminUser;
     body.classList.toggle('org-personal', isPersonal);
     body.classList.toggle('org-education', isEducation);
     body.classList.toggle('org-business', isBusiness);
@@ -334,16 +385,19 @@ function applyOrgUiRestrictions() {
         }
     }
 
-    // Add-on nav gating is now handled via [data-addon] attributes in the
-    // four-pillar nav structure.  The old standalone Add-ons dropdown has been
-    // removed; individual feature items live inside Protect / Prove / Monitor.
+    // Journey arc: business-license-only items (Remediation through Insurance) are
+    // hidden for personal orgs via .business-license-only CSS + applyOrgUiRestrictions.
+    // This map only needs entries for items NOT carrying business-license-only in HTML.
     const personalNavHideMap = {
-        'nav-home-item':           false,
-        'nav-prove-item':          hideBusinessMenus,
-        'nav-audit-item':          hideBusinessMenus,
-        'nav-insure-item':         hideBusinessMenus,
-        'nav-magi-item':           hideBusinessMenus,
-        'required-actions-nav':    hideBusinessMenus,
+        'nav-home-item':          false,
+        'nav-operations-item':    false,
+        'nav-compliance-item':    isPersonal && !isSiteAdminUser,
+        'nav-remediation-item':   hideBusinessMenus,
+        'nav-proof-item':         hideBusinessMenus,
+        'nav-audit-item':         hideBusinessMenus,
+        'nav-hygiene-item':       hideBusinessMenus,
+        'nav-insurance-item':     hideBusinessMenus,
+        'nav-magi-item':          hideBusinessMenus,
     };
     if (auth.isAuthenticated()) {
         for (const [id, hide] of Object.entries(personalNavHideMap)) {
@@ -351,16 +405,9 @@ function applyOrgUiRestrictions() {
             if (el) el.style.display = hide ? 'none' : '';
         }
 
-        const homeLink = document.querySelector('#nav-home-item a.nav-link');
+        const homeLink = document.getElementById('hub-home-link');
         if (homeLink) {
             homeLink.setAttribute('href', isPersonal ? '#!/security' : '#!/dashboard');
-        }
-
-        const actionsNavItem = document.getElementById('required-actions-nav');
-        const actionsLink = document.getElementById('required-actions-btn');
-        if (actionsNavItem && actionsLink) {
-            actionsNavItem.style.display = hideBusinessMenus ? 'none' : '';
-            setFeatureLocked(actionsLink, false, 'Alerts are available with Business security workflows', 'Business');
         }
     }
 
@@ -455,7 +502,7 @@ function App() {
 
     const pageContent = renderCurrentPage();
     return html`
-        <div class="portal-page-shell">
+        <div class="portal-page-shell" key=${currentPage} data-route=${currentPage}>
             ${pageContent}
         </div>
     `;
@@ -465,6 +512,7 @@ function renderCurrentPage() {
     switch (currentPage) {
         case 'login':
             return html`<${LoginPage} />`;
+        case 'hub':
         case 'dashboard':
             return html`<${UnifiedDashboard} />`;
         case 'getting-started':
@@ -489,8 +537,10 @@ function renderCurrentPage() {
             return html`<${AIAnalystChatPage} />`;
         case 'analyst-old':
             return html`<${AnalystPage} />`;
+        case 'proof':
+            return html`<${PosturePage} mode="proof" />`;
         case 'posture':
-            return html`<${PosturePage} />`;
+            return html`<${PosturePage} mode="posture" />`;
         case 'patch-posture':
             return html`
                 <div>
@@ -509,11 +559,13 @@ function renderCurrentPage() {
         case 'device-hub':
             return html`<${ClientDevicePage} />`;
 
-        // Add-on pages
+        // Add-on pages (legacy routes kept for backward compat)
         case 'add-on/peer-benchmark':
             return html`<${PeerBenchmarkPage} />`;
+        case 'hygiene':
         case 'add-on/hygiene-coach':
             return html`<${HygieneCoachPage} />`;
+        case 'insurance':
         case 'add-on/insurance-readiness':
             return html`<${InsuranceReadinessPage} />`;
         case 'add-on/compliance-plus':
@@ -521,25 +573,12 @@ function renderCurrentPage() {
         case 'add-on/supply-chain-intel':
             return html`<${SupplyChainPage} />`;
         case 'inventory':
-            return html`
-                <div>
-                    <${AssetsPage} />
-                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
-                        ? html`<${ChatDrawer} contextHint="device inventory, asset management" persona="it_admin" />`
-                        : null}
-                </div>
-            `;
+            return html`<${InventoryHubPage} />`;
         case 'apps':
-            return html`
-                <div>
-                    <${SoftwareInventoryPage} />
-                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
-                        ? html`<${ChatDrawer} contextHint="software inventory and application vulnerabilities" persona="it_admin" />`
-                        : null}
-                </div>
-            `;
+            return html`<${SoftwareInventoryPage} />`;
         case 'changelog':
             return html`<${InventoryChangelogPage} />`;
+        case 'remediation':
         case 'alerts':
             if (orgContext.getCurrentOrg()?.type === 'Personal' && !orgContext.isSiteAdmin()) {
                 return html`<${SecurityOverview} />`;
@@ -602,6 +641,11 @@ function renderCurrentPage() {
         case 'account':
             return html`<${AccountPage} />`;
         case 'audit':
+        // #!/audit is the auditor's landing page (Evidence Hub).
+        // Sub-tabs (Evidence Library | Audit Trail | Reports) tracked in TASKS.md.
+            return html`<${AuditorPage} />`;
+        case 'audit-log':
+        // Legacy Command Log — analytics + timeline view (was the old #!/audit destination).
             return html`
                 <div>
                     <${AuditPage} />
@@ -616,6 +660,26 @@ function renderCurrentPage() {
             return html`<${AiResponsesAdminPage} />`;
         case 'upgrade':
             return html`<${Upgrade} feature=${currentParams?.feature} />`;
+        case 'help/score-guidance':
+            return scoreGuidancePage.render();
+        case 'not-found':
+            return html`
+                <div class="container py-5">
+                    <div class="empty">
+                        <div class="empty-icon">
+                            <i class="ti ti-map-search" style="font-size: 56px; color: var(--tblr-muted);"></i>
+                        </div>
+                        <p class="empty-title">This page no longer exists</p>
+                        <p class="empty-subtitle text-muted">
+                            We're consolidating the journey. The page you bookmarked may have been
+                            renamed or merged. Head back to your Hub and use the navigation.
+                        </p>
+                        <div class="empty-action">
+                            <a href="#!/dashboard" class="btn btn-primary">Back to Hub</a>
+                        </div>
+                    </div>
+                </div>
+            `;
         default:
             return html`<${LoginPage} />`;
     }
@@ -743,7 +807,8 @@ function renderApp(state) {
     // Force new component instance with unique key combining page + counter
     renderCounter++;
     const uniqueKey = `${currentPage}-${renderCounter}`;
-    render(html`<${App} key=${uniqueKey} />`, document.getElementById('app'));
+    const appRoot = document.getElementById('app');
+    render(html`<${App} key=${uniqueKey} />`, appRoot);
 
     // Mount rewind bar (always; it self-hides when inactive)
     const rewindRoot = document.getElementById('rewind-bar-root');
@@ -753,6 +818,7 @@ function renderApp(state) {
 
     // Re-apply rewind guards after every render (new page buttons may have appeared in the DOM)
     setTimeout(scheduleRewindUiGuards, 0);
+    setTimeout(scheduleIconAccessibility, 0);
 }
 
 function hasUserPhoneConfigured() {
@@ -926,6 +992,7 @@ async function init() {
     // Initialize theme service
     themeService.initialize();
     observeRewindGuardTargets();
+    observeIconAccessibilityTargets();
     
     // Theme toggle is now in the top bar (index.html #theme-toggle-btn)
     // Wired by themeService below — no dynamic injection needed
@@ -945,96 +1012,7 @@ async function init() {
     orgContext.onChange(() => {
         applyOrgUiRestrictions();
         scheduleRewindUiGuards();
-        refreshActionsBadge();
     });
-
-    // ── Required Actions badge ─────────────────────────────────────────────────
-    // Poll alert summary on org change and every 5 minutes.
-    // Updates the inline Actions pill: count, colour, and overdue glow.
-    let _badgePollTimer = null;
-
-    function updateActionsBadgeUi(totalOpen, hasOverdue) {
-        const badge = document.getElementById('required-actions-badge');
-        const btn = document.getElementById('required-actions-btn');
-        const wrapper = document.getElementById('required-actions-nav');
-        if (!badge || !btn || !wrapper) return;
-
-        const isPersonalOrg = orgContext.getCurrentOrg()?.type === 'Personal';
-        const hideForPersonalCustomer = isPersonalOrg && !orgContext.isSiteAdmin();
-        wrapper.style.display = auth.isAuthenticated() && !hideForPersonalCustomer ? '' : 'none';
-        setFeatureLocked(btn, false, 'Alerts are available with Business security workflows', 'Business');
-        btn.classList.remove('alert-active', 'alert-overdue');
-
-        if (hideForPersonalCustomer) {
-            badge.style.setProperty('display', 'none', 'important');
-            return;
-        }
-
-        if (totalOpen > 0) {
-            badge.textContent = totalOpen > 99 ? '99+' : String(totalOpen);
-            badge.style.removeProperty('display');
-            badge.className = `badge ms-1 ${hasOverdue ? 'bg-danger' : 'bg-warning'} text-white`;
-            btn.classList.add('alert-active');
-            if (hasOverdue) btn.classList.add('alert-overdue');
-        } else {
-            badge.style.setProperty('display', 'none', 'important');
-        }
-    }
-
-    async function refreshActionsBadge() {
-        const org = orgContext.getCurrentOrg();
-        if (!org) {
-            updateActionsBadgeUi(0, false);
-            return;
-        }
-
-        const orgId = org.orgId;
-        try {
-            // Single call: AlertSummary now carries oldestOpenedBySeverity so we
-            // can derive SLA-overdue locally without the parallel /alerts list
-            // (which was Promise.all'd with the summary previously — silent
-            // failures from either side hid the badge entirely on partial errors).
-            const summaryResp = await api.getAlertSummary(orgId, { include: 'cached-summary' });
-            if (!summaryResp?.success) return;
-
-            const data = summaryResp.data || {};
-            const totalOpen = data.totalOpen || 0;
-
-            // SLA-overdue check uses the canonical per-severity oldest-opened
-            // timestamps (UTC ISO strings, severity rank 1-4 keyed by canonical
-            // label). A bucket is overdue if any open alert at that severity has
-            // exceeded its policy SLA window.
-            const SLA_DAYS = { Critical: 2, High: 7, Medium: 30, Low: 90 };
-            const oldest = data.oldestOpenedBySeverity || {};
-            const now = Date.now();
-            const hasOverdue = Object.entries(SLA_DAYS).some(([sev, days]) => {
-                const ts = oldest[sev];
-                if (!ts) return false;
-                const opened = new Date(ts).getTime();
-                return Number.isFinite(opened) && (now - opened) > days * 86400000;
-            });
-
-            updateActionsBadgeUi(totalOpen, hasOverdue);
-        } catch {
-            // Badge is best-effort and should never break portal rendering.
-        }
-    }
-
-    function scheduleActionsBadgePoll() {
-        if (_badgePollTimer) clearInterval(_badgePollTimer);
-        refreshActionsBadge();
-        _badgePollTimer = setInterval(refreshActionsBadge, 5 * 60 * 1000); // every 5 min
-    }
-
-    // Start polling once authenticated
-    auth.onChange((session) => {
-        if (session) scheduleActionsBadgePoll();
-        else {
-            if (_badgePollTimer) { clearInterval(_badgePollTimer); _badgePollTimer = null; }
-            updateActionsBadgeUi(0, false);
-        }
-    });
-    if (auth.isAuthenticated()) scheduleActionsBadgePoll();
 
     // Re-render current page whenever rewind context changes (pages check rewindContext at render time)
     window.addEventListener('rewindChanged', () => {
@@ -1115,11 +1093,16 @@ function wireRewindPanel() {
         const currentLabel = rewindContext.getDateLabel();
         const currentIso   = toIso(rewindContext.getDate());
 
-        // Position panel under the trigger button (fixed to viewport)
+        // Position panel under the trigger button (fixed to viewport).
+        // Guard against the trigger sitting inside a sticky navbar — if so,
+        // place the panel below the entire navbar so its header isn't clipped.
         const trigger = document.getElementById('rewind-trigger');
         if (trigger) {
             const rect = trigger.getBoundingClientRect();
-            panel.style.top  = rect.bottom + 'px';
+            const navbarEl = trigger.closest('.navbar') || document.querySelector('.navbar');
+            const navbarBottom = navbarEl ? navbarEl.getBoundingClientRect().bottom : 0;
+            const topY = Math.max(rect.bottom, navbarBottom) + 6;
+            panel.style.top  = topY + 'px';
             panel.style.right = Math.max(0, window.innerWidth - rect.right) + 'px';
             panel.style.left = 'auto';
         }

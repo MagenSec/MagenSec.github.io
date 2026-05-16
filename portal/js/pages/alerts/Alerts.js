@@ -779,15 +779,15 @@ export class AlertsPage extends Component {
             <div class="card card-sm mb-3">
                 <div class="card-body py-2 d-flex flex-wrap justify-content-between gap-2 align-items-center">
                     <div class="d-flex gap-2 flex-wrap align-items-center">
-                        ${critical > 0 ? html`<span class="badge bg-danger text-white">${critical} critical in queue</span>` : ''}
-                        ${high > 0 ? html`<span class="badge bg-warning text-white">${high} high</span>` : ''}
-                        ${medium > 0 ? html`<span class="badge bg-info text-white">${medium} medium</span>` : ''}
-                        ${low > 0 ? html`<span class="badge bg-secondary text-white">${low} low</span>` : ''}
+                        ${critical > 0 ? html`<span class="badge bg-danger-lt text-danger">${critical} critical in queue</span>` : ''}
+                        ${high > 0 ? html`<span class="badge bg-warning-lt text-warning">${high} high</span>` : ''}
+                        ${medium > 0 ? html`<span class="badge bg-info-lt text-info">${medium} medium</span>` : ''}
+                        ${low > 0 ? html`<span class="badge bg-secondary-lt text-secondary">${low} low</span>` : ''}
                         ${rewindContext.isActive() ? html`<span class="badge bg-azure-lt text-azure">As of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
                     </div>
                     <div class="text-muted small">
                         ${isHistoricalSummary && isCappedSummary
-                            ? `Historical dossier captured ${metricPhrase('openAlertInstances', capturedOpen)} as row-level samples of ${metricPhrase('openAlertInstances', open)}; the remaining count is aggregate-only.`
+                            ? `Historical report captured ${metricPhrase('openAlertInstances', capturedOpen)} as row-level samples of ${metricPhrase('openAlertInstances', open)}; the remaining count is aggregate-only.`
                             : stateFilter === 'OPEN' && open > alerts.length
                             ? `Showing newest ${alerts.length} of ${metricPhrase('openAlertInstances', open)} · grouped into ${distinctIssues ?? '—'} ${metricTitle('distinctIssues').toLowerCase()} for triage.`
                             : `Showing ${alerts.length} ${stateFilter === 'ALL' ? 'loaded' : stateFilter.toLowerCase()} action item${alerts.length === 1 ? '' : 's'}.`}
@@ -976,7 +976,7 @@ export class AlertsPage extends Component {
                         </div>
                         <p class="empty-title">Historical alert samples are incomplete</p>
                         <p class="empty-subtitle text-muted">
-                            The dossier reports ${historicalOpen.toLocaleString()} open alert instance${historicalOpen === 1 ? '' : 's'} as of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'the selected date'}, but ${historicalCaptured.toLocaleString()} row-level sample${historicalCaptured === 1 ? '' : 's'} are available for this view.
+                            The report shows ${historicalOpen.toLocaleString()} open alert instance${historicalOpen === 1 ? '' : 's'} as of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'the selected date'}, but ${historicalCaptured.toLocaleString()} row-level sample${historicalCaptured === 1 ? '' : 's'} are available for this view.
                         </p>
                     </div>
                 `;
@@ -1272,6 +1272,7 @@ export class AlertsPage extends Component {
                 <div class="container-xl">
                     <div class="row g-2 align-items-center">
                         <div class="col">
+                            <div class="text-uppercase small fw-semibold text-warning mb-1" style="letter-spacing:0.08em;">Remediation Queue</div>
                             <div class="d-flex align-items-center gap-2">
                                 <h2 class="page-title mb-0">Action Items</h2>
                                 ${isRefreshingInBackground ? html`

@@ -205,7 +205,7 @@ class ReportPreviewPage extends Component {
         const { snapshot, reportType, rendered, previewTheme, previewViewport } = this.state;
 
         if (!snapshot) {
-            return html`<div className="email-preview-empty">No dossier data available</div>`;
+            return html`<div className="email-preview-empty">No report data available</div>`;
         }
 
         if (!rendered) {

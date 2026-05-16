@@ -14,7 +14,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Security',
             icon: '\ud83d\udd12',
-            desc: 'A deep-dive into your organization\u2019s threats and vulnerabilities. The Security page shows your posture dossier with compliance framework alignment (CIS Controls v8.1, NIST CSF 2.0), risk score progression over time, actionable remediation priorities, and gap analysis. You can toggle between frameworks and view historical trends.',
+            desc: 'A deep-dive into your organization’s threats and vulnerabilities. The Security page shows your posture report with compliance framework alignment (CIS Controls v8.1, NIST CSF 2.0), risk score progression over time, actionable remediation priorities, and gap analysis. You can toggle between frameworks and view historical trends.',
             tips: [
                 'Use severity filters to focus on Critical and High issues first',
                 'Check the risk trend chart to see if your posture is improving or declining over time',

@@ -56,7 +56,7 @@ function buildPatchStatus(patchResp) {
 }
 
 function formatActionDeviceText(action) {
-    if (!action) return 'Device: not identified in this dossier';
+    if (!action) return 'Device: not identified in this report';
 
     const deviceNames = [];
     const pushDeviceName = (value) => {
@@ -85,7 +85,7 @@ function formatActionDeviceText(action) {
         return count > 1 ? `Device: ${deviceNames[0]} + ${count - 1} more` : `Device: ${deviceNames[0]}`;
     }
     if (count > 0) return `Device: ${count} unnamed device${count === 1 ? '' : 's'}`;
-    return 'Device: not identified in this dossier';
+    return 'Device: not identified in this report';
 }
 
 function cleanActionTitle(action) {
@@ -296,13 +296,13 @@ export class SecurityOverview extends Component {
         const weaknesses = [];
 
         if (s.devicesHealthy > 0) {
-            strengths.push({ icon: 'ti-device-desktop-check', text: `${s.devicesHealthy} protected device${s.devicesHealthy === 1 ? '' : 's'} reporting into the Dossier.` });
+            strengths.push({ icon: 'ti-device-desktop-check', text: `${s.devicesHealthy} protected device${s.devicesHealthy === 1 ? '' : 's'} reporting into the latest report.` });
         }
         if (s.appsTotal > 0) {
             strengths.push({ icon: 'ti-apps', text: `${s.appsTotal} applications inventoried for exposure matching.` });
         }
         if (s.critical === 0) {
-            strengths.push({ icon: 'ti-shield-check', text: 'No critical vulnerability is open in the current Dossier.' });
+            strengths.push({ icon: 'ti-shield-check', text: 'No critical vulnerability is open in the current report.' });
         }
         if (patch.openAlerts === 0 && !patch.unavailable) {
             strengths.push({ icon: 'ti-shield-bolt', text: 'No Microsoft patch alert is currently blocking coverage.' });
@@ -324,7 +324,7 @@ export class SecurityOverview extends Component {
             weaknesses.push({ icon: 'ti-bell-ringing', href: '#!/alerts', tone: 'warning', text: `${s.actionsOpen} open action${s.actionsOpen === 1 ? '' : 's'} still need closure.` });
         }
         if (!weaknesses.length) {
-            weaknesses.push({ icon: 'ti-circle-check', tone: 'success', text: 'No immediate weakness is visible in the latest Dossier.' });
+            weaknesses.push({ icon: 'ti-circle-check', tone: 'success', text: 'No immediate weakness is visible in the latest report.' });
         }
 
         return { strengths: strengths.slice(0, 4), weaknesses: weaknesses.slice(0, 4) };
@@ -586,7 +586,7 @@ export class SecurityOverview extends Component {
                             <div class="card-body">
                                 <div class="text-muted text-uppercase fw-semibold small">Software footprint</div>
                                 <div class="h2 mb-0">${s.appsTotal}</div>
-                                <div class="text-muted small">applications in your current Dossier</div>
+                                <div class="text-muted small">applications in your current report</div>
                             </div>
                         </div>
                     </div>
@@ -653,7 +653,7 @@ export class SecurityOverview extends Component {
         const safetySubtitle = needsAttention ? 'needs action today' : 'no urgent blocker';
         const safetyCopy = needsAttention
             ? `${s.devicesAttention} device${s.devicesAttention === 1 ? '' : 's'} need review, ${s.critical} critical exposure${s.critical === 1 ? '' : 's'}, and ${patch.openAlerts} missing Microsoft update${patch.openAlerts === 1 ? '' : 's'} need action.`
-            : 'Your protected devices have no critical exposure, missing Microsoft update, or device visibility blocker in the current Dossier.';
+            : 'Your protected devices have no critical exposure, missing Microsoft update, or device visibility blocker in the current report.';
 
         if (s.loading) {
             return html`
@@ -684,31 +684,31 @@ export class SecurityOverview extends Component {
             <div class="page-body">
                 <div class="container-xl">
                     <${EvidenceBanner} evidence=${s.evidence} pageName="security" />
-                    <div class="card mb-4 border-0 shadow-sm overflow-hidden" style="background:linear-gradient(120deg,#1657a8 0%,#1a73e8 100%);color:#fff;">
-                        <div class="card-body p-4 p-lg-5">
+                    <div class="card mb-4 border-0 shadow-sm overflow-hidden" style="border-left:4px solid var(--tblr-primary,#1a73e8) !important;">
+                        <div class="card-body p-4">
                             <div class="row align-items-center g-4">
                                 <div class="col-lg-7">
                                     <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                                        <div class="text-uppercase text-white-50 fw-semibold">${heroLabel}</div>
-                                        ${s.isRefreshing ? html`<span class="badge bg-white text-primary">Refreshing…</span>` : ''}
+                                        <div class="text-uppercase text-primary fw-semibold small" style="letter-spacing:0.06em;">${heroLabel}</div>
+                                        ${s.isRefreshing ? html`<span class="badge bg-primary-lt text-primary">Refreshing\u2026</span>` : ''}
                                     </div>
-                                    <h2 class="mb-2 text-white">Am I secure today?</h2>
-                                    <div class="text-white-75 mb-3">
+                                    <h2 class="mb-2">Am I secure today?</h2>
+                                    <div class="text-muted mb-3">
                                         ${safetyCopy}
-                                        ${s.postureGeneratedAt ? html` Dossier submitted ${formatRelativeTime(s.postureGeneratedAt)}.` : ''}
-                                        ${rewindContext.isActive() ? html` Viewing a historical Time Warp dossier.` : ''}
+                                        ${s.postureGeneratedAt ? html` Report submitted ${formatRelativeTime(s.postureGeneratedAt)}.` : ''}
+                                        ${rewindContext.isActive() ? html` Viewing a historical Time Warp report.` : ''}
                                     </div>
                                     <div class="btn-list">
-                                        <a href=${patch.openAlerts > 0 ? '#!/patch-posture' : '#!/vulnerabilities'} class="btn btn-white ${needsAttention ? '' : 'disabled'}">
+                                        <a href=${patch.openAlerts > 0 ? '#!/patch-posture' : '#!/vulnerabilities'} class="btn btn-primary ${needsAttention ? '' : 'disabled'}">
                                             <i class="ti ti-tool me-1"></i>${needsAttention ? 'Fix first' : 'No urgent fix'}
                                         </a>
-                                        <a href="#!/vulnerabilities" class="btn btn-outline-light">
+                                        <a href="#!/vulnerabilities" class="btn btn-outline-primary">
                                             <i class="ti ti-bug me-1"></i>Open exposures
                                         </a>
-                                        <a href="#!/patch-posture" class="btn btn-outline-light">
+                                        <a href="#!/patch-posture" class="btn btn-outline-secondary">
                                             <i class="ti ti-shield-check me-1"></i>Patch Status
                                         </a>
-                                        <a href="#!/devices" class="btn btn-outline-light">
+                                        <a href="#!/devices" class="btn btn-outline-secondary">
                                             <i class="ti ti-devices me-1"></i>Fleet
                                         </a>
                                     </div>
@@ -716,7 +716,7 @@ export class SecurityOverview extends Component {
                                 <div class="col-lg-5">
                                     <div class="row g-2">
                                         <div class="col-6">
-                                            <div class="card bg-white text-body shadow-sm border-0">
+                                            <div class="card border h-100">
                                                 <div class="card-body p-3">
                                                     <div class="text-muted text-uppercase fw-semibold small">Today's state</div>
                                                     <div class="h2 mb-0 text-${safetyTone}">${safetyTitle}</div>
@@ -725,7 +725,7 @@ export class SecurityOverview extends Component {
                                             </div>
                                         </div>
                                         <div class="col-6">
-                                            <div class="card bg-white text-body shadow-sm border-0">
+                                            <div class="card border h-100">
                                                 <div class="card-body p-3">
                                                     <div class="text-muted text-uppercase fw-semibold small">Devices needing review</div>
                                                     <div class="h2 mb-0">${s.devicesAttention}</div>
@@ -734,7 +734,7 @@ export class SecurityOverview extends Component {
                                             </div>
                                         </div>
                                         <div class="col-6">
-                                            <div class="card bg-white text-body shadow-sm border-0">
+                                            <div class="card border h-100">
                                                 <div class="card-body p-3">
                                                     <div class="text-muted text-uppercase fw-semibold small">Missing patches</div>
                                                     <div class="h2 mb-0 text-${patch.openAlerts > 0 ? 'warning' : 'success'}">${patch.openAlerts}</div>
@@ -743,7 +743,7 @@ export class SecurityOverview extends Component {
                                             </div>
                                         </div>
                                         <div class="col-6">
-                                            <div class="card bg-white text-body shadow-sm border-0">
+                                            <div class="card border h-100">
                                                 <div class="card-body p-3">
                                                     <div class="text-muted text-uppercase fw-semibold small">Critical vulnerabilities</div>
                                                     <div class="h2 mb-0 text-${s.critical > 0 ? 'danger' : 'success'}">${s.critical}</div>

@@ -9,6 +9,10 @@ function isPersonalOrg() {
     return window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
 }
 
+function isBusinessOrg() {
+    return window.orgContext?.getCurrentOrg?.()?.type === 'Business';
+}
+
 function getHomeRoute() {
     if (isPersonalOrg()) return '/security';
     // Business Foundation (Business type, no Compliance add-on) also uses the Security overview as home
@@ -30,9 +34,17 @@ function guardPersonalRestrictedRoute(ctx, page) {
     return false;
 }
 
+function guardBusinessOnlyRoute(ctx, page, featureKey = 'Business') {
+    if (!isBusinessOrg() && !window.orgContext?.isSiteAdmin?.()) {
+        page.redirect(`/upgrade?feature=${encodeURIComponent(featureKey)}`);
+        return true;
+    }
+    return false;
+}
+
 function guardAddOnRoute(page, addOnKey) {
     const hasAddOn = window.orgContext?.hasAddOn?.(addOnKey);
-    if (!hasAddOn) {
+    if (!hasAddOn && !isSiteAdminUser()) {
         page.redirect(`/upgrade?feature=${encodeURIComponent(addOnKey)}`);
         return true;
     }
@@ -96,6 +108,29 @@ export function initRouter(renderApp) {
     page('*', (ctx, next) => {
         ctx.auth = auth;
         ctx.isAuthenticated = auth.isAuthenticated();
+        next();
+    });
+
+    // Middleware: keep top-nav active state in sync with page.js routes.
+    // page.js intercepts anchor clicks and runs middleware BEFORE the URL
+    // is committed (and `hashchange` doesn't fire for hashbang anchor clicks),
+    // so we defer to a microtask + next frame to read the post-commit hash.
+    page('*', (ctx, next) => {
+        const update = () => {
+            try {
+                if (typeof window.setNavbarActiveState === 'function') {
+                    window.setNavbarActiveState();
+                }
+            } catch (_err) { /* no-op */ }
+        };
+        // Microtask covers programmatic page.show; rAF covers anchor-click flow
+        // where the URL is committed after the synchronous click handler returns.
+        Promise.resolve().then(update);
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(update);
+        } else {
+            setTimeout(update, 0);
+        }
         next();
     });
 
@@ -189,7 +224,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
-        if (guardPersonalRestrictedRoute(ctx, page)) {
+        if (guardBusinessOnlyRoute(ctx, page)) {
             return;
         }
         page.redirect('/security/response');
@@ -201,7 +236,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
-        if (guardPersonalRestrictedRoute(ctx, page)) {
+        if (guardBusinessOnlyRoute(ctx, page)) {
             return;
         }
         renderApp({ page: 'response-actions', ctx });
@@ -228,7 +263,7 @@ export function initRouter(renderApp) {
     // AI Analyst / MAGI (protected, add-on gated)
     page('/analyst', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'MAGI')) return;
         if (guardAddOnRoute(page, 'MAGI')) return;
         renderApp({ page: 'analyst', ctx });
     });
@@ -266,7 +301,7 @@ export function initRouter(renderApp) {
     // Mission Briefing - AI reports command page (protected, add-on gated)
     page('/mission-brief', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'MAGI')) return;
         if (guardAddOnRoute(page, 'MAGI')) return;
         renderApp({ page: 'mission-brief', ctx });
     });
@@ -277,7 +312,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
-        if (guardPersonalRestrictedRoute(ctx, page)) {
+        if (guardBusinessOnlyRoute(ctx, page, 'MAGI')) {
             return;
         }
         page.redirect('/mission-brief');
@@ -286,31 +321,31 @@ export function initRouter(renderApp) {
     // Add-on pages (protected, business-license only)
     page('/add-ons/peer-benchmark', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'PeerBenchmark')) return;
         if (guardAddOnRoute(page, 'PeerBenchmark')) return;
         renderApp({ page: 'add-on/peer-benchmark', ctx });
     });
     page('/add-ons/hygiene-coach', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'HygieneCoach')) return;
         if (guardAddOnRoute(page, 'HygieneCoach')) return;
         renderApp({ page: 'add-on/hygiene-coach', ctx });
     });
     page('/add-ons/insurance-readiness', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'InsuranceReadiness')) return;
         if (guardAddOnRoute(page, 'InsuranceReadiness')) return;
         renderApp({ page: 'add-on/insurance-readiness', ctx });
     });
     page('/add-ons/compliance-plus', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'CompliancePlus')) return;
         if (guardAddOnRoute(page, 'CompliancePlus')) return;
         renderApp({ page: 'add-on/compliance-plus', ctx });
     });
     page('/add-ons/supply-chain-intel', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'SupplyChainIntel')) return;
         if (guardAddOnRoute(page, 'SupplyChainIntel')) return;
         renderApp({ page: 'add-on/supply-chain-intel', ctx });
     });
@@ -318,7 +353,7 @@ export function initRouter(renderApp) {
     // Compliance (protected, add-on gated)
     page('/compliance', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'Compliance')) return;
         if (guardAddOnRoute(page, 'Compliance')) return;
         renderApp({ page: 'compliance', ctx });
     });
@@ -326,7 +361,7 @@ export function initRouter(renderApp) {
     // Auditor (protected, add-on gated)
     page('/auditor', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'Audit')) return;
         if (guardAddOnRoute(page, 'Audit')) return;
         renderApp({ page: 'auditor', ctx });
     });
@@ -334,7 +369,7 @@ export function initRouter(renderApp) {
     // Attack Chain (protected, add-on gated)
     page('/attack-chain', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'AttackChain')) return;
         if (guardAddOnRoute(page, 'AttackChain')) return;
         renderApp({ page: 'attack-chain', ctx });
     });
@@ -342,14 +377,14 @@ export function initRouter(renderApp) {
     // Reports Preview - exposed to business users (org-scoped endpoint)
     page('/reports/preview', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page)) return;
         renderApp({ page: 'reports/preview', ctx });
     });
 
     // Reports (protected)
     page('/reports', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page)) return;
         renderApp({ page: 'reports', ctx });
     });
 
@@ -381,8 +416,39 @@ export function initRouter(renderApp) {
     // Alerts / Action Items (protected)
     page('/alerts', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page)) return;
         renderApp({ page: 'alerts', ctx });
+    });
+
+    // Remediation (protected) — work queue: Vulnerability / Configuration / License Lifecycle.
+    // Slice 1: same renderer as /alerts; Slice 3 will git mv to its own page.
+    page('/remediation', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardBusinessOnlyRoute(ctx, page)) return;
+        renderApp({ page: 'remediation', ctx });
+    });
+
+    // Proof (protected) — daily report landing
+    page('/proof', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardBusinessOnlyRoute(ctx, page)) return;
+        renderApp({ page: 'proof', ctx });
+    });
+
+    // Hygiene (protected, add-on gated) — Hygiene Coach + Mentor Mode
+    page('/hygiene', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardBusinessOnlyRoute(ctx, page, 'HygieneCoach')) return;
+        if (guardAddOnRoute(page, 'HygieneCoach')) return;
+        renderApp({ page: 'hygiene', ctx });
+    });
+
+    // Insurance (protected, add-on gated) — Underwriter Mode landing
+    page('/insurance', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        if (guardBusinessOnlyRoute(ctx, page, 'InsuranceReadiness')) return;
+        if (guardAddOnRoute(page, 'InsuranceReadiness')) return;
+        renderApp({ page: 'insurance', ctx });
     });
 
     // Software Changelog (protected)
@@ -469,14 +535,26 @@ export function initRouter(renderApp) {
         renderApp({ page: 'siteadmin/ai-responses', ctx });
     });
 
-    // Audit (protected)
+    // Audit (protected) — Auditor Evidence Hub landing page
     page('/audit', (ctx) => {
         if (!ctx.isAuthenticated) {
             page.redirect('/');
             return;
         }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'Audit')) return;
+        if (guardAddOnRoute(page, 'Audit')) return;
         renderApp({ page: 'audit', ctx });
+    });
+
+    // Audit Command Log (protected) — legacy timeline / analytics view
+    page('/audit-log', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        if (guardBusinessOnlyRoute(ctx, page, 'Audit')) return;
+        if (guardAddOnRoute(page, 'Audit')) return;
+        renderApp({ page: 'audit-log', ctx });
     });
 
     // Members (protected)
@@ -485,7 +563,8 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
-        if (guardPersonalRestrictedRoute(ctx, page)) return;
+        if (guardBusinessOnlyRoute(ctx, page, 'Audit')) return;
+        if (guardAddOnRoute(page, 'Audit')) return;
         renderApp({ page: 'audit', ctx }); // Embedded in audit page
     });
 
@@ -512,6 +591,11 @@ export function initRouter(renderApp) {
         renderApp({ page: 'documentation-hub', ctx });
     });
 
+    // Help: Trust Score guidance (no auth required - explainer page)
+    page('/help/score-guidance', (ctx) => {
+        renderApp({ page: 'help/score-guidance', ctx });
+    });
+
     // Device hub direct routes (canonical + legacy alias)
     page('/device-hub.html', (ctx) => {
         renderApp({ page: 'device-hub', ctx });
@@ -524,6 +608,11 @@ export function initRouter(renderApp) {
             return;
         }
         renderApp({ page: 'account', ctx });
+    });
+
+    // 404 catch-all — must be last route registration before page.start()
+    page('*', (ctx) => {
+        renderApp({ page: 'not-found', ctx });
     });
 
     normalizeHashbangUrl();

@@ -8,7 +8,7 @@ export class DeviceFilterService {
     /**
      * Filter devices based on search query and filters
      */
-    static getFilteredDevices(devices, searchQuery, deviceFilters, sortField, sortAsc, enrichedScores) {
+    static getFilteredDevices(devices, searchQuery, deviceFilters, sortField, sortAsc, enrichedScores, deviceSummaries = {}) {
         const q = (searchQuery || '').trim().toLowerCase();
 
         let list = devices
@@ -23,13 +23,22 @@ export class DeviceFilterService {
                 const version = (d.telemetry?.osVersion || '').toLowerCase();
                 const ip = (d.telemetry?.ipAddresses || '').toLowerCase();
                 const license = (d.licenseKey || '').toLowerCase();
+                  const context = d.deviceContext || d.DeviceContext || {};
+                  const labels = Array.isArray(context.assignedLabels)
+                      ? context.assignedLabels
+                      : Array.isArray(context.AssignedLabels)
+                       ? context.AssignedLabels
+                       : [];
+                  const labelText = labels.join(' ').toLowerCase();
+                  const impact = String(context.businessImpact || context.BusinessImpact || '').toLowerCase();
 
                 return name.includes(q) || id.includes(q) || os.includes(q) || 
-                       version.includes(q) || ip.includes(q) || license.includes(q);
+                      version.includes(q) || ip.includes(q) || license.includes(q) ||
+                      labelText.includes(q) || impact.includes(q);
             });
 
         // Apply sorting
-        list.sort((a, b) => this.sortDevices(a, b, sortField, sortAsc, enrichedScores));
+        list.sort((a, b) => this.sortDevices(a, b, sortField, sortAsc, enrichedScores, deviceSummaries));
 
         return list;
     }
@@ -38,9 +47,14 @@ export class DeviceFilterService {
      * Check if device matches license/state filter
      */
     static matchesLicense(device, filter) {
-        if (filter === 'all') return true;
+        const filters = Array.isArray(filter)
+            ? filter.map(value => String(value || '').toLowerCase()).filter(value => value && value !== 'all')
+            : String(filter || 'all').toLowerCase() === 'all'
+                ? []
+                : [String(filter || '').toLowerCase()].filter(Boolean);
+        if (filters.length === 0) return true;
         const state = (device.state || '').toLowerCase();
-        return state === filter;
+        return filters.includes(state);
     }
 
     /**
@@ -112,7 +126,7 @@ export class DeviceFilterService {
     /**
      * Sort devices
      */
-    static sortDevices(a, b, sortField, sortAsc, enrichedScores) {
+    static sortDevices(a, b, sortField, sortAsc, enrichedScores, deviceSummaries = {}) {
         let valA, valB;
 
         switch (sortField) {
@@ -127,6 +141,10 @@ export class DeviceFilterService {
             case 'lastSeen':
                 valA = a.lastHeartbeat ? new Date(a.lastHeartbeat).getTime() : 0;
                 valB = b.lastHeartbeat ? new Date(b.lastHeartbeat).getTime() : 0;
+                break;
+            case 'software':
+                valA = deviceSummaries[a.id]?.apps ?? 0;
+                valB = deviceSummaries[b.id]?.apps ?? 0;
                 break;
             case 'state':
                 valA = (a.state || '').toLowerCase();

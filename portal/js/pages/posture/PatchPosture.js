@@ -518,11 +518,21 @@ export class PatchPosturePage extends Component {
         });
 
         const mainRow = html`
-            <tr key=${'h-' + host.deviceId} class="pp-host-row" onClick=${() => this.toggleDevice(host.deviceId)}>
+            <tr key=${'h-' + host.deviceId} class="pp-host-row">
                 <td>
-                    <i class="ti ${expanded ? 'ti-chevron-down' : 'ti-chevron-right'} me-2 text-muted"></i>
-                    <strong>${host.deviceName}</strong>
-                    <div class="text-muted small">${host.deviceId}</div>
+                    <button
+                        type="button"
+                        class="pp-host-toggle"
+                        aria-expanded=${expanded ? 'true' : 'false'}
+                        aria-label=${`${expanded ? 'Collapse' : 'Expand'} missing patch details for ${host.deviceName}`}
+                        onClick=${() => this.toggleDevice(host.deviceId)}
+                    >
+                        <i class="ti ${expanded ? 'ti-chevron-down' : 'ti-chevron-right'} me-2 text-muted" aria-hidden="true"></i>
+                        <span>
+                            <strong>${host.deviceName}</strong>
+                            <span class="text-muted small d-block">${host.deviceId}</span>
+                        </span>
+                    </button>
                 </td>
                 <td class="text-center">${total}</td>
                 <td class="text-center">${host.critical > 0 ? html`<span class="badge bg-danger text-white">${host.critical}</span>` : '—'}</td>

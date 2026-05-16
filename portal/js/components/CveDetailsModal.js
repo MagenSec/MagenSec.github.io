@@ -95,7 +95,7 @@ export function CveDetailsModal({ cveId, orgId, isOpen, onClose }) {
                             NVD Details
                         </a>
                         ${cveData && cveData.affectedApplications && cveData.affectedApplications.length > 0 && html`
-                            <a href=${`#!/inventory?filter=${encodeURIComponent(cveData.affectedApplications.map(a => `app:${a.appName}`).join('|'))}`} class="btn btn-primary btn-sm">
+                            <a href=${`#!/apps?tab=atrisk&filter=${encodeURIComponent(cveData.affectedApplications.map(a => `app:${a.appName}`).join('|'))}`} class="btn btn-primary btn-sm">
                                 <i class="ti ti-list-check me-1"></i>
                                 View in Inventory
                             </a>

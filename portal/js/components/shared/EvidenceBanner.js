@@ -16,7 +16,7 @@ function formatPageName(pageName) {
 
 function formatEvidenceLabel(atomName) {
     const known = {
-        'org-snapshot': 'posture dossier',
+        'org-snapshot': 'posture report',
         'security-snapshot': 'security evidence',
         'compliance-snapshot': 'compliance evidence',
         'audit-snapshot': 'audit evidence',
@@ -90,6 +90,36 @@ export function EvidenceBanner({ evidence, pageName }) {
                     ${missing.map(atom => html`<span class="badge bg-danger-lt text-danger">Missing: ${formatEvidenceLabel(atom)}</span>`)}
                     ${!missing.length && required.length ? html`<span class="badge bg-secondary-lt text-secondary">${required.length} evidence requirement${required.length === 1 ? '' : 's'}</span>` : null}
                     ${empty.length ? html`<span class="badge bg-azure-lt text-azure">${empty.length} empty evidence set${empty.length === 1 ? '' : 's'}</span>` : null}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+export function TimeWarpEvidenceCallout({ surface = 'evidence' }) {
+    const isActive = rewindContext.isActive?.() === true;
+    const dateLabel = rewindContext.getDateLabel?.() || rewindContext.getDate?.() || 'the selected date';
+    const canRewind = window.orgContext?.hasRewind?.() === true || window.orgContext?.isSiteAdmin?.() === true;
+
+    if (!isActive && !canRewind) {
+        return null;
+    }
+
+    return html`
+        <div class=${`alert ${isActive ? 'alert-info-lt' : 'alert-primary-lt'} border-0 shadow-sm mb-3`} role="status">
+            <div class="d-flex align-items-start gap-2">
+                <span class=${`avatar avatar-sm ${isActive ? 'bg-info' : 'bg-primary'} text-white mt-1`}>
+                    <i class="ti ti-history"></i>
+                </span>
+                <div>
+                    <div class="fw-semibold">
+                        ${isActive ? `Captured ${surface} as of ${dateLabel}` : 'Review captured evidence from any day'}
+                    </div>
+                    <div class="small text-muted">
+                        ${isActive
+                            ? 'This view is read-only and uses the daily evidence captured for the selected date. Exit Time Warp before preparing new reports or changing state.'
+                            : 'Use Time Warp from the top bar to open the same pages against a past Daily Report, so auditors and downloads see the captured state for that day.'}
+                    </div>
                 </div>
             </div>
         </div>

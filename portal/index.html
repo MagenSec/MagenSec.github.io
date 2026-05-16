@@ -159,12 +159,9 @@
         }
 
         /* Officer MAGI top-level highlight */
-        .nav-item-required-actions {
-            margin-right: 1.35rem;
-        }
         .nav-item-ai-analyst {
-            margin-right: 0.5rem;
-            margin-left: 0.65rem;
+            margin-right: 0;
+            margin-left: 0;
         }
         .nav-item-ai-analyst .nav-link {
             background: linear-gradient(135deg, #244fae 0%, #4f46e5 55%, #6d28d9 100%);
@@ -179,30 +176,9 @@
             position: relative;
             overflow: hidden;
         }
-        .nav-item-required-actions .nav-link {
-            background: linear-gradient(135deg, #fff5f5 0%, #fff1eb 100%);
-            color: #b42318 !important;
-            border-radius: 999px;
-            padding: 0.45rem 0.95rem !important;
-            font-weight: 700;
-            letter-spacing: 0.01em;
-            border: 1px solid rgba(217, 45, 32, 0.18);
-            box-shadow: 0 6px 14px rgba(180, 35, 24, 0.08);
-            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-        }
-        .nav-item-required-actions .nav-link:hover,
         .nav-item-ai-analyst .nav-link:hover {
             transform: translateY(-1px);
             filter: saturate(1.08);
-        }
-        .nav-item-required-actions .nav-link:hover {
-            box-shadow: 0 10px 20px rgba(180, 35, 24, 0.14);
-        }
-        .nav-item-ai-analyst .nav-link:hover {
             box-shadow: 0 10px 18px rgba(46, 81, 180, 0.28);
         }
         .nav-item-ai-analyst .nav-link.active,
@@ -212,17 +188,6 @@
             border-color: rgba(255, 255, 255, 0.52);
             filter: saturate(1.12) brightness(1.03);
         }
-        .nav-item-required-actions .nav-link.alert-active {
-            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
-            color: #c2410c !important;
-            border-color: rgba(234, 88, 12, 0.30);
-        }
-        .nav-item-required-actions .nav-link.alert-overdue {
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            color: #b42318 !important;
-            border-color: rgba(217, 45, 32, 0.40);
-            animation: action-bob 1.8s ease-in-out infinite, action-pulse 1.8s ease-in-out infinite;
-        }
         .nav-item-ai-analyst .nav-link.active::after,
         .nav-item-ai-analyst.active .nav-link::after {
             opacity: 1;
@@ -230,8 +195,7 @@
             box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.16);
             animation-duration: 2.8s;
         }
-        .nav-item-ai-analyst .nav-link:focus-visible,
-        .nav-item-required-actions .nav-link:focus-visible {
+        .nav-item-ai-analyst .nav-link:focus-visible {
             outline: 2px solid rgba(79, 70, 229, 0.45);
             outline-offset: 2px;
         }
@@ -244,45 +208,12 @@
             animation: magi-glow 3.8s ease-in-out infinite;
             pointer-events: none;
         }
-        .nav-item-ai-analyst .nav-link-icon svg,
-        .nav-item-required-actions .nav-link-icon svg {
+        .nav-item-ai-analyst .nav-link-icon svg {
             opacity: 0.95;
-        }
-        .nav-item-required-actions .nav-link.alert-active .nav-link-icon svg,
-        .nav-item-required-actions .nav-link.alert-overdue .nav-link-icon svg {
-            animation: bell-ring 1.25s ease-in-out infinite;
-            transform-origin: top center;
-        }
-        #required-actions-badge {
-            min-width: 22px;
-            height: 22px;
-            margin-left: 0.25rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            font-size: 11px;
-            font-weight: 700;
-            border-radius: 999px;
         }
         @keyframes magi-glow {
             0%, 100% { opacity: 0.6; box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.15); }
             50% { opacity: 0.95; box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.08); }
-        }
-        @keyframes action-pulse {
-            0%, 100% { box-shadow: 0 8px 16px rgba(180, 35, 24, 0.12); }
-            50% { box-shadow: 0 12px 22px rgba(180, 35, 24, 0.18), 0 0 0 3px rgba(217, 45, 32, 0.08); }
-        }
-        @keyframes action-bob {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-2px); }
-        }
-        @keyframes bell-ring {
-            0%, 100% { transform: rotate(0deg); }
-            20% { transform: rotate(12deg); }
-            40% { transform: rotate(-10deg); }
-            60% { transform: rotate(7deg); }
-            80% { transform: rotate(-5deg); }
         }
 
         [data-bs-theme="dark"] .nav-item-ai-analyst .nav-link {
@@ -294,10 +225,6 @@
             box-shadow: 0 14px 24px rgba(17, 24, 39, 0.62);
             border-color: rgba(224, 231, 255, 0.55);
         }
-        [data-bs-theme="dark"] .nav-item-required-actions .nav-link {
-            background: linear-gradient(135deg, #3d1111 0%, #511818 100%);
-            color: #fecaca !important;
-            border-color: rgba(252, 165, 165, 0.18);
         }
         
         /* Sortable table headers */
@@ -382,7 +309,7 @@
                 <div class="navbar-nav flex-fill justify-content-center d-flex align-items-center navbar-top-center">
                     <div id="org-switcher-root"></div>
                 </div>
-                <!-- Right: Theme toggle, Site Admin, Rewind trigger, User Menu -->
+                <!-- Right: Theme toggle, Site Admin, Rewind trigger, Tools, Settings, User Menu -->
                 <div class="navbar-nav flex-row order-md-last gap-2 align-items-center navbar-top-right">
 
                     <!-- Theme toggle (icon button) -->
@@ -397,9 +324,15 @@
 
                     <!-- Site Admin dropdown (hidden unless SiteAdmin) -->
                     <div class="nav-item dropdown site-admin-only" style="display:none">
-                        <a class="nav-link dropdown-toggle p-0 px-2 d-flex align-items-center" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false" style="font-size:13px; font-weight:500;">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 15l0 0" /></svg>
-                            Site Admin
+                        <a class="nav-link dropdown-toggle btn btn-icon site-admin-trigger"
+                           href="#"
+                           data-bs-toggle="dropdown"
+                           role="button"
+                           aria-expanded="false"
+                           aria-label="Site Admin menu"
+                           title="Site Admin"
+                           data-bs-placement="bottom">
+                            <i class="ti ti-shield-lock" aria-hidden="true"></i>
                         </a>
                         <div class="dropdown-menu dropdown-menu-end">
                             <a class="dropdown-item" href="#!/siteadmin/business"><span class="me-2">📊</span>Business</a>
@@ -408,14 +341,8 @@
                             <a class="dropdown-item" href="#!/siteadmin/preview"><span class="me-2">👁️</span>Preview</a>
                             <a class="dropdown-item" href="#!/siteadmin/ai-responses"><span class="me-2">🧠</span>AI Responses</a>
                             <div class="dropdown-divider"></div>
-                            <h6 class="dropdown-header">Feature Review</h6>
-                            <a class="dropdown-item" href="#!/review"><i class="ti ti-list-details me-2"></i>Feature Catalog</a>
-                            <a class="dropdown-item" href="#!/analyst"><i class="ti ti-message-chatbot me-2"></i>AI Analyst</a>
-                            <a class="dropdown-item" href="#!/posture"><i class="ti ti-shield-check me-2"></i>Security Posture</a>
-                            <a class="dropdown-item" href="#!/vulnerabilities"><i class="ti ti-bug me-2"></i>Risks</a>
-                            <a class="dropdown-item" href="#!/add-ons/compliance-plus"><i class="ti ti-certificate-2 me-2"></i>Compliance Plus</a>
-                            <a class="dropdown-item" href="#!/add-ons/supply-chain-intel"><i class="ti ti-building-factory me-2"></i>Supply Chain Intel</a>
-                            <div class="dropdown-divider"></div>
+                            <h6 class="dropdown-header">Internal review</h6>
+                            <a class="dropdown-item" href="#!/review"><i class="ti ti-list-details me-2"></i>Feature Catalog<span class="text-muted small d-block ms-4">Unwired pages awaiting placement</span></a>
                             <a class="dropdown-item" href="#!/siteadmin/review"><span class="badge bg-yellow text-white float-end">Internal</span><i class="ti ti-bug-search me-2"></i>Vulnerability Review</a>
                         </div>
                     </div>
@@ -437,6 +364,13 @@
                             </span>
                             <span id="rewind-btn-label">Time Warp</span>
                         </button>
+                    </div>
+
+                    <!-- Settings (icon-only — children promoted into journey dropdowns) -->
+                    <div class="nav-item d-flex align-items-center" id="nav-settings-item">
+                        <a class="nav-link px-2 d-flex align-items-center" href="#!/settings" title="Settings" aria-label="Settings" data-bs-toggle="tooltip" data-bs-placement="bottom">
+                            <i class="ti ti-settings" aria-hidden="true" style="font-size:1.4rem;"></i>
+                        </a>
                     </div>
 
                     <!-- User menu -->
@@ -462,135 +396,182 @@
         <!-- Time Warp bar (above secondary nav, mounted by RewindBar.js when active) -->
         <div id="rewind-bar-root"></div>
 
-        <!-- Horizontal Navigation — Maturity Journey: Protect → Prove → Audit → Insure -->
+        <!-- Horizontal Navigation -- Trust | Operations -- Security Journey Arc -- Officer MAGI -->
         <div class="navbar-expand-md">
             <div class="collapse navbar-collapse" id="navbar-menu">
                 <div class="navbar navbar-light">
                     <div class="container-xl">
-                        <ul class="navbar-nav">
-                            <!-- Home -->
-                            <li class="nav-item" id="nav-home-item">
-                                <a class="nav-link" href="#!/dashboard">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="5 12 3 12 12 3 21 12 19 12" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Home</span>
-                                </a>
+                        <ul class="navbar-nav portal-journey-shell">
+                            <!-- Trust | Operations (left-side peer product areas) -->
+                            <li class="nav-item portal-primary-nav-slot" aria-label="Primary product areas">
+                                <ul class="navbar-nav portal-primary-nav-list">
+                                    <!-- Trust (MAGI-first daily overview, where the day starts) -->
+                                    <li class="nav-item" id="nav-home-item">
+                                        <a class="nav-link" href="#!/dashboard" id="hub-home-link" aria-label="Trust dashboard">
+                                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                                <i class="ti ti-shield-check" aria-hidden="true"></i>
+                                            </span>
+                                            <span class="nav-link-title">Trust</span>
+                                        </a>
+                                    </li>
+
+                                    <!-- Operations (asset inventory, evidence movement, and response work) -->
+                                    <li class="nav-item dropdown" id="nav-operations-item">
+                                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                                <i class="ti ti-adjustments-horizontal" aria-hidden="true"></i>
+                                            </span>
+                                            <span class="nav-link-title">Operations</span>
+                                        </a>
+                                        <div class="dropdown-menu">
+                                            <a class="dropdown-item" href="#!/devices"><i class="ti ti-devices me-2"></i>Fleet</a>
+                                            <a class="dropdown-item" href="#!/apps"><i class="ti ti-package me-2"></i>Software</a>
+                                            <a class="dropdown-item" href="#!/changelog"><i class="ti ti-history me-2"></i>Change Log</a>
+                                            <div class="dropdown-divider site-admin-only"></div>
+                                            <a class="dropdown-item site-admin-only" href="#!/response-actions"><i class="ti ti-terminal me-2"></i>Response Actions</a>
+                                        </div>
+                                    </li>
+                                    <li class="nav-item portal-primary-nav-separator" aria-hidden="true"></li>
+                                </ul>
                             </li>
 
-                            <!-- Protect: Device Fleet, Software, Vulnerabilities + locked add-ons -->
-                            <li class="nav-item dropdown" id="nav-protect-item">
-                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Protect</span>
+                            <!-- Compact journey trigger — only visible when the chevron arc cannot fit. Icon only, no literal label. -->
+                            <li class="nav-item dropdown journey-mobile-dropdown" id="nav-journey-mobile-item">
+                                <a class="nav-link dropdown-toggle journey-mobile-toggle"
+                                   href="#"
+                                   data-bs-toggle="dropdown"
+                                   data-bs-auto-close="outside"
+                                   role="button"
+                                   aria-expanded="false"
+                                   aria-label="Open security workflows menu"
+                                   title="Workflows">
+                                    <i class="ti ti-route" aria-hidden="true"></i>
                                 </a>
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="#!/devices"><i class="ti ti-devices me-2"></i>Device Fleet</a>
-                                    <a class="dropdown-item" href="#!/apps"><i class="ti ti-apps me-2"></i>Software Footprint</a>
-                                    <a class="dropdown-item" href="#!/vulnerabilities"><i class="ti ti-bug me-2"></i>Active Exposures</a>
-                                    <a class="dropdown-item" href="#!/patch-posture"><i class="ti ti-shield-bolt me-2"></i>Patch Status</a>
-                                    <a class="dropdown-item" href="#!/changelog"><i class="ti ti-history me-2"></i>Software Changelog</a>
-                                    <div class="dropdown-divider business-nav-only"></div>
-                                    <a class="dropdown-item business-nav-only" data-addon="AttackChain" href="#!/attack-chain"><i class="ti ti-route me-2"></i>Attack Paths <i class="ti ti-lock ms-auto text-muted" style="font-size:11px;"></i></a>
-                                    <a class="dropdown-item business-nav-only" data-addon="HygieneCoach" href="#!/add-ons/hygiene-coach"><i class="ti ti-heart-rate-monitor me-2"></i>Hygiene Coach <i class="ti ti-lock ms-auto text-muted" style="font-size:11px;"></i></a>
-                                </div>
-                            </li>
-
-                            <!-- Prove: Framework Alignment, Posture Trends + locked add-ons -->
-                            <li class="nav-item dropdown business-license-only" id="nav-prove-item" data-business-tooltip="Feature available in Business License only">
-                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 12l2 2l4 -4" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Prove</span>
-                                </a>
-                                <div class="dropdown-menu">
-                                    <a class="dropdown-item" data-addon="Compliance" href="#!/compliance"><i class="ti ti-certificate me-2"></i>Framework Alignment</a>
-                                    <a class="dropdown-item" href="#!/posture"><i class="ti ti-trending-up me-2"></i>Posture Trends</a>
+                                    <h6 class="dropdown-header">Security</h6>
+                                    <a class="dropdown-item" href="#!/security"><i class="ti ti-shield-half-filled me-2"></i>Overview</a>
+                                    <a class="dropdown-item" href="#!/attack-chain"><i class="ti ti-affiliate me-2"></i>Attack Chain</a>
+                                    <a class="dropdown-item" href="#!/vulnerabilities"><i class="ti ti-bug me-2"></i>Risks</a>
+                                    <a class="dropdown-item" href="#!/posture"><i class="ti ti-shield-check me-2"></i>Security Posture</a>
+                                    <a class="dropdown-item" href="#!/patch-posture"><i class="ti ti-progress-help me-2"></i>Patch Posture</a>
                                     <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item" data-addon="CompliancePlus" href="#!/add-ons/compliance-plus"><i class="ti ti-certificate-2 me-2"></i>Compliance Plus <i class="ti ti-lock ms-auto text-muted" style="font-size:11px;"></i></a>
-                                    <a class="dropdown-item" data-addon="PeerBenchmark" href="#!/add-ons/peer-benchmark"><i class="ti ti-chart-dots-3 me-2"></i>Industry Benchmark <i class="ti ti-lock ms-auto text-muted" style="font-size:11px;"></i></a>
+                                    <h6 class="dropdown-header">Compliance</h6>
+                                    <a class="dropdown-item" href="#!/compliance"><i class="ti ti-checklist me-2"></i>Overview</a>
+                                    <a class="dropdown-item business-license-only" href="#!/add-ons/compliance-plus"><i class="ti ti-certificate-2 me-2"></i>Compliance Plus</a>
+                                    <div class="dropdown-divider business-nav-only"></div>
+                                    <a class="dropdown-item business-nav-only" href="#!/remediation"><i class="ti ti-tools me-2"></i>Remediation</a>
+                                    <a class="dropdown-item business-nav-only" href="#!/proof"><i class="ti ti-certificate me-2"></i>Proof</a>
+                                    <a class="dropdown-item business-nav-only" href="#!/audit"><i class="ti ti-file-search me-2"></i>Audit Evidence Hub</a>
+                                    <a class="dropdown-item business-nav-only" href="#!/audit-log"><i class="ti ti-timeline-event me-2"></i>Activity Trail</a>
+                                    <a class="dropdown-item business-nav-only" href="#!/reports"><i class="ti ti-report me-2"></i>Reports</a>
+                                    <a class="dropdown-item business-nav-only" href="#!/hygiene"><i class="ti ti-sparkles me-2"></i>Hygiene</a>
+                                    <div class="dropdown-divider business-nav-only"></div>
+                                    <h6 class="dropdown-header business-nav-only">Insurance</h6>
+                                    <a class="dropdown-item business-nav-only" href="#!/insurance"><i class="ti ti-umbrella me-2"></i>Readiness</a>
+                                    <a class="dropdown-item business-nav-only" href="#!/add-ons/peer-benchmark"><i class="ti ti-chart-arcs me-2"></i>Peer Benchmark</a>
+                                    <a class="dropdown-item business-nav-only" href="#!/add-ons/supply-chain-intel"><i class="ti ti-building-factory me-2"></i>Supply Chain Intel</a>
                                 </div>
                             </li>
 
-                            <!-- Audit: Evidence, Trail, Reports + locked add-ons -->
-                            <li class="nav-item dropdown business-license-only" id="nav-audit-item" data-business-tooltip="Feature available in Business License only">
-                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><line x1="9" y1="12" x2="15" y2="12" /><line x1="9" y1="16" x2="15" y2="16" /></svg>
-                                    </span>
+                            <!-- Journey Arc: Security to Compliance to Remediation to Proof to Audit to Hygiene to Insurance -->
+                            <li class="nav-item portal-journey-arc-slot" aria-label="Security journey">
+                                <ul class="navbar-nav portal-journey-arc-list">
+
+                            <!-- Security (Personal+: live CVE delta since last sealed dossier) -->
+                            <li class="nav-item dropdown journey-arc-item journey-arc-start" id="nav-security-item" data-journey-step="1">
+                                <a class="nav-link" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                    <i class="ti ti-shield-half-filled journey-step-icon" aria-hidden="true"></i>
+                                    <span class="nav-link-title">Security</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/security"><i class="ti ti-shield-half-filled me-2"></i>Overview</a>
+                                    <a class="dropdown-item" href="#!/attack-chain"><i class="ti ti-affiliate me-2"></i>Attack Chain</a>
+                                    <a class="dropdown-item" href="#!/vulnerabilities"><i class="ti ti-bug me-2"></i>Risks</a>
+                                    <a class="dropdown-item" href="#!/posture"><i class="ti ti-shield-check me-2"></i>Security Posture</a>
+                                    <a class="dropdown-item" href="#!/patch-posture"><i class="ti ti-progress-help me-2"></i>Patch Posture</a>
+                                </div>
+                            </li>
+
+                            <!-- Compliance (Education+: basic scorecard; Business: full dashboard + delta) -->
+                            <li class="nav-item dropdown journey-arc-item" id="nav-compliance-item" data-journey-step="2">
+                                <a class="nav-link" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                    <i class="ti ti-checklist journey-step-icon" aria-hidden="true"></i>
+                                    <span class="nav-link-title">Compliance</span>
+                                </a>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="#!/compliance"><i class="ti ti-checklist me-2"></i>Overview</a>
+                                    <a class="dropdown-item business-license-only" href="#!/add-ons/compliance-plus"><i class="ti ti-certificate-2 me-2"></i>Compliance Plus</a>
+                                </div>
+                            </li>
+
+                            <!-- Remediation (Business: MAGI priority queue; replaces Alerts) -->
+                            <li class="nav-item journey-arc-item business-license-only" id="nav-remediation-item" data-journey-step="3" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link" href="#!/remediation">
+                                    <i class="ti ti-tools journey-step-icon" aria-hidden="true"></i>
+                                    <span class="nav-link-title">Remediation</span>
+                                </a>
+                            </li>
+
+                            <!-- Proof (Business: sealed dossier evidence; replaces Posture) -->
+                            <li class="nav-item journey-arc-item business-license-only" id="nav-proof-item" data-journey-step="4" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link" href="#!/proof">
+                                    <i class="ti ti-certificate journey-step-icon" aria-hidden="true"></i>
+                                    <span class="nav-link-title">Proof</span>
+                                </a>
+                            </li>
+
+                            <!-- Audit (Business: auditor landing -- evidence + trail + reports) -->
+                            <li class="nav-item dropdown journey-arc-item business-license-only" id="nav-audit-item" data-journey-step="5" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                    <i class="ti ti-file-search journey-step-icon" aria-hidden="true"></i>
                                     <span class="nav-link-title">Audit</span>
                                 </a>
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="#!/audit"><i class="ti ti-file-search me-2"></i>Audit Trail</a>
-                                    <a class="dropdown-item" data-addon="Audit" href="#!/auditor"><i class="ti ti-clipboard-check me-2"></i>Auditor Dashboard</a>
-                                    <a class="dropdown-item" href="#!/reports"><i class="ti ti-chart-bar me-2"></i>Reports &amp; Delivery</a>
-                                    <a class="dropdown-item" href="#!/reports/preview"><i class="ti ti-eye me-2"></i>Report Preview</a>
-                                    <div class="dropdown-divider"></div>
-                                    <span class="dropdown-item disabled d-flex align-items-center"><i class="ti ti-license me-2 text-muted"></i><span class="text-muted">Software Licenses</span><span class="badge bg-azure-lt text-azure ms-auto" style="font-size:10px;">Soon</span></span>
-                                    <a class="dropdown-item" data-addon="MAGI" href="#!/mission-brief"><i class="ti ti-brain me-2"></i>Mission Briefs <i class="ti ti-lock ms-auto text-muted" style="font-size:11px;"></i></a>
+                                    <a class="dropdown-item" href="#!/audit"><i class="ti ti-file-search me-2"></i>Evidence Hub</a>
+                                    <a class="dropdown-item" href="#!/audit-log"><i class="ti ti-timeline-event me-2"></i>Activity Trail</a>
+                                    <a class="dropdown-item" href="#!/reports"><i class="ti ti-report me-2"></i>Reports</a>
                                 </div>
                             </li>
 
-                            <!-- Insure: Insurance Attestation, Supply Chain Risk -->
-                            <li class="nav-item dropdown business-license-only" id="nav-insure-item" data-business-tooltip="Feature available in Business License only">
-                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /><path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 15l0 2" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Insure</span>
+                            <!-- Hygiene (Business: daily coaching; promoted from HygieneCoach add-on) -->
+                            <li class="nav-item journey-arc-item business-license-only" id="nav-hygiene-item" data-journey-step="6" data-addon="HygieneCoach" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link" href="#!/hygiene">
+                                    <i class="ti ti-sparkles journey-step-icon" aria-hidden="true"></i>
+                                    <span class="nav-link-title">Hygiene</span>
+                                </a>
+                            </li>
+
+                            <!-- Insurance (Business: readiness + peer benchmark; promoted from add-on) -->
+                            <li class="nav-item dropdown journey-arc-item journey-arc-end business-license-only" id="nav-insurance-item" data-journey-step="7" data-addon="InsuranceReadiness" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                                    <i class="ti ti-umbrella journey-step-icon" aria-hidden="true"></i>
+                                    <span class="nav-link-title">Insurance</span>
                                 </a>
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item" data-addon="InsuranceReadiness" href="#!/add-ons/insurance-readiness"><i class="ti ti-shield-lock me-2"></i>Insurance Attestation <i class="ti ti-lock ms-auto text-muted" style="font-size:11px;"></i></a>
-                                    <a class="dropdown-item" data-addon="SupplyChainIntel" href="#!/add-ons/supply-chain-intel"><i class="ti ti-building-factory me-2"></i>Supply Chain Risk <i class="ti ti-lock ms-auto text-muted" style="font-size:11px;"></i></a>
+                                    <a class="dropdown-item" href="#!/insurance"><i class="ti ti-umbrella me-2"></i>Readiness</a>
+                                    <a class="dropdown-item" href="#!/add-ons/peer-benchmark"><i class="ti ti-chart-arcs me-2"></i>Peer Benchmark</a>
+                                    <a class="dropdown-item" href="#!/add-ons/supply-chain-intel"><i class="ti ti-building-factory me-2"></i>Supply Chain Intel</a>
                                 </div>
                             </li>
 
-                            <!-- Settings (dropdown) -->
-                            <li class="nav-item dropdown" id="nav-settings-item">
-                                <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><circle cx="12" cy="12" r="3" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Settings</span>
-                                </a>
-                                <div class="dropdown-menu">
-                                    <a class="dropdown-item" href="#!/settings"><i class="ti ti-settings me-2"></i>General</a>
-                                    <a class="dropdown-item business-nav-only" href="#!/review"><i class="ti ti-sparkles me-2"></i>Feature Catalog</a>
-                                    <div class="dropdown-divider site-admin-only"></div>
-                                    <a class="dropdown-item site-admin-only" href="#!/response-actions"><i class="ti ti-terminal me-2"></i>Response Actions</a>
-                                </div>
+                                </ul>
                             </li>
 
-                        </ul>
-
-                        <ul class="navbar-nav ms-auto">
-                            <li class="nav-item nav-item-required-actions" id="required-actions-nav" style="display:none">
-                                <a class="nav-link" href="#!/alerts" id="required-actions-btn" title="Actions — open security action items" aria-label="Actions">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2.25" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" /><path d="M9 17v1a3 3 0 0 0 6 0v-1" /></svg>
+                            <!-- Officer MAGI (right-aligned via ms-auto on the journey row) -->
+                            <li class="nav-item nav-item-ai-analyst business-license-only ms-auto" id="nav-magi-item" data-addon="MAGI" data-business-tooltip="Feature available in Business License only">
+                                <a class="nav-link d-flex align-items-center" href="#!/analyst" title="Officer MAGI — AI Security Officer" aria-label="Officer MAGI">
+                                    <span class="nav-link-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="22" height="22" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
                                     </span>
-                                    <span class="nav-link-title">Actions</span>
-                                    <span id="required-actions-badge" class="badge ms-1 bg-danger text-white" style="display:none !important;">0</span>
+                                    <span class="nav-link-title ms-1">MAGI</span>
                                 </a>
                             </li>
 
-                            <!-- Officer MAGI (top-level, highlighted) -->
-                            <li class="nav-item nav-item-ai-analyst business-license-only" id="nav-magi-item" data-addon="MAGI" data-business-tooltip="Feature available in Business License only">
-                                <a class="nav-link" href="#!/analyst">
-                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-                                    </span>
-                                    <span class="nav-link-title">Officer MAGI</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
+                    </ul>
+                    </div><!-- /container-xl -->
+                </div><!-- /navbar.navbar-light -->
+            </div><!-- /collapse.navbar-collapse -->
+        </div><!-- /navbar-expand-md -->
 
         <!-- Org Status Banner (shown/hidden by orgContext.js) -->
         <div id="org-status-banner" style="display:none;">

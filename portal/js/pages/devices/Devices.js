@@ -15,6 +15,7 @@ import { getKevSet } from '@utils/kevCache.js';
 import { StatusBadge, getConnectionStatus, StatusDot } from '@components/shared/StatusBadge.js';
 import { SeverityBadge, RiskScoreBadge, GradeBadge } from '@components/shared/Badges.js';
 import { LoadingSpinner, ErrorAlert, EmptyState, Card } from '@components/shared/CommonComponents.js';
+import { PaginationBar, SkeletonTable, SortableHeader } from '@components/shared/DataControls.js';
 import { getDonutChartConfig, getRadarChartConfig, getScatterChartConfig, renderChart, destroyChart, severityColors } from '@components/charts/ChartHelpers.js';
 import { formatTimestamp, formatRelativeTime, formatNumber, formatPercent, roundPercent } from '@utils/dataHelpers.js';
 
@@ -27,17 +28,19 @@ import { DeviceStatsService } from './services/DeviceStatsService.js';
 import { DeviceFilterService } from './services/DeviceFilterService.js';
 
 // Component modules
-import { renderBulkActionsBar } from './components/BulkActionsBar.js';
 import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDotClass, getTrendIcon, getTrendClass, renderOfflineComplianceRisk } from './DeviceHealthRenderer.js';
 import { CommandMonitor } from '@components/CommandMonitor.js';
 
 class DevicesPage extends window.Component {
     constructor(props) {
         super(props);
+        const cached = this._readDeviceCache();
+        const cachedDevices = cached?.devices || [];
+        const cachedSummaries = cached?.deviceSummaries || {};
         this.state = {
-            devices: [],
-            filteredDevices: [],
-            loading: true,
+            devices: cachedDevices,
+            filteredDevices: cachedDevices,
+            loading: cachedDevices.length === 0,
             error: null,
             searchQuery: '',
             cveFilterSeverity: '',
@@ -48,11 +51,16 @@ class DevicesPage extends window.Component {
             telemetryLoading: false,
             telemetryError: null,
             telemetryDetail: null,
-            filteredDevices: [],
             enrichedScores: {},
-            deviceSummaries: {},
+            deviceSummaries: cachedSummaries,
             knownExploits: new Set(),
-            deviceFilters: { license: 'active', connection: 'all', spec: 'all' },
+            deviceFilters: { license: [], connection: 'all', spec: 'all' },
+            page: 1,
+            pageSize: 25,
+            contextEditorDeviceId: null,
+            contextDraft: { assignedLabelsText: '', businessImpact: 'UNCLASSIFIED' },
+            contextSaving: false,
+            contextError: null,
             installers: { X64: {}, ARM64: {}, ENGINE: {} },
             manifestError: null,
             refreshingManifest: false,
@@ -69,10 +77,9 @@ class DevicesPage extends window.Component {
             highlightedCve: null,
             showRiskExplanationModal: false,
             riskExplanationDevice: null,
-            isRefreshingInBackground: false,
-            summarySignalState: 'idle',
+            isRefreshingInBackground: cachedDevices.length > 0 && cached?.stale,
+            summarySignalState: Object.keys(cachedSummaries).length > 0 ? 'cached' : 'idle',
             summarySignalMessage: null,
-            filteredDevices: [],
             selectedDevices: []
         };
         this.KNOWN_EXPLOITS_CACHE = { data: null, loadedAt: null, TTL_HOURS: 24 };
@@ -86,14 +93,59 @@ class DevicesPage extends window.Component {
         this.cvesChartEl = null;
 
         this.summaryRefreshInFlight = false;
+        this._isMounted = false;
+        this._loadFrame = null;
     }
 
     componentDidMount() {
+        this._isMounted = true;
         this.orgChangeUnsubscribe = orgContext.onChange(() => this.loadDevices(true));
         this._rewindUnsub = rewindContext.onChange(() => this.loadDevices(true));
         this.loadInstallerConfig();
-        this.loadDevices();
+        this._loadFrame = requestAnimationFrame(() => {
+            this._loadFrame = null;
+            if (this._isMounted && this._isActiveRoute()) {
+                this.loadDevices();
+            }
+        });
         this.loadKnownExploitsAsync();
+    }
+
+    _isActiveRoute() {
+        return (window.location.hash || '').startsWith('#!/devices');
+    }
+
+    _deviceCacheKey() {
+        const org = orgContext.getCurrentOrg();
+        const orgId = org?.orgId;
+        if (!orgId) return null;
+
+        const effectiveDate = api.getEffectiveDate?.() || 'current';
+        return `devices_page_${orgId}_${effectiveDate}`;
+    }
+
+    _readDeviceCache(ttlMin = 5) {
+        try {
+            const key = this._deviceCacheKey();
+            if (!key) return null;
+            const raw = localStorage.getItem(key);
+            if (!raw) return null;
+            const { devices, deviceSummaries, timestamp } = JSON.parse(raw);
+            const stale = Date.now() - timestamp >= ttlMin * 60 * 1000;
+            return { devices: devices || [], deviceSummaries: deviceSummaries || {}, stale };
+        } catch {
+            return null;
+        }
+    }
+
+    _writeDeviceCache(devices, deviceSummaries) {
+        try {
+            const key = this._deviceCacheKey();
+            if (!key) return;
+            localStorage.setItem(key, JSON.stringify({ devices, deviceSummaries, timestamp: Date.now() }));
+        } catch {
+            // Ignore storage quota failures; the live API remains the source of truth.
+        }
     }
 
     componentDidUpdate(prevProps, prevState) {
@@ -128,7 +180,7 @@ class DevicesPage extends window.Component {
             this.destroyApexCharts();
         }
 
-        const filteredNow = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
+        const filteredNow = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores, this.state.deviceSummaries);
         const prevIds = (prevState.filteredDevices || []).map(d => d.id).join('|');
         const currIds = filteredNow.map(d => d.id).join('|');
         const summariesChanged = prevState.deviceSummaries !== this.state.deviceSummaries || prevState.enrichedScores !== this.state.enrichedScores;
@@ -151,7 +203,7 @@ class DevicesPage extends window.Component {
     }
 
     toggleSelectAll() {
-        const filtered = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
+        const filtered = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores, this.state.deviceSummaries);
         const allSelected = filtered.length > 0 && filtered.every(d => this.state.selectedDevices.includes(d.id));
         this.setState({ selectedDevices: allSelected ? [] : filtered.map(d => d.id) });
     }
@@ -289,7 +341,7 @@ class DevicesPage extends window.Component {
         const context = this.normalizeDeviceContext(device.deviceContext);
         const labels = context.assignedLabels || [];
         const hasImpact = context.businessImpact && context.businessImpact !== 'UNCLASSIFIED';
-        if (!labels.length && !hasImpact) return null;
+        const readOnly = orgContext.isReadOnly?.() || rewindContext.isActive?.();
 
         const impactClass = context.businessImpact === 'HBI'
             ? 'bg-danger-lt text-danger'
@@ -302,7 +354,135 @@ class DevicesPage extends window.Component {
                 ${hasImpact ? html`<span class=${`badge badge-sm ${impactClass}`}>${context.businessImpact}</span>` : ''}
                 ${labels.slice(0, 3).map(label => html`<span class="badge badge-sm bg-azure-lt text-azure">${label}</span>`)}
                 ${labels.length > 3 ? html`<span class="badge badge-sm bg-secondary-lt text-secondary">+${labels.length - 3}</span>` : ''}
+                <button type="button"
+                        class="badge badge-sm bg-secondary-lt text-secondary border-0"
+                        data-mutates-state="true"
+                        disabled=${readOnly || undefined}
+                        title=${readOnly ? 'Read-only mode' : 'Edit device tags and business impact'}
+                        onClick=${() => this.openDeviceContextEditor(device)}>
+                    ${labels.length || hasImpact ? 'Edit context' : '+ tags'}
+                </button>
             </div>
+        `;
+    }
+
+    parseAssignedLabels(value) {
+        return String(value || '')
+            .split(',')
+            .map(label => label.trim())
+            .filter(Boolean)
+            .slice(0, 12);
+    }
+
+    openDeviceContextEditor(device) {
+        if (!device || orgContext.isReadOnly?.() || rewindContext.isActive?.()) return;
+        const context = this.normalizeDeviceContext(device.deviceContext);
+        this.setState({
+            contextEditorDeviceId: device.id,
+            contextDraft: {
+                assignedLabelsText: context.assignedLabels.join(', '),
+                businessImpact: context.businessImpact || 'UNCLASSIFIED'
+            },
+            contextError: null
+        });
+    }
+
+    closeDeviceContextEditor() {
+        this.setState({ contextEditorDeviceId: null, contextError: null, contextSaving: false });
+    }
+
+    async saveDeviceContextDraft() {
+        const org = orgContext.getCurrentOrg();
+        const deviceId = this.state.contextEditorDeviceId;
+        if (!org?.orgId || !deviceId) return;
+
+        const draft = this.state.contextDraft || {};
+        const payload = {
+            assignedLabels: this.parseAssignedLabels(draft.assignedLabelsText),
+            businessImpact: draft.businessImpact || 'UNCLASSIFIED'
+        };
+
+        this.setState({ contextSaving: true, contextError: null });
+        try {
+            const response = await api.updateDeviceContext(org.orgId, deviceId, payload);
+            if (!response?.success) throw new Error(response?.message || 'Device context update failed');
+            const context = this.normalizeDeviceContext(response.data || payload);
+            this.setState(prev => ({
+                devices: (prev.devices || []).map(device => device.id === deviceId ? { ...device, deviceContext: context } : device),
+                filteredDevices: (prev.filteredDevices || []).map(device => device.id === deviceId ? { ...device, deviceContext: context } : device),
+                contextEditorDeviceId: null,
+                contextSaving: false,
+                contextError: null
+            }));
+        } catch (error) {
+            this.setState({ contextSaving: false, contextError: error.message || 'Device context update failed' });
+        }
+    }
+
+    _paginateRows(rows) {
+        const pageSize = Number(this.state.pageSize) || 25;
+        const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+        const page = Math.min(Math.max(1, Number(this.state.page) || 1), totalPages);
+        const start = (page - 1) * pageSize;
+        return { page, pageSize, rows: rows.slice(start, start + pageSize), total: rows.length };
+    }
+
+    renderDeviceContextEditor() {
+        const { html } = window;
+        const deviceId = this.state.contextEditorDeviceId;
+        if (!deviceId) return null;
+
+        const device = (this.state.devices || []).find(item => item.id === deviceId);
+        const draft = this.state.contextDraft || {};
+
+        return html`
+            <div class="modal modal-blur fade show" style="display:block; z-index:1055;" tabindex="-1" role="dialog" aria-modal="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content" style="z-index:1056;">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit device context</h5>
+                            <button type="button" class="btn-close" onClick=${() => this.closeDeviceContextEditor()} aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <div class="text-muted small">Device</div>
+                                <div class="fw-semibold">${device?.name || deviceId}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Business impact</label>
+                                <select class="form-select"
+                                        value=${draft.businessImpact || 'UNCLASSIFIED'}
+                                        onChange=${event => this.setState({ contextDraft: { ...draft, businessImpact: event.target.value } })}>
+                                    <option value="UNCLASSIFIED">Unclassified</option>
+                                    <option value="HBI">High business impact</option>
+                                    <option value="MBI">Medium business impact</option>
+                                    <option value="LBI">Low business impact</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Tags</label>
+                                <input class="form-control"
+                                       value=${draft.assignedLabelsText || ''}
+                                       placeholder="executive, public-facing, finance"
+                                       onInput=${event => this.setState({ contextDraft: { ...draft, assignedLabelsText: event.target.value } })} />
+                                <div class="form-hint">Separate tags with commas. Tags appear directly on the Fleet row.</div>
+                            </div>
+                            ${this.state.contextError ? html`<div class="alert alert-danger py-2">${this.state.contextError}</div>` : ''}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" onClick=${() => this.closeDeviceContextEditor()}>Cancel</button>
+                            <button type="button"
+                                    class="btn btn-primary"
+                                    data-mutates-state="true"
+                                    disabled=${this.state.contextSaving || undefined}
+                                    onClick=${() => this.saveDeviceContextDraft()}>
+                                ${this.state.contextSaving ? html`<span class="spinner-border spinner-border-sm me-2"></span>Saving...` : 'Save context'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-backdrop fade show" style="z-index:1054;"></div>
         `;
     }
 
@@ -329,6 +509,11 @@ class DevicesPage extends window.Component {
     }
 
     componentWillUnmount() {
+        this._isMounted = false;
+        if (this._loadFrame !== null) {
+            cancelAnimationFrame(this._loadFrame);
+            this._loadFrame = null;
+        }
         if (this.orgChangeUnsubscribe) this.orgChangeUnsubscribe();
         if (this._rewindUnsub) this._rewindUnsub();
         this.destroyApexCharts();
@@ -905,19 +1090,24 @@ class DevicesPage extends window.Component {
             const kevSet = await getKevSet();
             this.KNOWN_EXPLOITS_CACHE.data = kevSet;
             this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
-            this.setState({ knownExploits: kevSet });
+            if (this._isMounted && this._isActiveRoute()) {
+                this.setState({ knownExploits: kevSet });
+            }
         } catch (error) {
             console.warn('[DevicesPage] Could not load known exploits:', error.message);
             const empty = new Set();
             this.KNOWN_EXPLOITS_CACHE.data = empty;
             this.KNOWN_EXPLOITS_CACHE.loadedAt = Date.now();
-            this.setState({ knownExploits: empty });
+            if (this._isMounted && this._isActiveRoute()) {
+                this.setState({ knownExploits: empty });
+            }
         }
     }
 
     async loadInstallerConfig() {
         try {
             const manifestConfig = await getInstallerConfig();
+            if (!this._isMounted || !this._isActiveRoute()) return;
             if (manifestConfig) {
                 this.setState({ installers: manifestConfig, manifestError: null });
                 console.log('[Devices] Loaded installer config from manifest cache:', manifestConfig);
@@ -926,6 +1116,7 @@ class DevicesPage extends window.Component {
                 this.setState({ installers: config.INSTALLERS || this.state.installers, manifestError: null });
             }
         } catch (error) {
+            if (!this._isMounted || !this._isActiveRoute()) return;
             console.error('[Devices] Failed to load manifest config, using fallback:', error);
             this.setState({ installers: config.INSTALLERS || this.state.installers, manifestError: 'Installer metadata is temporarily unavailable. Using built-in download configuration.' });
         }
@@ -1086,13 +1277,6 @@ class DevicesPage extends window.Component {
         }
     }
 
-    componentWillUnmount() {
-        // Unsubscribe from org changes
-        if (this.orgUnsubscribe) {
-            this.orgUnsubscribe();
-        }
-    }
-
     async enrichDeviceScoresAsync(devices, summaries) {
         // Enrich risk scores in background
         try {
@@ -1114,6 +1298,7 @@ class DevicesPage extends window.Component {
     }
 
     async loadDevices(forceRefresh = false) {
+        if (!this._isMounted || !this._isActiveRoute()) return;
         try {
             // Get current org from context
             const currentOrg = orgContext.getCurrentOrg();
@@ -1127,6 +1312,23 @@ class DevicesPage extends window.Component {
                 return;
             }
 
+            if (!forceRefresh) {
+                const cached = this._readDeviceCache();
+                if (cached?.devices?.length) {
+                    this.setState({
+                        devices: cached.devices,
+                        filteredDevices: DeviceFilterService.getFilteredDevices(cached.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores, cached.deviceSummaries || this.state.deviceSummaries),
+                        deviceSummaries: cached.deviceSummaries || {},
+                        loading: false,
+                        isRefreshingInBackground: cached.stale,
+                        summarySignalState: Object.keys(cached.deviceSummaries || {}).length > 0 ? 'cached' : 'pending',
+                        summarySignalMessage: null,
+                        error: null
+                    });
+                    if (!cached.stale) return;
+                }
+            }
+
             if (!this.state.devices || this.state.devices.length === 0) {
                 this.setState({ loading: true, error: null });
             } else {
@@ -1135,6 +1337,7 @@ class DevicesPage extends window.Component {
 
             // Step 1: Fast load with cached-summary (< 12s instead of 35s)
             const response = await api.getDevices(currentOrg.orgId, { include: 'cached-summary,context' }, { skipCache: true });
+            if (!this._isMounted || !this._isActiveRoute()) return;
             if (!response.success) {
                 throw new Error(response.message || response.error || 'Failed to load devices');
             }
@@ -1216,6 +1419,7 @@ class DevicesPage extends window.Component {
                 }
                 return mapped;
             });
+            this._writeDeviceCache(devices, summariesFromApi);
 
             this.setState(prev => {
                 const updatedSelected = prev.selectedDevice ? devices.find(d => d.id === prev.selectedDevice.id) : null;
@@ -1230,7 +1434,8 @@ class DevicesPage extends window.Component {
                     selectedDevice: updatedSelected || prev.selectedDevice
                 };
             }, () => {
-                const filteredNow = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
+                if (!this._isMounted || !this._isActiveRoute()) return;
+                const filteredNow = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores, this.state.deviceSummaries);
                 this.setState({ filteredDevices: filteredNow }, () => this.renderTableApexCharts());
             });
             
@@ -1252,12 +1457,14 @@ class DevicesPage extends window.Component {
                 this.enrichDeviceScoresAsync(devices, allSummaries);
             }
         } catch (error) {
+            if (!this._isMounted || !this._isActiveRoute()) return;
             console.error('[DevicesPage] Error loading devices:', error);
             this.setState({ error: error.message, loading: false, isRefreshingInBackground: false });
         }
     }
 
     async loadSummariesInBackground(orgId, devices) {
+        if (!this._isMounted || !this._isActiveRoute()) return;
         if (this.summaryRefreshInFlight) {
             return;
         }
@@ -1269,12 +1476,14 @@ class DevicesPage extends window.Component {
             
             // Wait a bit to let the UI settle first
             await new Promise(resolve => setTimeout(resolve, 500));
+            if (!this._isMounted || !this._isActiveRoute()) return;
             
             // Fetch fresh summaries (skip cached, get real-time data)
             const response = await Promise.race([
                 api.getDevices(orgId, { include: 'summary,context' }, { skipCache: true, skipDegradedHandling: true }),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Background summary fetch timed out')), 12000))
             ]);
+            if (!this._isMounted || !this._isActiveRoute()) return;
             
             if (!response.success || !response.data?.devices) {
                 console.warn('[DevicesPage] Background summary fetch failed');
@@ -1308,6 +1517,7 @@ class DevicesPage extends window.Component {
                 summarySignalState: 'ready',
                 summarySignalMessage: null
             }), () => {
+                if (!this._isMounted || !this._isActiveRoute()) return;
                 // Re-render charts with new data
                 this.renderTableApexCharts();
                 // Re-enrich scores with fresh data
@@ -1316,6 +1526,7 @@ class DevicesPage extends window.Component {
 
             console.log(`[DevicesPage] ✅ Background fetch complete: ${Object.keys(freshSummaries).length} summaries loaded`);
         } catch (err) {
+            if (!this._isMounted || !this._isActiveRoute()) return;
             console.warn('[DevicesPage] Background summary fetch error:', err);
             this.setState({
                 summarySignalState: 'stale',
@@ -1323,7 +1534,9 @@ class DevicesPage extends window.Component {
             });
         } finally {
             this.summaryRefreshInFlight = false;
-            this.setState({ isRefreshingInBackground: false });
+            if (this._isMounted && this._isActiveRoute()) {
+                this.setState({ isRefreshingInBackground: false });
+            }
         }
     }
 
@@ -1348,20 +1561,6 @@ class DevicesPage extends window.Component {
         // Active or disabled devices can be blocked. Already-blocked / deleted hide the option.
         const s = (state || '').toLowerCase();
         return s === 'active' || s === 'enabled' || s === 'inactive' || s === 'disabled';
-    }
-
-    /**
-     * Reason a remote-agent command (Trigger Scan, Trigger Update, Collect Logs)
-     * cannot be sent to a device, given its lifecycle state. Returns null when the
-     * command is honored, or a short human-readable reason otherwise so the menu
-     * item can be disabled with an explanatory tooltip rather than hidden.
-     */
-    getAgentCommandBlockReason(state) {
-        const s = (state || '').toLowerCase();
-        if (s === 'disabled') return 'Device is disabled — agent is muted and will not run remote commands. Enable the device first.';
-        if (s === 'blocked')  return 'Device is blocked — agent has removed itself. Enable the device to allow remote commands.';
-        if (s === 'deleted')  return 'Device has been deleted — no agent is available to receive commands.';
-        return null;
     }
 
     /**
@@ -1549,13 +1748,14 @@ class DevicesPage extends window.Component {
     }
 
     setSearchQuery(q) {
-        this.setState({ searchQuery: q });
+        this.setState({ searchQuery: q, page: 1 });
     }
 
     setSortField(field) {
         this.setState(prev => ({
             sortField: field,
-            sortAsc: prev.sortField === field ? !prev.sortAsc : field === 'name'
+            sortAsc: prev.sortField === field ? !prev.sortAsc : field === 'name',
+            page: 1
         }));
     }
 
@@ -1790,6 +1990,7 @@ class DevicesPage extends window.Component {
             total: devices.length,
             active: 0,
             enabled: 0,
+            disabled: 0,
             blocked: 0,
             deleted: 0,
             online: 0,
@@ -1800,6 +2001,7 @@ class DevicesPage extends window.Component {
             const s = (d.state || '').toLowerCase();
             if (s === 'active') stats.active++;
             if (s === 'enabled') stats.enabled++;
+            if (s === 'disabled') stats.disabled++;
             if (s === 'blocked') stats.blocked++;
             if (s === 'deleted') stats.deleted++;
             if (DeviceStatsService.isDeviceInactive(d)) stats.offline++; else stats.online++;
@@ -1813,8 +2015,110 @@ class DevicesPage extends window.Component {
             deviceFilters: {
                 ...prev.deviceFilters,
                 [key]: value
-            }
+            },
+            page: 1
         }));
+    }
+
+    getDeviceStateFilterValues() {
+        const filter = this.state.deviceFilters?.license;
+        if (Array.isArray(filter)) {
+            return filter.map(value => String(value || '').toLowerCase()).filter(value => value && value !== 'all');
+        }
+        const value = String(filter || 'all').toLowerCase();
+        return value === 'all' ? [] : [value];
+    }
+
+    toggleDeviceStateFilter(value) {
+        const normalized = String(value || '').toLowerCase();
+        if (!normalized || normalized === 'all') {
+            this.setDeviceFilter('license', []);
+            return;
+        }
+
+        this.setState(prev => {
+            const current = Array.isArray(prev.deviceFilters?.license)
+                ? prev.deviceFilters.license.map(item => String(item || '').toLowerCase()).filter(item => item && item !== 'all')
+                : String(prev.deviceFilters?.license || 'all').toLowerCase() === 'all'
+                    ? []
+                    : [String(prev.deviceFilters?.license || '').toLowerCase()].filter(Boolean);
+            const next = current.includes(normalized)
+                ? current.filter(item => item !== normalized)
+                : [...current, normalized];
+            return {
+                deviceFilters: {
+                    ...prev.deviceFilters,
+                    license: next
+                },
+                page: 1
+            };
+        });
+    }
+
+    clearDeviceFilters() {
+        this.setState(prev => ({
+            deviceFilters: {
+                ...prev.deviceFilters,
+                connection: 'all',
+                spec: 'all',
+                license: []
+            },
+            page: 1
+        }));
+    }
+
+    clearFleetViewFilters() {
+        this.setState(prev => ({
+            searchQuery: '',
+            deviceFilters: {
+                ...prev.deviceFilters,
+                connection: 'all',
+                spec: 'all',
+                license: []
+            },
+            page: 1
+        }));
+    }
+
+    getActiveFleetFilterLabels() {
+        const labels = [];
+        const query = (this.state.searchQuery || '').trim();
+        if (query) labels.push(`Search: ${query}`);
+
+        const connectionLabels = {
+            recent: 'Recent <24h',
+            'recent-online': 'Online <1h',
+            'recent-offline': 'Away 1-24h',
+            stale: 'Stale 1-3d',
+            dormant: 'Dormant 3-7d',
+            ghosted: 'Ghosted >7d',
+            error: 'Error'
+        };
+        const connection = this.state.deviceFilters?.connection || 'all';
+        if (connection !== 'all') labels.push(connectionLabels[connection] || connection);
+
+        const spec = this.state.deviceFilters?.spec || 'all';
+        if (spec !== 'all') labels.push(spec === 'arm64' ? 'ARM64' : spec.toUpperCase());
+
+        const stateLabels = this.getDeviceStateFilterValues().map(value => this.getDeviceStateMeta(value).label);
+        return labels.concat(stateLabels);
+    }
+
+    getDeviceStateMeta(state) {
+        const normalized = String(state || 'unknown').toLowerCase();
+        const map = {
+            active:   { label: 'Active',   className: 'bg-success-lt text-success', title: 'Active device; full telemetry is allowed.' },
+            enabled:  { label: 'Enabled',  className: 'bg-primary-lt text-primary', title: 'Enabled device; ready for telemetry.' },
+            disabled: { label: 'Disabled', className: 'bg-warning-lt text-warning', title: 'Disabled device; telemetry or actions are limited.' },
+            blocked:  { label: 'Blocked',  className: 'bg-danger text-white',       title: 'Blocked device; telemetry and commands are stopped.' },
+            deleted:  { label: 'Deleted',  className: 'bg-secondary text-white',    title: 'Deleted device record.' }
+        };
+        return map[normalized] || { label: normalized ? normalized.replace(/(^|[-_\s])\w/g, match => match.toUpperCase()) : 'Unknown', className: 'bg-secondary-lt text-secondary', title: 'Device lifecycle state is unknown.' };
+    }
+
+    renderDeviceStateBadge(device) {
+        const meta = this.getDeviceStateMeta(device?.state);
+        return html`<span class=${`badge ${meta.className}`} title=${meta.title}>${meta.label}</span>`;
     }
 
     getFilteredDevices() {
@@ -1830,8 +2134,7 @@ class DevicesPage extends window.Component {
         };
 
         const matchesLicense = (device) => {
-            if (deviceFilters.license === 'all') return true;
-            return (device.state || '').toLowerCase() === deviceFilters.license;
+            return DeviceFilterService.matchesLicense(device, deviceFilters.license);
         };
 
         const matchesConnection = (device) => {
@@ -2415,7 +2718,7 @@ class DevicesPage extends window.Component {
                                     </span>
                                     ${healthScore === null
                                         ? html`<span class="badge bg-secondary-lt text-secondary">Signal pending</span>`
-                                        : html`<span class="badge bg-${healthColor}-lt text-${healthColor}">Grade ${healthGrade} · ${healthScore}%</span>`}
+                                        : html`<span class="badge bg-${healthColor}-lt text-${healthColor}" title="Risk health score derived from average risk across the fleet (100 - avg risk).">Grade ${healthGrade} \u00b7 ${healthScore}/100</span>`}
                                     ${totalApps > 0 ? html`<span class="text-muted small">${totalApps.toLocaleString()} apps</span>` : ''}
                                 </div>
                             </div>
@@ -2491,10 +2794,65 @@ class DevicesPage extends window.Component {
         const { html } = window;
         const { loading, devices, error, manifestError } = this.state;
 
-        const filteredDevices = (this.state.filteredDevices && this.state.filteredDevices.length > 0) ? this.state.filteredDevices : DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores);
-        const stats = DeviceStatsService.computeDeviceStats(filteredDevices);
+        const filteredDevices = DeviceFilterService.getFilteredDevices(this.state.devices, this.state.searchQuery, this.state.deviceFilters, this.state.sortField, this.state.sortAsc, this.state.enrichedScores, this.state.deviceSummaries);
+        const pagedDevices = this._paginateRows(filteredDevices);
         const allStats = DeviceStatsService.computeDeviceStats(devices || []);
         const securityStats = DeviceStatsService.computeSecurityStats(devices || [], this.state.enrichedScores, this.state.deviceSummaries);
+        const actionRequiredCount = (securityStats.criticalRiskCount || 0) + (securityStats.highRiskCount || 0);
+        const unreachableCount = (() => {
+            let count = 0;
+            for (const device of (devices || [])) {
+                const connectivity = DeviceFilterService.getConnectivity(device);
+                if (connectivity === 'stale' || connectivity === 'dormant' || connectivity === 'ghosted' || connectivity === 'error') count++;
+            }
+            return count;
+        })();
+        const outdatedCount = (this.state.devices || []).filter(d => this.isAgentUpdateRequired(d)).length;
+        const hasOutdated = outdatedCount > 0;
+        const selectedStateFilters = this.getDeviceStateFilterValues();
+        const stateFilterOptions = [
+            { value: 'active', label: 'Active', count: allStats.active, className: 'bg-success-lt text-success', selectedClassName: 'bg-success text-white' },
+            { value: 'enabled', label: 'Enabled', count: allStats.enabled, className: 'bg-primary-lt text-primary', selectedClassName: 'bg-primary text-white' },
+            { value: 'disabled', label: 'Disabled', count: allStats.disabled, className: 'bg-warning-lt text-warning', selectedClassName: 'bg-warning text-white' },
+            { value: 'blocked', label: 'Blocked', count: allStats.blocked, className: 'bg-danger-lt text-danger', selectedClassName: 'bg-danger text-white' },
+            { value: 'deleted', label: 'Deleted', count: allStats.deleted, className: 'bg-secondary-lt text-secondary', selectedClassName: 'bg-secondary text-white' }
+        ];
+        const activeFilterCount = [
+            (this.state.searchQuery || '').trim().length > 0,
+            this.state.deviceFilters.connection !== 'all',
+            this.state.deviceFilters.spec !== 'all'
+        ].filter(Boolean).length + selectedStateFilters.length;
+        const activeFilterLabels = this.getActiveFleetFilterLabels();
+        const hasActiveFleetViewFilters = activeFilterLabels.length > 0;
+        const renderFleetToolbar = () => html`
+            <div class="card-header flex-column align-items-stretch gap-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="input-icon flex-fill" style="min-width:260px;max-width:560px;">
+                        <span class="input-icon-addon">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
+                        </span>
+                        <input class="form-control" type="text" aria-label="Search fleet" placeholder="Search device name, OS, tag, license..." value=${this.state.searchQuery} onInput=${(e) => this.setSearchQuery(e.target.value)} />
+                    </div>
+                    <button class="btn btn-outline-secondary d-flex align-items-center gap-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#deviceFiltersDrawer" aria-controls="deviceFiltersDrawer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z"/></svg>
+                        Filters
+                        ${activeFilterCount > 0
+                            ? html`<span class="badge bg-primary ms-1">${activeFilterCount}</span>`
+                            : ''}
+                    </button>
+                    <div class="ms-auto text-muted small">
+                        Showing ${pagedDevices.total === 0 ? 0 : ((pagedDevices.page - 1) * pagedDevices.pageSize) + 1}-${Math.min(pagedDevices.total, pagedDevices.page * pagedDevices.pageSize)} of ${pagedDevices.total}${hasActiveFleetViewFilters ? html` <span class="text-muted">filtered</span>` : ''} devices${hasActiveFleetViewFilters ? html` <span class="text-muted">(${(devices || []).length} total)</span>` : ''}
+                    </div>
+                </div>
+                ${hasActiveFleetViewFilters ? html`
+                    <div class="fleet-view-chips d-flex align-items-center gap-2 flex-wrap">
+                        <span class="text-muted small">View</span>
+                        ${activeFilterLabels.map(label => html`<span class="badge bg-blue-lt text-blue">${label}</span>`)}
+                        <button type="button" class="btn btn-sm btn-ghost-secondary" onClick=${() => this.clearFleetViewFilters()}>Clear view</button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
 
         return html`
             ${manifestError ? html`<div class="alert alert-warning mt-2">${manifestError}</div>` : null}
@@ -2502,10 +2860,24 @@ class DevicesPage extends window.Component {
             <!-- Page Header -->
 <div class="row align-items-center mb-0 mt-2 border-bottom pb-2">
     <div class="col">
+        <div class="text-uppercase small text-muted fw-medium" style="letter-spacing:0.06em;">
+            Operations \u00b7 Fleet
+        </div>
         <h2 class="page-title mb-0 d-flex align-items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 5m0 1a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1z"/><path d="M7 20h10"/><path d="M9 16v4"/><path d="M15 16v4"/></svg>
-            Devices
+            Fleet
         </h2>
+        ${(() => {
+            const total = (allStats && allStats.total) || (devices || []).length;
+            if (!total) return '';
+            const parts = [];
+            parts.push(html`<span><strong>${total}</strong> device${total === 1 ? '' : 's'} under watch</span>`);
+            if (actionRequiredCount > 0) parts.push(html`<span class="text-warning"><strong>${actionRequiredCount}</strong> require attention</span>`);
+            if (unreachableCount > 0) parts.push(html`<span class="text-orange"><strong>${unreachableCount}</strong> unreachable</span>`);
+            return html`<div class="text-muted small mt-1 d-flex flex-wrap gap-2">
+                ${parts.map((p, i) => html`${i > 0 ? html`<span class="text-muted">\u00b7</span>` : ''}${p}`)}
+            </div>`;
+        })()}
     </div>
     <div class="col-auto ms-auto d-print-none d-flex align-items-center gap-2">
         ${window.FreshnessBadge ? html`<${window.FreshnessBadge} freshness=${this.state.freshness} refreshing=${this.state.isRefreshingInBackground} />` : (this.state.isRefreshingInBackground ? html`
@@ -2514,31 +2886,37 @@ class DevicesPage extends window.Component {
                 Refreshing...
             </span>
         ` : '')}
-                <div class="d-flex gap-2">
+                <div class="btn-list justify-content-end">
                     ${!orgContext.isReadOnly() ? html`
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-mutates-state="true" onclick=${() => this.queueOrgCommand('TriggerScan')} title="Trigger scan on all devices">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
-                            Scan All
-                        </button>
-                        ${(() => {
-                            const outdatedCount = (this.state.devices || []).filter(d => this.isAgentUpdateRequired(d)).length;
-                            const hasOutdated = outdatedCount > 0;
-                            return html`<button type="button" class="btn btn-sm ${hasOutdated ? 'btn-warning update-glow' : 'btn-outline-secondary'} d-inline-flex align-items-center gap-1" data-mutates-state="true" onclick=${() => this.queueOrgCommand('CheckUpdates')} title=${hasOutdated ? `${outdatedCount} device${outdatedCount === 1 ? '' : 's'} running outdated agent — push update now` : 'Check for updates on all devices'}>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
-                                Check Updates
+                        <div class="dropdown">
+                            <button type="button" class="btn btn-sm ${hasOutdated ? 'btn-warning update-glow' : 'btn-outline-secondary'} dropdown-toggle" data-bs-toggle="dropdown" aria-label="Fleet commands">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
+                                Fleet Commands
                                 ${hasOutdated ? html`<span class="badge bg-white text-warning ms-1" style="font-size:10px;">${outdatedCount}</span>` : ''}
-                            </button>`;
-                        })()}
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-mutates-state="true" onclick=${() => this.queueOrgCommand('RefreshInventory')} title="Refresh software inventory on all devices">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74" /><path d="M3 4v4h4" /></svg>
-                            Refresh Inventory
-                        </button>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end fleet-command-menu">
+                                <button type="button" class="dropdown-item" data-mutates-state="true" onclick=${() => this.queueOrgCommand('TriggerScan')}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7h14" /><path d="M5 12h14" /><path d="M5 17h14" /></svg>
+                                    Scan all devices
+                                </button>
+                                <button type="button" class=${`dropdown-item ${hasOutdated ? 'bg-warning-lt' : ''}`.trim()} data-mutates-state="true" onclick=${() => this.queueOrgCommand('CheckUpdates')}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                                    Check agent updates
+                                    ${hasOutdated ? html`<span class="badge bg-danger ms-auto">${outdatedCount}</span>` : ''}
+                                </button>
+                                <button type="button" class="dropdown-item" data-mutates-state="true" onclick=${() => this.queueOrgCommand('RefreshInventory')}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74" /><path d="M3 4v4h4" /></svg>
+                                    Refresh software inventory
+                                </button>
+                            </div>
+                        </div>
                         <div class="vr mx-1"></div>
                     ` : ''}
                     <button 
                         class="btn btn-sm btn-outline-primary ${this.state.refreshingManifest ? 'disabled' : ''}" 
                         onclick=${() => this.reloadPageData()}
-                        disabled=${this.state.refreshingManifest}>
+                        disabled=${this.state.refreshingManifest}
+                        title="Reload Fleet data and installer metadata">
                         ${this.state.refreshingManifest ? 
                             window.html`<span class="spinner-border spinner-border-sm me-2"></span>Reloading...` : 
                             window.html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Reload`
@@ -2568,24 +2946,9 @@ class DevicesPage extends window.Component {
             ${this.renderSecurityDashboard(securityStats)}
 
             <!-- Devices List -->
-                            <div class="d-flex gap-2 mb-3 align-items-center">
-                                <div class="input-icon flex-grow-1">
-                                    <span class="input-icon-addon">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><line x1="21" y1="21" x2="15" y2="15" /></svg>
-                                    </span>
-                                    <input class="form-control" type="text" placeholder="Search by device, CPU, OS…" value=${this.state.searchQuery} onInput=${(e) => this.setSearchQuery(e.target.value)} />
-                                </div>
-                                <button class="btn btn-outline-secondary d-flex align-items-center gap-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#deviceFiltersDrawer" aria-controls="deviceFiltersDrawer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z"/></svg>
-                                    Filters
-                                    ${(this.state.deviceFilters.connection !== 'all' || this.state.deviceFilters.spec !== 'all' || this.state.deviceFilters.license !== 'all')
-                                        ? html`<span class="badge bg-primary ms-1">${[this.state.deviceFilters.connection !== 'all', this.state.deviceFilters.spec !== 'all', this.state.deviceFilters.license !== 'all'].filter(Boolean).length}</span>`
-                                        : ''}
-                                </button>
-                            </div>
 
                             <!-- Offcanvas Filter Drawer -->
-                            <div class="offcanvas offcanvas-end" tabindex="-1" id="deviceFiltersDrawer" aria-labelledby="deviceFiltersDrawerLabel">
+                            <div class="offcanvas offcanvas-end" tabindex="-1" id="deviceFiltersDrawer" aria-hidden="true" aria-labelledby="deviceFiltersDrawerLabel">
                                 <div class="offcanvas-header">
                                     <h5 class="offcanvas-title" id="deviceFiltersDrawerLabel">Filter Devices</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -2614,36 +2977,35 @@ class DevicesPage extends window.Component {
                                     </div>
                                     <div class="mb-4">
                                         <label class="form-label">Device State</label>
+                                        <div class="text-muted small mb-2">Select one or more states. Leave all unchecked to show every state.</div>
                                         <div class="d-grid gap-2">
-                                            <span class="badge w-100 py-2 ${this.state.deviceFilters.license === 'active' ? 'bg-green text-white' : 'bg-green-lt text-green'}" style="cursor:pointer;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'active' ? 'all' : 'active')}>
-                                                Active (${allStats.active})
-                                            </span>
-                                            <span class="badge w-100 py-2 ${this.state.deviceFilters.license === 'enabled' ? 'bg-blue text-white' : 'bg-blue-lt text-blue'}" style="cursor:pointer;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'enabled' ? 'all' : 'enabled')}>
-                                                Enabled (${allStats.enabled})
-                                            </span>
-                                            <span class="badge w-100 py-2 ${this.state.deviceFilters.license === 'blocked' ? 'bg-red text-white' : 'bg-red-lt text-danger'}" style="cursor:pointer;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'blocked' ? 'all' : 'blocked')}>
-                                                Blocked (${allStats.blocked})
-                                            </span>
-                                            <span class="badge w-100 py-2 ${this.state.deviceFilters.license === 'deleted' ? 'bg-secondary text-white' : 'bg-secondary-lt text-secondary'}" style="cursor:pointer;" onclick=${() => this.setDeviceFilter('license', this.state.deviceFilters.license === 'deleted' ? 'all' : 'deleted')}>
-                                                Deleted (${allStats.deleted})
-                                            </span>
+                                            ${stateFilterOptions.map(option => {
+                                                const checked = selectedStateFilters.includes(option.value);
+                                                const inputId = `device-state-filter-${option.value}`;
+                                                return html`
+                                                    <label class="form-check d-flex align-items-center justify-content-between border rounded px-3 py-2 m-0" for=${inputId}>
+                                                        <span class="d-flex align-items-center gap-2">
+                                                            <input id=${inputId}
+                                                                   class="form-check-input m-0"
+                                                                   type="checkbox"
+                                                                   checked=${checked}
+                                                                   onChange=${() => this.toggleDeviceStateFilter(option.value)} />
+                                                            <span>${option.label}</span>
+                                                        </span>
+                                                        <span class=${`badge ${checked ? option.selectedClassName : option.className}`}>${option.count}</span>
+                                                    </label>
+                                                `;
+                                            })}
                                         </div>
                                     </div>
-                                    <button class="btn btn-ghost-secondary w-100" onclick=${() => { this.setDeviceFilter('connection','all'); this.setDeviceFilter('spec','all'); this.setDeviceFilter('license','all'); }}>
+                                    <button class="btn btn-ghost-secondary w-100" onclick=${() => this.clearDeviceFilters()}>
                                         Clear All Filters
                                     </button>
                                 </div>
                             </div>
 
                             ${loading ? html`
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <div class="text-center py-5">
-                                                <div class="spinner-border text-primary" role="status"></div>
-                                                <div class="mt-3 text-muted">Loading devices...</div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <${SkeletonTable} columns=${9} rows=${10} />
                             ` : error ? html`
                                 <div class="card">
                                     <div class="empty">
@@ -2661,27 +3023,37 @@ class DevicesPage extends window.Component {
                                 </div>
                             ` : filteredDevices.length === 0 ? html`
                                 <div class="card">
+                                    ${renderFleetToolbar()}
                                     <div class="empty">
                                         <div class="empty-icon">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="4" width="18" height="12" rx="1" /><line x1="7" y1="20" x2="17" y2="20" /><line x1="9" y1="16" x2="9" y2="20" /><line x1="15" y1="16" x2="15" y2="20" /></svg>
                                         </div>
-                                        <p class="empty-title">No devices found</p>
+                                        <p class="empty-title">${(devices || []).length === 0 ? 'No devices enrolled yet' : 'No devices match this view'}</p>
                                         <p class="empty-subtitle text-muted">
-                                            Get started by adding your first device to begin monitoring
+                                            ${(devices || []).length === 0
+                                                ? 'Install the MagenSec agent on a Windows device to start building fleet evidence.'
+                                                : 'Clear the current search or filters to return to the full fleet.'}
                                         </p>
                                         <div class="empty-action">
-                                            <button class="btn btn-primary">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                                Add Device
-                                            </button>
+                                            ${(devices || []).length === 0 ? html`
+                                                <button type="button" class="btn btn-primary" onClick=${() => this.openDownloadModal('x64')}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><polyline points="7 11 12 16 17 11" /><line x1="12" y1="4" x2="12" y2="16" /></svg>
+                                                    Download Windows agent
+                                                </button>
+                                            ` : html`
+                                                <button type="button" class="btn btn-primary" onClick=${() => this.clearFleetViewFilters()}>
+                                                    Clear search and filters
+                                                </button>
+                                            `}
                                         </div>
                                     </div>
                                 </div>
                             ` : html`
-                                ${renderBulkActionsBar(this)}
+                                ${this.renderBulkActionsBar()}
                                 <div class="card">
+                                    ${renderFleetToolbar()}
                                     <div class="table-responsive">
-                                        <table class="table table-vcenter card-table">
+                                        <table class="table table-vcenter card-table table-hover table-nowrap fleet-datatable">
                                             <thead>
                                                 <tr>
                                                     <th class="w-1">
@@ -2692,34 +3064,18 @@ class DevicesPage extends window.Component {
                                                             onchange=${() => this.toggleSelectAll()}
                                                         />
                                                     </th>
-                                                    <th style="cursor: pointer;" onclick=${() => this.setSortField('name')}>
-                                                        <div class="d-flex align-items-center gap-1">
-                                                            Device
-                                                            ${this.state.sortField === 'name' ? html`
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                    ${this.state.sortAsc ? html`<path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="6 15 12 9 18 15" />` : html`<path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="6 9 12 15 18 9" />`}
-                                                                </svg>
-                                                            ` : ''}
-                                                        </div>
-                                                    </th>
-                                                    <th style="width: 100px; cursor: pointer;" onclick=${() => this.setSortField('risk')} title="Click to sort by risk score (higher = more vulnerable)">
-                                                        <div class="d-flex align-items-center justify-content-center gap-1">
-                                                            Score
-                                                            ${this.state.sortField === 'risk' ? html`
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                                                    ${this.state.sortAsc ? html`<path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="6 15 12 9 18 15" />` : html`<path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="6 9 12 15 18 9" />`}
-                                                                </svg>
-                                                            ` : ''}
-                                                        </div>
-                                                    </th>
-                                                    <th>Threats</th>
-                                                    <th>Software</th>
-                                                    <th>Last Seen</th>
+                                                    <${SortableHeader} label="Device" field="name" sortField=${this.state.sortField} sortAsc=${this.state.sortAsc} onSort=${field => this.setSortField(field)} style="min-width:260px;" />
+                                                    <${SortableHeader} label="State" field="state" sortField=${this.state.sortField} sortAsc=${this.state.sortAsc} onSort=${field => this.setSortField(field)} style="min-width:130px;" />
+                                                    <${SortableHeader} label="Grade" field="risk" sortField=${this.state.sortField} sortAsc=${this.state.sortAsc} onSort=${field => this.setSortField(field)} className="text-center" style="width:100px;" />
+                                                    <th style="min-width:150px;">Threats</th>
+                                                    <${SortableHeader} label="Software" field="software" sortField=${this.state.sortField} sortAsc=${this.state.sortAsc} onSort=${field => this.setSortField(field)} className="text-end" style="width:120px;" />
+                                                    <${SortableHeader} label="Last Seen" field="lastSeen" sortField=${this.state.sortField} sortAsc=${this.state.sortAsc} onSort=${field => this.setSortField(field)} style="width:130px;" />
+                                                    <th style="min-width:160px;">Tags</th>
                                                     <th class="w-1"></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                ${filteredDevices.map(device => html`
+                                                ${pagedDevices.rows.map(device => html`
                                                     <tr key=${device.id}>
                                                         <td>
                                                             <input 
@@ -2742,6 +3098,14 @@ class DevicesPage extends window.Component {
                                                             const osEdition = device.telemetry?.osEdition || '';
                                                             const osVersion = device.telemetry?.osVersion || '';
                                                             const osLabel = osVersion ? `${osEdition} ${osVersion}`.trim() : (osEdition || 'Unknown OS');
+                                                            const licenseState = String(device.licenseState || '').trim();
+                                                            const licenseLabel = licenseState
+                                                                ? (licenseState.toLowerCase() === 'active' ? 'Licensed' : `License ${licenseState.toLowerCase()}`)
+                                                                : (device.licenseKey ? 'Licensed' : 'License pending');
+                                                            const licenseClass = device.licenseKey || licenseState.toLowerCase() === 'active'
+                                                                ? 'bg-blue-lt text-blue'
+                                                                : 'bg-secondary-lt text-secondary';
+                                                            const softwareHref = `#!/apps?tab=all&filter=${encodeURIComponent(`device:${device.name || device.id}`)}`;
                                                             const critHigh = (summary.criticalCves || 0) + (summary.highCves || 0);
                                                             // "Awaiting scan" / "Signal pending" should only fire when there is
                                                             // genuinely NO vulnerability signal yet (never scanned, or zero apps
@@ -2762,12 +3126,20 @@ class DevicesPage extends window.Component {
                                                                     </span>
                                                                     <div class="min-width-0">
                                                                         <a href="#!/devices/${device.id}" class="text-reset fw-medium d-block text-truncate" style="max-width:220px;" title="${device.name || device.id}">${device.name || device.id}</a>
-                                                                        <div class="text-muted small d-flex align-items-center gap-1">
+                                                                        <div class="text-muted small d-flex align-items-center gap-1 text-truncate" style="max-width:240px;">
                                                                             <span class="${getStatusDotClass(health.status)} me-1"></span>
-                                                                            ${health.text} · ${osLabel}
+                                                                            ${osLabel}
                                                                         </div>
-                                                                        ${this.renderDeviceContextChips(device)}
                                                                     </div>
+                                                                </div>
+                                                            </td>
+
+                                                            <!-- State Column -->
+                                                            <td>
+                                                                <div class="d-flex flex-column gap-1 align-items-start">
+                                                                    ${this.renderDeviceStateBadge(device)}
+                                                                    <span class="badge ${licenseClass}" title="License state">${licenseLabel}</span>
+                                                                    <span class="text-muted small">${health.text}</span>
                                                                 </div>
                                                             </td>
 
@@ -2809,23 +3181,30 @@ class DevicesPage extends window.Component {
                                                             </td>
 
                                                             <!-- Software Column -->
-                                                            <td>
-                                                                <div class="fw-medium">${summary.apps || 0} apps</div>
+                                                            <td class="text-end">
+                                                                <a href=${softwareHref} class="fw-medium text-reset text-decoration-none" title="Open this device in Apps">
+                                                                    ${summary.apps || 0} apps
+                                                                </a>
                                                                 ${(summary.vulnerableApps || 0) > 0 ? html`
-                                                                    <span class="text-danger small">${summary.vulnerableApps} vulnerable</span>
+                                                                    <div><span class="text-danger small">${summary.vulnerableApps} vulnerable</span></div>
                                                                 ` : showSignalPending ? html`
-                                                                    <span class="text-muted small" title="Vulnerability signal not yet available — apps awaiting AppVersionIntel resolution">Awaiting scan</span>
+                                                                    <div><span class="text-muted small" title="Vulnerability signal not yet available — apps awaiting AppVersionIntel resolution">Awaiting scan</span></div>
                                                                 ` : html`
-                                                                    <span class="text-success small">Clean</span>
+                                                                    <div><span class="text-success small">Clean</span></div>
                                                                 `}
                                                                 ${isOutdated ? html`
-                                                                    <span class="badge bg-warning-lt text-warning small ms-1" title="Agent update available">Outdated</span>
+                                                                    <div><span class="badge bg-warning-lt text-warning small" title="Agent update available">Outdated</span></div>
                                                                 ` : ''}
                                                             </td>
 
                                                             <!-- Last Seen Column -->
                                                             <td>
                                                                 <span class="text-muted small">${device.lastHeartbeat ? formatRelativeTime(device.lastHeartbeat) : 'Never'}</span>
+                                                            </td>
+
+                                                            <!-- Tags Column -->
+                                                            <td>
+                                                                ${this.renderDeviceContextChips(device)}
                                                             </td>
                                                             `;
                                                         })()}
@@ -2953,6 +3332,14 @@ class DevicesPage extends window.Component {
                                             </tbody>
                                         </table>
                                     </div>
+                                    <${PaginationBar}
+                                        page=${pagedDevices.page}
+                                        pageSize=${pagedDevices.pageSize}
+                                        total=${pagedDevices.total}
+                                        itemLabel="devices"
+                                        onPageChange=${page => this.setState({ page })}
+                                        onPageSizeChange=${pageSize => this.setState({ pageSize, page: 1 })}
+                                    />
                                 </div>
                             `}
 
@@ -3010,6 +3397,7 @@ class DevicesPage extends window.Component {
                     <div class="modal-backdrop fade show" style="z-index: 1054;"></div>
                 ` : ''}
 
+                ${this.renderDeviceContextEditor()}
                 ${this.renderRiskExplanationModal()}
         `;
     }

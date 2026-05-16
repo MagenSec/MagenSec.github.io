@@ -9,7 +9,7 @@ import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import ChatDrawer from '../../components/ChatDrawer.js';
 import { bundleToUnifiedPayload } from '../dashboard/bundleAdapter.js';
-import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { EvidenceBanner, TimeWarpEvidenceCallout } from '../../components/shared/EvidenceBanner.js';
 
 const { html, Component } = window;
 
@@ -86,10 +86,10 @@ const buildEvidenceChecklist = (data) => {
     },
     {
       id: 'ai-report',
-      label: 'Mission briefing prepared',
-      description: 'Latest mission briefing report available for auditors',
+      label: 'Mission brief prepared',
+      description: 'Latest mission brief available for auditors',
       status: 'manual',
-      detail: 'Open Mission Briefing to prepare a new report'
+      detail: 'Open Mission Brief Builder to prepare a new brief'
     }
   ];
 };
@@ -125,6 +125,9 @@ export class AuditorPage extends Component {
       reportError: null,
       reportData: null,
       reportDate: todayOrRewindIso(),
+      // Auditor-voice report generation (D-4)
+      reportGenerating: false,
+      reportGenerateError: null,
       // Export
       exportLoading: false,
       exportError: null
@@ -332,9 +335,17 @@ export class AuditorPage extends Component {
     const { fleetSort } = this.state;
     const active = fleetSort.col === col;
     const nextDir = active && fleetSort.dir === 'asc' ? 'desc' : 'asc';
+    const sortValue = !active ? 'none' : (fleetSort.dir === 'asc' ? 'ascending' : 'descending');
     return html`
-      <th class="cursor-pointer user-select-none" onClick=${() => this.setState({ fleetSort: { col, dir: nextDir } })}>
-        ${label}${active ? (fleetSort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+      <th aria-sort=${sortValue}>
+        <button
+          type="button"
+          class="btn btn-link p-0 text-reset fw-semibold text-decoration-none"
+          onClick=${() => this.setState({ fleetSort: { col, dir: nextDir } })}
+          aria-label=${`Sort by ${label} ${nextDir === 'asc' ? 'ascending' : 'descending'}`}
+        >
+          ${label}${active ? (fleetSort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+        </button>
       </th>
     `;
   }
@@ -388,7 +399,7 @@ export class AuditorPage extends Component {
       this.setState({ deltaData: result.data, deltaLoading: false });
     } else {
       this.setState({
-        deltaError: result?.message || result?.error || 'No dossier data found for this date range',
+        deltaError: result?.message || result?.error || 'No report data found for this date range',
         deltaLoading: false
       });
     }
@@ -438,6 +449,44 @@ export class AuditorPage extends Component {
         reportError: result?.message || 'No Mission Briefing report found for this date. Reports are prepared daily.',
         reportLoading: false
       });
+    }
+  }
+
+  // ── Auditor-voice report generation (D-4) ────────────────────────────────────────────────
+  // Generates a fresh security-posture report with voiceMode='auditor' so it reads as an
+  // evidence-grounded, signable assessment (numbered sections, control IDs cited, no marketing
+  // language). The default product-owner voice used by Mission Briefing / Hub is unchanged.
+  // After kicking off generation we re-load the latest report; the backend writes a "Generating"
+  // placeholder synchronously and runs the LLM call in the background.
+  async generateAuditorReport(orgId) {
+    if (!orgId) return;
+    this.setState({ reportGenerating: true, reportGenerateError: null });
+    try {
+      const res = await api.generateAIReport(orgId, {
+        reportKind: 'security-posture',
+        model: 'gpt-4o-mini',
+        voiceMode: 'auditor',
+      });
+      if (res?.success === false) {
+        throw new Error(res.message || res.error || 'Auditor report generation failed.');
+      }
+      // Force fresh read on next /latest poll.
+      api.clearCache?.();
+      window.toast?.show?.('Auditor-voice report queued. Reload in ~30 s to view it.', 'success', 4000);
+      this.setState({ reportGenerating: false });
+    } catch (err) {
+      logger.error?.('[Auditor] Failed to generate auditor-voice report:', err);
+      const likelyStillGenerating = err?.status === 0 || err?.status === 504;
+      if (likelyStillGenerating) {
+        window.toast?.show?.('Generation is taking longer than expected. Reload in ~60 s.', 'warning', 5000);
+        this.setState({ reportGenerating: false });
+      } else {
+        this.setState({
+          reportGenerating: false,
+          reportGenerateError: err?.message || 'Auditor report generation failed.',
+        });
+        window.toast?.show?.(err?.message || 'Auditor report generation failed.', 'error', 5000);
+      }
     }
   }
 
@@ -522,7 +571,7 @@ export class AuditorPage extends Component {
                   <span class="badge bg-info-lt text-info">Risk ${risk?.riskScore || '—'}</span>
                 </div>
                 <div class="text-muted small">
-                  Executive Dossier: Compliance ${compliance?.percent || 0}% with ${urgent} priority item(s) pending.
+                  Executive Report: Compliance ${compliance?.percent || 0}% with ${urgent} priority item(s) pending.
                   ${asOf ? `${asOfLabel} ${asOf}.` : ''}
                 </div>
               </div>
@@ -604,7 +653,7 @@ export class AuditorPage extends Component {
           <div class="card-header">
             <h3 class="card-title">AI Prompt Deck</h3>
             <div class="card-options">
-              <a href="#!/analyst" class="btn btn-sm btn-outline-secondary">Open AI Analyst</a>
+              <a href="#!/analyst" class="btn btn-sm btn-outline-secondary">Open Officer MAGI</a>
             </div>
           </div>
           <div class="card-body">
@@ -622,7 +671,7 @@ export class AuditorPage extends Component {
                         href="#!/analyst?prompt=${encodeURIComponent(item.prompt)}"
                         class="btn btn-sm btn-outline-${item.tone}"
                       >
-                        Ask This in Analyst
+                        Ask Officer MAGI
                       </a>
                     </div>
                   </div>
@@ -645,38 +694,41 @@ export class AuditorPage extends Component {
 
     return html`
       <div class="container-xl mb-4">
-        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #0b3b66 0%, #145da0 45%, #1f7fbf 100%); color: #fff;">
+        <div class="card border-0 shadow-sm overflow-hidden" style="border-left:4px solid #0054a6 !important;">
           <div class="card-body p-4 p-md-5">
             <div class="row g-4 align-items-center">
               <div class="col-lg-8">
-                <div class="text-uppercase small fw-bold mb-2" style="letter-spacing: .08em; opacity: .9;">Auditor Command Center</div>
+                <div class="text-uppercase small fw-semibold text-info mb-2" style="letter-spacing:0.06em;">Auditor Command Center</div>
                 <h2 class="mb-2" style="font-size: 2rem; line-height: 1.15;">Review Evidence, Validate Controls, and Prepare Auditor Findings</h2>
-                <p class="mb-3" style="opacity: .9; max-width: 58ch;">
+                <p class="text-muted mb-3" style="max-width: 58ch;">
                   This workspace is tailored for external auditors: verify control posture, inspect timeline evidence,
                   ask focused AI questions, and compile defensible observations for stakeholder review.
                 </p>
                 <div class="d-flex flex-wrap gap-2">
-                  <a href="#!/analyst" class="btn btn-light">
-                    <i class="ti ti-message-chatbot me-1"></i> Ask AI Analyst
+                  <a href="#!/analyst" class="btn btn-primary">
+                    <i class="ti ti-message-chatbot me-1"></i> Ask Officer MAGI
                   </a>
-                  <a href="#!/mission-brief" class="btn btn-outline-light">
-                    <i class="ti ti-brain me-1"></i> Open Mission Briefing
+                  <a href="#!/mission-brief" class="btn btn-outline-primary">
+                    <i class="ti ti-brain me-1"></i> Open Mission Brief Builder
                   </a>
-                  <a href="#!/reports" class="btn btn-outline-light">
+                  <a href="#!/reports" class="btn btn-outline-secondary">
                     <i class="ti ti-chart-bar me-1"></i> Open Reports
                   </a>
                 </div>
               </div>
 
               <div class="col-lg-4">
-                <div class="card bg-white text-dark border-0 shadow-sm">
+                <div class="card border h-100">
                   <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                       <div>
-                        <div class="text-muted small">Current Readiness</div>
-                        <div class="h2 mb-0">${pct}%</div>
+                        <div class="text-uppercase text-secondary small fw-bold mb-1" style="letter-spacing:0.06em;">Current Readiness</div>
+                        <div class="d-flex align-items-baseline">
+                          <span class="display-5 fw-bold mb-0 text-${readiness.color}">${pct}</span>
+                          <span class="h3 text-muted ms-1 mb-0">/100</span>
+                        </div>
                       </div>
-                      <span class="badge bg-${readiness.color} text-white">${readiness.text}</span>
+                      <span class="badge bg-${readiness.color}-lt text-${readiness.color}">${readiness.text}</span>
                     </div>
                     <div class="progress progress-sm mb-2">
                       <div class="progress-bar bg-${readiness.color}" style="width: ${pct}%"></div>
@@ -685,7 +737,7 @@ export class AuditorPage extends Component {
                       <span>Security Grade: ${score?.grade || '—'}</span>
                       <span>Risk: ${risk?.riskScore || '—'}</span>
                     </div>
-                    ${asOf ? html`<div class="text-muted small mt-2">Dossier: ${asOf}</div>` : ''}
+                    ${asOf ? html`<div class="text-muted small mt-2">Reported: ${asOf}</div>` : ''}
                   </div>
                 </div>
               </div>
@@ -731,7 +783,7 @@ export class AuditorPage extends Component {
                   <div class="fw-semibold">Command Log Review</div>
                 </div>
                 <div class="text-muted small mb-3">Inspect chronological events and user actions before close-out.</div>
-                <a href="#!/audit" class="btn btn-sm btn-outline-primary">Open Command Log</a>
+                <a href="#!/audit-log" class="btn btn-sm btn-outline-primary">Open Command Log</a>
               </div>
             </div>
           </div>
@@ -754,10 +806,10 @@ export class AuditorPage extends Component {
               <div class="card-body">
                 <div class="d-flex align-items-center gap-2 mb-2">
                   <span class="avatar avatar-sm bg-success text-white"><i class="ti ti-message-chatbot"></i></span>
-                  <div class="fw-semibold">AI Co-Auditor</div>
+                  <div class="fw-semibold">Officer MAGI</div>
                 </div>
-                <div class="text-muted small mb-3">Query evidence gaps, summarize issues, and draft executive findings fast.</div>
-                <a href="#!/analyst" class="btn btn-sm btn-outline-success">Engage AI Analyst</a>
+                <div class="text-muted small mb-3">Ask for evidence-gap reasoning, issue summaries, and draft executive findings.</div>
+                <a href="#!/analyst" class="btn btn-sm btn-outline-success">Open Officer MAGI</a>
               </div>
             </div>
           </div>
@@ -921,7 +973,7 @@ export class AuditorPage extends Component {
           <div class="card-header">
             <h3 class="card-title">Recent Command Events</h3>
             <div class="card-options">
-              <a href="#!/audit" class="btn btn-sm btn-outline-secondary">View command log →</a>
+              <a href="#!/audit-log" class="btn btn-sm btn-outline-secondary">View command log →</a>
             </div>
           </div>
 
@@ -990,7 +1042,7 @@ export class AuditorPage extends Component {
               <div class="col">
                 <h4 class="mb-1">Evidence Export Pack</h4>
                 <p class="text-muted mb-0">
-                  Download a ZIP containing org/security/compliance dossiers and 90-day audit log CSV —
+                  Download a ZIP containing org/security/compliance reports and a 90-day audit log CSV —
                   ready for external auditors.
                   ${asOfDate ? html` <span class="badge bg-amber-lt text-amber ms-1">⏪ Historical: ${toIsoDate(asOfDate)}</span>` : ''}
                 </p>
@@ -1062,7 +1114,7 @@ export class AuditorPage extends Component {
                 const user = auth.getUser();
                 const org = orgContext.getCurrentOrg();
                 await this.loadFleetEvidence(org?.orgId || user?.email);
-              }}>
+              }} title="Refresh fleet evidence" aria-label="Refresh fleet evidence">
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
               </button>
             </div>
@@ -1149,7 +1201,7 @@ export class AuditorPage extends Component {
         <div class="card border-0 shadow-sm mb-4">
           <div class="card-header">
             <h3 class="card-title">Security Posture Comparison</h3>
-            <div class="card-options text-muted small">Compare two dossiers to see what changed</div>
+            <div class="card-options text-muted small">Compare two reports to see what changed</div>
           </div>
           <div class="card-body">
             <div class="row g-3 align-items-end">
@@ -1208,7 +1260,7 @@ export class AuditorPage extends Component {
           <div class="alert alert-warning">
             <div class="fw-semibold">No comparison data available</div>
             ${deltaError}
-            <div class="mt-1 small text-muted">Dossiers are created daily. Try dates that fall within your active subscription period.</div>
+            <div class="mt-1 small text-muted">Reports are created daily. Try dates that fall within your active subscription period.</div>
           </div>
         ` : ''}
 
@@ -1218,7 +1270,7 @@ export class AuditorPage extends Component {
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><circle cx="12" cy="12" r="4" /></svg>
             </div>
             <p class="empty-title">Select a date range and run the comparison</p>
-            <p class="empty-subtitle text-muted">Compares posture dossiers from two points in time to show score changes, new CVEs, and compliance drift.</p>
+            <p class="empty-subtitle text-muted">Compares posture reports from two points in time to show score changes, new CVEs, and compliance drift.</p>
           </div>
         ` : ''}
 
@@ -1459,7 +1511,7 @@ export class AuditorPage extends Component {
 
   // ── Reports Library Tab ──────────────────────────────────────────────────────────────────
   renderReportsLibrary() {
-    const { reportLoading, reportError, reportData, reportDate } = this.state;
+    const { reportLoading, reportError, reportData, reportDate, reportGenerating, reportGenerateError } = this.state;
     const isRewindActive = rewindContext.isActive();
     const rewindDate = rewindContext.getDate();
     const canRewind = orgContext.hasRewind();
@@ -1533,8 +1585,24 @@ export class AuditorPage extends Component {
                     ? html`<span class="spinner-border spinner-border-sm me-1"></span>Loading…`
                     : html`<i class="ti ti-refresh me-1"></i>${reportData ? 'Reload' : 'Load Today\'s Report'}`}
                 </button>
+                <button
+                  class="btn btn-sm btn-outline-primary"
+                  disabled=${reportGenerating}
+                  title="Generate a fresh report in evidence-grounded auditor voice (numbered sections, control IDs cited, no marketing language)."
+                  data-mutates-state="true"
+                  onClick=${() => this.generateAuditorReport(orgId)}
+                >
+                  ${reportGenerating
+                    ? html`<span class="spinner-border spinner-border-sm me-1"></span>Generating…`
+                    : html`<i class="ti ti-file-certificate me-1"></i>Generate Auditor-Voice Report`}
+                </button>
                 <a href="#!/mission-brief" class="btn btn-sm btn-outline-secondary">Open Briefing Builder →</a>
               </div>
+              ${reportGenerateError ? html`
+                <div class="text-danger small mt-2">
+                  <i class="ti ti-alert-triangle me-1"></i>${reportGenerateError}
+                </div>
+              ` : ''}
             `}
           </div>
         </div>
@@ -1550,7 +1618,7 @@ export class AuditorPage extends Component {
                   </div>
                   <h4 class="mb-2" style="color:#fff;">Access reports from any date in the past year</h4>
                   <p class="mb-3" style="opacity:.8; font-size:.9rem;">
-                    <strong>Time Warp</strong> lets you step back to any historical dossier — see exactly what your security posture
+                    <strong>Time Warp</strong> lets you step back to any historical report — see exactly what your security posture
                     looked like on the day of an audit, incident, or compliance review.
                     Every page, every chart, every AI analysis reflects that exact point in time.
                   </p>
@@ -1562,7 +1630,7 @@ export class AuditorPage extends Component {
                       <i class="ti ti-check text-success"></i> Ask MAGI about any past date
                     </div>
                     <div class="d-flex align-items-center gap-2 me-3" style="opacity:.85; font-size:.85rem;">
-                      <i class="ti ti-check text-success"></i> Evidence packs with historical dossiers
+                      <i class="ti ti-check text-success"></i> Evidence packs with historical reports
                     </div>
                     <div class="d-flex align-items-center gap-2 me-3" style="opacity:.85; font-size:.85rem;">
                       <i class="ti ti-check text-success"></i> Delta reports across any window
@@ -1589,7 +1657,7 @@ export class AuditorPage extends Component {
               <strong>Want to see a report from a specific date?</strong>
               Use <strong>Time Warp</strong> — activate it from the navbar (
               <i class="ti ti-history"></i>) to travel to any date in the past year.
-              Every page, including this one, updates to reflect that dossier.
+              Every page, including this one, updates to reflect that report.
             </div>
           </div>
         ` : ''}
@@ -1774,11 +1842,16 @@ export class AuditorPage extends Component {
               ${tabs.map(t => html`
                 <li class="nav-item" role="presentation">
                   <button
+                    id=${`auditor-tab-${t.id}`}
                     class="nav-link ${activeTab === t.id ? 'active' : ''}"
                     role="tab"
+                    type="button"
+                    aria-selected=${activeTab === t.id ? 'true' : 'false'}
+                    aria-controls=${`auditor-panel-${t.id}`}
+                    tabindex=${activeTab === t.id ? '0' : '-1'}
                     onClick=${(e) => { e.preventDefault(); this.switchTab(t.id); }}
                   >
-                    <i class="ti ${t.icon} me-1"></i>${t.label}
+                    <i class="ti ${t.icon} me-1" aria-hidden="true"></i>${t.label}
                   </button>
                 </li>
               `)}
@@ -1825,13 +1898,13 @@ export class AuditorPage extends Component {
                 <div class="page-subtitle text-muted">Readiness, fleet inventory, posture delta, and AI report library — all in one workspace.</div>
               </div>
               <div class="col-auto">
-                <a href="#!/audit" class="btn btn-outline-secondary me-2">
+                <a href="#!/audit-log" class="btn btn-outline-secondary me-2">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 8v-2a2 2 0 0 1 2 -2h7l3 3v11a2 2 0 0 1 -2 2h-5" /><path d="M7 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M7 14v3l2 1" /></svg>
                   Command Log
                 </a>
                 <a href="#!/mission-brief" class="btn btn-primary">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><circle cx="12" cy="12" r="4" /></svg>
-                  Mission Briefing
+                  Mission Brief Builder
                 </a>
               </div>
             </div>
@@ -1839,6 +1912,7 @@ export class AuditorPage extends Component {
         </div>
 
         <div class="container-xl">
+          <${TimeWarpEvidenceCallout} surface="auditor evidence" />
           <${EvidenceBanner} evidence=${this.state.evidence || data?.evidence} pageName="auditor" />
         </div>
 
@@ -1848,21 +1922,26 @@ export class AuditorPage extends Component {
 
         ${this.renderTabs()}
 
-        ${activeTab === 'readiness' ? html`
-          ${this.renderAuditPhaseStrip(data)}
-          ${this.renderActionLanes(data)}
-          ${this.renderAIPromptRail()}
-          ${this.renderReadinessComposite(data, cachedAt)}
-          ${this.renderEvidenceChecklist(data)}
-          ${this.renderRecentEvents()}
-          ${this.renderDownloadSection()}
-        ` : activeTab === 'fleet' ? html`
-          ${this.renderFleetEvidence()}
-        ` : activeTab === 'delta' ? html`
-          ${this.renderDeltaReport()}
-        ` : activeTab === 'library' ? html`
-          ${this.renderReportsLibrary()}
-        ` : ''}
+        <section id="auditor-panel-readiness" role="tabpanel" aria-labelledby="auditor-tab-readiness" hidden=${activeTab !== 'readiness'}>
+          ${activeTab === 'readiness' ? html`
+            ${this.renderAuditPhaseStrip(data)}
+            ${this.renderActionLanes(data)}
+            ${this.renderAIPromptRail()}
+            ${this.renderReadinessComposite(data, cachedAt)}
+            ${this.renderEvidenceChecklist(data)}
+            ${this.renderRecentEvents()}
+            ${this.renderDownloadSection()}
+          ` : null}
+        </section>
+        <section id="auditor-panel-fleet" role="tabpanel" aria-labelledby="auditor-tab-fleet" hidden=${activeTab !== 'fleet'}>
+          ${activeTab === 'fleet' ? this.renderFleetEvidence() : null}
+        </section>
+        <section id="auditor-panel-delta" role="tabpanel" aria-labelledby="auditor-tab-delta" hidden=${activeTab !== 'delta'}>
+          ${activeTab === 'delta' ? this.renderDeltaReport() : null}
+        </section>
+        <section id="auditor-panel-library" role="tabpanel" aria-labelledby="auditor-tab-library" hidden=${activeTab !== 'library'}>
+          ${activeTab === 'library' ? this.renderReportsLibrary() : null}
+        </section>
 
         <${ChatDrawer} contextHint="audit readiness and compliance evidence" persona="auditor" />
       </div>

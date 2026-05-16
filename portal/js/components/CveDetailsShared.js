@@ -222,7 +222,7 @@ export function CveDetailsContent({
 
     const goToInventory = (filter) => {
         if (!filter) return;
-        window.location.hash = `#!/inventory?filter=${encodeURIComponent(filter)}`;
+        window.location.hash = `#!/apps?tab=atrisk&filter=${encodeURIComponent(filter)}`;
         onNavigate?.();
     };
 

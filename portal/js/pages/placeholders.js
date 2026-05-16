@@ -518,9 +518,9 @@ export class ReviewPage extends Component {
     const businessTooltip = 'Feature available in Business License only';
     const isBusinessOnlyRoute = (route) => route === '#!/analyst' || route === '#!/mission-brief' || route.startsWith('#!/add-ons/');
     const reviewPages = [
-      { name: 'AI Analyst', route: '#!/analyst', description: 'Interactive AI security chat', status: 'Wired', location: 'Actions / Officer MAGI' },
-      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine dossier view', status: 'Wired', location: 'Prove / Posture Trends' },
-      { name: 'Mission Briefing', route: '#!/mission-brief', description: 'Generate and review security/compliance/inventory reports', status: 'Wired', location: 'Prove / Mission Briefs' },
+      { name: 'Officer MAGI', route: '#!/analyst', description: 'Interactive AI Security Officer chat', status: 'Wired', location: 'Actions / Officer MAGI' },
+      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine report view', status: 'Wired', location: 'Prove / Posture Trends' },
+      { name: 'Mission Brief Builder', route: '#!/mission-brief', description: 'Prepare and review security/compliance/inventory briefs', status: 'Wired', location: 'Prove / Mission Briefs' },
       { name: 'Vulnerabilities', route: '#!/vulnerabilities', description: 'CVE and vulnerability list view', status: 'Wired', location: 'Protect / Active Exposures' },
       { name: 'Compliance Plus', route: '#!/add-ons/compliance-plus', description: 'Advanced compliance add-on review surface', status: 'Wired', location: 'Prove / Compliance Plus' },
       { name: 'Supply Chain Intel', route: '#!/add-ons/supply-chain-intel', description: 'Supply-chain risk add-on review surface', status: 'Wired', location: 'Insure / Supply Chain Risk' }

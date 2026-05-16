@@ -9,6 +9,7 @@ import toast from '@toast';
 import { logger } from '@config';
 import { getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 import { TrendSnapshotStrip, getTrendDateRange } from '../../components/TrendSnapshotStrip.js';
+import { TimeWarpEvidenceCallout } from '../../components/shared/EvidenceBanner.js';
 import { 
     getBaseType, 
     getEventName, 
@@ -1639,7 +1640,7 @@ export function AuditPage() {
                 <div class="card mb-3">
                     <div class="card-body d-flex align-items-center gap-2 text-muted">
                         <span class="spinner-border spinner-border-sm"></span>
-                        Loading dossier trend context...
+                        Loading report trend context...
                     </div>
                 </div>
             ` : html`
@@ -2223,6 +2224,8 @@ export function AuditPage() {
                         </div>
                     </div>
                 </div>
+
+                <${TimeWarpEvidenceCallout} surface="audit trail evidence" />
 
                 <!-- Tab Navigation -->
                 <div class="card mb-3">

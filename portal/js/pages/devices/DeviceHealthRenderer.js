@@ -22,12 +22,12 @@ export function renderHealthStatus(device) {
         status = 'blocked';
         icon = '⊘';
         color = 'dark';
-        // Distinguish system-initiated (auto-block by MAGI) from manual admin blocks.
-        // BlockedBy = "MAGI" → system-initiated; "ADMIN" or null → manual.
+        // Distinguish policy-initiated auto-blocks from manual admin blocks.
+        // BlockedBy = "MAGI" is a historical value; display it as a policy action.
         const blockedBy = (device.blockedBy || '').toUpperCase();
         const blockedReason = (device.blockedReason || '').toUpperCase();
         if (blockedBy === 'MAGI' || blockedReason === 'AUTO_OFFLINE') {
-            text = 'Blocked by MAGI';
+            text = 'Blocked by policy';
             reason = 'Auto-blocked: device offline >30 days. Click Enable to restore.';
         } else {
             text = 'Blocked';

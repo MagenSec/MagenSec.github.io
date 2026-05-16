@@ -571,7 +571,7 @@ export class ManagePage extends Component {
                                                     AI Executive Summary in Reports
                                                 </label>
                                                 <div class="text-muted small mt-1">
-                                                    When enabled, daily security reports include a short AI-written executive summary based on the current posture dossier.
+                                                    When enabled, daily security reports include a short AI-written executive summary based on the current posture report.
                                                 </div>
                                             </div>
                                         </div>
@@ -590,7 +590,7 @@ export class ManagePage extends Component {
                                                     Include Threat Intel Enrichment
                                                 </label>
                                                 <div class="text-muted small mt-1">
-                                                    When enabled, the AI summary may include KEV/EPSS/CVE description context (if available). Disable to keep the summary strictly dossier-only.
+                                                    When enabled, the AI summary may include KEV/EPSS/CVE description context (if available). Disable to keep the summary strictly report-only.
                                                 </div>
                                             </div>
                                         </div>
@@ -601,7 +601,7 @@ export class ManagePage extends Component {
                                         <div class="row g-3 align-items-end">
                                             <div class="col-md-4">
                                                 <label class="form-label fw-bold" for="sweTodaySnapshotRefreshHours">
-                                                    Today's Dossier Refresh Cadence (hours)
+                                                    Today's Report Refresh Cadence (hours)
                                                 </label>
                                                 <input
                                                     id="sweTodaySnapshotRefreshHours"
@@ -622,7 +622,7 @@ export class ManagePage extends Component {
                                             </div>
                                             <div class="col-md-8">
                                                 <div class="text-muted small mt-1">
-                                                    Controls how often cron refreshes <strong>today's rolling dossier</strong>. Default is 6 hours; lower this for high-volume orgs to reduce merge gaps.
+                                                    Controls how often cron refreshes <strong>today's rolling report</strong>. Default is 6 hours; lower this for high-volume orgs to reduce merge gaps.
                                                     Per-org overrides are stored on organization rows and evaluated in the hourly cron pass.
                                                 </div>
                                             </div>

@@ -13,6 +13,14 @@ import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
 import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
 import { metricPhrase } from '../../utils/metricUnits.js';
 
+// v7 Trust Intelligence portal — calm Hub composition.
+import { TrustScoreLine, TrustScoreBreakdown } from '../../components/v7/TrustScoreLine.js';
+import { PostureSparkline } from '../../components/v7/PostureSparkline.js';
+import { WhatNeedsYou } from '../../components/v7/WhatNeedsYou.js';
+import { SealedDossierCard } from '../../components/v7/SealedDossierCard.js';
+import { PageModeShell } from '../../components/v7/PageModeShell.js';
+import { MAGIOfficerBriefingPanel, MAGIOfficerDrawer, buildHubBriefing } from '../../components/v7/MAGIOfficer.js';
+
 const { html, Component } = window;
 const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
 const BUSINESS_ONLY_ROUTES = new Set(['#!/compliance', '#!/reports', '#!/auditor', '#!/analyst']);
@@ -53,6 +61,11 @@ export default class UnifiedDashboard extends Component {
       hygieneDetailsOpen: false,
       officerNoteOpen: false,
       officerNoteDismissed: false,
+      // v7 Hub state
+      magiDrawerOpen: false,
+      magiDrawerPrompt: '',
+      trustBreakdownOpen: false,
+      needsPanelExpanded: false,
       isSmallScreen: typeof window !== 'undefined' ? window.innerWidth < 768 : false
     };
     this.cyberChartRef = null;
@@ -159,6 +172,7 @@ export default class UnifiedDashboard extends Component {
 
   async loadDashboard({ refresh, background, skipCache } = {}) {
     if (this._unmounted) return;
+    let requestOrgId = null;
     try {
       const isBackground = !!background;
       const isRefresh = !!refresh && !isBackground;
@@ -172,6 +186,7 @@ export default class UnifiedDashboard extends Component {
       const user = auth.getUser();
       const currentOrg = orgContext.getCurrentOrg();
       const orgId = currentOrg?.orgId || user?.email;
+      requestOrgId = orgId;
 
       if (!orgId) {
         window.location.hash = '#!/login';
@@ -185,6 +200,7 @@ export default class UnifiedDashboard extends Component {
       const response = await api.getPageBundle(orgId, 'dashboard', {}, { skipCache: true });
 
       if (this._unmounted) return;
+      if (orgContext.getCurrentOrg()?.orgId !== requestOrgId) return;
 
       if (!response.success) {
         throw new Error(response.message || 'Failed to load dashboard');
@@ -195,11 +211,31 @@ export default class UnifiedDashboard extends Component {
 
       let normalizedData = response.data ? bundleToUnifiedPayload(response.data) : null;
       if (normalizedData) {
-        normalizedData = await this.overlayAlertSummaryCounts(orgId, normalizedData);
-        normalizedData = await this.attachPatchStatus(orgId, normalizedData);
-        normalizedData = await this.normalizeDashboardStats(orgId, normalizedData);
+        // Run all overlays in parallel — they write to non-overlapping fields:
+        // alertResult → quickStats.cves, securityPro, _alertSummary
+        // patchResult → _patchPosture
+        // statsResult → quickStats.devices, quickStats.apps, itAdmin
+        const [alertResult, patchResult, statsResult] = await Promise.all([
+          this.overlayAlertSummaryCounts(orgId, normalizedData),
+          this.attachPatchStatus(orgId, normalizedData),
+          this.normalizeDashboardStats(orgId, normalizedData),
+        ]);
+        normalizedData = {
+          ...alertResult,
+          _patchPosture: patchResult._patchPosture,
+          quickStats: {
+            ...alertResult.quickStats,
+            ...(statsResult.quickStats ? {
+              devices: statsResult.quickStats.devices ?? alertResult.quickStats?.devices,
+              apps: statsResult.quickStats.apps ?? alertResult.quickStats?.apps,
+            } : {}),
+          },
+          itAdmin: statsResult.itAdmin || alertResult.itAdmin,
+        };
         this.loadAddOnSignals(orgId);
       }
+
+      if (orgContext.getCurrentOrg()?.orgId !== requestOrgId) return;
 
       this.setState(prevState => ({
         data: normalizedData,
@@ -212,6 +248,8 @@ export default class UnifiedDashboard extends Component {
         officerNoteDismissed: this.isOfficerNoteDismissed(orgId)
       }));
     } catch (err) {
+      if (this._unmounted) return;
+      if (requestOrgId && orgContext.getCurrentOrg()?.orgId !== requestOrgId) return;
       console.error('Failed to load unified dashboard:', err);
 
       const message = err?.message || 'Failed to load dashboard data';
@@ -634,9 +672,23 @@ export default class UnifiedDashboard extends Component {
   async normalizeDashboardStats(orgId, data) {
     let normalized = data;
 
-    if (this.fleetStatsNeedHydration(normalized)) {
+    const needsFleet = this.fleetStatsNeedHydration(normalized);
+    const needsApps = this.appStatsNeedHydration(normalized);
+
+    if (!needsFleet && !needsApps) return normalized;
+
+    // Fetch both in parallel — they are independent of each other.
+    const [devicesResponse, inventoryResponse] = await Promise.all([
+      needsFleet
+        ? api.getDevices(orgId, { include: 'cached-summary' }, { skipCache: true }).catch(() => null)
+        : Promise.resolve(null),
+      needsApps
+        ? api.getSoftwareInventory(orgId, { includeCachedSummary: true }).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    if (needsFleet && devicesResponse) {
       try {
-        const devicesResponse = await api.getDevices(orgId, { include: 'cached-summary' }, { skipCache: true });
         const devicesPayload = devicesResponse?.data || devicesResponse;
         const derivedFleet = this.deriveFleetFromDevicesPayload(devicesPayload);
 
@@ -655,9 +707,8 @@ export default class UnifiedDashboard extends Component {
       }
     }
 
-    if (this.appStatsNeedHydration(normalized)) {
+    if (needsApps && inventoryResponse) {
       try {
-        const inventoryResponse = await api.getSoftwareInventory(orgId, { includeCachedSummary: true });
         const inventoryPayload = inventoryResponse?.data || inventoryResponse;
         const appStats = this.deriveAppStatsFromInventoryPayload(inventoryPayload);
         const derivedAppRisks = this.buildAppRisksFromInventoryPayload(inventoryPayload);
@@ -1041,11 +1092,11 @@ export default class UnifiedDashboard extends Component {
     return 'Target: open posture evidence';
   }
 
-  getTopActionViewItems(data = this.state.data) {
+  getTopActionViewItems(data = this.state.data, { limit = 3 } = {}) {
     if (!data) return [];
 
     const actions = Array.isArray(data?.businessOwner?.topActions)
-      ? data.businessOwner.topActions.filter(Boolean).slice(0, 3)
+      ? data.businessOwner.topActions.filter(Boolean).slice(0, limit)
       : [];
     const proof = this.getProofReadinessData(data);
 
@@ -1075,7 +1126,7 @@ export default class UnifiedDashboard extends Component {
       });
     }
 
-    return proof.blockers.slice(0, 3).map((blocker, index) => ({
+    return proof.blockers.slice(0, limit).map((blocker, index) => ({
       kind: 'blocker',
       index: index + 1,
       key: `blocker-${index}`,
@@ -1663,10 +1714,23 @@ export default class UnifiedDashboard extends Component {
       return this.clampScore(numeric);
     };
 
+    // TimeWarp: trim trend rows to <= effective date so the trajectory chart
+    // doesn't render points that are in the future relative to the rewound view.
+    // The org-trends-daily atom is a single rolling 90-day blob and is NOT
+    // server-side date-trimmed, so the filter must happen here.
+    const rewindActiveDate = (rewindContext?.isActive?.() && rewindContext?.getDate?.()) || null;
+    const upperBoundDate = rewindActiveDate ? this.parseDashboardTrendDate(rewindActiveDate) : null;
+    const upperBoundMs = upperBoundDate ? upperBoundDate.getTime() : null;
+
     rawPoints.forEach((point) => {
       const source = point?.snapshot || point?.Snapshot || point || {};
       const date = this.formatDashboardTrendDate(point?.date || point?.Date || source.date || source.Date);
       if (!date) return;
+      if (upperBoundMs !== null) {
+        const pointDate = this.parseDashboardTrendDate(date);
+        const pointMs = pointDate ? pointDate.getTime() : null;
+        if (pointMs !== null && pointMs > upperBoundMs) return;
+      }
 
       const securityScore = this.readNumber(source, ['securityScore', 'SecurityScore', 'riskScore', 'RiskScore'], null);
       const complianceScore = this.readNumber(source, ['complianceScore', 'ComplianceScore'], null);
@@ -1878,7 +1942,7 @@ export default class UnifiedDashboard extends Component {
             <path d=${mainGeometry.linePath} fill="none" stroke=${hygieneTone} stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>
           </svg>
         ` : html`
-          <div style="height:${isSmallScreen ? '130px' : '160px'};display:flex;align-items:center;justify-content:center;border:1px dashed var(--db-tile-border,rgba(148,163,184,0.3));border-radius:12px;color:var(--db-faint-text,#6b7280);font-size:0.82rem;">Waiting for the next daily Dossier</div>
+          <div style="height:${isSmallScreen ? '130px' : '160px'};display:flex;align-items:center;justify-content:center;border:1px dashed var(--db-tile-border,rgba(148,163,184,0.3));border-radius:12px;color:var(--db-faint-text,#6b7280);font-size:0.82rem;">Waiting for the next daily report</div>
         `}
 
         <details
@@ -2173,7 +2237,7 @@ export default class UnifiedDashboard extends Component {
 
   renderBusinessImpactCommandCenter(data = this.state.data, { isSmallScreen = false } = {}) {
     const impact = this.getBusinessImpactData(data);
-    const sourceText = impact.isLiveContext ? 'Live context' : 'Dossier context';
+    const sourceText = impact.isLiveContext ? 'Live context' : 'Report context';
     const coverageText = impact.total > 0
       ? `${Math.max(0, impact.total - impact.missing)}/${impact.total} labelled`
       : 'No managed devices';
@@ -2218,7 +2282,7 @@ export default class UnifiedDashboard extends Component {
                   <span style="display:block;margin-top:1px;font-size:0.66rem;color:var(--db-faint-text,#6b7280);line-height:1.18;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${queueDetail(item)}</span>
                 </span>
               </a>
-            `) : html`<div style="font-size:0.8rem;color:var(--db-faint-text,#6b7280);line-height:1.4;border:1px dashed rgba(148,163,184,0.28);border-radius:12px;padding:12px;">No high-priority fix is queued from the current proof bundle.</div>`}
+            `) : html`<div style="font-size:0.8rem;color:var(--db-faint-text,#6b7280);line-height:1.4;border:1px dashed rgba(148,163,184,0.28);border-radius:12px;padding:12px;">No high-priority fix is queued from the current evidence package.</div>`}
         </div>
       </section>
     `;
@@ -2310,7 +2374,7 @@ export default class UnifiedDashboard extends Component {
                 </form>
               </div>
 
-              <div title="Live readiness pulse from the current Dossier evidence." style="min-height:30px;display:flex;align-items:center;gap:8px;border:1px solid rgba(124,58,237,0.12);background:linear-gradient(90deg,rgba(124,58,237,0.08),rgba(32,107,196,0.05));border-radius:12px;padding:6px 10px;color:var(--db-faint-text,#6b7280);font-size:0.74rem;font-weight:750;line-height:1.2;min-width:0;">
+              <div title="Live readiness pulse from the current report evidence." style="min-height:30px;display:flex;align-items:center;gap:8px;border:1px solid rgba(124,58,237,0.12);background:linear-gradient(90deg,rgba(124,58,237,0.08),rgba(32,107,196,0.05));border-radius:12px;padding:6px 10px;color:var(--db-faint-text,#6b7280);font-size:0.74rem;font-weight:750;line-height:1.2;min-width:0;">
                 <span aria-hidden="true" style="width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:rgba(124,58,237,0.12);color:var(--db-tone-purple,#7c3aed);flex:0 0 auto;"><i class="ti ti-trending-up" style="font-size:0.9rem;"></i></span>
                 <span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Readiness pulse · ${readinessPulseText}</span>
               </div>
@@ -2369,23 +2433,23 @@ export default class UnifiedDashboard extends Component {
           <div style="order:2;margin:0 0 16px;padding:0 2px;">
             <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(124,58,237,0.36),transparent);margin:0 0 10px;"></div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-              <div title="When the current Dossier was last submitted." style="display:inline-flex;align-items:center;gap:8px;color:var(--db-faint-text,#6b7280);font-size:0.76rem;font-weight:650;">
+              <div title="When the current report was last captured." style="display:inline-flex;align-items:center;gap:8px;color:var(--db-faint-text,#6b7280);font-size:0.76rem;font-weight:650;">
                 <i class=${`ti ${freshness?.isStale ? 'ti-clock-exclamation' : 'ti-clock-check'}`} style="color:var(--db-tone-primary,#4f46e5);"></i>
-                <span>${freshness ? `Last Dossier submitted ${freshness.ageText}` : 'Current Dossier ready'}</span>
+                <span>${freshness ? `Last report captured ${freshness.ageText}` : 'Current report ready'}</span>
               </div>
             </div>
           </div>
-          <details aria-label="Proof packet" title="Open audit and insurance evidence." style="order:5;margin-top:14px;border:1px solid var(--db-tile-border, rgba(148,163,184,0.18));border-radius:14px;background:var(--db-glass-bg, rgba(255,255,255,0.72));box-shadow:0 4px 18px rgba(15,23,42,0.04);overflow:hidden;">
+          <details aria-label="Evidence packet" title="Open audit and insurance evidence." style="order:5;margin-top:14px;border:1px solid var(--db-tile-border, rgba(148,163,184,0.18));border-radius:14px;background:var(--db-glass-bg, rgba(255,255,255,0.72));box-shadow:0 4px 18px rgba(15,23,42,0.04);overflow:hidden;">
             <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;font-size:0.82rem;font-weight:800;color:var(--db-answer-text,#111827);list-style:none;">
               <span style="display:flex;align-items:center;gap:10px;min-width:0;">
                 <span aria-hidden="true" style="width:32px;height:32px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;background:rgba(79,70,229,0.10);color:var(--db-tone-primary,#4f46e5);flex:0 0 auto;"><i class="ti ti-folder-check"></i></span>
                 <span style="display:block;min-width:0;">
-                  <span style="display:block;font-size:0.9rem;font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Proof Packet</span>
+                  <span style="display:block;font-size:0.9rem;font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Evidence Packet</span>
                   <span style="display:block;margin-top:2px;font-size:0.72rem;font-weight:650;color:var(--db-faint-text,#6b7280);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Readiness ${proof.label} · Hygiene ${hs.grade}</span>
                 </span>
               </span>
               <span style="display:inline-flex;align-items:center;gap:6px;color:var(--tblr-primary,#206bc4);font-size:0.74rem;font-weight:850;white-space:nowrap;flex:0 0 auto;">
-                <span>${isSmallScreen ? 'Open' : 'Open packet'}</span>
+                <span>${isSmallScreen ? 'Open' : 'Open evidence'}</span>
                 <i class="ti ti-chevron-down"></i>
               </span>
             </summary>
@@ -4130,6 +4194,437 @@ export default class UnifiedDashboard extends Component {
     `;
   }
 
+  // ===========================================================================
+  // v7 Trust Intelligence Hub — calm 6-element column.
+  //
+  // Replaces renderSearchHeader's giant search hero. The Hub is now a single
+  // calm column: MAGI band → Trust Score → 14d sparkline → What needs you →
+  // Sealed Dossier → Journey Lane. Drill-downs live on dedicated pages.
+  // ===========================================================================
+  buildJourneySteps(data, hs) {
+    const tier = this.getTier();
+    const crit = (data?.securityPro?.threatIntel?.uniqueCriticalCveCount ?? data?.securityPro?.threatIntel?.criticalCveCount) || 0;
+    const high = (data?.securityPro?.threatIntel?.uniqueHighCveCount ?? data?.securityPro?.threatIntel?.highCveCount) || 0;
+    const compGap = Number(data?.businessOwner?.complianceCard?.gapCount) || 0;
+    const offline = Number(data?.quickStats?.coverage?.offline) || 0;
+
+    const securityStatus = crit > 0 ? 'gap' : (high > 0 || offline > 0 ? 'attention' : 'healthy');
+    const complianceStatus = compGap > 5 ? 'gap' : (compGap > 0 ? 'attention' : 'healthy');
+    const remediationStatus = crit > 0 ? 'gap' : (high > 0 ? 'attention' : 'healthy');
+    const proofStatus = (data?.evidence?.sealedAt) ? 'healthy' : 'attention';
+    const auditStatus = compGap > 0 ? 'attention' : 'healthy';
+
+    if (tier === 'personal') {
+      return [
+        { key: 'security', label: 'Security', href: '#!/security', status: securityStatus },
+        { key: 'hygiene',  label: 'Hygiene',  href: '#!/hygiene',  status: 'locked', hint: 'Add-on' },
+        { key: 'insights', label: 'Insights', href: '#!/dashboard', status: 'healthy' }
+      ];
+    }
+    if (tier === 'education') {
+      return [
+        { key: 'security',   label: 'Security',   href: '#!/security',   status: securityStatus },
+        { key: 'hygiene',    label: 'Hygiene',    href: '#!/hygiene',    status: 'locked', hint: 'Add-on' },
+        { key: 'compliance', label: 'Compliance', href: '#!/compliance', status: complianceStatus },
+        { key: 'reports',    label: 'Reports',    href: '#!/reports',    status: 'healthy' },
+        { key: 'audit',      label: 'Audit',      href: '#!/audit',      status: auditStatus }
+      ];
+    }
+    // Business + Site Admin
+    return [
+      { key: 'security',     label: 'Security',     href: '#!/security',     status: securityStatus },
+      { key: 'compliance',   label: 'Compliance',   href: '#!/compliance',   status: complianceStatus },
+      { key: 'remediation',  label: 'Remediation',  href: '#!/remediation',  status: remediationStatus },
+      { key: 'proof',        label: 'Proof',        href: '#!/proof',        status: proofStatus },
+      { key: 'audit',        label: 'Audit',        href: '#!/audit',        status: auditStatus },
+      { key: 'hygiene',      label: 'Hygiene',      href: '#!/hygiene',      status: 'locked', hint: 'Add-on' },
+      { key: 'insurance',    label: 'Insurance',    href: '#!/insurance',    status: 'locked', hint: 'Add-on' }
+    ];
+  }
+
+  getTier() {
+    const orgType = orgContext.getCurrentOrg()?.type;
+    const userType = auth.getUser()?.userType;
+    if (userType === 'SiteAdmin') return 'site-admin';
+    if (orgType === 'Personal')   return 'personal';
+    if (orgType === 'Education')  return 'education';
+    return 'business';
+  }
+
+  // Marks the top-nav chevron stepper items with `data-needs-action="true"`
+  // when the corresponding stop has a gap or attention status. The CSS already
+  // renders a calm pulsing dot for these.
+  applyChevronNeedsAction(data, hs) {
+    const steps = this.buildJourneySteps(data, hs) || [];
+    // Stop key → chevron <li id>. Trust is intentionally excluded — it is the
+    // landing page and never "needs action".
+    const KEY_TO_NAV_ID = {
+      security:    'nav-security-item',
+      compliance:  'nav-compliance-item',
+      remediation: 'nav-remediation-item',
+      proof:       'nav-proof-item',
+      audit:       'nav-audit-item',
+      hygiene:     'nav-hygiene-item',
+      insurance:   'nav-insurance-item',
+      // Personal-tier mappings:
+      insights:    'nav-home-item'
+    };
+    const NEEDS = new Set(['gap', 'attention']);
+
+    // Clear all chevron needs-action attrs first so removed conditions clean up.
+    document.querySelectorAll('.journey-arc-item[data-needs-action]')
+      .forEach(el => el.removeAttribute('data-needs-action'));
+
+    for (const s of steps) {
+      const navId = KEY_TO_NAV_ID[s.key];
+      if (!navId) continue;
+      const el = document.getElementById(navId);
+      if (!el) continue;
+      if (NEEDS.has(s.status)) {
+        el.setAttribute('data-needs-action', 'true');
+      }
+    }
+  }
+
+  buildTrustHubSubtitle(data, hs, dossierProps) {
+    const total = Number(
+      data?.quickStats?.devices?.totalCount
+      ?? data?.quickStats?.coverage?.total
+      ?? data?.itAdmin?.coverage?.total
+      ?? data?.itAdmin?.inventory?.totalDevices
+    ) || 0;
+    const score = Number(hs?.score);
+    const critical = Number(data?.securityPro?.threatIntel?.uniqueCriticalCveCount ?? data?.securityPro?.threatIntel?.criticalCveCount ?? data?.quickStats?.cves?.criticalCount ?? 0);
+    const parts = [];
+    if (Number.isFinite(score) && score > 0) parts.push(`Trust Score ${Math.round(score)}/100`);
+    if (hs?.grade) parts.push(`Grade ${hs.grade}`);
+    if (critical > 0) parts.push(`${critical} critical CVE${critical === 1 ? '' : 's'}`);
+    if (total > 0) parts.push(`${total} device${total === 1 ? '' : 's'}`);
+    parts.push(dossierProps?.sealedAt ? 'Daily Report ready' : 'Daily Report building');
+    return parts.join(' · ');
+  }
+
+  buildWhatNeedsYouModel(data, max = 5) {
+    const rawSourceCount = Array.isArray(data?.businessOwner?.topActions) ? data.businessOwner.topActions.length : 0;
+    const rawLimit = Math.max(max * 4, max, rawSourceCount);
+    const raw = this.getTopActionViewItems(data, { limit: rawLimit }) || [];
+    const SEV_MAP = { CRITICAL: 'critical', HIGH: 'high', MEDIUM: 'medium', LOW: 'low', ACTION: 'info', REVIEW: 'info' };
+    const severityRank = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
+    const mapped = raw.map(it => ({
+      title: it.title,
+      hint: it.deviceText || it.supportText || '',
+      href: it.href || '#!/remediation',
+      severity: SEV_MAP[String(it.badge || '').toUpperCase()] || 'info',
+      kind: it.kind
+    }));
+
+    const groups = [];
+    const byKey = new Map();
+    for (const item of mapped) {
+      const groupable = item.kind === 'action' && String(item.title || '').trim();
+      const key = groupable
+        ? `${item.kind}|${String(item.title || '').toLowerCase()}|${item.href || ''}`
+        : `${item.kind}|${String(item.title || '').toLowerCase()}|${item.href || ''}|${String(item.hint || '').toLowerCase()}`;
+      if (!byKey.has(key)) {
+        const group = { ...item, count: 1, hints: item.hint ? [item.hint] : [] };
+        byKey.set(key, group);
+        groups.push(group);
+        continue;
+      }
+      const group = byKey.get(key);
+      group.count += 1;
+      if (item.hint && !group.hints.some(hint => hint.toLowerCase() === item.hint.toLowerCase())) {
+        group.hints.push(item.hint);
+      }
+      if ((severityRank[item.severity] || 0) > (severityRank[group.severity] || 0)) {
+        group.severity = item.severity;
+      }
+    }
+
+    const items = groups.map((group) => {
+      if (group.count <= 1) return { ...group, hint: group.hints[0] || group.hint || '' };
+      const firstDevice = String(group.hints.find(hint => /^Device:/i.test(hint)) || '').replace(/^Device:\s*/i, '').trim();
+      const target = firstDevice
+        ? `Devices: ${firstDevice} + ${group.count - 1} more`
+        : `Target: ${group.count} related actions`;
+      return {
+        title: /^Update\s/i.test(group.title)
+          ? `${group.title} on ${group.count} devices`
+          : `${group.title} (${group.count} items)`,
+        hint: target,
+        href: group.href,
+        severity: group.severity,
+        kind: group.kind,
+        count: group.count
+      };
+    });
+
+    return { items: items.slice(0, max), total: items.length };
+  }
+
+  // Map dashboard top action items into WhatNeedsYou items.
+  buildWhatNeedsYouItems(data, max = 5) {
+    return this.buildWhatNeedsYouModel(data, max).items;
+  }
+
+  buildSealedDossierProps(data, hs) {
+    const sealedAt = data?.evidence?.sealedAt
+      || data?.evidence?.snapshotDate
+      || data?.healthScore?.snapshotDate
+      || data?.generatedAt
+      || null;
+    const total = Number(
+      data?.quickStats?.devices?.totalCount
+      ?? data?.quickStats?.coverage?.total
+      ?? data?.itAdmin?.coverage?.total
+      ?? data?.itAdmin?.inventory?.totalDevices
+    ) || 0;
+    const grade = hs?.grade || null;
+    const crit = (data?.securityPro?.threatIntel?.uniqueCriticalCveCount ?? data?.securityPro?.threatIntel?.criticalCveCount) || 0;
+    const summary = total > 0
+      ? `${total} device${total !== 1 ? 's' : ''}${grade ? ' · Grade ' + grade : ''}${crit > 0 ? ' · ' + crit + ' critical CVE' + (crit !== 1 ? 's' : '') : ''}`
+      : '';
+    const state = sealedAt ? 'sealed' : 'building';
+    return { sealedAt, summary, state };
+  }
+
+  // Trajectory tone — Slice 1 returns null when we don't have ≥3 historical
+  // samples. Slice 2 will plug a real series in via the bundle.
+  computeTrajectory(history) {
+    if (!Array.isArray(history)) {
+      return { trajectory: null, delta: null };
+    }
+    const values = history
+      .map((point) => Number(point?.value ?? point?.score ?? point?.trustScore ?? point?.y ?? null))
+      .filter((value) => Number.isFinite(value));
+
+    if (values.length < 3) {
+      return { trajectory: null, delta: null };
+    }
+
+    const first = values[0] || 0;
+    const last  = values[values.length - 1] || 0;
+    const delta = last - first;
+    if (Math.abs(delta) < 2) return { trajectory: 'plateau',    delta };
+    if (delta >= 5)          return { trajectory: 'climbing',   delta };
+    if (delta > 0)           return { trajectory: 'recovering', delta };
+    return { trajectory: 'slipping', delta };
+  }
+
+  openMagiDrawer = (prompt = '') => this.setState({
+    magiDrawerOpen: true,
+    magiDrawerPrompt: typeof prompt === 'string' ? prompt : ''
+  });
+  closeMagiDrawer = () => this.setState({ magiDrawerOpen: false, magiDrawerPrompt: '' });
+  toggleTrustBreakdown = () => this.setState(s => ({ trustBreakdownOpen: !s.trustBreakdownOpen }));
+  toggleNeedsPanel = () => this.setState(s => ({ needsPanelExpanded: !s.needsPanelExpanded }));
+
+  buildTrustScoreContext(data, hs, baseline) {
+    if (baseline === 'building') {
+      return {
+        driver: 'Why it moved: waiting for the first complete telemetry cycle.',
+        chips: ['Device evidence building', 'Daily Report pending']
+      };
+    }
+
+    const coverage = data?.quickStats?.coverage || data?.itAdmin?.coverage || {};
+    const total = Number(
+      coverage.total
+      ?? data?.quickStats?.devices?.totalCount
+      ?? data?.itAdmin?.inventory?.totalDevices
+    ) || 0;
+    const healthy = Number(coverage.healthy ?? coverage.online ?? data?.quickStats?.devices?.activeCount) || 0;
+    const deviceChip = total > 0
+      ? `${Math.max(0, Math.min(healthy, total))}/${total} devices reporting`
+      : 'Device coverage building';
+
+    const compliance = data?.businessOwner?.complianceCard || {};
+    const gapCount = Number(compliance.gapCount || 0);
+    const complianceChip = gapCount > 0
+      ? `${gapCount} compliance gap${gapCount === 1 ? '' : 's'}`
+      : 'Compliance evidence current';
+
+    const critical = Number(data?.quickStats?.cves?.criticalCount ?? data?.securityPro?.threatIntel?.criticalCveCount ?? 0);
+    const high = Number(data?.quickStats?.cves?.highCount ?? data?.securityPro?.threatIntel?.highCveCount ?? 0);
+    const riskChip = critical + high > 0
+      ? `${critical + high} critical/high CVE${critical + high === 1 ? '' : 's'}`
+      : 'CVE evidence clear';
+
+    return {
+      driver: `Why it moved: ${hs?.narration || 'score reflects the latest captured evidence.'}`,
+      chips: [deviceChip, complianceChip, riskChip]
+    };
+  }
+
+  renderHubV7() {
+    const { data } = this.state;
+    if (!data) return null;
+
+    const hs = this.getHealthScoreData(data) || {};
+    const isTimeWarped = !!(rewindContext.isActive && rewindContext.isActive());
+    const fallbackTrend = this.getDashboardTrendPoints(data)
+      .map((point) => ({
+        date: point?.date,
+        value: Number(point?.hygieneScore ?? point?.securityScore ?? point?.complianceScore ?? null)
+      }))
+      .filter((point) => Number.isFinite(point.value));
+
+    const sparkline =
+      hs?.history ||
+      hs?.trend ||
+      data?.healthScore?.history ||
+      data?.healthScore?.trend ||
+      data?.quickStats?.trustScoreTrend ||
+      fallbackTrend ||
+      null;
+    const { trajectory, delta } = this.computeTrajectory(sparkline);
+
+    const components = {
+      hygiene:    hs?.software?.score    ?? null,
+      risk:       hs?.vulnerability?.score ?? null,
+      compliance: hs?.compliance?.score  ?? null
+    };
+
+    const total = Number(
+      data?.quickStats?.devices?.totalCount
+      ?? data?.quickStats?.coverage?.total
+      ?? data?.itAdmin?.coverage?.total
+      ?? data?.itAdmin?.inventory?.totalDevices
+    ) || 0;
+    const scoreNum = Number(hs?.score);
+    const haveScore = Number.isFinite(scoreNum) && scoreNum > 0;
+    const baseline = (total === 0 || !haveScore) ? 'building' : 'ready';
+    const scoreContext = this.buildTrustScoreContext(data, hs, baseline);
+
+    const briefing = buildHubBriefing(data, hs);
+    const expandedNeeds = !!this.state.needsPanelExpanded;
+    const needsMax = expandedNeeds ? 8 : 3;
+    const dossierProps = this.buildSealedDossierProps(data, hs);
+    const attentionModel = this.buildWhatNeedsYouModel(data, needsMax);
+    const items = attentionModel.items;
+    const totalActionable = attentionModel.total;
+    const headerSubtitle = this.buildTrustHubSubtitle(data, hs, dossierProps);
+    const tier = this.getTier();
+
+    // Wire the chevron stepper's `data-needs-action` from per-stop status.
+    // Removing the bottom JourneyLane took the only visual signal away — the
+    // chevrons in the top nav now carry it instead.
+    try { this.applyChevronNeedsAction(data, hs); } catch (_e) { /* no-op */ }
+    const hasMagiAccess = orgContext.hasMagi?.() === true;
+    const openMagiDialog = hasMagiAccess
+      ? this.openMagiDrawer
+      : () => { window.location.hash = '#!/upgrade?feature=MAGI'; };
+
+    const headerActions = html`
+      <a href="#!/proof" class="btn btn-sm btn-outline-secondary">
+        <i class="ti ti-mail-opened me-1" aria-hidden="true"></i>Open Report
+      </a>
+      <button class="btn btn-sm btn-outline-secondary" onClick=${() => this.loadDashboard({ refresh: true })} title="Refresh from latest telemetry" aria-label="Refresh Trust Hub from latest telemetry">
+        <i class="ti ti-refresh" aria-hidden="true"></i>
+      </button>
+    `;
+
+    return html`
+      <div class="container-xl py-3" style="max-width:1280px;">
+        <${PageModeShell}
+          mode="A"
+          title="Trust Hub"
+          subtitle=${headerSubtitle}
+          sealedAt=${dossierProps.sealedAt}
+          warpedTo=${isTimeWarped ? (rewindContext.getDate?.() || null) : null}
+          onExitWarp=${isTimeWarped ? () => rewindContext.deactivate?.() : null}
+          actions=${headerActions}
+        >
+          <div class="v7-hub-grid">
+            <!-- LEFT COLUMN: MAGI command box → Trust Score -->
+            <div class="v7-hub-col">
+              <${MAGIOfficerBriefingPanel}
+                briefing=${briefing}
+                items=${items}
+                scoreContext=${scoreContext}
+                trajectory=${trajectory}
+                delta=${delta}
+                hasMagiAccess=${hasMagiAccess}
+                onAsk=${openMagiDialog}
+                onOpenBriefing=${() => openMagiDialog('')}
+              />
+
+              <!-- 2. Trust Score line -->
+              <div class="v7-hub-card v7-trust-cluster" style="background:#fff;border:1px solid rgba(148,163,184,0.2);border-radius:14px;box-shadow:0 4px 14px rgba(15,23,42,0.05);overflow:hidden;">
+                <${TrustScoreLine}
+                  score=${baseline === 'building' ? null : hs?.score}
+                  grade=${baseline === 'building' ? null : hs?.grade}
+                  trajectory=${trajectory}
+                  delta=${delta}
+                  deltaWindowLabel="vs 14 days ago"
+                  baseline=${baseline}
+                  components=${components}
+                  onDrillDown=${this.toggleTrustBreakdown}
+                  expanded=${this.state.trustBreakdownOpen}
+                />
+                <div class="v7-score-context" aria-label="Trust Score evidence context">
+                  <div class="v7-score-driver">${scoreContext.driver}</div>
+                  <div class="v7-score-chips">
+                    ${scoreContext.chips.map((chip) => html`<span class="badge bg-secondary-lt text-secondary">${chip}</span>`)}
+                  </div>
+                </div>
+                ${this.state.trustBreakdownOpen ? html`
+                  <${TrustScoreBreakdown}
+                    components=${components}
+                    onClose=${this.toggleTrustBreakdown}
+                  />
+                ` : null}
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Trajectory → WhatNeedsYou -->
+            <div class="v7-hub-col">
+              <div class="v7-trajectory-card">
+                <div class="v7-trajectory-card-header">
+                  <div>
+                    <div class="v7-trajectory-eyebrow">14-day trajectory</div>
+                    <div class="v7-trajectory-title">Trust Score movement</div>
+                  </div>
+                  <a href="#!/proof" class="v7-trajectory-link">Full history →</a>
+                </div>
+                <${PostureSparkline} series=${sparkline} days=${14} height=${84} />
+              </div>
+              <${WhatNeedsYou}
+                items=${items}
+                max=${needsMax}
+                total=${totalActionable}
+                moreHref="#!/remediation"
+                expanded=${expandedNeeds}
+                onToggleExpand=${this.toggleNeedsPanel}
+              />
+            </div>
+          </div>
+
+          <!-- BOTTOM ROW: Daily Report (the journey lane is rendered as the
+               top-nav chevron stepper — duplicating it here was redundant noise). -->
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+            <${SealedDossierCard}
+              sealedAt=${dossierProps.sealedAt}
+              summary=${dossierProps.summary}
+              state=${dossierProps.state}
+              href="#!/proof"
+              onRefresh=${() => this.loadDashboard({ refresh: true })}
+            />
+          </div>
+        <//>
+
+        <!-- MAGI Officer drawer -->
+        <${MAGIOfficerDrawer}
+          isOpen=${this.state.magiDrawerOpen}
+          initialPrompt=${this.state.magiDrawerPrompt}
+          briefing=${briefing}
+          pageContext="Trust Hub"
+          onClose=${this.closeMagiDrawer}
+        />
+      </div>
+    `;
+  }
+
   render() {
     const { loading, error } = this.state;
 
@@ -4146,7 +4641,7 @@ export default class UnifiedDashboard extends Component {
                 margin-bottom: 12px;
               "></div>
               <div style="color:#111827;font-size:0.95rem;font-weight:600;">Summoning MAGI...</div>
-              <div style="color:#6b7280;font-size:0.82rem;margin-top:4px;">Preparing your readiness Dossier.</div>
+              <div style="color:#6b7280;font-size:0.82rem;margin-top:4px;">Preparing your readiness report.</div>
             </div>
           </div>
           <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
@@ -4179,10 +4674,7 @@ export default class UnifiedDashboard extends Component {
             ${EvidenceBanner({ evidence: this.state.data.evidence, pageName: 'dashboard' })}
           </div>
         ` : null}
-        ${this.isBootstrapState() ? this.renderBootstrapSetup() : html`
-          ${this.renderSearchHeader()}
-          ${this.renderOfficerOrb()}
-        `}
+        ${this.isBootstrapState() ? this.renderBootstrapSetup() : this.renderHubV7()}
       </div>
     `;
   }

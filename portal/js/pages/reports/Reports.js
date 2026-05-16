@@ -4,6 +4,8 @@
  * Live reports link to existing pages; coming-soon cards are clearly marked.
  */
 
+import { TimeWarpEvidenceCallout } from '../../components/shared/EvidenceBanner.js';
+
 const { html, Component } = window;
 const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
 
@@ -85,6 +87,18 @@ const REPORTS = [
   }
 ];
 
+function getPrimaryLabel(report) {
+  if (report.id === 'brief-preview') return 'Preview / send';
+  if (report.id === 'executive') return 'Open brief builder';
+  return 'Open source workspace';
+}
+
+function getSecondaryLabel(report) {
+  if (!report.href || report.href === report.viewHref) return null;
+  if (report.href === '#!/mission-brief') return 'Prepare report';
+  return 'Open related report';
+}
+
 export class ReportsPage extends Component {
   render() {
     const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
@@ -99,10 +113,10 @@ export class ReportsPage extends Component {
             <div class="col">
               <h2 class="page-title">
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20h14" /></svg>
-                Reports
+                Reports Library
               </h2>
               <div class="page-subtitle text-muted">
-                Security, compliance, and operational report views
+                Preview, download, email, and trace each report back to the workspace that produced it
                 <span class="badge bg-success-lt text-success ms-2">${liveCount} available</span>
                 ${isHistorical ? html`<span class="badge bg-blue-lt text-blue ms-2">As of ${dateLabel}</span>` : null}
               </div>
@@ -113,18 +127,49 @@ export class ReportsPage extends Component {
 
       <div class="page-body">
         <div class="container-xl">
-          ${isHistorical ? html`
-            <div class="alert alert-info-lt d-flex align-items-start gap-2 mb-3" role="status">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon mt-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>
-              <div>
-                <div class="fw-semibold">Historical report context</div>
-                <div>Report views open against the selected evidence date, ${dateLabel}. Dated proof downloads keep the selected date in the export identity.</div>
+          <${TimeWarpEvidenceCallout} surface="report evidence" />
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card h-100">
+                <div class="card-body">
+                  <div class="subheader">Preview</div>
+                  <div class="fw-semibold mt-1">Daily and weekly briefs</div>
+                  <div class="text-muted small mt-1">Open the exact customer-facing HTML before it is sent.</div>
+                </div>
               </div>
             </div>
-          ` : null}
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card h-100">
+                <div class="card-body">
+                  <div class="subheader">Download</div>
+                  <div class="fw-semibold mt-1">PDF, CSV, and print views</div>
+                  <div class="text-muted small mt-1">Use source workspaces when a report needs row-level evidence.</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card h-100">
+                <div class="card-body">
+                  <div class="subheader">Email</div>
+                  <div class="fw-semibold mt-1">Guarded send actions</div>
+                  <div class="text-muted small mt-1">Email and refresh controls are disabled in Time Warp/read-only mode.</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card h-100">
+                <div class="card-body">
+                  <div class="subheader">Source</div>
+                  <div class="fw-semibold mt-1">Evidence trail first</div>
+                  <div class="text-muted small mt-1">Every card links back to the workspace that explains the numbers.</div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="row row-cols-1 row-cols-md-2 g-4">
             ${REPORTS.map(r => {
               const locked = isPersonalOrg && r.businessOnly;
+              const secondaryLabel = getSecondaryLabel(r);
               return html`
               <div class="col">
                 <div class="card h-100 ${r.href && !locked ? '' : 'opacity-75'}">
@@ -148,8 +193,13 @@ export class ReportsPage extends Component {
                           class="btn btn-sm btn-primary"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7" /></svg>
-                          View ${r.title}
+                          ${getPrimaryLabel(r)}
                         </a>
+                        ${secondaryLabel ? html`
+                          <a href=${r.href} class="btn btn-sm btn-outline-secondary">
+                            ${secondaryLabel}
+                          </a>
+                        ` : null}
                       </div>
                     ` : locked ? html`
                       <button class="btn btn-sm btn-outline-secondary" disabled title=${BUSINESS_ONLY_TOOLTIP}>

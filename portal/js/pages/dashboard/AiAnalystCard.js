@@ -1,12 +1,12 @@
 /**
- * AiAnalystCard - Always-visible AI security assistant
+ * AiAnalystCard - Always-visible Officer MAGI card
  * 
  * Features:
  * - Org summary with key metrics
  * - Top security concerns
  * - Suggested natural language queries
  * - Expandable/collapsible interface
- * - Click to navigate to AI Analyst workspace
+ * - Click to navigate to Officer MAGI workspace
  */
 export default class AiAnalystCard extends Component {
   handleQueryClick = (query) => {
@@ -17,7 +17,7 @@ export default class AiAnalystCard extends Component {
     }
     const trimmed = (query || '').trim();
     if (!trimmed) return;
-    // Navigate to AI Analyst workspace with query
+    // Navigate to Officer MAGI workspace with query
     window.location.hash = `#!/analyst?q=${encodeURIComponent(trimmed)}`;
   };
 
@@ -47,7 +47,7 @@ export default class AiAnalystCard extends Component {
                   <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   <path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />
                 </svg>
-                AI Security Analyst
+                AI Security Officer
               </h3>
             </div>
             <div class="col-auto">
@@ -153,7 +153,7 @@ export default class AiAnalystCard extends Component {
                   <path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" />
                   <path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" />
                 </svg>
-                Open AI Security Analyst
+                Open AI Security Officer
               </a>
             </div>
           </div>

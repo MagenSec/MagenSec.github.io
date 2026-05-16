@@ -13,6 +13,7 @@ export class DeviceStatsService {
             total: devices.length,
             active: 0,
             enabled: 0,
+            disabled: 0,
             blocked: 0,
             deleted: 0,
             online: 0,
@@ -23,6 +24,7 @@ export class DeviceStatsService {
             const state = (d.state || '').toLowerCase();
             if (state === 'active') stats.active++;
             else if (state === 'enabled') stats.enabled++;
+            else if (state === 'disabled') stats.disabled++;
             else if (state === 'blocked') stats.blocked++;
             else if (state === 'deleted') stats.deleted++;
 

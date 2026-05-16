@@ -2,8 +2,9 @@ import { api } from '@api';
 import { logger } from '@config';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
-import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { EvidenceBanner, TimeWarpEvidenceCallout } from '../../components/shared/EvidenceBanner.js';
 import { TrendSnapshotStrip, getTrendDateRange as getSharedTrendDateRange } from '../../components/TrendSnapshotStrip.js';
+import { TrackingTimeline } from '../../components/v7/TrackingTimeline.js';
 
 const { html, Component } = window;
 
@@ -45,6 +46,37 @@ export class PosturePage extends Component {
     componentWillUnmount() {
         if (this.orgUnsubscribe) this.orgUnsubscribe();
         if (this._rewindUnsub) this._rewindUnsub();
+    }
+
+    getSurfaceCopy() {
+        const mode = this.props?.mode === 'proof' || window.location.hash.startsWith('#!/proof') ? 'proof' : 'posture';
+        if (mode === 'proof') {
+            return {
+                mode,
+                pageName: 'proof',
+                calloutSurface: 'captured report evidence',
+                eyebrow: 'Captured evidence',
+                title: 'Daily Report Evidence',
+                subtitlePrefix: 'Evidence captured',
+                empty: 'No captured report evidence is available yet.',
+                prepare: 'Prepare Daily Report',
+                trendTitle: 'Daily Report Trend',
+                trendSubtitle: 'Trust, risk, and remediation movement from captured daily evidence'
+            };
+        }
+
+        return {
+            mode,
+            pageName: 'posture',
+            calloutSurface: 'posture evidence',
+            eyebrow: 'Posture analysis',
+            title: 'Security Posture Analysis',
+            subtitlePrefix: 'Evidence prepared',
+            empty: 'No posture evidence is available yet.',
+            prepare: 'Prepare Evidence',
+            trendTitle: 'Posture Trend',
+            trendSubtitle: 'Risk, compliance, and remediation movement from daily reports'
+        };
     }
 
     getCachedSnapshot(key, ttlMinutes = 30) {
@@ -151,7 +183,7 @@ export class PosturePage extends Component {
             metadata: {
                 generatedBy: 'Trend evidence fallback',
                 generatorVersion: 'trend-fallback',
-                warnings: ['Full posture dossier is not available; showing trend-backed evidence only.']
+                warnings: ['The full posture report is not available; showing trend-backed evidence only.']
             },
             isTrendFallback: true
         };
@@ -229,8 +261,8 @@ export class PosturePage extends Component {
             },
             nistComplianceGaps: nistStandard?.gaps || [],
             metadata: {
-                generatedBy: 'Dossier evidence atoms',
-                generatorVersion: 'atom-bundle',
+                generatedBy: 'Daily report evidence',
+                generatorVersion: 'report-bundle',
                 dataQuality: {
                     deviceCoverage: snapshot.deviceCount ? Math.round(((snapshot.activeDevices || 0) / snapshot.deviceCount) * 100) : null
                 },
@@ -325,8 +357,8 @@ export class PosturePage extends Component {
             logger.error('[Posture] Failed to load snapshot:', err);
             const is404 = err?.message?.includes('404');
             const errorMsg = is404
-                ? 'Posture dossier API is being deployed. Please check back in a few minutes.'
-                : (err?.message || 'Failed to load posture dossier');
+                ? 'The posture report service is being deployed. Please check back in a few minutes.'
+                : (err?.message || 'Failed to load the posture report');
 
             this.setState({
                 error: errorMsg,
@@ -426,9 +458,9 @@ export class PosturePage extends Component {
 
         return html`
             <div class="d-flex flex-wrap gap-2 mt-2">
-                ${ml.isAnomaly ? html`<span class="badge bg-danger text-white">Anomaly detected</span>` : ''}
-                ${forecastNext !== null ? html`<span class="badge bg-primary text-white">Next risk: ${forecastNext}</span>` : ''}
-                <span class="badge bg-secondary text-white">Confidence ${confidencePct}%</span>
+                ${ml.isAnomaly ? html`<span class="badge bg-danger-lt text-danger">Anomaly detected</span>` : ''}
+                ${forecastNext !== null ? html`<span class="badge bg-primary-lt text-primary">Next risk: ${forecastNext}</span>` : ''}
+                <span class="badge bg-secondary-lt text-secondary">Confidence ${confidencePct}%</span>
             </div>
         `;
     }
@@ -518,10 +550,10 @@ export class PosturePage extends Component {
         if (!entries.length) return html`<div class="text-muted">No domain findings available.</div>`;
 
         return html`
-            <div class="d-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+            <div class="d-grid posture-domain-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
                 ${entries.map(([domain, count]) => html`
-                    <div class="p-3 rounded border bg-light">
-                        <div class="text-uppercase small text-muted">${domain}</div>
+                    <div class="p-3 rounded border posture-domain-tile">
+                        <div class="text-uppercase small text-secondary">${domain}</div>
                         <div class="fw-bold fs-5">${count}</div>
                     </div>
                 `)}
@@ -584,7 +616,7 @@ export class PosturePage extends Component {
                                         ? html`
                                             <div class="d-flex flex-wrap gap-1">
                                                 ${item.affectedDevices.slice(0, 2).map(deviceName => html`
-                                                    <span class="badge bg-light text-dark border border-1">${deviceName}</span>
+                                                    <span class="badge bg-secondary-lt text-secondary border border-1">${deviceName}</span>
                                                 `)}
                                                 ${item.affectedDevices.length > 2 ? html`<span class="text-muted small">+${item.affectedDevices.length - 2} more</span>` : ''}
                                             </div>
@@ -628,21 +660,27 @@ export class PosturePage extends Component {
         if (!compliance) return html`<div class="text-muted">No compliance data.</div>`;
 
         const controls = Object.entries(compliance.controls || {}).slice(0, 5);
+        const STATUS_LABEL = { compliant: 'Pass', noncompliant: 'Gap', partial: 'Partial' };
         return html`
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                 <div class="display-6 mb-0">${compliance.score ?? 0}</div>
                 <div class="text-muted">Compliance score</div>
             </div>
             <div class="list-group list-group-flush">
-                ${controls.map(([control, status]) => html`
-                    <div class="list-group-item d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="fw-semibold">${control}</div>
-                            <div class="text-muted small">${status.description || 'No description'}</div>
+                ${controls.map(([control, status]) => {
+                    const raw = (status?.status || '').toLowerCase();
+                    const label = STATUS_LABEL[raw] || (status?.status || '—');
+                    return html`
+                        <div class="list-group-item d-flex justify-content-between align-items-start gap-2">
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="fw-semibold">${control}</div>
+                                <div class="text-muted small">${status.description || 'No description'}</div>
+                            </div>
+                            <span class="badge ${this.controlColor(status.status)} text-nowrap flex-shrink-0"
+                                  title=${status?.status || ''}>${label}</span>
                         </div>
-                        <span class="badge ${this.controlColor(status.status)}">${status.status}</span>
-                    </div>
-                `)}
+                    `;
+                })}
             </div>
         `;
     }
@@ -698,7 +736,7 @@ export class PosturePage extends Component {
     renderNistComplianceGaps() {
         const gaps = this.state.nistGaps;
         if (!Array.isArray(gaps)) {
-            return html`<div class="text-muted text-center py-4">NIST gap analysis data is not available in the current dossier.</div>`;
+            return html`<div class="text-muted text-center py-4">NIST gap analysis is not available in the current report.</div>`;
         }
 
         if (gaps.length === 0) {
@@ -792,63 +830,75 @@ export class PosturePage extends Component {
     renderHero() {
         const risk = this.state.snapshot?.risk || {};
         const severity = this.getSeverityCounts();
-        const actions = this.state.snapshot?.actions?.prioritized || [];
 
-        const trendDelta = risk.scoreDelta ?? 0;
-        const trendLabel = trendDelta > 0 ? `▲ ${trendDelta}` : trendDelta < 0 ? `▼ ${Math.abs(trendDelta)}` : '—';
-        const trendBadgeClass = trendDelta > 0
-            ? 'bg-success text-white'
-            : trendDelta < 0
-                ? 'bg-danger text-white'
-                : 'border border-white text-white opacity-75';
+        const trendDelta = Number(risk.scoreDelta) || 0;
+        const hasTrend = Number.isFinite(risk.scoreDelta) && trendDelta !== 0;
+        const trendLabel = trendDelta > 0 ? `▲ ${trendDelta} pts` : trendDelta < 0 ? `▼ ${Math.abs(trendDelta)} pts` : '';
+        const trendTone = trendDelta > 0 ? 'success' : trendDelta < 0 ? 'danger' : 'secondary';
 
         // Hygiene Score = orgScore (0-100, higher = better)
         const hygieneScore = risk.orgScore ?? 0;
-        const hygieneColor = hygieneScore >= 75 ? 'success' : hygieneScore >= 50 ? 'warning' : 'danger';
+        const grade = risk.grade || 'N/A';
+        const gradeTone = grade === 'A' ? 'success'
+                        : grade === 'B' ? 'success'
+                        : grade === 'C' ? 'warning'
+                        : grade === 'D' ? 'warning'
+                        : grade === 'F' ? 'danger'
+                        : 'secondary';
 
-        // Top 2 priority actions
-        const topActions = actions.slice(0, 2);
+        // Build a 30-day TrackingTimeline from risk.history (daily scores).
+        const history = Array.isArray(risk.history) ? risk.history : [];
+        const trackingDays = history.slice(-30).map(h => {
+            const v = Number(h?.score);
+            const status = !Number.isFinite(v) ? 'none'
+                         : v >= 75 ? 'ok'
+                         : v >= 50 ? 'drift'
+                         : 'risk';
+            return {
+                date: h?.date || h?.snapshotDate || null,
+                status,
+                label: h?.date ? `${h.date} · ${Math.round(v)}/100` : null
+            };
+        });
 
         return html`
-            <!-- Hygiene Score Hero -->
-            <div class="card shadow-sm border-0 mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff;">
+            <!-- Hygiene Score Hero (calm, no purple gradient) -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-lg-4 text-center text-lg-start mb-3 mb-lg-0">
-                            <div class="text-uppercase small opacity-75 mb-1">Hygiene Score</div>
-                            <div class="display-3 fw-bold mb-0">${hygieneScore}</div>
-                            <div class="d-flex align-items-center gap-2 mt-1 justify-content-center justify-content-lg-start">
-                                <span class="badge bg-white text-dark">Grade ${risk.grade || 'N/A'}</span>
-                                <span class="badge ${trendBadgeClass}">
-                                    ${trendLabel} week-over-week
-                                </span>
+                    <div class="row align-items-center g-3">
+                        <div class="col-lg-4">
+                            <div class="text-uppercase text-secondary small fw-bold mb-1" style="letter-spacing:0.06em;">Hygiene Score</div>
+                            <div class="d-flex align-items-baseline gap-3">
+                                <div class="display-4 fw-bold mb-0" style="line-height:1;">${hygieneScore}<span class="h2 text-muted ms-1">/100</span></div>
+                                <span class="badge bg-${gradeTone}-lt text-${gradeTone}" style="font-size:0.95rem;padding:0.4em 0.7em;">Grade ${grade}</span>
                             </div>
-                        </div>
-                        <div class="col-lg-5">
-                            ${topActions.length > 0 ? html`
-                                <div class="text-uppercase small opacity-75 mb-2">Top Priority Actions</div>
-                                ${topActions.map((action, i) => html`
-                                    <div class="d-flex align-items-start gap-2 mb-2">
-                                        <span class="badge bg-white text-dark rounded-circle" style="width:24px;height:24px;line-height:24px;padding:0;text-align:center;">${i + 1}</span>
-                                        <div>
-                                            <div class="fw-semibold">${action.title}</div>
-                                            <div class="small opacity-75">${action.affectedCount} affected · ${action.effort} effort</div>
-                                        </div>
-                                    </div>
-                                `)}
-                            ` : html`
-                                <div class="text-center opacity-75 py-3">
-                                    <div class="fw-semibold">All clear</div>
-                                    <div class="small">No priority actions needed</div>
+                            ${hasTrend ? html`
+                                <div class="mt-2">
+                                    <span class="text-${trendTone} fw-semibold">${trendLabel}</span>
+                                    <span class="text-muted small ms-1">vs last week</span>
                                 </div>
+                            ` : html`
+                                <div class="text-muted small mt-2">Baseline week — building trajectory</div>
                             `}
                         </div>
-                        <div class="col-lg-3 text-center text-lg-end">
-                            <div class="d-flex flex-column gap-2">
-                                <div class="btn-group" role="group">
-                                    <button class="btn btn-sm ${this.state.period === 'daily' ? 'btn-light' : 'btn-outline-light'}" onClick=${() => this.setPeriod('daily')}>Daily</button>
-                                    <button class="btn btn-sm ${this.state.period === 'weekly' ? 'btn-light' : 'btn-outline-light'}" onClick=${() => this.setPeriod('weekly')}>Weekly</button>
-                                </div>
+                        <div class="col-lg-6">
+                            <div class="text-uppercase text-secondary small fw-bold mb-2" style="letter-spacing:0.06em;">Daily hygiene · last 30 days</div>
+                            ${trackingDays.length > 0
+                                ? html`<${TrackingTimeline} days=${trackingDays} length=30 ariaLabel="Daily hygiene score, last 30 days" />`
+                                : html`<div class="text-muted small">No daily history yet. Trajectory will appear after a few daily reports.</div>`}
+                            <div class="d-flex justify-content-between text-muted small mt-1">
+                                <span>30 days ago</span>
+                                <span>Today</span>
+                            </div>
+                        </div>
+                        <div class="col-lg-2 text-lg-end">
+                            <div class="btn-group" role="group" aria-label="Period">
+                                <button type="button"
+                                    class="btn btn-sm ${this.state.period === 'daily' ? 'btn-primary' : 'btn-outline-secondary'}"
+                                    onClick=${() => this.setPeriod('daily')}>Daily</button>
+                                <button type="button"
+                                    class="btn btn-sm ${this.state.period === 'weekly' ? 'btn-primary' : 'btn-outline-secondary'}"
+                                    onClick=${() => this.setPeriod('weekly')}>Weekly</button>
                             </div>
                         </div>
                     </div>
@@ -912,10 +962,12 @@ export class PosturePage extends Component {
 
         if (this.state.error) {
             const is404 = this.state.error.includes('being deployed');
+            const surface = this.getSurfaceCopy();
             
             return html`
                 <div class="container py-4">
-                    <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
+                    <${TimeWarpEvidenceCallout} surface=${surface.calloutSurface} />
+                    <${EvidenceBanner} evidence=${this.state.evidence} pageName=${surface.pageName} />
                     <div class="alert ${is404 ? 'alert-info' : 'alert-danger'}">
                         ${is404 ? html`
                             <div class="d-flex align-items-center">
@@ -925,7 +977,7 @@ export class PosturePage extends Component {
                                     <div class="mt-1">${this.state.error}</div>
                                     <div class="mt-2 small">
                                         In the meantime, you can view 
-                                        <a href="#!/mission-brief" class="alert-link">Mission Briefing Reports</a>
+                                        <a href="#!/mission-brief" class="alert-link">Mission Brief Builder</a>
                                     </div>
                                 </div>
                             </div>
@@ -941,11 +993,13 @@ export class PosturePage extends Component {
         }
 
         if (!this.state.snapshot) {
+            const surface = this.getSurfaceCopy();
             return html`
                 <div class="container py-4">
-                    <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
-                    <div class="alert alert-warning">No posture evidence is available yet.</div>
-                    <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.loadSnapshot(true)}>Prepare Evidence</button>
+                    <${TimeWarpEvidenceCallout} surface=${surface.calloutSurface} />
+                    <${EvidenceBanner} evidence=${this.state.evidence} pageName=${surface.pageName} />
+                    <div class="alert alert-warning">${surface.empty}</div>
+                    <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.loadSnapshot(true)}>${surface.prepare}</button>
                 </div>
             `;
         }
@@ -956,16 +1010,18 @@ export class PosturePage extends Component {
             || this.state.snapshot.snapshotDate
             || this.state.snapshot.asOf;
         const generatedAt = generatedAtRaw ? new Date(generatedAtRaw).toLocaleString() : 'Unknown';
+        const surface = this.getSurfaceCopy();
 
         return html`
             <div class="page-header d-print-none mb-3">
                 <div class="container">
                     <div class="row g-2 align-items-center">
                         <div class="col">
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="text-uppercase small fw-semibold text-primary mb-1" style="letter-spacing:0.06em;"><i class="ti ti-file-certificate me-1"></i>${surface.eyebrow}</div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
                                 <h2 class="page-title mb-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
-                                    Protection Overview
+                                    ${surface.title}
                                 </h2>
                                 ${this.state.isRefreshingInBackground ? html`
                                     <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
@@ -975,14 +1031,14 @@ export class PosturePage extends Component {
                                 ` : ''}
                             </div>
                             <div class="page-subtitle">
-                                <span class="text-muted">Evidence prepared: ${generatedAt}</span>
+                                <span class="text-muted">${surface.subtitlePrefix} <strong class="text-body">${generatedAt}</strong>${surface.mode === 'proof' ? ' · ready to share with auditors and insurers' : ' · ready for posture review'}</span>
                                 ${this.state.freshness?.degraded ? html`
-                                    <span class="badge bg-warning text-white ms-2">
-                                        Degraded dossier
+                                    <span class="badge bg-warning-lt text-warning ms-2">
+                                        <i class="ti ti-alert-triangle me-1"></i>Degraded report
                                     </span>
                                 ` : null}
                                 ${this.state.snapshot?.isTrendFallback ? html`
-                                    <span class="badge bg-azure-lt text-azure ms-2">Trend evidence only</span>
+                                    <span class="badge bg-azure-lt text-azure ms-2"><i class="ti ti-chart-line me-1"></i>Trend evidence only</span>
                                 ` : null}
                             </div>
                         </div>
@@ -991,10 +1047,11 @@ export class PosturePage extends Component {
             </div>
 
             <div class="container">
-                <${EvidenceBanner} evidence=${this.state.evidence} pageName="posture" />
+                <${TimeWarpEvidenceCallout} surface=${surface.calloutSurface} />
+                <${EvidenceBanner} evidence=${this.state.evidence} pageName=${surface.pageName} />
                 ${this.state.snapshot?.isTrendFallback ? html`
                     <div class="alert alert-info border-0 shadow-sm">
-                        Full posture dossier evidence is still being prepared. Showing the latest trend-backed posture signals that are available for this organization.
+                        Full posture report evidence is still being prepared. Showing the latest trend-backed posture signals that are available for this organization.
                     </div>
                 ` : null}
             </div>
@@ -1041,8 +1098,8 @@ export class PosturePage extends Component {
                 <${TrendSnapshotStrip}
                     trends=${this.state.trendSnapshots}
                     context="posture"
-                    title="Posture Trend"
-                    subtitle="Risk, compliance, and remediation movement from daily dossiers"
+                    title=${surface.trendTitle}
+                    subtitle=${surface.trendSubtitle}
                 />
 
                 <div class="row g-4">
@@ -1064,7 +1121,7 @@ export class PosturePage extends Component {
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <div>
                                     <div class="card-title mb-0">Compliance</div>
-                                    <div class="text-muted small">Control status dossier</div>
+                                    <div class="text-muted small">Control status report</div>
                                 </div>
                             </div>
                             <div class="card-body">

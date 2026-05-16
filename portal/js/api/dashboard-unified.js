@@ -36,7 +36,7 @@ export async function getStandardDashboard(orgId) {
 }
 
 /**
- * Send query to AI Security Analyst
+ * Send query to AI Security Officer
  * @param {string} orgId - Organization ID
  * @param {string} query - Natural language query
  * @returns {Promise<Object>} AI response

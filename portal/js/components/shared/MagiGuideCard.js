@@ -7,7 +7,7 @@ function normalizeList(value) {
 function friendlySourceName(source) {
     const key = String(source || '').toLowerCase();
     const map = {
-        'org-snapshot': 'MAGI dossier',
+        'org-snapshot': 'MAGI report',
         'security-snapshot': 'Risk evidence',
         'compliance-snapshot': 'Compliance evidence',
         'audit-snapshot': 'Audit evidence',

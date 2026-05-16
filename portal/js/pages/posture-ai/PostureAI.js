@@ -3,6 +3,7 @@ import { logger } from '@config';
 import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { compactDateToInputDate, getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
+import { TimeWarpEvidenceCallout } from '../../components/shared/EvidenceBanner.js';
 
 const { html, Component } = window;
 
@@ -304,7 +305,7 @@ export class AIPosturePage extends Component {
             if (report?.report) {
                 // Server returned the full report synchronously
                 this.setState({ currentReport: report, generating: false, pollingForReport: false, error: null });
-                window.toast?.show?.('Mission report generated.', 'success', 3500);
+                window.toast?.show?.('Mission brief prepared.', 'success', 3500);
             } else {
                 // Server queued the report (fire-and-forget) — poll /latest for completion
                 logger.info('[AI Posture] Report queued, starting polling...');
@@ -623,13 +624,13 @@ export class AIPosturePage extends Component {
                             <line x1="9" y1="17" x2="15" y2="17" />
                         </svg>
                     </div>
-                    <p class="empty-title">No report found for this date and scope</p>
+                    <p class="empty-title">No brief found for this date and scope</p>
                     <p class="empty-subtitle text-muted">
                         Date: ${this.state.selectedDate} · Type: ${this.state.selectedReportKind}${this.state.selectedReportKind === COMPLIANCE_REPORT_KIND ? ` · Framework: ${this.state.selectedFramework}` : ''}
                     </p>
                     <div class="empty-action">
                         <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.generateReport()} disabled=${this.state.generating || this.state.pollingForReport}>
-                            ${this.state.generating || this.state.pollingForReport ? 'Generating…' : 'Generate This Report'}
+                            ${this.state.generating || this.state.pollingForReport ? 'Preparing…' : 'Prepare This Brief'}
                         </button>
                     </div>
                 </div>
@@ -660,7 +661,7 @@ export class AIPosturePage extends Component {
                     <div class="col-md-6">
                         <div class="card">
                             <div class="card-body">
-                                <h5 class="card-title">Report Summary</h5>
+                                <h5 class="card-title">Brief Summary</h5>
                                 ${hasRiskScore ? html`
                                     <div class="display-4 ${riskScore > 70 ? 'text-danger' : riskScore > 40 ? 'text-warning' : 'text-success'}">
                                         ${riskScore.toFixed(1)}
@@ -677,7 +678,7 @@ export class AIPosturePage extends Component {
 
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Report Content</h3>
+                        <h3 class="card-title">Brief Content</h3>
                     </div>
                     <div class="card-body report-markdown-content">
                         ${this.renderMarkdownContent(reportContent)}
@@ -718,7 +719,7 @@ export class AIPosturePage extends Component {
             <div class="page-header d-print-none mb-3">
                 <div class="container">
                     <div class="d-flex flex-wrap gap-2 mb-2">
-                        <a href="#!/mission-brief" class="btn btn-sm btn-primary">Mission Briefing</a>
+                        <a href="#!/mission-brief" class="btn btn-sm btn-primary">Mission Brief Builder</a>
                         <a href="#!/compliance" class="btn btn-sm btn-outline-primary">Compliance Command</a>
                         <a href="#!/audit" class="btn btn-sm btn-outline-primary">Command Log</a>
                         <a href="#!/reports" class="btn btn-sm btn-outline-primary">Dispatch Center</a>
@@ -727,17 +728,17 @@ export class AIPosturePage extends Component {
                         <div class="col">
                             <h2 class="page-title">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><circle cx="12" cy="12" r="4" /></svg>
-                                Mission Briefing
+                                Mission Brief Builder
                             </h2>
                             <div class="page-subtitle">
-                                <span class="text-muted">Command deck for security, compliance, and inventory reports with day-specific evidence</span>
+                                <span class="text-muted">Prepare security, compliance, and inventory briefs from the selected day's evidence</span>
                             </div>
                         </div>
                         <div class="col-auto ms-auto">
                             <div class="d-flex align-items-end gap-2 mb-2">
                                 <div>
-                                    <label class="form-label small text-muted mb-1">Report Type</label>
-                                    <select class="form-select form-select-sm" aria-label="Report type" value=${this.state.selectedReportKind} onChange=${(e) => this.setState({ selectedReportKind: e.target.value }, () => this.loadReports())}>
+                                    <label class="form-label small text-muted mb-1">Brief Type</label>
+                                    <select class="form-select form-select-sm" aria-label="Brief type" value=${this.state.selectedReportKind} onChange=${(e) => this.setState({ selectedReportKind: e.target.value }, () => this.loadReports())}>
                                         <option value=${SECURITY_REPORT_KIND}>Security Posture</option>
                                         <option value=${COMPLIANCE_REPORT_KIND}>Compliance</option>
                                         <option value=${INVENTORY_REPORT_KIND}>Software Inventory</option>
@@ -794,8 +795,8 @@ export class AIPosturePage extends Component {
                                 >
                                     ${this.state.generating || this.state.pollingForReport ? html`
                                         <span class="spinner-border spinner-border-sm me-2"></span>
-                                        Generating...
-                                    ` : 'Generate Report'}
+                                        Preparing...
+                                    ` : 'Prepare Brief'}
                                 </button>
                             </div>
                         </div>
@@ -804,11 +805,12 @@ export class AIPosturePage extends Component {
             </div>
 
             <div class="container">
+                <${TimeWarpEvidenceCallout} surface="mission brief evidence" />
                 ${this.state.pollingForReport ? html`
                     <div class="alert alert-info d-flex align-items-center mb-4">
                         <span class="spinner-border spinner-border-sm me-3"></span>
                         <div>
-                            <strong>Generating Report…</strong>
+                            <strong>Preparing brief…</strong>
                             <p class="mb-0 small">Preparing ${this.state.selectedReportKind} for ${this.state.selectedDate}. Keep this page open; it will load automatically when ready.</p>
                         </div>
                     </div>
@@ -816,7 +818,7 @@ export class AIPosturePage extends Component {
 
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Mission Report</h3>
+                        <h3 class="card-title">Prepared Brief</h3>
                     </div>
                     <div class="card-body p-0">
                         ${this.renderReportContent()}

@@ -9,7 +9,7 @@ import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { getEffectiveMaxInputDate } from '../../utils/effectiveDate.js';
 import ChatDrawer from '../../components/ChatDrawer.js';
-import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { EvidenceBanner, TimeWarpEvidenceCallout } from '../../components/shared/EvidenceBanner.js';
 import { TrendSnapshotStrip, getTrendDateRange } from '../../components/TrendSnapshotStrip.js';
 
 const { html, Component } = window;
@@ -155,7 +155,15 @@ export class CompliancePage extends Component {
       controlFacts: [],
       // Trend chart
       trendData: [],
-      trendLoading: false
+      trendLoading: false,
+      // D-2: full Compliance Gaps datatable controls (search, sort, paginate).
+      // Keeps the headline "Top Compliance Gaps" tile (top 2 highest-priority) above
+      // the full board so customers can see the headline and drill into the rest in-page.
+      gapBoardSearch: '',
+      gapBoardSortKey: 'priority',     // 'framework' | 'control' | 'affectedAssets' | 'priority'
+      gapBoardSortDir: 'desc',         // 'asc' | 'desc'
+      gapBoardPage: 1,
+      gapBoardPageSize: 10              // 10 | 25 | 50
     };
     this.orgUnsubscribe = null;
     this._rewindUnsub = null;
@@ -247,7 +255,7 @@ export class CompliancePage extends Component {
       // rows that match the legacy /compliance/latest payload shape (overallScore, standards, generatedAt).
       const bundleResp = await api.getPageBundle(orgId, 'compliance');
       if (!bundleResp?.success) {
-        throw new Error(bundleResp?.message || 'Failed to load compliance dossier');
+        throw new Error(bundleResp?.message || 'Failed to load the compliance report');
       }
       const evidence = bundleResp?.data?.evidence || bundleResp?.data?.Evidence || null;
       const atom = bundleResp?.data?.atoms?.['compliance-snapshot'];
@@ -404,6 +412,15 @@ export class CompliancePage extends Component {
       .slice(0, 12);
   }
 
+  // D-2: returns every gap across every live framework, unsliced. The headline tile
+  // still uses getTopGaps() (capped) for the "Top Compliance Gaps" highlight; the
+  // datatable below uses this so search/sort/paginate operate on the complete set.
+  getAllGaps() {
+    return this.getFrameworkCards()
+      .filter((item) => item.available)
+      .flatMap((item) => (item.gaps || []).map((gap) => ({ ...gap, frameworkName: item.shortName })));
+  }
+
   renderHeader(cards) {
     const snapshot = this.state.snapshot || {};
     const liveCount = cards.filter((item) => item.available).length;
@@ -427,45 +444,55 @@ export class CompliancePage extends Component {
             </div>
           </div>
 
-          <!-- Gradient Hero -->
-          <div class="card shadow-sm border-0 mt-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff;">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-lg-4 text-center text-lg-start mb-3 mb-lg-0">
-                  <div class="text-uppercase small opacity-75 mb-1">Audit Score</div>
-                  <div class="display-3 fw-bold mb-0">${score}%</div>
-                  <div class="d-flex align-items-center gap-2 mt-1 justify-content-center justify-content-lg-start">
-                    <span class="badge bg-white text-dark">Grade ${grade}</span>
-                    <span class="badge border border-white text-white opacity-75">${liveCount} live standard${liveCount !== 1 ? 's' : ''}</span>
-                  </div>
-                </div>
-                <div class="col-lg-5">
-                  ${topGaps.length > 0 ? html`
-                    <div class="text-uppercase small opacity-75 mb-2">Top Compliance Gaps</div>
-                    ${topGaps.map((gap, i) => html`
-                      <div class="d-flex align-items-start gap-2 mb-2">
-                        <span class="badge bg-white text-dark rounded-circle" style="width:24px;height:24px;line-height:24px;padding:0;text-align:center;">${i + 1}</span>
-                        <div>
-                          <div class="fw-semibold">${gap.controlName || gap.controlId || 'Control gap'}</div>
-                          <div class="small opacity-75">${gap.frameworkName || ''} \u00b7 ${gap.affectedAssets || 0} device${(gap.affectedAssets || 0) === 1 ? '' : 's'} non-compliant</div>
-                        </div>
+          ${(() => {
+            // Green floor pinned to Grade B (>= 80) so the numeric tone matches
+            // the displayed Grade badge (eliminates "78 green / Grade C amber" drift).
+            const scoreTone = score >= 80 ? 'success' : score >= 60 ? 'warning' : 'danger';
+            const accentVar = scoreTone === 'success' ? 'var(--tblr-success,#2fb344)'
+              : scoreTone === 'warning' ? 'var(--tblr-warning,#f59f00)'
+              : 'var(--tblr-danger,#d63939)';
+            const gapsTone = totalGaps === 0 ? 'success' : totalGaps <= 5 ? 'warning' : 'danger';
+            return html`
+              <div class="card shadow-sm border-0 mt-3" style=${`border-left:4px solid ${accentVar} !important;`}>
+                <div class="card-body p-4">
+                  <div class="row align-items-center g-4">
+                    <div class="col-lg-4 text-center text-lg-start">
+                      <div class="text-uppercase small fw-semibold text-muted mb-1" style="letter-spacing:0.06em;">Audit Score</div>
+                      <div class="display-3 fw-bold mb-0 text-${scoreTone}">${score}<span class="h2 text-muted ms-1">/100</span></div>
+                      <div class="d-flex align-items-center gap-2 mt-2 justify-content-center justify-content-lg-start">
+                        <span class="badge bg-${scoreTone}-lt text-${scoreTone}">Grade ${grade}</span>
+                        <span class="badge bg-secondary-lt text-secondary">${liveCount} live standard${liveCount !== 1 ? 's' : ''}</span>
                       </div>
-                    `)}
-                  ` : html`
-                    <div class="text-center opacity-75 py-3">
-                      <div class="fw-semibold">All clear</div>
-                      <div class="small">No priority gaps detected</div>
                     </div>
-                  `}
-                </div>
-                <div class="col-lg-3 text-center text-lg-end">
-                  <div class="d-inline-flex flex-column gap-2">
-                    <span class="badge bg-white text-dark">${totalGaps} priority gap${totalGaps !== 1 ? 's' : ''}</span>
+                    <div class="col-lg-5">
+                      ${topGaps.length > 0 ? html`
+                        <div class="text-uppercase small fw-semibold text-muted mb-2" style="letter-spacing:0.06em;">Top Compliance Gaps</div>
+                        ${topGaps.map((gap, i) => html`
+                          <div class="d-flex align-items-start gap-2 mb-2">
+                            <span class="badge bg-${gapsTone}-lt text-${gapsTone} rounded-circle flex-shrink-0" style="width:24px;height:24px;line-height:20px;padding:0;text-align:center;">${i + 1}</span>
+                            <div class="min-w-0">
+                              <div class="fw-semibold text-truncate">${gap.controlName || gap.controlId || 'Control gap'}</div>
+                              <div class="small text-muted">${gap.frameworkName || ''} \u00b7 ${gap.affectedAssets || 0} device${(gap.affectedAssets || 0) === 1 ? '' : 's'} non-compliant</div>
+                            </div>
+                          </div>
+                        `)}
+                      ` : html`
+                        <div class="text-center py-3">
+                          <div class="fw-semibold text-success"><i class="ti ti-shield-check me-1"></i>All clear</div>
+                          <div class="small text-muted">No priority gaps detected</div>
+                        </div>
+                      `}
+                    </div>
+                    <div class="col-lg-3 text-center text-lg-end">
+                      <div class="d-inline-flex flex-column gap-2 align-items-center align-items-lg-end">
+                        <span class="badge bg-${gapsTone}-lt text-${gapsTone}">${totalGaps} priority gap${totalGaps !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
+            `;
+          })()}
         </div>
       </div>
     `;
@@ -511,7 +538,7 @@ export class CompliancePage extends Component {
                     ${this.state.generatingReport ? 'Generating…' : 'Generate Compliance Report'}
                   </button>
                   <a href="#!/mission-brief" class="btn btn-outline-primary">
-                    Open Mission Briefing
+                    Open Mission Brief Builder
                   </a>
                 </div>
               </div>
@@ -595,33 +622,121 @@ export class CompliancePage extends Component {
     `;
   }
 
-  renderGapBoard(gaps) {
+  // D-2: Full Compliance Gaps datatable.
+  // Spec (TASKS.md D-2): keep the "Top Compliance Gaps" headline tile (rendered in
+  // renderHeader from getTopGaps()) above this board; render the *complete* gap list
+  // here with search, sort, and pagination (10/25/50 rows). No modal, no separate sub-page.
+  // Source data is the same per-framework `gaps[]` already loaded into the snapshot —
+  // the spec mentions /api/v1/orgs/{orgId}/compliance/gaps as the canonical endpoint;
+  // routing this through the snapshot read keeps the page on the existing single-load
+  // path (snapshot already carries every gap; no extra fetch needed).
+  renderGapBoard(allGaps) {
+    const { gapBoardSearch, gapBoardSortKey, gapBoardSortDir, gapBoardPage, gapBoardPageSize } = this.state;
+    const search = (gapBoardSearch || '').trim().toLowerCase();
+
+    // Filter
+    const filtered = !search
+      ? allGaps.slice()
+      : allGaps.filter((gap) => {
+          const blob = [
+            gap.frameworkName,
+            gap.controlId,
+            gap.title,
+            gap.controlName,
+            gap.description,
+            gap.remediation
+          ].filter(Boolean).join(' ').toLowerCase();
+          return blob.includes(search);
+        });
+
+    // Sort
+    const dir = gapBoardSortDir === 'asc' ? 1 : -1;
+    const sortKey = gapBoardSortKey || 'priority';
+    const cmp = (a, b) => {
+      let av, bv;
+      if (sortKey === 'framework') { av = (a.frameworkName || '').toLowerCase(); bv = (b.frameworkName || '').toLowerCase(); }
+      else if (sortKey === 'control') { av = (a.controlId || '').toLowerCase(); bv = (b.controlId || '').toLowerCase(); }
+      else if (sortKey === 'affectedAssets') { av = a.affectedAssets || 0; bv = b.affectedAssets || 0; }
+      else { av = a.priority || 0; bv = b.priority || 0; }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      // tiebreaker: priority then affectedAssets desc, stable across equal sort keys
+      const tp = (b.priority || 0) - (a.priority || 0);
+      if (tp !== 0) return tp;
+      return (b.affectedAssets || 0) - (a.affectedAssets || 0);
+    };
+    const sorted = filtered.sort(cmp);
+
+    // Paginate
+    const totalRows = sorted.length;
+    const totalPages = Math.max(1, Math.ceil(totalRows / gapBoardPageSize));
+    const safePage = Math.min(Math.max(1, gapBoardPage), totalPages);
+    const startIdx = (safePage - 1) * gapBoardPageSize;
+    const endIdx = Math.min(startIdx + gapBoardPageSize, totalRows);
+    const pageRows = sorted.slice(startIdx, endIdx);
+
+    const sortIcon = (key) => {
+      if (sortKey !== key) return html`<i class="ti ti-arrows-sort text-muted ms-1" style="font-size:0.85em;"></i>`;
+      return gapBoardSortDir === 'asc'
+        ? html`<i class="ti ti-arrow-up text-primary ms-1" style="font-size:0.85em;"></i>`
+        : html`<i class="ti ti-arrow-down text-primary ms-1" style="font-size:0.85em;"></i>`;
+    };
+
+    const headerCell = (label, key, extraClasses = '') => html`
+      <th class="${extraClasses}" style="cursor:pointer; user-select:none;" onClick=${() => this.toggleGapBoardSort(key)}>
+        ${label}${sortIcon(key)}
+      </th>
+    `;
+
     return html`
       <div class="container-xl mb-4">
         <div class="card border-0 shadow-sm">
-          <div class="card-header">
-            <h3 class="card-title">Priority Gap Board</h3>
-            <div class="card-subtitle text-muted">Highest-priority controls across currently instrumented standards</div>
+          <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div>
+              <h3 class="card-title mb-1">All Compliance Gaps</h3>
+              <div class="card-subtitle text-muted">
+                ${totalRows === 0 && allGaps.length === 0 ? 'No live compliance gaps in the latest evidence.'
+                  : totalRows === 0 ? `No gaps match \u201c${gapBoardSearch}\u201d`
+                  : `Showing ${startIdx + 1}\u2013${endIdx} of ${totalRows} gap${totalRows === 1 ? '' : 's'}${search ? ` (filtered from ${allGaps.length})` : ''}`}
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <div class="input-icon">
+                <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+                <input
+                  type="text"
+                  class="form-control form-control-sm"
+                  placeholder="Search controls, frameworks, remediation\u2026"
+                  value=${gapBoardSearch}
+                  onInput=${(e) => this.setGapBoardSearch(e.target.value)}
+                  style="min-width:260px;"
+                />
+              </div>
+            </div>
           </div>
           <div class="table-responsive">
             <table class="table table-vcenter card-table">
               <thead>
                 <tr>
-                  <th>Framework</th>
-                  <th>Control</th>
+                  ${headerCell('Framework', 'framework')}
+                  ${headerCell('Control', 'control')}
                   <th>Why It Matters</th>
-                  <th>Affected Assets</th>
-                  <th>Priority</th>
+                  ${headerCell('Affected Assets', 'affectedAssets')}
+                  ${headerCell('Priority', 'priority')}
                   <th>Remediation</th>
                   <th>Evidence</th>
                 </tr>
               </thead>
               <tbody>
-                ${gaps.length === 0 ? html`
+                ${totalRows === 0 ? html`
                   <tr>
-                    <td colspan="7" class="text-center py-5 text-muted">No live compliance gaps are available in the latest evidence.</td>
+                    <td colspan="7" class="text-center py-5 text-muted">
+                      ${allGaps.length === 0
+                        ? 'No live compliance gaps are available in the latest evidence.'
+                        : html`No gaps match your search. <button class="btn btn-link btn-sm p-0 ms-1 align-baseline" onClick=${() => this.setGapBoardSearch('')}>Clear filter</button>`}
+                    </td>
                   </tr>
-                ` : gaps.map((gap) => {
+                ` : pageRows.map((gap) => {
                   const urgency = getUrgencyTone(gap.priority || 0);
                   return html`
                     <tr>
@@ -632,7 +747,7 @@ export class CompliancePage extends Component {
                       </td>
                       <td class="text-muted small">${gap.description || 'No description provided.'}</td>
                       <td>${gap.affectedAssets || 0}</td>
-                      <td><span class="badge bg-${urgency.className} text-white">${urgency.label} · ${gap.priority || 0}</span></td>
+                      <td><span class="badge bg-${urgency.className} text-white">${urgency.label} \u00b7 ${gap.priority || 0}</span></td>
                       <td class="text-muted small">${gap.remediation || 'No remediation text available.'}</td>
                       <td>
                         <button class="btn btn-sm btn-outline-secondary" onClick=${() => this.openDrilldown(gap)} title="View failing devices">
@@ -645,9 +760,82 @@ export class CompliancePage extends Component {
               </tbody>
             </table>
           </div>
+          ${totalRows > 0 ? html`
+            <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Rows per page</span>
+                <select
+                  class="form-select form-select-sm"
+                  style="width:auto;"
+                  value=${gapBoardPageSize}
+                  onChange=${(e) => this.setGapBoardPageSize(Number(e.target.value))}
+                >
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+              <ul class="pagination pagination-sm m-0">
+                <li class="page-item ${safePage === 1 ? 'disabled' : ''}">
+                  <button class="page-link" type="button" onClick=${() => this.setGapBoardPage(safePage - 1)} disabled=${safePage === 1}>
+                    <i class="ti ti-chevron-left"></i> Prev
+                  </button>
+                </li>
+                ${this._gapBoardPaginationRange(safePage, totalPages).map((p) => p === '\u2026' ? html`
+                  <li class="page-item disabled"><span class="page-link">\u2026</span></li>
+                ` : html`
+                  <li class="page-item ${p === safePage ? 'active' : ''}">
+                    <button class="page-link" type="button" onClick=${() => this.setGapBoardPage(p)}>${p}</button>
+                  </li>
+                `)}
+                <li class="page-item ${safePage === totalPages ? 'disabled' : ''}">
+                  <button class="page-link" type="button" onClick=${() => this.setGapBoardPage(safePage + 1)} disabled=${safePage === totalPages}>
+                    Next <i class="ti ti-chevron-right"></i>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          ` : null}
         </div>
       </div>
     `;
+  }
+
+  // Compact pagination range: always include 1, current\u00b11, total, and ellipses for gaps.
+  _gapBoardPaginationRange(current, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const range = new Set([1, total, current, current - 1, current + 1]);
+    const sorted = Array.from(range).filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+    const out = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push('\u2026');
+      out.push(sorted[i]);
+    }
+    return out;
+  }
+
+  setGapBoardSearch(q) {
+    this.setState({ gapBoardSearch: q || '', gapBoardPage: 1 });
+  }
+
+  setGapBoardPage(p) {
+    this.setState({ gapBoardPage: Math.max(1, p) });
+  }
+
+  setGapBoardPageSize(size) {
+    this.setState({ gapBoardPageSize: size, gapBoardPage: 1 });
+  }
+
+  toggleGapBoardSort(key) {
+    const { gapBoardSortKey, gapBoardSortDir } = this.state;
+    if (gapBoardSortKey === key) {
+      this.setState({ gapBoardSortDir: gapBoardSortDir === 'asc' ? 'desc' : 'asc', gapBoardPage: 1 });
+    } else {
+      // Default direction per column type: descending for numeric (priority, affectedAssets),
+      // ascending for textual (framework, control).
+      const defaultDir = (key === 'priority' || key === 'affectedAssets') ? 'desc' : 'asc';
+      this.setState({ gapBoardSortKey: key, gapBoardSortDir: defaultDir, gapBoardPage: 1 });
+    }
   }
 
   renderReportPanel() {
@@ -677,7 +865,7 @@ export class CompliancePage extends Component {
                 <div class="empty-subtitle text-muted">No report exists for ${this.state.selectedDate} (${frameworkLabel}).</div>
                 <div class="empty-action mt-3">
                   <button class="btn btn-primary" data-mutates-state="true" onClick=${() => this.generateReport()} disabled=${this.state.generatingReport}>
-                    ${this.state.generatingReport ? 'Generating…' : 'Generate report now'}
+                    ${this.state.generatingReport ? 'Preparing…' : 'Prepare report now'}
                   </button>
                 </div>
               </div>
@@ -850,15 +1038,15 @@ export class CompliancePage extends Component {
   renderSeparationCard() {
     return html`
       <div class="container-xl mb-4">
-        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #fff8e6 0%, #fff2cc 100%);">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid var(--tblr-warning,#f59f00) !important;">
           <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
             <div>
-              <div class="text-uppercase small fw-bold text-warning mb-1">Workflow</div>
-              <h3 class="mb-1">Use Compliance for controls, Mission Briefing for risk narrative</h3>
-              <div class="text-muted">Compliance focuses on standards and evidence trails. Mission Briefing packages security, compliance, and inventory into executive-ready reports.</div>
+              <div class="text-uppercase small fw-semibold text-warning mb-1" style="letter-spacing:0.06em;"><i class="ti ti-route me-1"></i>Workflow</div>
+              <h3 class="mb-1">Use Compliance for controls, Mission Brief Builder for risk narrative</h3>
+              <div class="text-muted">Compliance focuses on standards and evidence trails. Mission Brief Builder packages security, compliance, and inventory into executive-ready briefs.</div>
             </div>
             <div class="d-flex gap-2">
-              <a href="#!/mission-brief" class="btn btn-outline-primary">Open Mission Briefing</a>
+              <a href="#!/mission-brief" class="btn btn-outline-primary"><i class="ti ti-file-text me-1"></i>Open Mission Brief Builder</a>
             </div>
           </div>
         </div>
@@ -881,6 +1069,7 @@ export class CompliancePage extends Component {
     if (this.state.error) {
       return html`
         <div class="container-xl py-4">
+          <${TimeWarpEvidenceCallout} surface="compliance evidence" />
           <${EvidenceBanner} evidence=${this.state.evidence} pageName="compliance" />
           <div class="alert alert-danger">${this.state.error}</div>
           <button class="btn btn-primary" onClick=${() => this.loadPage()}>Retry</button>
@@ -889,16 +1078,19 @@ export class CompliancePage extends Component {
     }
 
     const frameworkCards = this.getFrameworkCards();
-    const topGaps = this.getTopGaps();
+    const allGaps = this.getAllGaps();
 
     return html`
       <div style="padding-bottom: 88px;">
         ${this.renderHeader(frameworkCards)}
-        ${this.state.evidence ? html`<div class="container-xl"><${EvidenceBanner} evidence=${this.state.evidence} pageName="compliance" /></div>` : null}
+        <div class="container-xl">
+          <${TimeWarpEvidenceCallout} surface="compliance evidence" />
+          ${this.state.evidence ? html`<${EvidenceBanner} evidence=${this.state.evidence} pageName="compliance" />` : null}
+        </div>
         ${this.state.snapshot?.isEvidenceFallback ? html`
           <div class="container-xl mb-4">
             <div class="alert alert-info border-0 shadow-sm">
-              Compliance dossier evidence is still being prepared. The framework catalog, dated report controls, and available trend evidence remain visible so you can see what will populate when control facts arrive.
+              The compliance report is still being prepared. The framework catalog, dated report controls, and available trend evidence remain visible so you can see what will populate when control facts arrive.
             </div>
           </div>
         ` : null}
@@ -909,11 +1101,11 @@ export class CompliancePage extends Component {
             trends=${this.state.trendData}
             context="compliance"
             title="Compliance Trend"
-            subtitle="Readiness score, fix velocity, and at-risk devices from daily dossiers"
+            subtitle="Readiness score, fix velocity, and at-risk devices from daily reports"
           />
         </div>
         ${this.renderTrendChart()}
-        ${this.renderGapBoard(topGaps)}
+        ${this.renderGapBoard(allGaps)}
         ${this.renderReportPanel()}
         ${this.renderSeparationCard()}
         <${ChatDrawer} contextHint="compliance posture, framework gaps, and audit evidence" persona="compliance_officer" />

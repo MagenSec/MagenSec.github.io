@@ -33,8 +33,8 @@ function FreshnessBadge({ freshness, refreshing }) {
     : isStale
       ? 'bg-yellow-lt text-yellow'
       : (source === 'snapshot' ? 'bg-blue-lt text-blue' : 'bg-green-lt text-green');
-  const sourceLabel = source === 'snapshot' ? 'MAGI dossier' : 'Live signal';
-  const label = isTimeWarp ? 'Historical' : (source === 'snapshot' ? 'Dossier' : 'Live');
+  const sourceLabel = source === 'snapshot' ? 'MAGI report' : 'Live signal';
+  const label = isTimeWarp ? 'Historical' : (source === 'snapshot' ? 'Report' : 'Live');
   const tip = `${isTimeWarp ? `Evidence date: ${dateLabel || 'selected date'} · ` : ''}Source: ${sourceLabel}${age ? ' · ' + age : ''}${freshness.generatedAt ? ' · ' + new Date(freshness.generatedAt).toLocaleString() : ''}`;
   const icon = isTimeWarp ? 'clock' : (source === 'snapshot' ? 'database' : 'broadcast');
 

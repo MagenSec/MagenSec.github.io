@@ -1341,7 +1341,7 @@ export class DeviceDetailPage extends window.Component {
                 timeline.push({
                     type: 'telemetry',
                     timestamp: new Date(snapshot.timestamp),
-                    title: 'Current Dossier',
+                    title: 'Latest Snapshot',
                     description: `OS: ${snapshot.fields.OSEdition || ''} | CPU: ${snapshot.fields.CPUName || ''} | RAM: ${snapshot.fields.TotalRAMMB ? Math.round(snapshot.fields.TotalRAMMB / 1024) + ' GB' : ''}`,
                     severity: 'success',
                     snapshot
@@ -2052,7 +2052,7 @@ export class DeviceDetailPage extends window.Component {
     </tbody>
   </table>
 
-    <h2>Network & Telemetry Dossier</h2>
+    <h2>Network &amp; Telemetry Snapshot</h2>
   <div class="card">
     <div class="grid">
       <div><strong>Last Telemetry</strong><div>${FormattingUtils.escapeHtml(model?.telemetry?.latestTimestamp || 'N/A')}</div></div>
@@ -3011,7 +3011,7 @@ export class DeviceDetailPage extends window.Component {
                         ${this.state.summaryMeta?.source === 'historical' ? html`
                             <div class="alert alert-warning py-2 mb-3 d-flex align-items-center gap-2">
                                 <i class="ti ti-history"></i>
-                                <span>Historical snapshot. Showing the Dossier facts available for the selected Time Warp date.</span>
+                                <span>Historical snapshot. Showing the report facts available for the selected Time Warp date.</span>
                             </div>
                         ` : null}
 
@@ -3198,7 +3198,7 @@ export class DeviceDetailPage extends window.Component {
                                                             </div>
                                                             <div class="d-flex align-items-center gap-2 flex-wrap">
                                                                 <span class="badge ${summarySignalBadgeClass}">
-                                                                    ${summarySignalSource === 'cached' ? 'Last verified dossier' : summarySignalSource === 'fresh' ? 'Live summary' : 'Signal pending'}
+                                                                    ${summarySignalSource === 'cached' ? 'Last verified report' : summarySignalSource === 'fresh' ? 'Live summary' : 'Signal pending'}
                                                                 </span>
                                                                 ${summarySignalAt ? html`<span class="text-muted small">Updated ${DateUtils.formatDate(summarySignalAt)}</span>` : ''}
                                                             </div>

@@ -13,7 +13,7 @@ import { AttackChainGraph } from '../../components/AttackChainGraph.js';
 import { CveDetailsModal } from '../../components/CveDetailsModal.js';
 import { DeviceQuickViewModal } from '../../components/DeviceQuickViewModal.js';
 import { AppDevicesModal } from '../../components/AppDevicesModal.js';
-import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
+import { EvidenceBanner, TimeWarpEvidenceCallout } from '../../components/shared/EvidenceBanner.js';
 import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
 import { TACTICS, lookupTechnique } from '../../data/mitre-ttp-catalog.js';
 
@@ -21,7 +21,7 @@ const { html, Component } = window;
 
 function formatMissingEvidenceName(atomName) {
     const map = {
-        'org-snapshot': 'posture dossier',
+        'org-snapshot': 'posture report',
         'security-snapshot': 'security evidence',
         'compliance-snapshot': 'compliance evidence',
         'audit-snapshot': 'audit evidence',
@@ -317,7 +317,7 @@ export class AttackChainPage extends Component {
                 tone: devices.length > 1 ? 'info' : 'secondary',
                 value: devices.length > 1 ? `${devices.length} endpoints in scope` : 'Single-endpoint path',
                 note: devices.length > 1
-                    ? 'Multiple endpoints appear in the same path. Analyst review should confirm actual reachability.'
+                    ? 'Multiple endpoints appear in the same path. Human review should confirm actual reachability.'
                     : 'Current evidence suggests a localized endpoint path.'
             }
         ];
@@ -351,7 +351,7 @@ export class AttackChainPage extends Component {
             <div class="card border-0 shadow-sm overflow-hidden attack-narrative-card">
                 <div class="card-header py-3 px-4 bg-transparent">
                     <div>
-                        <div class="text-uppercase small text-muted mb-1">Analyst walkthrough</div>
+                        <div class="text-uppercase small text-muted mb-1">Officer MAGI walkthrough</div>
                         <h3 class="card-title mb-0">Operational narrative</h3>
                     </div>
                 </div>
@@ -433,7 +433,7 @@ export class AttackChainPage extends Component {
             {
                 label: 'Assessment confidence',
                 value: 'Correlated',
-                note: 'an analyst estimate, not proof of reachability'
+                note: 'a signal-based estimate, not proof of reachability'
             }
         ];
 
@@ -609,6 +609,7 @@ export class AttackChainPage extends Component {
                     </div>
                 </div>
 
+                <${TimeWarpEvidenceCallout} surface="attack-chain evidence" />
                 <${EvidenceBanner} evidence=${evidence} pageName="attack-chain" />
                 <${MagiGuideCard}
                     title="MAGI attack-path guide"
