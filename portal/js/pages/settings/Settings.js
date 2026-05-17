@@ -10,6 +10,7 @@ import { auth } from '../../auth.js';
 import toast from '../../toast.js';
 import { logger } from '../../config.js';
 import { LicenseAdjustmentDialog } from '../../components/LicenseAdjustmentDialog.js';
+import { SortableHeader } from '../../components/shared/DataControls.js';
 
 // Settings page utilities (extracted for modularity)
 import {
@@ -25,11 +26,16 @@ const { html } = window;
 const { useState, useEffect } = window.preactHooks;
 const PHONE_CACHE_KEY = (email) => `magensec_phone_${email}`;
 
+function getInitialSettingsTab() {
+    const hash = window.location.hash || '';
+    return hash.startsWith('#!/licenses') ? 'licenses' : 'general';
+}
+
 // Local helper to keep existing showToast signature while using default export
 const showToast = (message, type) => toast.show(message, type);
 
 export function SettingsPage() {
-    const [activeTab, setActiveTab] = useState('general');
+    const [activeTab, setActiveTab] = useState(getInitialSettingsTab());
     const [loading, setLoading] = useState(true);
     const [org, setOrg] = useState(null);
     const [licenses, setLicenses] = useState([]);
@@ -67,7 +73,7 @@ export function SettingsPage() {
     // Load data on mount, reload when org or Time Warp state changes
     useEffect(() => {
         const unsubscribeOrg = orgContext.onChange(() => {
-            setActiveTab('general');
+            setActiveTab(getInitialSettingsTab());
             loadSettings();
         });
 
@@ -82,6 +88,17 @@ export function SettingsPage() {
             unsubscribeOrg?.();
             unsubscribeWarp?.();
         };
+    }, []);
+
+    useEffect(() => {
+        const syncRouteTab = () => {
+            setActiveTab(getInitialSettingsTab());
+        };
+
+        window.addEventListener('hashchange', syncRouteTab);
+        syncRouteTab();
+
+        return () => window.removeEventListener('hashchange', syncRouteTab);
     }, []);
 
     const loadSettings = async () => {
@@ -1038,12 +1055,71 @@ function SemiCircleGauge({ percent }) {
     `;
 }
 
+function getLicenseId(license) {
+    return license?.licenseId || license?.rowKey || license?.serialKey || '';
+}
+
+function getLicenseType(license) {
+    return license?.licenseType || license?.type || 'Business';
+}
+
+function getLicenseStatusMeta(license) {
+    const rawStatus = String(license?.status || '').trim().toLowerCase();
+    if (license?.isDisabled || rawStatus === 'disabled') {
+        return { id: 'disabled', label: 'Disabled', badge: 'bg-warning', style: 'color:#111827;' };
+    }
+
+    if (license?.isActive === false || rawStatus === 'inactive' || rawStatus === 'rotated' || rawStatus === 'replaced') {
+        return { id: 'inactive', label: 'Inactive', badge: 'bg-danger text-white' };
+    }
+
+    return { id: 'active', label: 'Active', badge: 'bg-success', style: 'color:#111827;' };
+}
+
+function getLicenseDateValue(value) {
+    if (!value) return null;
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? time : null;
+}
+
+function formatLicenseDate(value, fallback = 'Never') {
+    const time = getLicenseDateValue(value);
+    return time === null ? fallback : new Date(time).toLocaleDateString();
+}
+
+function licenseNumericValue(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+}
+
 // Licenses Tab
 function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate }) {
     const [visibleKeys, setVisibleKeys] = useState({});
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
+    const [sortField, setSortField] = useState('serialKey');
+    const [sortAsc, setSortAsc] = useState(true);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
 
     const toggleKey = (id) => {
         setVisibleKeys(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const updateFilter = (setter, value) => {
+        setter(value);
+        setPage(1);
+    };
+
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortAsc(prev => !prev);
+            return;
+        }
+
+        setSortField(field);
+        setSortAsc(!['seats', 'credits', 'rotatedAt'].includes(field));
     };
 
     // Build ISO cutoff for restoring pre-warp license states
@@ -1052,19 +1128,99 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
         : null;
 
     // If a license was rotated after the warp date, show it as it was before rotation
+    const sourceLicenses = Array.isArray(licenses) ? licenses : [];
     const adjustedLicenses = warpCutoffIso
-        ? licenses.map(lic => {
+        ? sourceLicenses.map(lic => {
             if (lic.rotatedAt && new Date(lic.rotatedAt).toISOString() > warpCutoffIso) {
                 return { ...lic, isActive: true, isDisabled: false, status: 'Active', rotatedAt: null };
             }
             return lic;
         })
-        : licenses;
+        : sourceLicenses;
+
+    const allLicenses = Array.isArray(adjustedLicenses) ? adjustedLicenses : [];
+    const licenseTypes = Array.from(new Set(allLicenses.map(getLicenseType).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const statusOptions = [
+        { id: 'all', label: 'All statuses' },
+        { id: 'active', label: 'Active' },
+        { id: 'disabled', label: 'Disabled' },
+        { id: 'inactive', label: 'Inactive' },
+    ];
+    const query = search.trim().toLowerCase();
+
+    const filteredLicenses = allLicenses.filter(license => {
+        const status = getLicenseStatusMeta(license);
+        const type = getLicenseType(license);
+
+        if (statusFilter !== 'all' && status.id !== statusFilter) return false;
+        if (typeFilter !== 'all' && type !== typeFilter) return false;
+        if (!query) return true;
+
+        const haystack = [
+            license.serialKey,
+            license.licenseId,
+            license.rowKey,
+            type,
+            status.label,
+            license.seats,
+            license.remainingCredits,
+            license.totalCredits,
+            license.createdAt,
+            license.rotatedAt,
+        ].filter(value => value !== undefined && value !== null).join(' ').toLowerCase();
+
+        return haystack.includes(query);
+    });
+
+    const valueForSort = (license) => {
+        const statusOrder = { disabled: 3, inactive: 2, active: 1 };
+        switch (sortField) {
+            case 'type': return getLicenseType(license).toLowerCase();
+            case 'seats': return licenseNumericValue(license.seats);
+            case 'credits': return licenseNumericValue(license.remainingCredits);
+            case 'status': return statusOrder[getLicenseStatusMeta(license).id] || 0;
+            case 'rotatedAt': return getLicenseDateValue(license.rotatedAt) || 0;
+            case 'serialKey':
+            default: return String(license.serialKey || getLicenseId(license) || '').toLowerCase();
+        }
+    };
+
+    const sortedLicenses = [...filteredLicenses].sort((a, b) => {
+        const av = valueForSort(a);
+        const bv = valueForSort(b);
+        const cmp = av > bv ? 1 : av < bv ? -1 : 0;
+        return (sortAsc ? cmp : -cmp) || String(getLicenseId(a)).localeCompare(String(getLicenseId(b)));
+    });
+
+    const totalRows = sortedLicenses.length;
+    const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const startIndex = totalRows === 0 ? 0 : (safePage - 1) * pageSize;
+    const endIndex = Math.min(totalRows, startIndex + pageSize);
+    const pageRows = sortedLicenses.slice(startIndex, endIndex);
+    const activeFilters = [
+        query ? `Search: ${search.trim()}` : null,
+        statusFilter !== 'all' ? statusOptions.find(option => option.id === statusFilter)?.label : null,
+        typeFilter !== 'all' ? `Type: ${typeFilter}` : null,
+    ].filter(Boolean);
+    const clearFilters = () => {
+        setSearch('');
+        setStatusFilter('all');
+        setTypeFilter('all');
+        setPage(1);
+    };
 
     return html`
         <div>
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3 class="card-title mb-0">License Management</h3>
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                <div>
+                    <h3 class="card-title mb-1">License Management</h3>
+                    <div class="text-muted small">
+                        ${totalRows === allLicenses.length
+                            ? `${allLicenses.length} license${allLicenses.length === 1 ? '' : 's'}`
+                            : `${totalRows} of ${allLicenses.length} licenses`}
+                    </div>
+                </div>
             </div>
 
             ${warpCutoffIso ? html`
@@ -1078,7 +1234,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
             </div>
             ` : ''}
             
-            ${(!adjustedLicenses || adjustedLicenses.length === 0) ? html`
+            ${(!allLicenses || allLicenses.length === 0) ? html`
                 <div class="empty">
                     <div class="empty-icon">
                         <i class="ti ti-key icon"></i>
@@ -1087,25 +1243,75 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
                     <p class="empty-subtitle text-muted">Contact your administrator to create a license</p>
                 </div>
             ` : html`
+                <div class="border rounded p-3 mb-3 bg-body-tertiary">
+                    <div class="d-flex align-items-end gap-3 flex-wrap">
+                        <div class="flex-fill" style="min-width:260px;">
+                            <label class="form-label small text-muted mb-1">Search</label>
+                            <div class="input-icon">
+                                <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+                                <input
+                                    type="search"
+                                    class="form-control"
+                                    placeholder="Search serial, type, status, credits..."
+                                    value=${search}
+                                    onInput=${event => updateFilter(setSearch, event.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div style="min-width:170px;">
+                            <label class="form-label small text-muted mb-1">Status</label>
+                            <select class="form-select" value=${statusFilter} onChange=${event => updateFilter(setStatusFilter, event.target.value)}>
+                                ${statusOptions.map(option => html`
+                                    <option value=${option.id} selected=${statusFilter === option.id}>${option.label}</option>
+                                `)}
+                            </select>
+                        </div>
+                        <div style="min-width:170px;">
+                            <label class="form-label small text-muted mb-1">Type</label>
+                            <select class="form-select" value=${typeFilter} onChange=${event => updateFilter(setTypeFilter, event.target.value)}>
+                                <option value="all" selected=${typeFilter === 'all'}>All types</option>
+                                ${licenseTypes.map(type => html`
+                                    <option value=${type} selected=${typeFilter === type}>${type}</option>
+                                `)}
+                            </select>
+                        </div>
+                        <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+                            ${activeFilters.map(filter => html`<span class="badge bg-primary text-white">${filter}</span>`)}
+                            <span class="text-muted small">${totalRows} of ${allLicenses.length}</span>
+                            ${activeFilters.length ? html`
+                                <button type="button" class="btn btn-sm btn-ghost-secondary" onClick=${clearFilters}>Clear</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-vcenter">
+                    <table class="table table-vcenter table-hover table-nowrap">
                         <thead>
                             <tr>
-                                <th>Serial Key</th>
-                                <th>Type</th>
-                                <th>Seats</th>
-                                <th>Credits</th>
-                                <th>Status</th>
-                                <th>Rotated</th>
+                                <${SortableHeader} label="Serial Key" field="serialKey" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} style="min-width:220px;" />
+                                <${SortableHeader} label="Type" field="type" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} style="min-width:130px;" />
+                                <${SortableHeader} label="Seats" field="seats" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} className="text-end" style="width:110px;" />
+                                <${SortableHeader} label="Credits" field="credits" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} className="text-end" style="min-width:150px;" />
+                                <${SortableHeader} label="Status" field="status" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} style="min-width:130px;" />
+                                <${SortableHeader} label="Rotated" field="rotatedAt" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} style="min-width:130px;" />
                                 <th class="w-1"></th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${adjustedLicenses.map(license => {
-                                const id = license.licenseId || license.rowKey;
+                            ${pageRows.length === 0 ? html`
+                                <tr>
+                                    <td colspan="7" class="text-center py-5 text-muted">
+                                        No licenses match the current filters.
+                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" onClick=${clearFilters}>Clear filters</button>
+                                    </td>
+                                </tr>
+                            ` : pageRows.map(license => {
+                                const id = getLicenseId(license);
                                 const serialKey = license.serialKey || 'N/A';
                                 const isVisible = visibleKeys[id];
                                 const displayKey = isVisible ? serialKey : (serialKey.length > 8 ? `${serialKey.substring(0, 4)}-****-****` : serialKey);
+                                const status = getLicenseStatusMeta(license);
+                                const licenseType = getLicenseType(license);
                                 
                                 return html`
                                     <tr>
@@ -1116,6 +1322,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
                                                     class="btn btn-sm btn-icon btn-ghost-secondary me-1"
                                                     onClick=${() => toggleKey(id)}
                                                     title=${isVisible ? "Hide key" : "Show key"}
+                                                    aria-label=${isVisible ? "Hide key" : "Show key"}
                                                 >
                                                     <i class=${`ti ti-eye${isVisible ? '-off' : ''}`}></i>
                                                 </button>
@@ -1123,6 +1330,7 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
                                                     class="btn btn-sm btn-icon btn-ghost-secondary"
                                                     onClick=${() => onCopy(serialKey)}
                                                     title="Copy full key"
+                                                    aria-label="Copy full key"
                                                 >
                                                     <i class="ti ti-copy"></i>
                                                 </button>
@@ -1130,30 +1338,22 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
                                         </td>
                                         <td>
                                             <span class=${`badge ${
-                                                license.licenseType === 'Personal' ? 'bg-info-lt text-info' :
-                                                license.licenseType === 'Education' ? 'bg-success-lt text-success' :
-                                                license.licenseType === 'Demo' ? 'bg-warning-lt text-warning' :
-                                                'bg-primary-lt text-primary'
-                                            }`}>${license.licenseType || 'Business'}</span>
+                                                licenseType === 'Personal' ? 'bg-info text-white' :
+                                                licenseType === 'Education' ? 'bg-success text-white' :
+                                                licenseType === 'Demo' ? 'bg-warning' :
+                                                'bg-primary text-white'
+                                            }`} style=${licenseType === 'Demo' ? 'color:#111827;' : ''}>${licenseType}</span>
                                         </td>
-                                        <td>${license.seats || 'N/A'}</td>
-                                        <td>
+                                        <td class="text-end">${license.seats || 'N/A'}</td>
+                                        <td class="text-end">
                                             <span class="text-muted">${license.remainingCredits || 0}</span>
                                             / ${license.totalCredits || 0}
                                         </td>
                                         <td>
-                                            ${license.isDisabled && html`
-                                                <span class="badge bg-orange-lt text-orange">Disabled</span>
-                                            `}
-                                            ${!license.isActive && !license.isDisabled && html`
-                                                <span class="badge bg-red-lt text-red">Inactive</span>
-                                            `}
-                                            ${license.isActive && !license.isDisabled && html`
-                                                <span class="badge bg-green-lt text-green">Active</span>
-                                            `}
+                                            <span class=${`badge ${status.badge}`} style=${status.style || ''}>${status.label}</span>
                                         </td>
                                         <td class="text-muted">
-                                            ${license.rotatedAt ? new Date(license.rotatedAt).toLocaleDateString() : 'Never'}
+                                            ${formatLicenseDate(license.rotatedAt)}
                                         </td>
                                         <td>
                                             ${!warpCutoffIso ? html`
@@ -1174,6 +1374,34 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
                             })}
                         </tbody>
                     </table>
+                </div>
+                <div class="border-top d-flex align-items-center justify-content-between gap-3 flex-wrap pt-3 mt-3">
+                    <div class="d-flex align-items-center gap-2 text-muted small">
+                        <span>Showing <strong>${totalRows === 0 ? 0 : startIndex + 1}</strong> to <strong>${endIndex}</strong> of <strong>${totalRows}</strong> licenses</span>
+                        <select class="form-select form-select-sm" style="width:auto;" value=${pageSize} onChange=${event => { setPageSize(Number(event.target.value) || 10); setPage(1); }}>
+                            ${[10, 25, 50, 100].map(size => html`<option value=${size} selected=${pageSize === size}>${size} / page</option>`)}
+                        </select>
+                    </div>
+                    <ul class="pagination m-0">
+                        <li class=${`page-item ${safePage <= 1 ? 'disabled' : ''}`}>
+                            <button type="button" class="page-link" disabled=${safePage <= 1} onClick=${() => setPage(safePage - 1)}>
+                                <i class="ti ti-chevron-left"></i>
+                            </button>
+                        </li>
+                        ${Array.from({ length: totalPages }, (_, index) => index + 1)
+                            .filter(number => number === 1 || number === totalPages || Math.abs(number - safePage) <= 2)
+                            .map((number, index, visiblePages) => html`
+                                ${index > 0 && number - visiblePages[index - 1] > 1 ? html`<li class="page-item disabled"><span class="page-link">...</span></li>` : ''}
+                                <li class=${`page-item ${number === safePage ? 'active' : ''}`}>
+                                    <button type="button" class="page-link" onClick=${() => setPage(number)}>${number}</button>
+                                </li>
+                            `)}
+                        <li class=${`page-item ${safePage >= totalPages ? 'disabled' : ''}`}>
+                            <button type="button" class="page-link" disabled=${safePage >= totalPages} onClick=${() => setPage(safePage + 1)}>
+                                <i class="ti ti-chevron-right"></i>
+                            </button>
+                        </li>
+                    </ul>
                 </div>
             `}
             
