@@ -650,12 +650,15 @@ export class SoftwareInventoryPage extends Component {
         else if (cohesion?.hasEvidence && cohesion.level === 'partial' && confidence === 'High') confidence = 'Medium';
         else if (cohesion?.hasEvidence && cohesion.level === 'weak') confidence = 'Low';
 
-        const cohesionReason = cohesion?.label ? ` ${cohesion.label}.` : '';
+        const baseReason = String(family.reason || '').trim();
+        const cohesionLabel = String(cohesion?.label || '').trim();
+        const shouldAppendCohesion = cohesionLabel && !baseReason.toLowerCase().includes(cohesionLabel.toLowerCase());
+        const cohesionReason = shouldAppendCohesion ? ` ${cohesionLabel}.` : '';
         return {
             label: family.label,
             confidence,
             isLikelyBundle: family.isLikelyBundle,
-            reason: `${family.reason}${cohesionReason}`,
+            reason: `${baseReason}${cohesionReason}`,
         };
     }
 
