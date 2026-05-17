@@ -135,10 +135,10 @@ function ManageOrganizationsTab() {
 
                                 <!-- Tab Content -->
                                 <div class="modal-body">
-                                    ${activeManageTab === 'details' && html`\${/* Details tab content */}\`}
-                                    ${activeManageTab === 'licenses' && html`\${/* Licenses tab content */}\`}
-                                    ${activeManageTab === 'storage' && html`\${/* Storage tab content */}\`}
-                                    ${activeManageTab === 'danger' && html`\${/* Danger Zone content */}\`}
+                                    ${activeManageTab === 'details' && html`<!-- Details tab content -->`}
+                                    ${activeManageTab === 'licenses' && html`<!-- Licenses tab content -->`}
+                                    ${activeManageTab === 'storage' && html`<!-- Storage tab content -->`}
+                                    ${activeManageTab === 'danger' && html`<!-- Danger Zone content -->`}
                                 </div>
                             </div>
                         </div>
