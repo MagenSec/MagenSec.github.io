@@ -1076,6 +1076,11 @@ function getLicenseStatusMeta(license) {
     return { id: 'active', label: 'Active', badge: 'bg-success', style: 'color:#111827;' };
 }
 
+function getLicenseStatusSortRank(license) {
+    const order = { active: 0, disabled: 1, inactive: 2 };
+    return order[getLicenseStatusMeta(license).id] ?? 99;
+}
+
 function getLicenseDateValue(value) {
     if (!value) return null;
     const time = Date.parse(value);
@@ -1098,8 +1103,8 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
-    const [sortField, setSortField] = useState('serialKey');
-    const [sortAsc, setSortAsc] = useState(true);
+    const [sortField, setSortField] = useState('rotatedAt');
+    const [sortAsc, setSortAsc] = useState(false);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
@@ -1173,12 +1178,11 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
     });
 
     const valueForSort = (license) => {
-        const statusOrder = { disabled: 3, inactive: 2, active: 1 };
         switch (sortField) {
             case 'type': return getLicenseType(license).toLowerCase();
             case 'seats': return licenseNumericValue(license.seats);
             case 'credits': return licenseNumericValue(license.remainingCredits);
-            case 'status': return statusOrder[getLicenseStatusMeta(license).id] || 0;
+            case 'status': return getLicenseStatusSortRank(license);
             case 'rotatedAt': return getLicenseDateValue(license.rotatedAt) || 0;
             case 'serialKey':
             default: return String(license.serialKey || getLicenseId(license) || '').toLowerCase();
@@ -1186,6 +1190,12 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
     };
 
     const sortedLicenses = [...filteredLicenses].sort((a, b) => {
+        const isDefaultSort = sortField === 'rotatedAt' && sortAsc === false;
+        if (isDefaultSort) {
+            const statusCmp = getLicenseStatusSortRank(a) - getLicenseStatusSortRank(b);
+            if (statusCmp !== 0) return statusCmp;
+        }
+
         const av = valueForSort(a);
         const bv = valueForSort(b);
         const cmp = av > bv ? 1 : av < bv ? -1 : 0;
@@ -1294,13 +1304,12 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
                                 <${SortableHeader} label="Credits" field="credits" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} className="text-end" style="min-width:150px;" />
                                 <${SortableHeader} label="Status" field="status" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} style="min-width:130px;" />
                                 <${SortableHeader} label="Rotated" field="rotatedAt" sortField=${sortField} sortAsc=${sortAsc} onSort=${handleSort} style="min-width:130px;" />
-                                <th class="w-1"></th>
                             </tr>
                         </thead>
                         <tbody>
                             ${pageRows.length === 0 ? html`
                                 <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
+                                    <td colspan="6" class="text-center py-5 text-muted">
                                         No licenses match the current filters.
                                         <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" onClick=${clearFilters}>Clear filters</button>
                                     </td>
@@ -1334,6 +1343,18 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
                                                 >
                                                     <i class="ti ti-copy"></i>
                                                 </button>
+                                                ${!warpCutoffIso && status.id === 'active' ? html`
+                                                    <button
+                                                        class="btn btn-sm btn-outline-primary ms-2"
+                                                        data-action="rotate-license"
+                                                        onClick=${() => onRotate(id)}
+                                                        title="Rotate license"
+                                                        aria-label="Rotate license"
+                                                    >
+                                                        <i class="ti ti-refresh me-1"></i>
+                                                        Rotate
+                                                    </button>
+                                                ` : ''}
                                             </div>
                                         </td>
                                         <td>
@@ -1354,20 +1375,6 @@ function LicensesTab({ licenses, onRotate, onCopy, isSiteAdmin, effectiveDate })
                                         </td>
                                         <td class="text-muted">
                                             ${formatLicenseDate(license.rotatedAt)}
-                                        </td>
-                                        <td>
-                                            ${!warpCutoffIso ? html`
-                                            <div class="btn-group">
-                                                <button 
-                                                    class="btn btn-sm btn-primary"
-                                                    data-action="rotate-license"
-                                                    onClick=${() => onRotate(id)}
-                                                    disabled=${!license.isActive}
-                                                >
-                                                    Rotate
-                                                </button>
-                                            </div>
-                                            ` : ''}
                                         </td>
                                     </tr>
                                 `;
