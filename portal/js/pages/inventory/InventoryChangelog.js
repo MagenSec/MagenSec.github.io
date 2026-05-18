@@ -317,46 +317,33 @@ export class InventoryChangelogPage extends Component {
 
     dedupeChangelogEvents(events) {
         const deduped = [];
-        const seenExact = new Set();
-        const activeInstallIndex = new Map();
+        const seenLifecycle = new Map();
 
         for (const event of events) {
-            const exactKey = [
+            const lifecycleKey = [
                 event.changeType || '',
+                event.status || '',
+                event.appStatus || '',
                 event.deviceId || '',
                 (event.vendor || '').toLowerCase(),
                 (event.appName || '').toLowerCase(),
                 event.version || '',
-                event.nextVersion || event.previousVersion || '',
-                event.eventTime || '',
-                event.stateUpdatedOn || '',
-                event.firstSeen || ''
+                event.nextVersion || event.previousVersion || ''
             ].join('||');
 
-            if (seenExact.has(exactKey)) continue;
-            seenExact.add(exactKey);
-
-            if (event.changeType === 'Installed' && !event.stateUpdatedOn) {
-                const activeInstallKey = [
-                    event.deviceId || '',
-                    (event.vendor || '').toLowerCase(),
-                    (event.appName || '').toLowerCase(),
-                    event.version || ''
-                ].join('||');
-
-                if (activeInstallIndex.has(activeInstallKey)) {
-                    const idx = activeInstallIndex.get(activeInstallKey);
-                    const existing = deduped[idx];
-                    const existingFirstSeen = new Date(existing.firstSeen || existing.eventTime || 0).getTime();
-                    const candidateFirstSeen = new Date(event.firstSeen || event.eventTime || 0).getTime();
-                    if (candidateFirstSeen > 0 && (existingFirstSeen <= 0 || candidateFirstSeen < existingFirstSeen)) {
-                        deduped[idx] = { ...existing, firstSeen: event.firstSeen || existing.firstSeen };
-                    }
-                    continue;
-                }
-
-                activeInstallIndex.set(activeInstallKey, deduped.length);
+            if (seenLifecycle.has(lifecycleKey)) {
+                const idx = seenLifecycle.get(lifecycleKey);
+                const existing = deduped[idx];
+                deduped[idx] = {
+                    ...existing,
+                    firstSeen: this._earliestMoment(existing.firstSeen, event.firstSeen),
+                    lastSeen: this._latestMoment(existing.lastSeen, event.lastSeen),
+                    stateUpdatedOn: this._latestMoment(existing.stateUpdatedOn, event.stateUpdatedOn),
+                    remediatedOn: this._latestMoment(existing.remediatedOn, event.remediatedOn)
+                };
+                continue;
             }
+            seenLifecycle.set(lifecycleKey, deduped.length);
 
             deduped.push({ ...event });
         }
@@ -383,21 +370,30 @@ export class InventoryChangelogPage extends Component {
             });
 
             let lastActiveVersion = null;
+            let lastRemovedVersion = null;
+            let lastRemovedAt = 0;
             for (const idx of indices) {
                 const event = deduped[idx];
+                const eventAt = new Date(this._eventMoment(event) || 0).getTime();
                 if (event.changeType === 'Uninstalled') {
+                    lastRemovedVersion = event.version || lastActiveVersion || lastRemovedVersion;
+                    lastRemovedAt = Number.isFinite(eventAt) ? eventAt : 0;
                     lastActiveVersion = null;
                     continue;
                 }
 
+                const recentlyRemovedVersion = lastRemovedVersion && lastRemovedAt && Number.isFinite(eventAt) && eventAt - lastRemovedAt <= DAY_MS
+                    ? lastRemovedVersion
+                    : null;
+                const previousVersion = lastActiveVersion || recentlyRemovedVersion;
                 if (event.changeType === 'Installed'
-                    && lastActiveVersion
+                    && previousVersion
                     && event.version
-                    && String(lastActiveVersion).toLowerCase() !== String(event.version).toLowerCase()) {
+                    && String(previousVersion).toLowerCase() !== String(event.version).toLowerCase()) {
                     deduped[idx] = {
                         ...event,
                         changeType: 'Updated',
-                        previousVersion: event.previousVersion || lastActiveVersion
+                        previousVersion: event.previousVersion || previousVersion
                     };
                 }
 
@@ -410,6 +406,22 @@ export class InventoryChangelogPage extends Component {
         }
 
         return deduped;
+    }
+
+    _earliestMoment(left, right) {
+        const leftTime = new Date(left || 0).getTime();
+        const rightTime = new Date(right || 0).getTime();
+        if (!Number.isFinite(leftTime) || leftTime <= 0) return right || left;
+        if (!Number.isFinite(rightTime) || rightTime <= 0) return left || right;
+        return leftTime <= rightTime ? left : right;
+    }
+
+    _latestMoment(left, right) {
+        const leftTime = new Date(left || 0).getTime();
+        const rightTime = new Date(right || 0).getTime();
+        if (!Number.isFinite(leftTime) || leftTime <= 0) return right || left;
+        if (!Number.isFinite(rightTime) || rightTime <= 0) return left || right;
+        return leftTime >= rightTime ? left : right;
     }
 
     _eventMoment(e) {
@@ -571,7 +583,7 @@ export class InventoryChangelogPage extends Component {
         const sorted = [...apps.values()]
             .map(item => ({ ...item, deviceCount: item.devices.size }))
             .sort((a, b) => {
-                const riskRank = (b.removals + b.updates) - (a.removals + a.updates);
+                const riskRank = ((b.updates * 2) + b.removals) - ((a.updates * 2) + a.removals);
                 if (riskRank !== 0) return riskRank;
                 return new Date(b.latest || 0).getTime() - new Date(a.latest || 0).getTime();
             });
@@ -651,20 +663,6 @@ export class InventoryChangelogPage extends Component {
             });
         }
 
-        const removalHeavy = changedApps.find(app => app.removals >= thresholds.removalConcentration && app.removals >= Math.max(2, app.installs + app.updates));
-        if (removalHeavy) {
-            signals.push({
-                key: 'removal-heavy',
-                tone: 'warning',
-                icon: 'ti-trash',
-                title: `${removalHeavy.removals} removals for ${removalHeavy.appName}`,
-                detail: `${removalHeavy.vendor} changed across ${removalHeavy.deviceCount} device${removalHeavy.deviceCount === 1 ? '' : 's'}.`,
-                badge: 'Removal concentration',
-                actionLabel: 'Show removals',
-                action: () => this._setPagedState({ changeTypeFilter: 'Uninstalled', searchText: removalHeavy.appName })
-            });
-        }
-
         const updateWave = changedApps.find(app => app.updates >= thresholds.updateWave && app.deviceCount >= thresholds.updateWaveDevices);
         if (updateWave) {
             signals.push({
@@ -676,6 +674,20 @@ export class InventoryChangelogPage extends Component {
                 badge: 'Patch wave',
                 actionLabel: 'Show updates',
                 action: () => this._setPagedState({ changeTypeFilter: 'Updated', searchText: updateWave.appName })
+            });
+        }
+
+        const removalHeavy = changedApps.find(app => app.removals >= thresholds.removalConcentration && app.removals >= Math.max(2, app.installs + app.updates));
+        if (removalHeavy) {
+            signals.push({
+                key: 'removal-heavy',
+                tone: 'warning',
+                icon: 'ti-trash',
+                title: `${removalHeavy.removals} removals for ${removalHeavy.appName}`,
+                detail: `${removalHeavy.vendor} changed across ${removalHeavy.deviceCount} device${removalHeavy.deviceCount === 1 ? '' : 's'}.`,
+                badge: 'Removal concentration',
+                actionLabel: 'Show removals',
+                action: () => this._setPagedState({ changeTypeFilter: 'Uninstalled', searchText: removalHeavy.appName })
             });
         }
 
@@ -939,6 +951,9 @@ export class InventoryChangelogPage extends Component {
 
     changeMeaning(event) {
         if (this.isPossibleDowngrade(event)) return 'Version moved backward; confirm rollback was intentional and not failed update drift.';
+        if (event.changeType === 'Uninstalled' && ['cloud-reconciled-uninstall', 'hardresync-uninstalled'].includes(String(event.appStatus || '').toLowerCase())) {
+            return 'Inventory reconciliation closed this install; exposure should close if no active install remains.';
+        }
         if (event.changeType === 'Uninstalled') return 'Removed from this device; exposure should close if no other active install remains.';
         if (event.changeType === 'Updated') return 'Version changed; verify vulnerable versions were replaced.';
         return 'First observed on this device; inventory baseline expanded.';

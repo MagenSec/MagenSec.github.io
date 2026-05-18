@@ -177,6 +177,7 @@ export class SoftwareInventoryPage extends Component {
         this._unsubOrg = null;
         this._rewindUnsub = null;
         this._isMounted = false;
+        this._lastAppliedHash = '';
     }
 
     // ─── lifecycle ───────────────────────────────────────────────────────────
@@ -197,6 +198,18 @@ export class SoftwareInventoryPage extends Component {
         if (this._rewindUnsub) this._rewindUnsub();
         if (this._hashChangeHandler) window.removeEventListener('hashchange', this._hashChangeHandler);
         magiContext.clear();
+    }
+
+    componentDidUpdate() {
+        const hash = window.location.hash || '';
+        if (this._isActiveRoute() && hash !== this._lastAppliedHash) {
+            this.applyDeepLinkFilterFromHash();
+        }
+    }
+
+    _reapplyHashFilter() {
+        this._lastAppliedHash = '';
+        this.applyDeepLinkFilterFromHash();
     }
 
     _isActiveRoute() {
@@ -708,25 +721,39 @@ export class SoftwareInventoryPage extends Component {
     }
 
     applyDeepLinkFilterFromHash() {
+        const hash = window.location.hash || '';
         const parsed = this.parseDeepLinkFilterFromHash();
         const tab = this.getTabFromHash();
+        this._lastAppliedHash = hash;
         if (!parsed && !tab) return;
 
-        const searchQuery = parsed
-            ? [parsed.apps[0], parsed.vendor, parsed.version, parsed.device].filter(Boolean).join(' ')
-            : this.state.searchQuery;
+        const searchQuery = parsed ? '' : this.state.searchQuery;
         this.setState(prev => {
             const nextTab = tab || (parsed ? 'atrisk' : prev.activeTab);
             if (prev.deepLinkFilter?.raw === parsed?.raw && prev.searchQuery === searchQuery && prev.activeTab === nextTab) {
                 return null;
             }
             return {
-                deepLinkFilter: parsed || prev.deepLinkFilter,
+                deepLinkFilter: parsed,
                 searchQuery,
                 activeTab: nextTab,
                 page: 1
             };
         });
+    }
+
+    _currentDeepLinkFilter() {
+        return this.state.deepLinkFilter || this.parseDeepLinkFilterFromHash();
+    }
+
+    clearInventoryFilters() {
+        const tab = this.state.activeTab || this.getTabFromHash() || 'all';
+        const nextHash = `#!/apps?tab=${tab}`;
+        if ((window.location.hash || '') !== nextHash) {
+            this._lastAppliedHash = nextHash;
+            window.location.hash = nextHash;
+        }
+        this._setPagedState({ searchQuery: '', deepLinkFilter: null, groupBy: 'application' });
     }
 
     selectTab(tabId) {
@@ -783,6 +810,7 @@ export class SoftwareInventoryPage extends Component {
                     inventoryCachedAtUtc: cachedMeta.cachedAtUtc || null,
                     error: null,
                 });
+                this._reapplyHashFilter();
                 if (!cached.stale) return;   // fresh — no background fetch needed
             }
         }
@@ -808,6 +836,7 @@ export class SoftwareInventoryPage extends Component {
                         inventoryCachedAtUtc: seed.meta.cachedAtUtc || null,
                         error: null,
                     });
+                    this._reapplyHashFilter();
                 }
             } catch (seedErr) {
                 console.warn('[SoftwareInventory] cached-summary seed failed:', seedErr);
@@ -838,6 +867,7 @@ export class SoftwareInventoryPage extends Component {
                 inventoryCachedAtUtc: inventory.meta.cachedAtUtc || null,
                 error: null,
             });
+            this._reapplyHashFilter();
         } catch (err) {
             if (!this._isMounted || !this._isActiveRoute()) return;
             console.error('[SoftwareInventory] loadData failed:', err);
@@ -853,25 +883,31 @@ export class SoftwareInventoryPage extends Component {
 
     _filteredApps() {
         const q = this.state.searchQuery.trim().toLowerCase();
-        const deepLink = this.state.deepLinkFilter;
+        const deepLink = this._currentDeepLinkFilter();
         let list = this.state.apps;
 
         if (deepLink) {
-            list = list.filter(a => {
+            const matchesDeepLink = (a, strict) => {
                 const appName = a.name || '';
                 const vendor = a.vendor || '';
                 const version = a.version || '';
                 const devices = Array.isArray(a.devices) ? a.devices : [];
 
                 const appMatch = !deepLink.apps.length || deepLink.apps.some(name => appName.toLowerCase().includes(name.toLowerCase()));
-                const vendorMatch = !deepLink.vendor || vendor.toLowerCase().includes(deepLink.vendor.toLowerCase());
-                const versionMatch = !deepLink.version || version.toLowerCase().includes(deepLink.version.toLowerCase());
                 const deviceMatch = !deepLink.device || devices.some(device =>
                     String(device?.deviceName || '').toLowerCase().includes(deepLink.device.toLowerCase())
                     || String(device?.deviceId || '').toLowerCase().includes(deepLink.device.toLowerCase())
                 );
-                return appMatch && vendorMatch && versionMatch && deviceMatch;
-            });
+                if (!appMatch || !deviceMatch) return false;
+                if (!strict) return true;
+
+                const vendorMatch = !deepLink.vendor || vendor.toLowerCase().includes(deepLink.vendor.toLowerCase());
+                const versionMatch = !deepLink.version || version.toLowerCase().includes(deepLink.version.toLowerCase());
+                return vendorMatch && versionMatch;
+            };
+
+            const strictMatches = list.filter(app => matchesDeepLink(app, true));
+            list = strictMatches.length ? strictMatches : list.filter(app => matchesDeepLink(app, false));
         }
 
         if (q) {
@@ -1982,9 +2018,10 @@ export class SoftwareInventoryPage extends Component {
         const allSections = groupBy === 'application' ? [] : this._groupAppsBy(groupBy, allApplications);
         const resultCount = groupBy === 'application' ? filtered.length : groupedSections.length;
         const totalCount = groupBy === 'application' ? allApplications.length : allSections.length;
+        const deepLink = this._currentDeepLinkFilter();
         const activeFilters = [
             this.state.searchQuery ? `Search: ${this.state.searchQuery}` : null,
-            this.state.deepLinkFilter ? 'Deep link filter' : null,
+            deepLink ? 'Deep link filter' : null,
             groupBy !== 'application' ? `Grouped by ${groupBy}` : null
         ].filter(Boolean);
 
@@ -1993,7 +2030,7 @@ export class SoftwareInventoryPage extends Component {
                 resultCount=${resultCount}
                 totalCount=${totalCount}
                 activeFilters=${activeFilters}
-                onClear=${() => this._setPagedState({ searchQuery: '', deepLinkFilter: null, groupBy: 'application' })}>
+                onClear=${() => this.clearInventoryFilters()}>
                 <div class="flex-fill" style="min-width:260px;">
                     <label class="form-label small text-muted mb-1">Search</label>
                     <div class="input-icon">
@@ -2219,9 +2256,10 @@ export class SoftwareInventoryPage extends Component {
         const visibleAtRiskSections = groupBy === 'application' ? [] : this._groupAppsBy(groupBy, atRisk);
         const resultCount = groupBy === 'application' ? atRisk.length : visibleAtRiskSections.length;
         const totalCount = groupBy === 'application' ? allAtRisk.length : allAtRiskSections.length;
+        const deepLink = this._currentDeepLinkFilter();
         const activeFilters = [
             this.state.searchQuery ? `Search: ${this.state.searchQuery}` : null,
-            this.state.deepLinkFilter ? 'Deep link filter' : null,
+            deepLink ? 'Deep link filter' : null,
             groupBy !== 'application' ? `Grouped by ${groupBy}` : null
         ].filter(Boolean);
         const toolbar = html`
@@ -2229,7 +2267,7 @@ export class SoftwareInventoryPage extends Component {
                 resultCount=${resultCount}
                 totalCount=${totalCount}
                 activeFilters=${activeFilters}
-                onClear=${() => this._setPagedState({ searchQuery: '', deepLinkFilter: null, groupBy: 'application' })}>
+                onClear=${() => this.clearInventoryFilters()}>
                 <div class="flex-fill" style="min-width:260px;">
                     <label class="form-label small text-muted mb-1">Search</label>
                     <div class="input-icon">
