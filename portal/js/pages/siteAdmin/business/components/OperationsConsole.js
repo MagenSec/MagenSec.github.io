@@ -86,6 +86,22 @@ function formatLaneLabel(laneId) {
     return labels[normalized] || normalized.split('-').filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
 
+function getScaleSeverityBadgeClass(severity) {
+    const normalized = String(severity || '').toLowerCase();
+    if (normalized === 'critical') return 'bg-danger text-white';
+    if (normalized === 'warning') return 'bg-warning text-white';
+    if (normalized === 'healthy') return 'bg-success text-white';
+    return 'bg-secondary text-white';
+}
+
+function getScaleSeverityIcon(severity) {
+    const normalized = String(severity || '').toLowerCase();
+    if (normalized === 'critical') return 'ti-alert-triangle';
+    if (normalized === 'warning') return 'ti-alert-circle';
+    if (normalized === 'healthy') return 'ti-circle-check';
+    return 'ti-info-circle';
+}
+
 function summarizeCronAttribution(events, taskLaneLookup = new Map()) {
     const byTask = new Map();
     const byLane = new Map();
@@ -138,7 +154,7 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
     const [orgWindow, setOrgWindow] = useState(30);
     const [expandedDiag, setExpandedDiag] = useState(null); // which diagnostic accordion is open
     const [diagData, setDiagData] = useState({}); // lazy-loaded diagnostic details
-    const [cronAttribution, setCronAttribution] = useState({ loading: true, events: [], tasks: [], error: null });
+    const [cronAttribution, setCronAttribution] = useState({ loading: true, events: [], tasks: [], scalePressure: null, error: null });
 
     // Chart ref
     const telemetryBarRef = useRef(null);
@@ -236,6 +252,8 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
     const apiHitRate = Number(cachePerformance.hitRate || 0);
     const cronTaskLaneLookup = new Map((cronAttribution.tasks || []).map(task => [String(task.taskId || task.displayName || ''), task.laneId]));
     const cronSummary = summarizeCronAttribution(cronAttribution.events, cronTaskLaneLookup);
+    const cronScalePressure = cronAttribution.scalePressure || null;
+    const cronScaleSignals = Array.isArray(cronScalePressure?.signals) ? cronScalePressure.signals : [];
     const maxCronLaneRuntime = Math.max(1, ...cronSummary.lanes.map(item => item.durationMs));
     const maxCronTaskRuntime = Math.max(1, ...cronSummary.topTasks.map(item => item.durationMs));
 
@@ -264,14 +282,15 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
                         loading: false,
                         events: response.data.events || [],
                         tasks: statusResponse?.success && statusResponse.data ? (statusResponse.data.tasks || []) : [],
+                        scalePressure: statusResponse?.success && statusResponse.data ? (statusResponse.data.scalePressure || null) : null,
                         error: null
                     });
                 } else {
-                    setCronAttribution({ loading: false, events: [], tasks: [], error: response.message || 'Cron attribution unavailable' });
+                    setCronAttribution({ loading: false, events: [], tasks: [], scalePressure: null, error: response.message || 'Cron attribution unavailable' });
                 }
             } catch (err) {
                 if (!cancelled) {
-                    setCronAttribution({ loading: false, events: [], tasks: [], error: err?.message || 'Cron attribution unavailable' });
+                    setCronAttribution({ loading: false, events: [], tasks: [], scalePressure: null, error: err?.message || 'Cron attribution unavailable' });
                 }
             }
         }
@@ -568,6 +587,25 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
                     <span class="badge bg-primary text-white ms-auto">runtime proxy</span>
                 </div>
                 <div class="card-body">
+                    ${cronScalePressure && html`
+                        <div class="alert ${cronScalePressure.overallSeverity === 'critical' ? 'alert-danger' : cronScalePressure.overallSeverity === 'warning' ? 'alert-warning' : 'alert-success'} d-flex flex-wrap justify-content-between gap-3 align-items-center">
+                            <div>
+                                <div class="fw-semibold">
+                                    <i class=${`ti ${getScaleSeverityIcon(cronScalePressure.overallSeverity)} me-2`}></i>
+                                    SLA / scale pressure
+                                    <span class=${`badge ${getScaleSeverityBadgeClass(cronScalePressure.overallSeverity)} ms-2`}>${cronScalePressure.overallSeverity || 'unknown'}</span>
+                                </div>
+                                <div class="small mt-1">${cronScalePressure.summary || 'Scale pressure is building from CronRunMetrics.'}</div>
+                                ${cronScaleSignals.length > 0 && html`
+                                    <div class="small mt-1 text-muted">Top signal: ${cronScaleSignals[0].title || cronScaleSignals[0].code} · ${cronScaleSignals[0].metricValue || cronScaleSignals[0].severity}</div>
+                                `}
+                            </div>
+                            <a class="btn btn-sm btn-outline-primary" href="#!/siteadmin/cron?view=monitor">
+                                <i class="ti ti-dashboard me-1"></i>
+                                Open Cron Jobs
+                            </a>
+                        </div>
+                    `}
                     ${cronAttribution.loading ? html`
                         <div class="text-muted small py-2"><span class="spinner-border spinner-border-sm me-2"></span>Loading cron attribution sample...</div>
                     ` : cronSummary.timedRuns === 0 ? html`

@@ -96,6 +96,22 @@ const formatCompactNumber = (value) => {
 
 const formatPlural = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
 
+const getScaleSeverityBadgeClass = (severity) => {
+    const normalized = String(severity || '').toLowerCase();
+    if (normalized === 'critical') return 'bg-danger text-white';
+    if (normalized === 'warning') return 'bg-warning text-white';
+    if (normalized === 'healthy') return 'bg-success text-white';
+    return 'bg-secondary text-white';
+};
+
+const getScaleSeverityIcon = (severity) => {
+    const normalized = String(severity || '').toLowerCase();
+    if (normalized === 'critical') return 'ti-alert-triangle';
+    if (normalized === 'warning') return 'ti-alert-circle';
+    if (normalized === 'healthy') return 'ti-circle-check';
+    return 'ti-info-circle';
+};
+
 const formatSampleWindow = (rangeDays) => {
     const days = Math.max(1, Number(rangeDays || 7));
     return days === 1 ? 'Last 24h' : `Last ${days}d`;
@@ -187,6 +203,11 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
         }
 
         loadCronStatus();
+        const retryTimer = window.setTimeout(() => {
+            loadCronStatus();
+        }, 2500);
+
+        return () => window.clearTimeout(retryTimer);
     }, []);
 
     useEffect(() => {
@@ -685,6 +706,11 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
 
     const cronTasks = Array.isArray(cronStatus?.tasks) ? cronStatus.tasks : [];
     const currentCronStatus = cronStatus?.currentStatus || {};
+    const scalePressure = cronStatus?.scalePressure || cronStatus?.ScalePressure || null;
+    const scaleSignals = Array.isArray(scalePressure?.signals) ? scalePressure.signals : [];
+    const scaleHotTasks = Array.isArray(scalePressure?.hotTasks) ? scalePressure.hotTasks : [];
+    const scaleLanePressure = Array.isArray(scalePressure?.lanePressure) ? scalePressure.lanePressure : [];
+    const scaleRecommendations = Array.isArray(scalePressure?.recommendedActions) ? scalePressure.recommendedActions : [];
     const activeLaneId = currentCronStatus.lockedLaneId || null;
     const activeExecutionScope = currentCronStatus.lockedScope || 'global';
     const taskLaneLookup = new Map(cronTasks.map((task) => [String(task.taskId || task.displayName || ''), task.laneId]));
@@ -1504,6 +1530,166 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            `}
+
+            ${!cronStatus && html`
+                <div class="card mb-3 border-warning">
+                    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <div class="fw-semibold">Cron status is still loading</div>
+                            <div class="text-muted small">Scale Readiness and Lane Status require the live cron status payload from the admin API.</div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" disabled=${loadingCronStatus} onClick=${loadCronStatus}>
+                            ${loadingCronStatus ? html`<span class="spinner-border spinner-border-sm me-1"></span>` : html`<i class="ti ti-refresh me-1"></i>`}
+                            Refresh Status
+                        </button>
+                    </div>
+                </div>
+            `}
+
+            ${scalePressure && html`
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <div>
+                            <h3 class="card-title mb-0">
+                                <i class=${`ti ${getScaleSeverityIcon(scalePressure.overallSeverity)} me-2`}></i>
+                                Scale Readiness
+                            </h3>
+                            <div class="card-subtitle text-muted">SLA pressure derived from CronRunMetrics, including runtime, row operations, and structured diagnostics.</div>
+                        </div>
+                        <span class=${`badge ${getScaleSeverityBadgeClass(scalePressure.overallSeverity)} ms-auto`}>
+                            ${scalePressure.overallSeverity || 'unknown'}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-lg-4">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-muted small mb-1">Readout</div>
+                                    <div class="fw-semibold mb-2">${scalePressure.summary || 'No scale-pressure summary available.'}</div>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <span class="badge bg-danger text-white">${scalePressure.criticalSignals || 0} critical</span>
+                                        <span class="badge bg-warning text-white">${scalePressure.warningSignals || 0} warning</span>
+                                        <span class="badge bg-secondary text-white">${formatSampleWindow(scalePressure.windowDays || rangeDays)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-8">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-muted small mb-2">What to do first</div>
+                                    ${scaleRecommendations.length > 0 ? html`
+                                        <div class="row g-2">
+                                            ${scaleRecommendations.slice(0, 3).map((recommendation) => html`
+                                                <div class="col-md-4">
+                                                    <div class="small fw-semibold">${recommendation}</div>
+                                                </div>
+                                            `)}
+                                        </div>
+                                    ` : html`
+                                        <div class="small fw-semibold">Keep monitoring trend and cap signals as active inventory and AppVersionIntel rows grow.</div>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+
+                        ${scaleSignals.length > 0 ? html`
+                            <div class="mt-3">
+                                <div class="text-muted small mb-2">Pressure Signals</div>
+                                <div class="row g-2">
+                                    ${scaleSignals.slice(0, 6).map((signal) => html`
+                                        <div class="col-md-6 col-xl-4">
+                                            <div class="border rounded p-3 h-100">
+                                                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                                    <div class="fw-semibold">${signal.title || signal.code}</div>
+                                                    <span class=${`badge ${getScaleSeverityBadgeClass(signal.severity)}`}>${signal.severity || 'info'}</span>
+                                                </div>
+                                                <div class="small text-muted mb-2">${signal.message || ''}</div>
+                                                <div class="d-flex flex-wrap gap-2 small">
+                                                    ${signal.taskId && html`<span class="badge bg-secondary text-white">${signal.taskId}</span>`}
+                                                    ${signal.laneId && html`<span class="badge bg-primary text-white">${formatLaneLabel(signal.laneId)}</span>`}
+                                                    ${signal.metricValue && html`<span class="badge bg-dark text-white">${signal.metricLabel || 'metric'}: ${signal.metricValue}</span>`}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                        ` : html`
+                            <div class="alert alert-success mt-3 mb-0">
+                                <i class="ti ti-circle-check me-2"></i>
+                                No scale-pressure signals crossed warning thresholds in the selected window.
+                            </div>
+                        `}
+
+                        <div class="row g-3 mt-1">
+                            <div class="col-lg-7">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-muted small mb-2">Task Hotspots</div>
+                                    ${scaleHotTasks.length > 0 ? html`
+                                        <div class="table-responsive">
+                                            <table class="table table-sm mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Task</th>
+                                                        <th>Runs</th>
+                                                        <th>Latest</th>
+                                                        <th>Max</th>
+                                                        <th>Rows</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${scaleHotTasks.slice(0, 6).map((task) => {
+                                                        const rows = toNumber(task.totalRowOps) || toNumber(task.latestRowsScanned) + toNumber(task.latestRowsRead) + toNumber(task.latestRowsWritten) + toNumber(task.latestRowsDeleted);
+                                                        return html`
+                                                            <tr>
+                                                                <td>
+                                                                    <div class="fw-semibold">${task.taskId || '-'}</div>
+                                                                    <div class="text-muted small">${formatLaneLabel(task.laneId)}</div>
+                                                                </td>
+                                                                <td>${task.runs || 0}</td>
+                                                                <td>${formatDuration(task.latestDurationMs)}</td>
+                                                                <td>${formatDuration(task.maxDurationMs)}</td>
+                                                                <td>${formatCompactNumber(rows)}</td>
+                                                            </tr>
+                                                        `;
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ` : html`<div class="text-muted small">No task hotspot rows available yet.</div>`}
+                                </div>
+                            </div>
+                            <div class="col-lg-5">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-muted small mb-2">Lane Pressure</div>
+                                    ${scaleLanePressure.length > 0 ? html`
+                                        <div class="d-flex flex-column gap-2">
+                                            ${scaleLanePressure.slice(0, 5).map((lane) => {
+                                                const rowOps = toNumber(lane.totalRowOps) || toNumber(lane.rowsScanned) + toNumber(lane.rowsRead) + toNumber(lane.rowsWritten) + toNumber(lane.rowsDeleted);
+                                                return html`
+                                                    <div class="d-flex justify-content-between gap-3 align-items-center">
+                                                        <div>
+                                                            <div class="fw-semibold">${formatLaneLabel(lane.laneId)}</div>
+                                                            <div class="text-muted small">${lane.runs || 0} runs · ${formatCompactNumber(rowOps)} row ops</div>
+                                                        </div>
+                                                        <span class="badge bg-primary text-white">${formatDuration(lane.totalDurationMs)}</span>
+                                                    </div>
+                                                `;
+                                            })}
+                                        </div>
+                                    ` : html`<div class="text-muted small">No lane pressure rows available yet.</div>`}
+                                </div>
+                            </div>
+                        </div>
+
+                        ${scalePressure.indexGuidance && html`
+                            <div class="alert alert-info mt-3 mb-0">
+                                <i class="ti ti-database-search me-2"></i>
+                                ${scalePressure.indexGuidance}
+                            </div>
+                        `}
                     </div>
                 </div>
             `}
