@@ -1416,6 +1416,19 @@ pre.json-metadata {
   align-items: center;
 }
 
+.cron-business-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cron-business-row {
+  border: 1px solid color-mix(in srgb, var(--bi-border) 76%, transparent);
+  border-radius: 8px;
+  padding: 0.65rem;
+  min-width: 0;
+}
+
 .business-section-heading {
   display: flex;
   align-items: end;
@@ -1756,12 +1769,42 @@ pre.json-metadata {
   padding: 0.65rem 0.75rem;
 }
 
+.cron-trend-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.cron-trend-section + .cron-trend-section {
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.cron-trend-readline {
+  max-width: 520px;
+  line-height: 1.35;
+}
+
+.cron-trend-section-note {
+  margin: -0.2rem 0 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .cron-trend-chart {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(26px, 1fr));
   align-items: end;
   gap: 0.35rem;
   min-height: 72px;
+}
+
+.cron-trend-chart-compact {
+  min-height: 48px;
+}
+
+.cron-trend-chart-tiny {
+  min-height: 40px;
 }
 
 .cron-trend-day {
@@ -1794,10 +1837,126 @@ pre.json-metadata {
   background: linear-gradient(180deg, #f87171, #dc2626);
 }
 
+.cron-trend-runtime {
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+}
+
+.cron-trend-rows {
+  background: linear-gradient(180deg, #fbbf24, #d97706);
+}
+
+.cron-trend-work {
+  background: linear-gradient(180deg, #4ade80, #16a34a);
+}
+
+.cron-trend-efficiency-ops {
+  background: linear-gradient(180deg, #fbbf24, #d97706);
+}
+
 .cron-trend-label {
   font-size: 0.65rem;
   color: var(--tblr-muted);
   white-space: nowrap;
+}
+
+.cron-runtime-leader-list .badge,
+.cron-runtime-leader-list .progress {
+  flex: 0 0 auto;
+}
+
+.cron-card-section {
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.cron-efficiency-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.cron-efficiency-item {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  min-width: 0;
+}
+
+.cron-lane-load-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cron-lane-load-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.9fr) minmax(160px, 1.35fr) minmax(210px, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cron-lane-load-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cron-lane-bar-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.16);
+}
+
+.cron-lane-bar-runtime,
+.cron-lane-bar-ops {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.cron-lane-bar-runtime {
+  background: linear-gradient(90deg, #60a5fa, #2563eb);
+}
+
+.cron-lane-bar-ops {
+  background: linear-gradient(90deg, #fbbf24, #d97706);
+}
+
+.cron-lane-load-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.cron-attribution-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.cron-attribution-tile {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  padding: 0.65rem;
+}
+
+@media (max-width: 991.98px) {
+  .cron-lane-load-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .cron-lane-load-metrics {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .cron-efficiency-grid,
+  .cron-attribution-tiles {
+    grid-template-columns: 1fr;
+  }
 }
 
 [data-bs-theme="dark"] .admin-actions-surface .cron-catalog-shell {

@@ -13,6 +13,25 @@ import { PerfTab } from './components/PerfTab.js';
 const { html, Component } = window;
 const { useState, useEffect } = window.preactHooks;
 
+const VALID_MANAGE_TABS = new Set([
+    'organizations',
+    'accounts',
+    'magi-codes',
+    'invoices',
+    'admin-actions',
+    'perf',
+    'platform-settings'
+]);
+
+function getManageTabFromHash() {
+    const hash = window.location.hash || '';
+    const queryIndex = hash.indexOf('?');
+    if (queryIndex < 0) return null;
+
+    const tab = new URLSearchParams(hash.substring(queryIndex + 1)).get('tab');
+    return VALID_MANAGE_TABS.has(tab) ? tab : null;
+}
+
 function firstArrayOf(obj, candidateKeys = []) {
     if (!obj || typeof obj !== 'object') return [];
 
@@ -44,7 +63,7 @@ export class ManagePage extends Component {
     constructor(props) {
         super(props);
         this.state = {
-            activeTab: 'organizations', // 'organizations', 'accounts', 'magi-codes', 'admin-actions', 'platform-settings'
+            activeTab: getManageTabFromHash() || 'organizations',
             loading: true,
             orgs: [],
             orgsRefreshKey: 0,
@@ -62,8 +81,21 @@ export class ManagePage extends Component {
     }
 
     async componentDidMount() {
+        window.addEventListener('hashchange', this.syncTabFromHash);
+        this.syncTabFromHash();
         await this.loadData();
     }
+
+    componentWillUnmount() {
+        window.removeEventListener('hashchange', this.syncTabFromHash);
+    }
+
+    syncTabFromHash = () => {
+        const tab = getManageTabFromHash();
+        if (tab && tab !== this.state.activeTab) {
+            this.setState({ activeTab: tab });
+        }
+    };
 
     listOrganizations = async ({
         includeDisabled = true,

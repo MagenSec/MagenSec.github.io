@@ -1072,7 +1072,7 @@ export class ApiClient {
     }
 
     async adminGetCronStatus() {
-        return this.get('/api/v1/admin/cron/status');
+        return this.get('/api/v1/admin/cron/status', { _ts: Date.now() }, { skipCache: true });
     }
 
     async adminResetStaleCronRuns(taskId = null) {

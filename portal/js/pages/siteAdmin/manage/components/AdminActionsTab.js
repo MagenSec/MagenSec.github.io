@@ -14,6 +14,25 @@ const GROUP_ICONS = {
     'custom': 'ti-flask-2'
 };
 
+const LANE_LABELS = {
+    'hot-detect': 'Hot Detect',
+    'intel': 'Intel',
+    'sealed-org-data': 'Sealed Org Data',
+    'business-ops': 'Business Ops',
+    'low-priority': 'Low Priority',
+    'manual': 'Manual'
+};
+
+const formatLaneLabel = (laneId) => {
+    const normalized = String(laneId || '').trim();
+    if (!normalized) return 'Unassigned';
+    return LANE_LABELS[normalized] || normalized
+        .split('-')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+};
+
 const isTerminalAuditStatus = (status) => ['completed', 'failed', 'exception', 'rejected', 'cancelled', 'timedout'].includes(String(status || '').toLowerCase());
 
 const toDisplayStatus = (status) => {
@@ -36,7 +55,17 @@ const defaultParamsForJob = (job) => ({
     rebuildAll: false
 });
 
-export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, setMainSection, setActiveTab, loadCronStatus }) {
+export function AdminActionsTab({
+    orgs = [],
+    onTriggerCron,
+    onResetRemediation,
+    setMainSection,
+    setActiveTab,
+    loadCronStatus,
+    includeResetRemediation = true,
+    showCatalogHint = true,
+    activityRoute = '#!/siteadmin/activity?tab=cron-jobs'
+}) {
     const [catalogGroups, setCatalogGroups] = useState([]);
     const [loadingCatalog, setLoadingCatalog] = useState(true);
     const [tasksError, setTasksError] = useState(null);
@@ -88,26 +117,33 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
         hasAllScopeManualRun: false
     };
 
-    const getCronActivityDetailHref = (resultData) => {
-        if (!resultData?.auditEventId) {
-            return '#!/siteadmin/activity?tab=cron-jobs';
+    const buildCronActivityHref = (options = {}) => {
+        const [path, queryString = ''] = String(activityRoute || '#!/siteadmin/activity?tab=cron-jobs').split('?');
+        const query = new URLSearchParams(queryString);
+        if (!query.has('tab') && path.includes('/siteadmin/activity')) {
+            query.set('tab', 'cron-jobs');
         }
-
-        const query = new URLSearchParams();
-        query.set('tab', 'cron-jobs');
-        query.set('eventId', resultData.auditEventId);
-        if (resultData.auditPartitionKey) query.set('date', resultData.auditPartitionKey);
-        if (resultData.auditRowKey) query.set('eventKey', resultData.auditRowKey);
-        return `#!/siteadmin/activity?${query.toString()}`;
-    };
-
-    const navigateToCronActivity = (options = {}) => {
-        const query = new URLSearchParams();
-        query.set('tab', 'cron-jobs');
         if (options.eventId) query.set('eventId', options.eventId);
         if (options.date) query.set('date', options.date);
         if (options.eventKey) query.set('eventKey', options.eventKey);
-        window.location.hash = `#!/siteadmin/activity?${query.toString()}`;
+        const suffix = query.toString();
+        return `${path}${suffix ? `?${suffix}` : ''}`;
+    };
+
+    const getCronActivityDetailHref = (resultData) => {
+        if (!resultData?.auditEventId) {
+            return buildCronActivityHref();
+        }
+
+        return buildCronActivityHref({
+            eventId: resultData.auditEventId,
+            date: resultData.auditPartitionKey,
+            eventKey: resultData.auditRowKey
+        });
+    };
+
+    const navigateToCronActivity = (options = {}) => {
+        window.location.hash = buildCronActivityHref(options);
     };
 
     const loadTaskConflicts = async () => {
@@ -212,24 +248,8 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
             {
                 groupId: 'business',
                 title: 'Business',
-                description: 'Downstream and platform-level derived artifacts: AI reports, report generation, and business/platform aggregates.',
+                description: 'Report repair and platform-level business aggregates.',
                 jobs: [
-                    mkJob({
-                        groupId: 'business',
-                        jobId: 'ai-snapshots',
-                        title: 'AI Reports',
-                        description: 'Generate/repair AI reports using Org Data pipeline controls.',
-                        taskId: 'Org Data Cook',
-                        supportsOrg: true,
-                        supportsRange: true,
-                        supportsMode: true,
-                        modes: [
-                            { value: 'BuildMissing', label: 'Build Missing', description: 'Generate only missing AI report artifacts for the selected scope.' },
-                            { value: 'BuildAll', label: 'Build All', description: 'Regenerate AI report artifacts for the selected scope.' },
-                            { value: 'ClearAndBuildAll', label: 'Clear And Build', description: 'Clear generated artifacts, then rebuild AI reports for the selected scope.' }
-                        ],
-                        defaultMode: 'BuildMissing'
-                    }),
                     mkJob({
                         groupId: 'business',
                         jobId: 'reports',
@@ -245,14 +265,8 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                         title: 'Business Data',
                         description: 'Platform-wide business reports and trend aggregation.',
                         taskId: 'Business Metrics Snapshots',
-                        supportsRange: true,
-                        supportsMode: true,
-                        modes: [
-                            { value: 'Normal', label: 'Smart', description: 'Use task-native cadence logic for the selected range.' },
-                            { value: 'BuildMissing', label: 'Build Missing', description: 'Generate only missing business reports.' },
-                            { value: 'BuildAll', label: 'Build All', description: 'Regenerate all business reports for the selected range.' }
-                        ],
-                        defaultMode: 'Normal'
+                        supportsRange: false,
+                        supportsMode: false
                     })
                 ]
             },
@@ -261,8 +275,8 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 title: 'Operations',
                 description: 'Billing and communications execution jobs. Communications remains send-only.',
                 jobs: [
-                    mkJob({ groupId: 'operations', jobId: 'license', title: 'License', description: 'Credit consumption and billing reconciliation across active orgs.', taskId: 'Credit Consumption', supportsOrg: true }),
-                    mkJob({ groupId: 'operations', jobId: 'comms', title: 'Comms', description: 'Send-only communications dispatch for already-generated report artifacts.', taskId: 'Report Dispatch', supportsOrg: true })
+                    mkJob({ groupId: 'operations', jobId: 'license', title: 'License', description: 'Credit consumption and billing reconciliation across active orgs.', taskId: 'Credit Consumption' }),
+                    mkJob({ groupId: 'operations', jobId: 'comms', title: 'Comms', description: 'Send-only communications dispatch for already-generated report artifacts.', taskId: 'Report Dispatch' })
                 ]
             },
             {
@@ -285,11 +299,12 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 description: 'Lifecycle, cleanup, and data aggregation tasks.',
                 jobs: [
                     mkJob({ groupId: 'maintenance', jobId: 'retention-cleanup', title: 'Retention Cleanup', description: 'Daily unified cleanup: signal prune (30d), changelog prune (90d), blob lifecycle (450d blobs, 90d reports), command artifacts, and ApiLogs prune (30d).', taskId: 'Retention Cleanup' }),
-                    mkJob({ groupId: 'maintenance', jobId: 'telemetry-cleanup', title: 'Telemetry Cleanup', description: 'On-demand retention purge for raw Heartbeat telemetry.', taskId: 'Telemetry Cleanup', supportsOrg: true, supportsRange: true, supportsRetention: true }),
+                    mkJob({ groupId: 'maintenance', jobId: 'telemetry-cleanup', title: 'Telemetry Cleanup', description: 'On-demand retention purge for raw Heartbeat telemetry.', taskId: 'Telemetry Cleanup' }),
                     mkJob({ groupId: 'maintenance', jobId: 'perf-aggregation', title: 'Perf Aggregation', description: 'Per-org performance aggregation into hourly buckets. Prunes raw data >7d, aggregation retained 180d.', taskId: 'Perf Aggregation', supportsOrg: true, supportsRange: true }),
                     mkJob({ groupId: 'maintenance', jobId: 'cache-reset', title: 'Cache Reset', description: 'Purge daily cost cache, business metric blobs, and rebuild org cache entries.', taskId: 'Cache Reset' }),
                     mkJob({ groupId: 'maintenance', jobId: 'inventory-reset', title: 'Inventory Reset', description: 'Force full inventory re-derive from Signals. Deletes markers and inv|/comp|/mach| rows, then triggers SignalAssimilation.', taskId: 'Inventory Reset', supportsOrg: true }),
                     mkJob({ groupId: 'maintenance', jobId: 'alert-purge', title: 'Alert Purge', description: 'Purge all VULN- alert rows from per-org Alerts tables, then trigger Detection Engine to rebuild clean alerts.', taskId: 'Alert Purge', supportsOrg: true }),
+                    mkJob({ groupId: 'maintenance', jobId: 'hardresync-reconcile', title: 'HardResync Reconcile', description: 'Confirm elapsed L3 hard-resync markers and demote unresolved hardresync-pending rows only when the client has safely re-reported inventory.', taskId: 'HardResync Reconcile' }),
                     mkJob({ groupId: 'maintenance', jobId: 'data-restore', title: 'Data Restore', description: 'Daily restore/recovery runner. Scheduled mode restores yesterday; manual trigger rebuilds full range for registered restore scenarios.', taskId: 'Data Restore' })
                 ]
             },
@@ -298,7 +313,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 title: 'Custom',
                 description: 'Operator-only jobs reserved for migrations and specialized workflows.',
                 jobs: [
-                    mkJob({ groupId: 'custom', jobId: 'org-storage-migration', title: 'Org Storage Migration', description: 'Cross-account storage migration. Copies all per-org tables and blob reports between storage accounts with resumable checkpoints.', taskId: 'Org Storage Migration', supportsOrg: true })
+                    mkJob({ groupId: 'custom', jobId: 'org-storage-migration', title: 'Org Storage Migration', description: 'Processes pending cross-account storage migration jobs. Copies per-org tables and blob reports between storage accounts with resumable checkpoints.', taskId: 'Org Storage Migration' })
                 ]
             }
         ];
@@ -839,7 +854,7 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Cadence</label>
-                                <div class="form-control bg-light-subtle">${job.cadenceLabel} · ${job.scopeLabel}</div>
+                                <div class="form-control bg-light-subtle">${job.cadenceLabel} · ${job.scopeLabel}${taskStatus?.laneId ? ` · ${formatLaneLabel(taskStatus.laneId)} lane` : ''}</div>
                             </div>
                             ${job.supportsMode && html`
                                 <div class="col-md-4">
@@ -910,7 +925,10 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                         </div>
 
                         <div class="mt-3">
-                            <div class="fw-semibold mb-1">${job.title}</div>
+                            <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+                                <div class="fw-semibold">${job.title}</div>
+                                ${taskStatus?.laneId && html`<span class="badge bg-secondary text-white">${formatLaneLabel(taskStatus.laneId)} lane</span>`}
+                            </div>
                             <div class="text-muted small">${job.description}</div>
                             ${!job.isAvailable && html`
                                 <div class="alert alert-warning mt-3 mb-0">
@@ -996,10 +1014,10 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                                 <p class="empty-subtitle text-muted">The grouped cron catalog is empty.</p>
                             </div>
                         ` : html`
-                            <div class="alert alert-info mb-4">
+                            ${showCatalogHint && html`<div class="alert alert-info mb-4">
                                 <i class="ti ti-info-circle me-2"></i>
                                 <strong>Grouped Cron Catalog:</strong> use per-job scope controls (OrgId, mode, date range, retention) to run targeted manual jobs and monitor execution state from the same view.
-                            </div>
+                            </div>`}
 
                             <div class="row g-3">
                                 ${catalogGroups.map((group) => renderGroupCard(group))}
@@ -1016,89 +1034,91 @@ export function AdminActionsTab({ orgs = [], onTriggerCron, onResetRemediation, 
                 </div>
             </div>
 
-            <div class="col-12">
-                <div class="card border-warning">
-                    <div class="card-header bg-warning-lt text-warning">
-                        <div class="d-flex align-items-center w-100">
-                            <h3 class="card-title mb-0">
-                                <i class="ti ti-alert-triangle me-2"></i>
-                                Reset Remediation Status
-                            </h3>
-                            <button
-                                type="button"
-                                class="btn btn-sm btn-warning ms-auto"
-                                onClick=${() => setShowResetRemediation((prev) => !prev)}>
-                                <i class=${`ti ${showResetRemediation ? 'ti-chevron-up' : 'ti-chevron-down'} me-1`}></i>
-                                ${showResetRemediation ? 'Collapse' : 'Expand'}
-                            </button>
-                        </div>
-                    </div>
-                    ${showResetRemediation && html`<div class="card-body">
-                        <div class="alert alert-warning mb-3">
-                            <div class="d-flex">
-                                <div>
+            ${includeResetRemediation && html`
+                <div class="col-12">
+                    <div class="card border-warning">
+                        <div class="card-header bg-warning-lt text-warning">
+                            <div class="d-flex align-items-center w-100">
+                                <h3 class="card-title mb-0">
                                     <i class="ti ti-alert-triangle me-2"></i>
-                                    <strong>Privilege Action:</strong> This operation resets remediation status (AppStatus and RemediatedOn) in AppTelemetry and CVETelemetry tables. Use only for testing remediation detection logic.
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Organization (OrgId)</label>
-                                <input
-                                    type="text"
-                                    class="form-control"
-                                    value=${resetOrgId}
-                                    placeholder="Enter OrgId (for example: TEST-GIGA-BITS)"
-                                    onInput=${(e) => setResetOrgId(e.target.value)}
-                                    disabled=${resettingRemediation}
-                                />
-                            </div>
-                            <div class="col-md-6 align-self-end">
-                                <button class="btn btn-warning w-100" onClick=${handleResetRemediation} disabled=${resettingRemediation || !resetOrgId}>
-                                    ${resettingRemediation ? html`<span class="spinner-border spinner-border-sm me-2"></span>Resetting...` : html`<i class="ti ti-restore me-2"></i>Reset Remediation Status`}
+                                    Reset Remediation Status
+                                </h3>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-warning ms-auto"
+                                    onClick=${() => setShowResetRemediation((prev) => !prev)}>
+                                    <i class=${`ti ${showResetRemediation ? 'ti-chevron-up' : 'ti-chevron-down'} me-1`}></i>
+                                    ${showResetRemediation ? 'Collapse' : 'Expand'}
                                 </button>
                             </div>
                         </div>
-
-                        ${resetResult && html`
-                            <div class="alert ${resetResult.success ? 'alert-success' : 'alert-danger'} mt-3" role="alert">
-                                <div class="d-flex align-items-start">
-                                    <div class="flex-grow-1">
-                                        <strong>
-                                            <i class="${resetResult.success ? 'ti ti-check-circle' : 'ti ti-alert-circle'} me-2"></i>
-                                            ${resetResult.success ? 'Remediation status reset successfully' : 'Failed to reset remediation status'}
-                                        </strong>
+                        ${showResetRemediation && html`<div class="card-body">
+                            <div class="alert alert-warning mb-3">
+                                <div class="d-flex">
+                                    <div>
+                                        <i class="ti ti-alert-triangle me-2"></i>
+                                        <strong>Privilege Action:</strong> This operation resets remediation status (AppStatus and RemediatedOn) in AppTelemetry and CVETelemetry tables. Use only for testing remediation detection logic.
                                     </div>
-                                    <button type="button" class="btn-close ms-3" onClick=${() => setResetResult(null)}></button>
                                 </div>
-                                ${resetResult.data && html`
-                                    <div class="mt-3 pt-3 border-top">
-                                        <div class="row g-2">
-                                            <div class="col-6">
-                                                <div class="text-muted small">App Records Reset</div>
-                                                <div class="fw-bold text-danger fs-5">${resetResult.data.appRecordsReset || 0}</div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="text-muted small">CVE Records Reset</div>
-                                                <div class="fw-bold text-danger fs-5">${resetResult.data.cveRecordsReset || 0}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                `}
-                                ${resetResult.error && html`
-                                    <div class="mt-3 pt-3 border-top">
-                                        <div class="alert alert-danger mb-0" style="word-break: break-word;">
-                                            <code>${resetResult.error}</code>
-                                        </div>
-                                    </div>
-                                `}
                             </div>
-                        `}
-                    </div>`}
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Organization (OrgId)</label>
+                                    <input
+                                        type="text"
+                                        class="form-control"
+                                        value=${resetOrgId}
+                                        placeholder="Enter OrgId (for example: TEST-GIGA-BITS)"
+                                        onInput=${(e) => setResetOrgId(e.target.value)}
+                                        disabled=${resettingRemediation}
+                                    />
+                                </div>
+                                <div class="col-md-6 align-self-end">
+                                    <button class="btn btn-warning w-100" onClick=${handleResetRemediation} disabled=${resettingRemediation || !resetOrgId}>
+                                        ${resettingRemediation ? html`<span class="spinner-border spinner-border-sm me-2"></span>Resetting...` : html`<i class="ti ti-restore me-2"></i>Reset Remediation Status`}
+                                    </button>
+                                </div>
+                            </div>
+
+                            ${resetResult && html`
+                                <div class="alert ${resetResult.success ? 'alert-success' : 'alert-danger'} mt-3" role="alert">
+                                    <div class="d-flex align-items-start">
+                                        <div class="flex-grow-1">
+                                            <strong>
+                                                <i class="${resetResult.success ? 'ti ti-check-circle' : 'ti ti-alert-circle'} me-2"></i>
+                                                ${resetResult.success ? 'Remediation status reset successfully' : 'Failed to reset remediation status'}
+                                            </strong>
+                                        </div>
+                                        <button type="button" class="btn-close ms-3" onClick=${() => setResetResult(null)}></button>
+                                    </div>
+                                    ${resetResult.data && html`
+                                        <div class="mt-3 pt-3 border-top">
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <div class="text-muted small">App Records Reset</div>
+                                                    <div class="fw-bold text-danger fs-5">${resetResult.data.appRecordsReset || 0}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="text-muted small">CVE Records Reset</div>
+                                                    <div class="fw-bold text-danger fs-5">${resetResult.data.cveRecordsReset || 0}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `}
+                                    ${resetResult.error && html`
+                                        <div class="mt-3 pt-3 border-top">
+                                            <div class="alert alert-danger mb-0" style="word-break: break-word;">
+                                                <code>${resetResult.error}</code>
+                                            </div>
+                                        </div>
+                                    `}
+                                </div>
+                            `}
+                        </div>`}
+                    </div>
                 </div>
-            </div>
+            `}
         </div>
     `;
 }

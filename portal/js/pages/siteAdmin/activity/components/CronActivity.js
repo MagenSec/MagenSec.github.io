@@ -10,7 +10,110 @@ import { logger } from '@config';
 const { html } = window;
 const { useState, useEffect, useRef } = window.preactHooks;
 
-export function CronActivityPage({ cronStatus: propCronStatus }) {
+const LANE_ORDER = ['hot-detect', 'intel', 'sealed-org-data', 'business-ops', 'low-priority', 'manual'];
+const LANE_LABELS = {
+    'hot-detect': 'Hot Detect',
+    'intel': 'Intel',
+    'sealed-org-data': 'Sealed Org Data',
+    'business-ops': 'Business Ops',
+    'low-priority': 'Low Priority',
+    'manual': 'Manual'
+};
+
+const normalizeLaneId = (laneId) => String(laneId || '').trim().toLowerCase() || 'unassigned';
+
+const formatLaneLabel = (laneId) => {
+    const normalized = String(laneId || '').trim();
+    if (!normalized) return 'Unassigned';
+    return LANE_LABELS[normalized] || normalized
+        .split('-')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+};
+
+const formatExecutionScope = (scopeId) => {
+    const normalized = String(scopeId || 'global').trim().toLowerCase();
+    if (!normalized || normalized === 'global') return 'Global';
+    return normalized.toUpperCase();
+};
+
+const getCronEventStatus = (event) => String(
+    event?.metadata?.status ||
+    event?.metadata?.Status ||
+    event?.status ||
+    ''
+).toLowerCase();
+
+const toNumber = (value, fallback = 0) => {
+    if (value === null || value === undefined || value === '') return fallback;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+};
+
+const getDurationMsFromEvent = (event) => {
+    const meta = event?.metadata || {};
+    if (meta.durationSeconds !== undefined) return Math.round(toNumber(meta.durationSeconds) * 1000);
+    if (meta.DurationMs !== undefined) return toNumber(meta.DurationMs);
+    if (meta.durationMs !== undefined) return toNumber(meta.durationMs);
+    if (meta.operationBudget?.durationMs !== undefined) return toNumber(meta.operationBudget.durationMs);
+    if (meta.OperationBudget?.DurationMs !== undefined) return toNumber(meta.OperationBudget.DurationMs);
+    return 0;
+};
+
+const getBudgetField = (budget, camelName, pascalName) => toNumber(
+    budget?.[camelName] ?? budget?.[pascalName]
+);
+
+const getEventOperationBudget = (event) => {
+    const meta = event?.metadata || {};
+    const budget = meta.operationBudget || meta.OperationBudget || {};
+    return {
+        rowsScanned: getBudgetField(budget, 'rowsScanned', 'RowsScanned') + toNumber(meta.totalRowsScanned),
+        rowsRead: getBudgetField(budget, 'rowsRead', 'RowsRead') + toNumber(meta.totalRowsRead),
+        rowsWritten: getBudgetField(budget, 'rowsWritten', 'RowsWritten') + toNumber(meta.totalRowsWritten),
+        rowsDeleted: getBudgetField(budget, 'rowsDeleted', 'RowsDeleted') + toNumber(meta.totalRowsDeleted),
+        orgsTouched: getBudgetField(budget, 'orgsTouched', 'OrgsTouched'),
+        devicesTouched: getBudgetField(budget, 'devicesTouched', 'DevicesTouched'),
+        alertsTouched: getBudgetField(budget, 'alertsTouched', 'AlertsTouched')
+    };
+};
+
+const formatDuration = (durationMs) => {
+    const ms = toNumber(durationMs);
+    if (ms <= 0) return '-';
+    if (ms < 1000) return `${Math.round(ms)}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+};
+
+const formatCompactNumber = (value) => {
+    const n = toNumber(value);
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+    return `${Math.round(n)}`;
+};
+
+const formatPlural = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
+
+const formatSampleWindow = (rangeDays) => {
+    const days = Math.max(1, Number(rangeDays || 7));
+    return days === 1 ? 'Last 24h' : `Last ${days}d`;
+};
+
+const getTaskIdFromEvent = (event) => {
+    const meta = event?.metadata || {};
+    const explicitTaskId = meta.taskId || meta.TaskId || meta.taskName || meta.TaskName || meta.jobId || meta.JobId;
+    if (explicitTaskId) return String(explicitTaskId);
+
+    const targetType = String(event?.targetType || '').trim();
+    const syntheticTargets = new Set(['All', 'CronLane', 'System', 'Scheduled', 'Manual']);
+    if (targetType && !syntheticTargets.has(targetType)) return targetType;
+
+    return null;
+};
+
+export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true, embedded = false }) {
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [events, setEvents] = useState([]);
@@ -19,7 +122,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
     const [continuationToken, setContinuationToken] = useState(null);
     const scrollObserverRef = useRef(null);
     const [filterJob, setFilterJob] = useState('all'); // 'all', 'CronExecution', 'ReportSent', 'ReportFailed', 'BatchComplete'
-    const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'success', 'failed'
+    const [filterStatus, setFilterStatus] = useState('all');
     const [filterOrg, setFilterOrg] = useState('');
     const [expandedEvents, setExpandedEvents] = useState(new Set());
     const [cronStatus, setCronStatus] = useState(propCronStatus || null);
@@ -419,10 +522,10 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
         }
         if (filterStatus !== 'all') {
             const statusMatch = (() => {
+                const status = getCronEventStatus(e);
                 if (filterStatus === 'success') {
                     if (e.eventType === 'CRONRUN') {
-                        const status = e.metadata?.status || e.metadata?.Status;
-                        return !status || status === 'Completed';
+                        return !status || status === 'completed' || status === 'success';
                     }
                     if (e.eventType === 'SECURITY_REPORT') {
                         return ((e.subType || '').toLowerCase().includes('failed')) === false;
@@ -431,13 +534,18 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                 }
                 if (filterStatus === 'failed') {
                     if (e.eventType === 'CRONRUN') {
-                        const status = e.metadata?.status || e.metadata?.Status;
-                        return !!status && status !== 'Completed';
+                        return ['failed', 'exception', 'rejected', 'partialfailure', 'cancelled', 'canceled', 'timedout'].includes(status);
                     }
                     if (e.eventType === 'SECURITY_REPORT') {
                         return e.subType === 'SecurityReportFailed' || e.subType === 'FAILED';
                     }
                     return false;
+                }
+                if (filterStatus === 'running') {
+                    return e.eventType === 'CRONRUN' && status === 'running';
+                }
+                if (filterStatus === 'queued') {
+                    return e.eventType === 'CRONRUN' && status === 'queued';
                 }
                 return true;
             })();
@@ -498,6 +606,213 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
 
         return { points, max, totals };
     })();
+
+    const runtimeTrend = (() => {
+        const safeDays = Math.max(1, Number(rangeDays || 7));
+        const now = new Date();
+        const buckets = new Map();
+
+        for (let i = safeDays - 1; i >= 0; i--) {
+            const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+            const key = day.toISOString().slice(0, 10);
+            buckets.set(key, {
+                key,
+                label: day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                durationMs: 0,
+                runs: 0,
+                itemsProcessed: 0,
+                rowsRead: 0,
+                rowsWritten: 0,
+                rowsDeleted: 0
+            });
+        }
+
+        for (const evt of filteredEvents) {
+            if (String(evt?.eventType || '').toUpperCase() !== 'CRONRUN') continue;
+            const ts = evt?.timestamp ? new Date(evt.timestamp) : null;
+            if (!ts || Number.isNaN(ts.getTime())) continue;
+
+            const key = new Date(Date.UTC(ts.getUTCFullYear(), ts.getUTCMonth(), ts.getUTCDate())).toISOString().slice(0, 10);
+            const bucket = buckets.get(key);
+            if (!bucket) continue;
+
+            const durationMs = getDurationMsFromEvent(evt);
+            const budget = getEventOperationBudget(evt);
+            bucket.durationMs += durationMs;
+            bucket.runs += durationMs > 0 ? 1 : 0;
+            bucket.itemsProcessed += toNumber(evt?.metadata?.itemsProcessed ?? evt?.metadata?.entriesRefreshed);
+            bucket.rowsRead += budget.rowsRead;
+            bucket.rowsWritten += budget.rowsWritten;
+            bucket.rowsDeleted += budget.rowsDeleted;
+        }
+
+        const points = Array.from(buckets.values());
+        const maxDurationMs = Math.max(1, ...points.map((p) => p.durationMs));
+        const maxRows = Math.max(1, ...points.map((p) => p.rowsRead + p.rowsWritten + p.rowsDeleted));
+        const totals = points.reduce((acc, p) => {
+            acc.durationMs += p.durationMs;
+            acc.runs += p.runs;
+            acc.itemsProcessed += p.itemsProcessed;
+            acc.rowsRead += p.rowsRead;
+            acc.rowsWritten += p.rowsWritten;
+            acc.rowsDeleted += p.rowsDeleted;
+            return acc;
+        }, { durationMs: 0, runs: 0, itemsProcessed: 0, rowsRead: 0, rowsWritten: 0, rowsDeleted: 0 });
+
+        return { points, maxDurationMs, maxRows, totals };
+    })();
+
+    const efficiencyTrend = (() => {
+        const points = runtimeTrend.points.map((point) => {
+            const minutes = point.durationMs > 0 ? point.durationMs / 60000 : 0;
+            const rowOps = point.rowsRead + point.rowsWritten + point.rowsDeleted;
+            return {
+                ...point,
+                rowOps,
+                workPerMinute: minutes > 0 ? point.itemsProcessed / minutes : 0,
+                opsPerMinute: minutes > 0 ? rowOps / minutes : 0
+            };
+        });
+
+        const maxWorkPerMinute = Math.max(1, ...points.map((point) => point.workPerMinute));
+        const maxOpsPerMinute = Math.max(1, ...points.map((point) => point.opsPerMinute));
+        const peakRuntimeDay = [...points].sort((a, b) => b.durationMs - a.durationMs)[0] || null;
+        const peakOpsDay = [...points].sort((a, b) => b.rowOps - a.rowOps)[0] || null;
+        const peakEfficiencyDay = [...points].sort((a, b) => b.workPerMinute - a.workPerMinute)[0] || null;
+
+        return { points, maxWorkPerMinute, maxOpsPerMinute, peakRuntimeDay, peakOpsDay, peakEfficiencyDay };
+    })();
+
+    const cronTasks = Array.isArray(cronStatus?.tasks) ? cronStatus.tasks : [];
+    const currentCronStatus = cronStatus?.currentStatus || {};
+    const activeLaneId = currentCronStatus.lockedLaneId || null;
+    const activeExecutionScope = currentCronStatus.lockedScope || 'global';
+    const taskLaneLookup = new Map(cronTasks.map((task) => [String(task.taskId || task.displayName || ''), task.laneId]));
+
+    const getLaneIdForEvent = (event, taskId) => {
+        const meta = event?.metadata || {};
+        const explicitLane = meta.laneId || meta.LaneId || meta.lane || meta.Lane;
+        if (explicitLane) return normalizeLaneId(explicitLane);
+
+        const mappedLane = taskId ? taskLaneLookup.get(String(taskId)) : null;
+        if (mappedLane) return normalizeLaneId(mappedLane);
+
+        return 'unassigned';
+    };
+
+    const taskRuntimeLeaders = (() => {
+        const byTask = new Map();
+        for (const evt of filteredEvents) {
+            if (String(evt?.eventType || '').toUpperCase() !== 'CRONRUN') continue;
+            const meta = evt?.metadata || {};
+            const taskId = getTaskIdFromEvent(evt);
+            if (!taskId) continue;
+
+            const durationMs = getDurationMsFromEvent(evt);
+            const budget = getEventOperationBudget(evt);
+            const key = String(taskId);
+            const existing = byTask.get(key) || {
+                taskId: key,
+                runs: 0,
+                totalDurationMs: 0,
+                maxDurationMs: 0,
+                itemsProcessed: 0,
+                rowsRead: 0,
+                rowsWritten: 0,
+                rowsDeleted: 0
+            };
+            existing.runs += 1;
+            existing.totalDurationMs += durationMs;
+            existing.maxDurationMs = Math.max(existing.maxDurationMs, durationMs);
+            existing.itemsProcessed += toNumber(meta.itemsProcessed ?? meta.entriesRefreshed);
+            existing.rowsRead += budget.rowsRead;
+            existing.rowsWritten += budget.rowsWritten;
+            existing.rowsDeleted += budget.rowsDeleted;
+            byTask.set(key, existing);
+        }
+
+        return Array.from(byTask.values())
+            .map((item) => ({
+                ...item,
+                averageDurationMs: item.runs > 0 ? item.totalDurationMs / item.runs : 0,
+                totalRows: item.rowsRead + item.rowsWritten + item.rowsDeleted
+            }))
+            .sort((a, b) => b.totalDurationMs - a.totalDurationMs)
+            .slice(0, 6);
+    })();
+
+    const maxTaskDurationMs = Math.max(1, ...taskRuntimeLeaders.map((item) => item.totalDurationMs));
+
+    const taskEfficiencyLeaders = taskRuntimeLeaders
+        .map((item) => {
+            const minutes = item.totalDurationMs > 0 ? item.totalDurationMs / 60000 : 0;
+            return {
+                ...item,
+                workPerMinute: minutes > 0 ? item.itemsProcessed / minutes : 0,
+                opsPerMinute: minutes > 0 ? item.totalRows / minutes : 0
+            };
+        })
+        .filter((item) => item.workPerMinute > 0 || item.opsPerMinute > 0)
+        .sort((a, b) => (b.workPerMinute + (b.opsPerMinute / 1000)) - (a.workPerMinute + (a.opsPerMinute / 1000)))
+        .slice(0, 4);
+
+    const laneLoadMix = (() => {
+        const byLane = new Map();
+        for (const evt of filteredEvents) {
+            if (String(evt?.eventType || '').toUpperCase() !== 'CRONRUN') continue;
+
+            const taskId = getTaskIdFromEvent(evt);
+            const laneId = getLaneIdForEvent(evt, taskId);
+            const durationMs = getDurationMsFromEvent(evt);
+            const budget = getEventOperationBudget(evt);
+            const totalRows = budget.rowsRead + budget.rowsWritten + budget.rowsDeleted;
+            const status = getCronEventStatus(evt);
+            const existing = byLane.get(laneId) || {
+                laneId,
+                runs: 0,
+                failed: 0,
+                durationMs: 0,
+                itemsProcessed: 0,
+                totalRows: 0
+            };
+
+            existing.runs += durationMs > 0 ? 1 : 0;
+            existing.failed += ['failed', 'exception', 'rejected', 'partialfailure', 'cancelled', 'canceled', 'timedout'].includes(status) ? 1 : 0;
+            existing.durationMs += durationMs;
+            existing.itemsProcessed += toNumber(evt?.metadata?.itemsProcessed ?? evt?.metadata?.entriesRefreshed);
+            existing.totalRows += totalRows;
+            byLane.set(laneId, existing);
+        }
+
+        return Array.from(byLane.values())
+            .filter((item) => item.durationMs > 0 || item.totalRows > 0 || item.itemsProcessed > 0)
+            .sort((a, b) => {
+                const aOrder = LANE_ORDER.includes(a.laneId) ? LANE_ORDER.indexOf(a.laneId) : 99;
+                const bOrder = LANE_ORDER.includes(b.laneId) ? LANE_ORDER.indexOf(b.laneId) : 99;
+                return aOrder === bOrder ? b.durationMs - a.durationMs : aOrder - bOrder;
+            });
+    })();
+
+    const maxLaneDurationMs = Math.max(1, ...laneLoadMix.map((item) => item.durationMs));
+    const maxLaneRows = Math.max(1, ...laneLoadMix.map((item) => item.totalRows));
+    const topLaneByRuntime = [...laneLoadMix].sort((a, b) => b.durationMs - a.durationMs)[0] || null;
+
+    const laneIds = Array.from(new Set([
+        ...LANE_ORDER,
+        ...cronTasks.map((task) => task.laneId).filter(Boolean)
+    ])).filter((laneId) => cronTasks.some((task) => task.laneId === laneId) || laneId === activeLaneId);
+    const laneSummaries = laneIds.map((laneId) => {
+        const laneTasks = cronTasks.filter((task) => task.laneId === laneId);
+        return {
+            laneId,
+            label: formatLaneLabel(laneId),
+            total: laneTasks.length,
+            overdue: laneTasks.filter((task) => task.isOverdue).length,
+            active: activeLaneId === laneId
+        };
+    });
+    const lockExpiresAt = currentCronStatus.lockExpires ? new Date(currentCronStatus.lockExpires) : null;
+    const activeLockExpired = lockExpiresAt && lockExpiresAt < new Date();
 
     function getTaskLiveState(task) {
         const taskRuns = events
@@ -835,7 +1150,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
     }
 
     return html`
-        <div class="page-header d-print-none mb-3">
+        ${showHeader && html`<div class="page-header d-print-none mb-3">
             <div class="container-xl">
                 <div class="row g-2 align-items-center">
                     <div class="col">
@@ -844,7 +1159,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                             Cron Activity
                         </h2>
                         <div class="page-subtitle">
-                            <span class="text-muted">View cron job executions and report email activity</span>
+                            <span class="text-muted">View scheduled lane leases, task progress, manual runs, and report email activity</span>
                         </div>
                     </div>
                     <div class="col-auto">
@@ -855,58 +1170,63 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                     </div>
                 </div>
             </div>
-        </div>
+        </div>`}
 
-        <div class="container-xl">
+        <div class=${embedded ? '' : 'container-xl'}>
             <!-- Summary Statistics -->
             ${events.length > 0 && html`
                 <div class="row g-3 mb-3">
                     ${(() => {
+                        const sampleCount = filteredEvents.length;
                         const totalEvents = events.length;
-                        const successCount = events.filter(e => {
-                            if (e.eventType === 'CRONRUN') {
-                                const status = (e.metadata?.status || e.metadata?.Status || e.status || '').toLowerCase();
+                        const successCount = filteredEvents.filter((event) => {
+                            if (event.eventType === 'CRONRUN') {
+                                const status = (event.metadata?.status || event.metadata?.Status || event.status || '').toLowerCase();
                                 return status === '' || status === 'completed';
                             }
 
-                            return e.eventType === 'SECURITY_REPORT' && ((e.subType || '').toLowerCase().includes('failed')) === false;
+                            return event.eventType === 'SECURITY_REPORT' && ((event.subType || '').toLowerCase().includes('failed')) === false;
                         }).length;
-                        const failureCount = events.filter(e => {
-                            if (e.eventType === 'CRONRUN') {
-                                const status = (e.metadata?.status || e.metadata?.Status || e.status || '').toLowerCase();
+                        const failureCount = filteredEvents.filter((event) => {
+                            if (event.eventType === 'CRONRUN') {
+                                const status = (event.metadata?.status || event.metadata?.Status || event.status || '').toLowerCase();
                                 return ['failed', 'exception', 'rejected'].includes(status);
                             }
 
-                            return e.eventType === 'SECURITY_REPORT' && e.subType === 'SecurityReportFailed';
+                            return event.eventType === 'SECURITY_REPORT' && event.subType === 'SecurityReportFailed';
                         }).length;
-                        const successRate = totalEvents > 0 ? ((successCount / totalEvents) * 100).toFixed(1) : 0;
-                        const lastEvent = events[0];
+                        const successRate = sampleCount > 0 ? ((successCount / sampleCount) * 100).toFixed(1) : 0;
+                        const lastEvent = filteredEvents[0] || events[0];
                         const lastEventTime = lastEvent?.timestamp ? new Date(lastEvent.timestamp).toLocaleString() : 'N/A';
+                        const sampleLabel = sampleCount === totalEvents
+                            ? `${formatPlural(sampleCount, 'event')} loaded`
+                            : `${formatCompactNumber(sampleCount)} visible of ${formatCompactNumber(totalEvents)} loaded`;
                         
                         return html`
                             <div class="col-md-3">
                                 <div class="card">
                                     <div class="card-body">
-                                        <div class="text-muted small mb-2">Total Events</div>
-                                        <div class="h3 mb-0">${totalEvents}</div>
+                                        <div class="text-muted small mb-2">Activity Sample</div>
+                                        <div class="h3 mb-0">${formatCompactNumber(sampleCount)}</div>
+                                        <small class="text-muted">${sampleLabel} · ${formatSampleWindow(rangeDays)}</small>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="card">
                                     <div class="card-body">
-                                        <div class="text-muted small mb-2">Success Rate</div>
+                                        <div class="text-muted small mb-2">Completion Rate</div>
                                         <div class="h3 mb-0 text-success">${successRate}%</div>
-                                        <small class="text-muted">${successCount} successful</small>
+                                        <small class="text-muted">${successCount} success · ${failureCount} failed</small>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="card">
                                     <div class="card-body">
-                                        <div class="text-muted small mb-2">Failures</div>
-                                        <div class="h3 mb-0 ${failureCount > 0 ? 'text-danger' : 'text-success'}">${failureCount}</div>
-                                        ${failureCount > 0 ? html`<small class="text-danger">Requires attention</small>` : html`<small class="text-muted">All clear</small>`}
+                                        <div class="text-muted small mb-2">Timed Runtime</div>
+                                        <div class="h3 mb-0 text-primary">${formatDuration(runtimeTrend.totals.durationMs)}</div>
+                                        <small class="text-muted">${formatPlural(runtimeTrend.totals.runs, 'timed run')} · ${formatSampleWindow(rangeDays)}</small>
                                     </div>
                                 </div>
                             </div>
@@ -940,34 +1260,309 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
             `}
 
             ${filteredEvents.length > 0 && html`
+                <div class="row g-3 mb-3">
+                    <div class="col-xl-6 d-flex flex-column gap-3">
+                        <div class="card cron-runtime-trend-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title mb-0">Runtime Trend</h3>
+                                    <div class="card-subtitle text-muted cron-trend-readline">${formatSampleWindow(rangeDays)} filtered sample</div>
+                                </div>
+                                <div class="card-actions text-muted small">
+                                    ${formatDuration(runtimeTrend.totals.durationMs)} sampled runtime · ${formatPlural(runtimeTrend.totals.runs, 'timed run')}
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="cron-trend-stack">
+                                    <div class="cron-trend-section">
+                                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                            <div class="subheader mb-0">Executions</div>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                <span class="badge bg-success text-white">success</span>
+                                                <span class="badge bg-danger text-white">failed</span>
+                                            </div>
+                                        </div>
+                                        <div class="cron-trend-section-note text-muted">A taller bar means more cron runs that day; failed segments show runs that ended unsuccessfully.</div>
+                                        <div class="cron-trend-chart cron-trend-chart-compact" role="img" aria-label="Daily cron execution trend">
+                                            ${dailyTrend.points.map((point) => {
+                                                const successHeight = Math.max(2, Math.round((point.success / dailyTrend.max) * 30));
+                                                const failedHeight = Math.max(point.failed > 0 ? 2 : 0, Math.round((point.failed / dailyTrend.max) * 30));
+                                                const totalHeight = Math.min(36, successHeight + failedHeight);
+                                                return html`
+                                                    <div class="cron-trend-day" title=${`${point.label}: ${point.success} success, ${point.failed} failed, ${point.manual} manual, ${point.scheduled} scheduled`}>
+                                                        <div class="cron-trend-bar" style=${`height:${Math.max(2, totalHeight)}px`}>
+                                                            ${point.failed > 0 && html`<div class="cron-trend-segment cron-trend-failed" style=${`height:${failedHeight}px`}></div>`}
+                                                            ${point.success > 0 && html`<div class="cron-trend-segment cron-trend-success" style=${`height:${successHeight}px`}></div>`}
+                                                        </div>
+                                                        <div class="cron-trend-label">${point.label}</div>
+                                                    </div>
+                                                `;
+                                            })}
+                                        </div>
+                                        <div class="small text-muted mt-2">${dailyTrend.totals.success} completed · ${dailyTrend.totals.failed} failed</div>
+                                    </div>
+                                    <div class="cron-trend-section">
+                                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                            <div class="subheader mb-0">Runtime</div>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                <span class="badge bg-primary text-white">runtime</span>
+                                                <span class="badge bg-warning text-white">table ops</span>
+                                            </div>
+                                        </div>
+                                        <div class="cron-trend-section-note text-muted">Runtime shows elapsed cron time; table ops show rows read, written, or deleted during those runs.</div>
+                                        <div class="cron-trend-chart cron-trend-chart-compact" role="img" aria-label="Daily cron runtime and table operation trend">
+                                            ${runtimeTrend.points.map((point) => {
+                                                const durationHeight = Math.max(point.durationMs > 0 ? 3 : 0, Math.round((point.durationMs / runtimeTrend.maxDurationMs) * 34));
+                                                const rowHeight = Math.max((point.rowsRead + point.rowsWritten + point.rowsDeleted) > 0 ? 2 : 0, Math.round(((point.rowsRead + point.rowsWritten + point.rowsDeleted) / runtimeTrend.maxRows) * 10));
+                                                return html`
+                                                    <div class="cron-trend-day" title=${`${point.label}: ${formatDuration(point.durationMs)}, ${point.runs} timed runs, ${formatCompactNumber(point.rowsRead + point.rowsWritten + point.rowsDeleted)} row ops`}>
+                                                        <div class="cron-trend-bar" style=${`height:${Math.max(2, durationHeight + rowHeight)}px`}>
+                                                            ${rowHeight > 0 && html`<div class="cron-trend-segment cron-trend-rows" style=${`height:${rowHeight}px`}></div>`}
+                                                            ${durationHeight > 0 && html`<div class="cron-trend-segment cron-trend-runtime" style=${`height:${durationHeight}px`}></div>`}
+                                                        </div>
+                                                        <div class="cron-trend-label">${point.label}</div>
+                                                    </div>
+                                                `;
+                                            })}
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-2 mt-2">
+                                            <span class="badge bg-primary text-white">runtime ${formatDuration(runtimeTrend.totals.durationMs)}</span>
+                                            <span class="badge bg-info text-white">work ${formatCompactNumber(runtimeTrend.totals.itemsProcessed)} items</span>
+                                            <span class="badge bg-secondary text-white">reads ${formatCompactNumber(runtimeTrend.totals.rowsRead)}</span>
+                                            <span class="badge bg-success text-white">writes ${formatCompactNumber(runtimeTrend.totals.rowsWritten)}</span>
+                                            ${runtimeTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">deletes ${formatCompactNumber(runtimeTrend.totals.rowsDeleted)}</span>`}
+                                        </div>
+                                    </div>
+                                    <div class="cron-trend-section cron-trend-section-tight">
+                                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                            <div class="subheader mb-0">Efficiency</div>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                <span class="badge bg-success text-white">work/min</span>
+                                                <span class="badge bg-warning text-white">ops/min</span>
+                                            </div>
+                                        </div>
+                                        <div class="cron-trend-section-note text-muted">Higher efficiency means more items or table operations completed per runtime minute.</div>
+                                        <div class="cron-trend-chart cron-trend-chart-compact cron-trend-chart-tiny" role="img" aria-label="Daily cron work and operation efficiency trend">
+                                            ${efficiencyTrend.points.map((point) => {
+                                                const workHeight = Math.max(point.workPerMinute > 0 ? 2 : 0, Math.round((point.workPerMinute / efficiencyTrend.maxWorkPerMinute) * 28));
+                                                const opsHeight = Math.max(point.opsPerMinute > 0 ? 2 : 0, Math.round((point.opsPerMinute / efficiencyTrend.maxOpsPerMinute) * 9));
+                                                return html`
+                                                    <div class="cron-trend-day" title=${`${point.label}: ${formatCompactNumber(point.workPerMinute)} work/min, ${formatCompactNumber(point.opsPerMinute)} ops/min`}>
+                                                        <div class="cron-trend-bar" style=${`height:${Math.max(2, workHeight + opsHeight)}px`}>
+                                                            ${opsHeight > 0 && html`<div class="cron-trend-segment cron-trend-efficiency-ops" style=${`height:${opsHeight}px`}></div>`}
+                                                            ${workHeight > 0 && html`<div class="cron-trend-segment cron-trend-work" style=${`height:${workHeight}px`}></div>`}
+                                                        </div>
+                                                        <div class="cron-trend-label">${point.label}</div>
+                                                    </div>
+                                                `;
+                                            })}
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-2 mt-2 small text-muted">
+                                            ${efficiencyTrend.peakRuntimeDay && html`<span>peak runtime ${efficiencyTrend.peakRuntimeDay.label} · ${formatDuration(efficiencyTrend.peakRuntimeDay.durationMs)}</span>`}
+                                            ${efficiencyTrend.peakOpsDay && efficiencyTrend.peakOpsDay.rowOps > 0 && html`<span>peak ops ${efficiencyTrend.peakOpsDay.label} · ${formatCompactNumber(efficiencyTrend.peakOpsDay.rowOps)}</span>`}
+                                            ${efficiencyTrend.peakEfficiencyDay && efficiencyTrend.peakEfficiencyDay.workPerMinute > 0 && html`<span>best work/min ${efficiencyTrend.peakEfficiencyDay.label} · ${formatCompactNumber(efficiencyTrend.peakEfficiencyDay.workPerMinute)}</span>`}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title mb-0">Attribution Signals</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="cron-attribution-tiles">
+                                    <div class="cron-attribution-tile">
+                                        <div class="text-muted small">Compute Proxy</div>
+                                        <div class="h3 mb-0 text-primary">${formatDuration(runtimeTrend.totals.durationMs)}</div>
+                                        <div class="text-muted small">timed runtime</div>
+                                    </div>
+                                    <div class="cron-attribution-tile">
+                                        <div class="text-muted small">Storage Pressure</div>
+                                        <div class="h3 mb-0 text-warning">${formatCompactNumber(runtimeTrend.totals.rowsRead + runtimeTrend.totals.rowsWritten + runtimeTrend.totals.rowsDeleted)}</div>
+                                        <div class="text-muted small">table operations</div>
+                                    </div>
+                                    <div class="cron-attribution-tile">
+                                        <div class="text-muted small">Workload Driver</div>
+                                        <div class="h3 mb-0 text-success">${formatCompactNumber(runtimeTrend.totals.itemsProcessed)}</div>
+                                        <div class="text-muted small">items processed</div>
+                                    </div>
+                                    <div class="cron-attribution-tile">
+                                        <div class="text-muted small">Top Lane</div>
+                                        <div class="h3 mb-0">${topLaneByRuntime ? formatLaneLabel(topLaneByRuntime.laneId) : '-'}</div>
+                                        <div class="text-muted small">${topLaneByRuntime ? formatDuration(topLaneByRuntime.durationMs) : 'no timed runs'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h3 class="card-title mb-0">Runtime By Task</h3>
+                                <div class="card-actions text-muted small">${formatSampleWindow(rangeDays)} sample</div>
+                            </div>
+                            <div class="card-body">
+                                ${taskRuntimeLeaders.length === 0 ? html`
+                                    <div class="empty py-3">
+                                        <div class="empty-icon"><i class="ti ti-chart-bar-off"></i></div>
+                                        <p class="empty-title">No timed task runs</p>
+                                    </div>
+                                ` : html`
+                                    <div class="list-group list-group-flush cron-runtime-leader-list">
+                                        ${taskRuntimeLeaders.map((item) => {
+                                            const runtimeShare = Math.max(1, Math.round((item.totalDurationMs / maxTaskDurationMs) * 100));
+                                            return html`
+                                            <div class="list-group-item px-0">
+                                                <div class="d-flex align-items-start gap-3">
+                                                    <div class="flex-fill" style="min-width:0;">
+                                                        <div class="fw-semibold text-truncate" title=${item.taskId}>${item.taskId}</div>
+                                                        <div class="d-flex flex-wrap gap-1 mt-2">
+                                                            <span class="badge bg-primary text-white">total ${formatDuration(item.totalDurationMs)}</span>
+                                                            <span class="badge bg-secondary text-white">${formatPlural(item.runs, 'run')}</span>
+                                                            <span class="badge bg-info text-white">avg/run ${formatDuration(item.averageDurationMs)}</span>
+                                                            <span class="badge bg-dark text-white">max run ${formatDuration(item.maxDurationMs)}</span>
+                                                            ${item.itemsProcessed > 0 && html`<span class="badge bg-yellow-lt text-yellow">work ${formatCompactNumber(item.itemsProcessed)} items</span>`}
+                                                            ${item.totalRows > 0 && html`<span class="badge bg-warning text-white">table ops ${formatCompactNumber(item.totalRows)}</span>`}
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <div class="fw-semibold">${runtimeShare}%</div>
+                                                        <div class="text-muted small">of leader</div>
+                                                    </div>
+                                                </div>
+                                                <div class="progress progress-sm mt-2">
+                                                    <div class="progress-bar bg-primary" style=${`width:${Math.max(4, runtimeShare)}%`}></div>
+                                                </div>
+                                            </div>
+                                        `})}
+                                    </div>
+                                    ${taskEfficiencyLeaders.length > 0 && html`
+                                        <div class="cron-card-section mt-3 pt-3">
+                                            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                                                <div class="subheader mb-0">Efficiency</div>
+                                                <span class="badge bg-info text-white">per minute</span>
+                                            </div>
+                                            <div class="cron-efficiency-grid">
+                                                ${taskEfficiencyLeaders.map((item) => html`
+                                                    <div class="cron-efficiency-item">
+                                                        <div class="text-truncate fw-semibold" title=${item.taskId}>${item.taskId}</div>
+                                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                                            ${item.workPerMinute > 0 && html`<span class="badge bg-success text-white">work ${formatCompactNumber(item.workPerMinute)}/min</span>`}
+                                                            ${item.opsPerMinute > 0 && html`<span class="badge bg-warning text-white">ops ${formatCompactNumber(item.opsPerMinute)}/min</span>`}
+                                                        </div>
+                                                    </div>
+                                                `)}
+                                            </div>
+                                        </div>
+                                    `}
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `}
+
+            ${laneLoadMix.length > 0 && html`
+                <div class="row g-3 mb-3">
+                    <div class="col-12 d-flex">
+                        <div class="card h-100 w-100">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title mb-0">Lane Load Mix</h3>
+                                    <div class="card-subtitle text-muted">Runtime and table operations by scheduled lane</div>
+                                </div>
+                                <div class="card-actions text-muted small">${formatSampleWindow(rangeDays)} sample</div>
+                            </div>
+                            <div class="card-body">
+                                <div class="cron-lane-load-list">
+                                    ${laneLoadMix.map((lane) => {
+                                        const runtimePercent = Math.max(1, Math.round((lane.durationMs / maxLaneDurationMs) * 100));
+                                        const rowPercent = Math.max(lane.totalRows > 0 ? 1 : 0, Math.round((lane.totalRows / maxLaneRows) * 100));
+                                        return html`
+                                            <div class="cron-lane-load-row">
+                                                <div class="cron-lane-load-label">
+                                                    <div class="fw-semibold">${formatLaneLabel(lane.laneId)}</div>
+                                                    <div class="text-muted small">${formatPlural(lane.runs, 'timed run')}${lane.failed > 0 ? ` · ${lane.failed} failed` : ''}</div>
+                                                </div>
+                                                <div class="cron-lane-load-bars">
+                                                    <div class="cron-lane-bar-track" title=${`${formatLaneLabel(lane.laneId)} runtime ${formatDuration(lane.durationMs)}`}>
+                                                        <div class="cron-lane-bar-runtime" style=${`width:${Math.max(4, runtimePercent)}%`}></div>
+                                                    </div>
+                                                    <div class="cron-lane-bar-track" title=${`${formatLaneLabel(lane.laneId)} table operations ${formatCompactNumber(lane.totalRows)}`}>
+                                                        <div class="cron-lane-bar-ops" style=${`width:${Math.max(lane.totalRows > 0 ? 4 : 0, rowPercent)}%`}></div>
+                                                    </div>
+                                                </div>
+                                                <div class="cron-lane-load-metrics">
+                                                    <span class="badge bg-primary text-white">${formatDuration(lane.durationMs)}</span>
+                                                    <span class="badge bg-warning text-white">${formatCompactNumber(lane.totalRows)} ops</span>
+                                                    ${lane.itemsProcessed > 0 && html`<span class="badge bg-success text-white">${formatCompactNumber(lane.itemsProcessed)} work</span>`}
+                                                </div>
+                                            </div>
+                                        `;
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `}
+
+            ${cronStatus && html`
                 <div class="card mb-3">
                     <div class="card-header">
-                        <h3 class="card-title mb-0">Execution Trend</h3>
+                        <div>
+                            <h3 class="card-title mb-0">Lane Status</h3>
+                            <div class="card-subtitle text-muted">Scheduled lanes run independently; manual jobs are queued separately.</div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary ms-auto" disabled=${loadingCronStatus} onClick=${loadCronStatus}>
+                            ${loadingCronStatus ? html`<span class="spinner-border spinner-border-sm me-1"></span>` : html`<i class="ti ti-refresh me-1"></i>`}
+                            Refresh Status
+                        </button>
                     </div>
                     <div class="card-body">
-                        <div class="d-flex flex-wrap gap-2 mb-2">
-                            <span class="badge bg-success text-white">${dailyTrend.totals.success} success</span>
-                            <span class="badge bg-danger text-white">${dailyTrend.totals.failed} failed</span>
-                            <span class="badge bg-primary text-white">${dailyTrend.totals.manual} manual</span>
-                            <span class="badge bg-secondary text-white">${dailyTrend.totals.scheduled} scheduled</span>
-                        </div>
-                        <div class="cron-trend-chart" role="img" aria-label="Daily cron execution trend">
-                            ${dailyTrend.points.map((point) => {
-                                const successHeight = Math.max(2, Math.round((point.success / dailyTrend.max) * 48));
-                                const failedHeight = Math.max(point.failed > 0 ? 2 : 0, Math.round((point.failed / dailyTrend.max) * 48));
-                                const totalHeight = Math.min(56, successHeight + failedHeight);
-                                return html`
-                                    <div class="cron-trend-day" title=${`${point.label}: ${point.success} success, ${point.failed} failed, ${point.manual} manual, ${point.scheduled} scheduled`}>
-                                        <div class="cron-trend-bar" style=${`height:${Math.max(2, totalHeight)}px`}>
-                                            ${point.failed > 0 && html`<div class="cron-trend-segment cron-trend-failed" style=${`height:${failedHeight}px`}></div>`}
-                                            ${point.success > 0 && html`<div class="cron-trend-segment cron-trend-success" style=${`height:${successHeight}px`}></div>`}
+                        <div class="row g-3 align-items-stretch">
+                            <div class="col-lg-4">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-muted small mb-2">Active Lease</div>
+                                    ${currentCronStatus.isLocked ? html`
+                                        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                                            <span class=${`badge ${activeLockExpired ? 'bg-warning text-white' : 'bg-primary text-white'}`}>
+                                                ${formatLaneLabel(activeLaneId)}
+                                            </span>
+                                            ${activeExecutionScope && String(activeExecutionScope).toLowerCase() !== 'global' && html`
+                                                <span class="badge bg-dark text-white">${formatExecutionScope(activeExecutionScope)}</span>
+                                            `}
+                                            ${activeLockExpired && html`<span class="badge bg-danger text-white">Expired</span>`}
                                         </div>
-                                        <div class="cron-trend-label">${point.label}</div>
-                                    </div>
-                                `;
-                            })}
+                                        <div class="small text-muted text-break">${currentCronStatus.lockedBy || 'Unknown worker'}</div>
+                                        ${lockExpiresAt && html`<div class="small mt-2">Renews by ${lockExpiresAt.toLocaleString()}</div>`}
+                                    ` : html`
+                                        <span class="badge bg-success text-white">No active scheduled lease</span>
+                                    `}
+                                </div>
+                            </div>
+                            <div class="col-lg-8">
+                                <div class="row g-2">
+                                    ${laneSummaries.map((lane) => html`
+                                        <div class="col-sm-6 col-xl-4">
+                                            <div class=${`border rounded p-3 h-100 ${lane.active ? 'border-primary' : ''}`}>
+                                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                                    <div class="fw-semibold">${lane.label}</div>
+                                                    ${lane.active && html`<span class="badge bg-primary text-white">Running</span>`}
+                                                </div>
+                                                <div class="small text-muted mt-1">${lane.total} task${lane.total === 1 ? '' : 's'}</div>
+                                                <div class="mt-2">
+                                                    ${lane.overdue > 0
+                                                        ? html`<span class="badge bg-danger text-white">${lane.overdue} overdue</span>`
+                                                        : html`<span class="badge bg-success-lt text-success">On schedule</span>`}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
                         </div>
-                        <div class="small text-muted mt-2">Green = success, red = failed</div>
                     </div>
                 </div>
             `}
@@ -975,8 +1570,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
             <div class="mb-3">
                 <h4>Activity Details & Filters</h4>
                 <p class="text-muted small">
-                    Cron Jobs run automated tasks every hour (Credit Consumption, Daily Reports). 
-                    This page shows execution history, email deliveries, and errors.
+                    Cron jobs now run in independent scheduled lanes with per-task audit progress. This page shows lane health, execution history, email deliveries, and errors.
                 </p>
             </div>
 
@@ -1083,6 +1677,8 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                             <select class="form-select" value=${filterStatus} onChange=${(e) => setFilterStatus(e.target.value)}>
                                 <option value="all">All Status</option>
                                 <option value="success">Success</option>
+                                <option value="running">Running</option>
+                                <option value="queued">Queued</option>
                                 <option value="failed">Failed</option>
                             </select>
                         </div>
@@ -1139,6 +1735,7 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                             <thead>
                                 <tr>
                                     <th>Task ID</th>
+                                    <th>Lane</th>
                                     <th>Frequency</th>
                                     <th>Last Execution</th>
                                     <th>Next Scheduled</th>
@@ -1176,6 +1773,12 @@ export function CronActivityPage({ cronStatus: propCronStatus }) {
                                                     ? html`<div class="text-muted small">${task.taskId}</div>`
                                                     : ''}
                                                 ${task.description ? html`<div class="text-muted small mt-1">${task.description}</div>` : ''}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary text-white">${formatLaneLabel(task.laneId)}</span>
+                                                ${task.executionScope && String(task.executionScope).toLowerCase() !== 'global' && html`
+                                                    <div class="mt-1"><span class="badge bg-dark text-white">${formatExecutionScope(task.executionScope)}</span></div>
+                                                `}
                                             </td>
                                             <td>
                                                 <span class="badge bg-blue-lt text-blue">${task.frequencyHours}h</span>

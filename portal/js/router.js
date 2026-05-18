@@ -505,6 +505,16 @@ export function initRouter(renderApp) {
         renderApp({ page: 'siteadmin/activity', ctx });
     });
 
+    // Site Admin - Cron Jobs (protected)
+    page('/siteadmin/cron', (ctx) => {
+        if (!ctx.isAuthenticated) {
+            page.redirect('/');
+            return;
+        }
+        if (guardSiteAdminRoute(page)) return;
+        renderApp({ page: 'siteadmin/cron', ctx });
+    });
+
     // Site Admin - Preview (protected)
     page('/siteadmin/preview', (ctx) => {
         if (!ctx.isAuthenticated) {

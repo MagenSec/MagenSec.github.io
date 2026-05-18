@@ -41,6 +41,7 @@ import { AuditPage } from './pages/audit/Audit.js';
 import { BusinessPage } from './pages/siteAdmin/business/BusinessPage.js';
 import { ManagePage } from './pages/siteAdmin/manage/ManagePage.js';
 import { ActivityPage } from './pages/siteAdmin/activity/ActivityPage.js';
+import { CronJobsPage } from './pages/siteAdmin/cron/CronJobsPage.js';
 import { PreviewPage } from './pages/siteAdmin/preview/PreviewPage.js';
 import { SearchableOrgSwitcher } from './components/SearchableOrgSwitcher.js';
 import { DocumentationHub } from './pages/docs/DocumentationHub/index.js';
@@ -615,6 +616,8 @@ function renderCurrentPage() {
             return html`<${ManagePage} />`;
         case 'siteadmin/activity':
             return html`<${ActivityPage} />`;
+        case 'siteadmin/cron':
+            return html`<${CronJobsPage} />`;
         case 'siteadmin/preview':
             return html`<${PreviewPage} />`;
         case 'reports/preview':
