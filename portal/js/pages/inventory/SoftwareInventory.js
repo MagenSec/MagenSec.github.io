@@ -727,7 +727,7 @@ export class SoftwareInventoryPage extends Component {
         this._lastAppliedHash = hash;
         if (!parsed && !tab) return;
 
-        const searchQuery = parsed ? '' : this.state.searchQuery;
+        const searchQuery = parsed ? this.getDeepLinkSearchText(parsed) : this.state.searchQuery;
         this.setState(prev => {
             const nextTab = tab || (parsed ? 'atrisk' : prev.activeTab);
             if (prev.deepLinkFilter?.raw === parsed?.raw && prev.searchQuery === searchQuery && prev.activeTab === nextTab) {
@@ -744,6 +744,11 @@ export class SoftwareInventoryPage extends Component {
 
     _currentDeepLinkFilter() {
         return this.state.deepLinkFilter || this.parseDeepLinkFilterFromHash();
+    }
+
+    getDeepLinkSearchText(filter) {
+        if (!filter) return '';
+        return filter.apps?.[0] || filter.device || filter.vendor || filter.version || '';
     }
 
     clearInventoryFilters() {
