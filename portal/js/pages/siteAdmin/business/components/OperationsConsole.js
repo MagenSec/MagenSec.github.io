@@ -94,14 +94,6 @@ function getScaleSeverityBadgeClass(severity) {
     return 'bg-secondary text-white';
 }
 
-function getScaleSeverityIcon(severity) {
-    const normalized = String(severity || '').toLowerCase();
-    if (normalized === 'critical') return 'ti-alert-triangle';
-    if (normalized === 'warning') return 'ti-alert-circle';
-    if (normalized === 'healthy') return 'ti-circle-check';
-    return 'ti-info-circle';
-}
-
 function summarizeCronAttribution(events, taskLaneLookup = new Map()) {
     const byTask = new Map();
     const byLane = new Map();
@@ -254,6 +246,10 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
     const cronSummary = summarizeCronAttribution(cronAttribution.events, cronTaskLaneLookup);
     const cronScalePressure = cronAttribution.scalePressure || null;
     const cronScaleSignals = Array.isArray(cronScalePressure?.signals) ? cronScalePressure.signals : [];
+    const cronTopScaleSignal = cronScaleSignals[0] || null;
+    const cronScaleTooltip = cronScaleSignals.length > 0
+        ? cronScaleSignals.slice(0, 4).map(signal => `${signal.title || signal.code}: ${signal.message || ''} ${signal.recommendation || ''}`.trim()).join('\n')
+        : 'No cron scale-pressure warning threshold crossed in this sample.';
     const maxCronLaneRuntime = Math.max(1, ...cronSummary.lanes.map(item => item.durationMs));
     const maxCronTaskRuntime = Math.max(1, ...cronSummary.topTasks.map(item => item.durationMs));
 
@@ -588,22 +584,31 @@ export function OperationsConsole({ snapshot, history, convert, ccySymbol }) {
                 </div>
                 <div class="card-body">
                     ${cronScalePressure && html`
-                        <div class="alert ${cronScalePressure.overallSeverity === 'critical' ? 'alert-danger' : cronScalePressure.overallSeverity === 'warning' ? 'alert-warning' : 'alert-success'} d-flex flex-wrap justify-content-between gap-3 align-items-center">
-                            <div>
-                                <div class="fw-semibold">
-                                    <i class=${`ti ${getScaleSeverityIcon(cronScalePressure.overallSeverity)} me-2`}></i>
-                                    SLA / scale pressure
-                                    <span class=${`badge ${getScaleSeverityBadgeClass(cronScalePressure.overallSeverity)} ms-2`}>${cronScalePressure.overallSeverity || 'unknown'}</span>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <div class="border rounded p-3 h-100" title=${cronScaleTooltip}>
+                                    <div class="d-flex align-items-center justify-content-between gap-2">
+                                        <div class="subheader mb-0">SLA pressure</div>
+                                        <span class=${`badge ${getScaleSeverityBadgeClass(cronScalePressure.overallSeverity)}`}>${cronScalePressure.overallSeverity || 'unknown'}</span>
+                                    </div>
+                                    <div class="h3 mb-1 mt-2">${cronScalePressure.criticalSignals || 0}/${(cronScalePressure.criticalSignals || 0) + (cronScalePressure.warningSignals || 0)}</div>
+                                    <div class="text-muted small">critical / watched cron signals</div>
                                 </div>
-                                <div class="small mt-1">${cronScalePressure.summary || 'Scale pressure is building from CronRunMetrics.'}</div>
-                                ${cronScaleSignals.length > 0 && html`
-                                    <div class="small mt-1 text-muted">Top signal: ${cronScaleSignals[0].title || cronScaleSignals[0].code} · ${cronScaleSignals[0].metricValue || cronScaleSignals[0].severity}</div>
-                                `}
                             </div>
-                            <a class="btn btn-sm btn-outline-primary" href="#!/siteadmin/cron?view=monitor">
-                                <i class="ti ti-dashboard me-1"></i>
-                                Open Cron Jobs
-                            </a>
+                            <div class="col-md-5">
+                                <div class="border rounded p-3 h-100" title=${cronTopScaleSignal ? `${cronTopScaleSignal.message || ''}\n${cronTopScaleSignal.recommendation || ''}` : cronScaleTooltip}>
+                                    <div class="subheader mb-0">Top signal</div>
+                                    <div class="h3 mb-1 mt-2 text-truncate">${cronTopScaleSignal?.title || 'Healthy'}</div>
+                                    <div class="text-muted small text-truncate">${cronTopScaleSignal?.metricValue ? `${cronTopScaleSignal.metricLabel || 'metric'}: ${cronTopScaleSignal.metricValue}` : (cronScalePressure.summary || 'No warning threshold crossed')}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <a class="border rounded p-3 h-100 d-block text-reset text-decoration-none" href="#!/siteadmin/cron?view=monitor" title="Open the Cron monitor for run-level traces and lane status.">
+                                    <div class="subheader mb-0">Fan-out path</div>
+                                    <div class="h3 mb-1 mt-2">Current</div>
+                                    <div class="text-muted small">AppProduct projection</div>
+                                </a>
+                            </div>
                         </div>
                     `}
                     ${cronAttribution.loading ? html`
