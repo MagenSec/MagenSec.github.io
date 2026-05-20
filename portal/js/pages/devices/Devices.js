@@ -344,16 +344,11 @@ class DevicesPage extends window.Component {
         const labels = context.assignedLabels || [];
         const hasImpact = context.businessImpact && context.businessImpact !== 'UNCLASSIFIED';
         const readOnly = orgContext.isReadOnly?.() || rewindContext.isActive?.();
-
-        const impactClass = context.businessImpact === 'HBI'
-            ? 'bg-danger-lt text-danger'
-            : context.businessImpact === 'MBI'
-                ? 'bg-warning-lt text-warning'
-                : 'bg-success-lt text-success';
+        const impactMeta = this.getBusinessImpactMeta(context);
 
         return html`
             <div class="d-flex flex-wrap gap-1 mt-1">
-                ${hasImpact ? html`<span class=${`badge badge-sm ${impactClass}`}>${context.businessImpact}</span>` : ''}
+                ${hasImpact ? html`<span class=${`${impactMeta.className} fleet-impact-marker--inline`} title=${impactMeta.label}>${impactMeta.code}</span>` : ''}
                 ${labels.slice(0, 3).map(label => html`<span class="badge badge-sm bg-azure-lt text-azure">${label}</span>`)}
                 ${labels.length > 3 ? html`<span class="badge badge-sm bg-secondary-lt text-secondary">+${labels.length - 3}</span>` : ''}
                 <button type="button"
@@ -365,6 +360,40 @@ class DevicesPage extends window.Component {
                     ${labels.length || hasImpact ? 'Edit context' : '+ tags'}
                 </button>
             </div>
+        `;
+    }
+
+    getBusinessImpactMeta(contextOrDevice) {
+        const isContext = Array.isArray(contextOrDevice?.assignedLabels)
+            || Array.isArray(contextOrDevice?.AssignedLabels)
+            || contextOrDevice?.businessImpact
+            || contextOrDevice?.BusinessImpact;
+        const context = isContext
+            ? this.normalizeDeviceContext(contextOrDevice)
+            : this.normalizeDeviceContext(contextOrDevice?.deviceContext || contextOrDevice?.DeviceContext);
+        const impact = ['HBI', 'MBI', 'LBI'].includes(context.businessImpact)
+            ? context.businessImpact
+            : 'NA';
+        const labelMap = {
+            HBI: 'High business impact',
+            MBI: 'Medium business impact',
+            LBI: 'Low business impact',
+            NA: 'Business impact not classified'
+        };
+        return {
+            code: impact,
+            className: `fleet-impact-marker fleet-impact-marker--${impact.toLowerCase()}`,
+            label: labelMap[impact]
+        };
+    }
+
+    renderBusinessImpactMarker(device, extraClass = '') {
+        const { html } = window;
+        const meta = this.getBusinessImpactMeta(device);
+        return html`
+            <span class=${`${meta.className} ${extraClass}`.trim()} title=${meta.label} aria-label=${meta.label}>
+                ${meta.code}
+            </span>
         `;
     }
 
@@ -394,6 +423,7 @@ class DevicesPage extends window.Component {
                     aria-label=${tooltip}
                     onClick=${() => this.openDeviceContextEditor(device)}>
                 <i class="ti ti-tags"></i>
+                ${this.renderBusinessImpactMarker(device, 'fleet-impact-marker--inline')}
                 <span>${summary}</span>
                 ${(hasImpact || labels.length) ? html`<span class="fleet-context-dot"></span>` : ''}
             </button>
@@ -426,7 +456,7 @@ class DevicesPage extends window.Component {
 
         return html`
             <div class="dropdown">
-                <button class="btn btn-sm btn-secondary dropdown-toggle fleet-manage-button position-relative" type="button" data-bs-toggle="dropdown" data-bs-strategy="fixed" data-bs-boundary="viewport" title="Manage device">
+                <button class=${`btn btn-sm btn-secondary dropdown-toggle fleet-manage-button position-relative${isOutdated && !agentDisabled ? ' fleet-manage-button--attention' : ''}`} type="button" data-bs-toggle="dropdown" data-bs-strategy="fixed" data-bs-boundary="viewport" title="Manage device">
                     <i class="ti ti-dots-vertical"></i>
                     <span>Manage</span>
                     ${isOutdated && !agentDisabled ? html`<span class="badge bg-danger badge-notification badge-blink" style="position:absolute;top:-4px;right:-4px;"></span>` : ''}
@@ -439,7 +469,7 @@ class DevicesPage extends window.Component {
                         <div class="dropdown-divider"></div>
                         <div class="dropdown-header">Operate ${agentDisabled ? html`<span class="text-muted small">(unavailable)</span>` : ''}</div>
                         ${item({ disabled: agentDisabled, onClick: () => this.queueDeviceAction(device, 'TriggerScan'), mutates: true, title: agentBlock || 'Run an on-demand security scan', icon: 'ti-scan', label: 'Trigger Scan' })}
-                        ${item({ disabled: agentDisabled, onClick: () => this.queueDeviceAction(device, 'CheckUpdates'), mutates: true, title: agentBlock || 'Ask the agent to check for updates', className: !agentDisabled && isOutdated ? 'bg-warning-lt' : '', icon: 'ti-refresh', label: 'Trigger Update', badge: !agentDisabled && isOutdated ? html`<span class="badge bg-danger ms-2">Update</span>` : '' })}
+                        ${item({ disabled: agentDisabled, onClick: () => this.queueDeviceAction(device, 'CheckUpdates'), mutates: true, title: agentBlock || 'Ask the agent to check for updates', className: !agentDisabled && isOutdated ? 'bg-warning-lt' : '', icon: 'ti-refresh', label: 'Trigger Update', badge: !agentDisabled && isOutdated ? html`<span class="badge bg-danger text-white ms-2">Update</span>` : '' })}
                         ${item({ disabled: agentDisabled, onClick: () => this.queueDeviceAction(device, 'CollectLogs'), mutates: true, title: agentBlock || 'Pull diagnostic logs from this device', icon: 'ti-file-upload', label: 'Collect Logs' })}
                     ` : ''}
                     <div class="dropdown-divider"></div>
@@ -478,7 +508,7 @@ class DevicesPage extends window.Component {
                         <article class=${`fleet-device-card fleet-device-card--${rowTone}`} key=${device.id}>
                             <div class="fleet-device-card__accent"></div>
                             <div class="fleet-device-card__header">
-                                <span class=${`avatar avatar-sm fleet-device-avatar fleet-device-avatar--${rowTone}`}>${this.getDeviceInitials(device.name || device.id)}</span>
+                                ${this.renderBusinessImpactMarker(device, 'fleet-impact-marker--device')}
                                 <div class="min-width-0 flex-fill">
                                     <a href=${`#!/devices/${device.id}`} class="text-reset fw-semibold d-block text-truncate" title=${device.name || device.id}>${device.name || device.id}</a>
                                     <div class="text-muted small text-truncate" title=${osLabel}>${osLabel}</div>
@@ -490,11 +520,13 @@ class DevicesPage extends window.Component {
                             </div>
                             <div class="fleet-device-card__body">
                                 <div class="fleet-device-card__visibility">
-                                    <span class=${`fleet-visibility-pill fleet-visibility-pill--${rowTone}`}>
-                                        <span class=${`fleet-visibility-dot fleet-visibility-dot--${rowTone}`}></span>
-                                        ${visibilityMeta.label}
-                                    </span>
-                                    <span class="text-muted small" title=${visibilityMeta.detail}>${visibilityMeta.detail}</span>
+                                    <div class="fleet-device-card__state-line">
+                                        <span class=${`fleet-visibility-pill fleet-visibility-pill--${rowTone}`}>
+                                            <span class=${`fleet-visibility-dot fleet-visibility-dot--${rowTone}`}></span>
+                                            ${visibilityMeta.label}
+                                        </span>
+                                    </div>
+                                    <span class="fleet-device-card__visibility-detail" title=${visibilityMeta.detail}>${visibilityMeta.detail}</span>
                                 </div>
                                 <div class="fleet-device-card__attention">
                                     ${attentionMeta.priority > 0 ? html`
@@ -3437,7 +3469,7 @@ class DevicesPage extends window.Component {
                                 <button type="button" class=${`dropdown-item ${hasOutdated ? 'bg-warning-lt' : ''}`.trim()} data-mutates-state="true" onclick=${() => this.queueOrgCommand('CheckUpdates')}>
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
                                     Check agent updates
-                                    ${hasOutdated ? html`<span class="badge bg-danger ms-auto">${outdatedCount}</span>` : ''}
+                                    ${hasOutdated ? html`<span class="badge bg-danger text-white ms-auto">${outdatedCount}</span>` : ''}
                                 </button>
                                 <button type="button" class="dropdown-item" data-mutates-state="true" onclick=${() => this.queueOrgCommand('RefreshInventory')}>
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74" /><path d="M3 4v4h4" /></svg>
@@ -3669,9 +3701,7 @@ class DevicesPage extends window.Component {
                                                             <!-- Device Column -->
                                                             <td>
                                                                 <div class="d-flex align-items-center">
-                                                                    <span class=${`avatar avatar-sm me-3 flex-shrink-0 fleet-device-avatar fleet-device-avatar--${rowTone}`}>
-                                                                        ${this.getDeviceInitials(device.name || device.id)}
-                                                                    </span>
+                                                                    ${this.renderBusinessImpactMarker(device, 'fleet-impact-marker--device me-3 flex-shrink-0')}
                                                                     <div class="min-width-0">
                                                                         <a href="#!/devices/${device.id}" class="text-reset fw-medium d-block text-truncate" style="max-width:220px;" title="${device.name || device.id}">${device.name || device.id}</a>
                                                                         <div class="text-muted small d-flex align-items-center gap-1 text-truncate" style="max-width:210px;" title=${osLabel}>
@@ -3790,7 +3820,7 @@ class DevicesPage extends window.Component {
 
                                                                 return html`
                                                                 <div class="dropdown">
-                                                                    <button class="btn btn-sm btn-secondary dropdown-toggle fleet-manage-button position-relative" type="button" data-bs-toggle="dropdown" data-bs-strategy="fixed" data-bs-boundary="viewport" title="Manage device" aria-label="Manage device">
+                                                                    <button class=${`btn btn-sm btn-secondary dropdown-toggle fleet-manage-button position-relative${isOutdated && !agentDisabled ? ' fleet-manage-button--attention' : ''}`} type="button" data-bs-toggle="dropdown" data-bs-strategy="fixed" data-bs-boundary="viewport" title="Manage device" aria-label="Manage device">
                                                                         <i class="ti ti-dots-vertical"></i>
                                                                         <span>Manage</span>
                                                                         ${isOutdated && !agentDisabled ? html`
@@ -3826,7 +3856,7 @@ class DevicesPage extends window.Component {
                                                                                 className: !agentDisabled && isOutdated ? 'bg-warning-lt' : '',
                                                                                 icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>`,
                                                                                 label: 'Trigger Update',
-                                                                                badge: !agentDisabled && isOutdated ? html`<span class="badge bg-danger ms-2">Update</span>` : ''
+                                                                                badge: !agentDisabled && isOutdated ? html`<span class="badge bg-danger text-white ms-2">Update</span>` : ''
                                                                             })}
                                                                             ${item({
                                                                                 disabled: agentDisabled,

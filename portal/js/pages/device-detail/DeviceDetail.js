@@ -772,6 +772,24 @@ export class DeviceDetailPage extends window.Component {
             .filter(Boolean);
     }
 
+    getBusinessImpactMeta(context) {
+        const normalized = this.normalizeDeviceContext(context);
+        const impact = ['HBI', 'MBI', 'LBI'].includes(normalized.businessImpact)
+            ? normalized.businessImpact
+            : 'NA';
+        const labelMap = {
+            HBI: 'High business impact',
+            MBI: 'Medium business impact',
+            LBI: 'Low business impact',
+            NA: 'Business impact not classified'
+        };
+        return {
+            code: impact,
+            className: `fleet-impact-marker fleet-impact-marker--${impact.toLowerCase()}`,
+            label: labelMap[impact]
+        };
+    }
+
     setContextDraft(field, value) {
         this.setState(prev => ({
             contextDraft: { ...(prev.contextDraft || {}), [field]: value },
@@ -828,22 +846,16 @@ export class DeviceDetailPage extends window.Component {
         const readOnly = orgContext.isReadOnly?.() || rewindContext.isActive?.();
         const labels = context.assignedLabels || [];
         const editing = this.state.contextEditing;
-        const impactClass = context.businessImpact === 'HBI'
-            ? 'bg-danger-lt text-danger'
-            : context.businessImpact === 'MBI'
-                ? 'bg-warning-lt text-warning'
-                : context.businessImpact === 'LBI'
-                    ? 'bg-success-lt text-success'
-                    : 'bg-secondary-lt text-secondary';
+        const impactMeta = this.getBusinessImpactMeta(context);
 
         return html`
             <section class="device-context-compact mb-3">
                 <div class="device-context-compact__summary">
                     <div class="min-width-0">
                         <div class="text-muted small text-uppercase fw-semibold">Ownership & tags</div>
-                        <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
-                            <span class=${`badge ${impactClass}`}>${context.businessImpact || 'UNCLASSIFIED'}</span>
-                            ${labels.length ? labels.slice(0, 5).map(label => html`<span class="badge bg-azure-lt text-azure">${label}</span>`) : html`<span class="text-muted small">No labels assigned</span>`}
+                        <div class="device-context-compact__chips d-flex flex-wrap align-items-center gap-1 mt-1">
+                            <span class=${impactMeta.className} title=${impactMeta.label} aria-label=${impactMeta.label}>${impactMeta.code}</span>
+                            ${labels.length ? labels.slice(0, 5).map(label => html`<span class="badge bg-azure-lt text-azure">${label}</span>`) : html`<span class="device-context-empty">No labels assigned</span>`}
                             ${labels.length > 5 ? html`<span class="badge bg-secondary-lt text-secondary">+${labels.length - 5}</span>` : ''}
                         </div>
                     </div>
@@ -2890,6 +2902,7 @@ export class DeviceDetailPage extends window.Component {
         ].filter(Boolean);
         const health = renderHealthStatus(device);
         const healthStatus = String(health.status || '').toLowerCase();
+        const headerImpactMeta = this.getBusinessImpactMeta(this.state.deviceContext);
         const healthBadgeClass = healthStatus === 'online' || healthStatus === 'recent-online'
             ? 'bg-success-lt text-success'
             : healthStatus === 'offline' || healthStatus === 'recent-offline'
@@ -2985,12 +2998,7 @@ export class DeviceDetailPage extends window.Component {
                                         <a href="#!/devices" class="text-muted">← Devices</a>
                                     </div>
                                     <h2 class="page-title">
-                                        <span class="avatar avatar-sm me-2 bg-blue-lt">
-                                            ${(() => {
-                                                const name = device.DeviceName || device.deviceName || device.DeviceId || device.deviceId || '';
-                                                return name.substring(0, 2).toUpperCase();
-                                            })()}
-                                        </span>
+                                        <span class=${`${headerImpactMeta.className} fleet-impact-marker--device me-2`} title=${headerImpactMeta.label} aria-label=${headerImpactMeta.label}>${headerImpactMeta.code}</span>
                                         ${device.DeviceName || device.deviceName || device.DeviceId || device.deviceId}
                                     </h2>
                                     <div class="page-subtitle mt-2">
