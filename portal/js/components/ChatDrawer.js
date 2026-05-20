@@ -242,7 +242,7 @@ export class ChatDrawer extends Component {
     return html`
       <button
         onClick=${this.toggle}
-        title="${open ? 'Close Analyst' : 'Ask 🛡️MAGI'}"
+        title="${open ? 'Close MAGI' : 'Ask MAGI'}"
         style="
           position: fixed;
           bottom: 24px;
@@ -310,7 +310,7 @@ export class ChatDrawer extends Component {
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="var(--magi-link)" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-              <span style="font-weight: 600; font-size: 0.95rem; color: var(--magi-text); white-space: nowrap;">🛡️ MAGI</span>
+              <span style="font-weight: 600; font-size: 0.95rem; color: var(--magi-text); white-space: nowrap;">Officer MAGI</span>
             </div>
             <a
               href=${fullChatHref}
@@ -318,9 +318,9 @@ export class ChatDrawer extends Component {
               class=${isPersonalOrg ? 'business-license-only' : ''}
               data-business-tooltip=${isPersonalOrg ? BUSINESS_ONLY_TOOLTIP : ''}
               style="color: var(--magi-link); font-size: 0.75rem; text-decoration: none; font-weight: 500; white-space: nowrap;"
-              title=${isPersonalOrg ? BUSINESS_ONLY_TOOLTIP : (messages.length > 0 ? 'Continue this conversation in MAGI' : 'Open full analyst chat')}
+              title=${isPersonalOrg ? BUSINESS_ONLY_TOOLTIP : (messages.length > 0 ? 'Continue this conversation in MAGI' : 'Open Officer MAGI')}
             >
-              ${messages.length > 0 ? 'Continue in MAGI →' : 'Full chat →'}
+              ${messages.length > 0 ? 'Continue in MAGI →' : 'Open MAGI →'}
             </a>
           </div>
           <!-- Row 2: subtitle + context pill -->
@@ -340,7 +340,7 @@ export class ChatDrawer extends Component {
           ${messages.length === 0 ? html`
             <div style="text-align: center; color: var(--magi-empty-text); margin-top: 40px;">
               <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" stroke-width="1.5" stroke="var(--magi-empty-icon)" fill="none" style="display: block; margin: 0 auto 12px;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg>
-              <div style="font-size: 0.875rem; font-weight: 500; margin-bottom: 4px; color: var(--magi-text);">Ask 🛡️MAGI (AI Security Officer)</div>
+              <div style="font-size: 0.875rem; font-weight: 500; margin-bottom: 4px; color: var(--magi-text);">Ask Officer MAGI</div>
               <div style="font-size: 0.8rem;">
                 ${effectiveHint
                   ? `Ask about ${effectiveHint}`

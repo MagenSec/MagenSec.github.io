@@ -85,7 +85,7 @@ export class DeviceDetailPage extends window.Component {
             appSortDir: 'asc',
             appStatusFilter: 'installed',
             appSummary: null,
-            appViewMode: 'vendor',
+            appViewMode: 'risk',
             expandedVendors: new Set(),
             expandedApps: new Set(),
             deviceSessions: null,
@@ -106,7 +106,8 @@ export class DeviceDetailPage extends window.Component {
             deviceContext: null,
             contextDraft: { assignedLabelsText: '', businessImpact: 'UNCLASSIFIED', notes: '' },
             contextSaving: false,
-            contextError: null
+            contextError: null,
+            contextEditing: false
         };
     }
 
@@ -802,7 +803,8 @@ export class DeviceDetailPage extends window.Component {
                 deviceContext: context,
                 contextDraft: this.contextToDraft(context),
                 contextSaving: false,
-                contextError: null
+                contextError: null,
+                contextEditing: false
             });
 
             const currentCache = this.tryGetCachedDetail(currentOrg.orgId, this.state.deviceId);
@@ -825,6 +827,7 @@ export class DeviceDetailPage extends window.Component {
         const draft = this.state.contextDraft || this.contextToDraft(context);
         const readOnly = orgContext.isReadOnly?.() || rewindContext.isActive?.();
         const labels = context.assignedLabels || [];
+        const editing = this.state.contextEditing;
         const impactClass = context.businessImpact === 'HBI'
             ? 'bg-danger-lt text-danger'
             : context.businessImpact === 'MBI'
@@ -834,29 +837,27 @@ export class DeviceDetailPage extends window.Component {
                     : 'bg-secondary-lt text-secondary';
 
         return html`
-            <div class="card mb-3">
-                <div class="card-body py-3">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-lg-3">
-                            <div class="text-muted small font-weight-medium">Business impact</div>
-                            <div class="d-flex align-items-center gap-2 mt-1">
-                                <span class=${`badge ${impactClass}`}>${context.businessImpact || 'UNCLASSIFIED'}</span>
-                                ${context.updatedAtUtc ? html`<span class="text-muted small">v${context.contextVersion}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="col-lg-5">
-                            <div class="text-muted small font-weight-medium">Assigned labels</div>
-                            <div class="d-flex flex-wrap gap-1 mt-1">
-                                ${labels.length ? labels.map(label => html`<span class="badge bg-azure-lt text-azure">${label}</span>`) : html`<span class="text-muted small">Unclassified</span>`}
-                            </div>
-                        </div>
-                        <div class="col-lg-4 text-lg-end">
-                            ${context.updatedAtUtc ? html`<div class="text-muted small">Updated ${DateUtils.formatDate(context.updatedAtUtc)}${context.updatedBy ? ` by ${context.updatedBy}` : ''}</div>` : html`<div class="text-muted small">No context assigned yet</div>`}
+            <section class="device-context-compact mb-3">
+                <div class="device-context-compact__summary">
+                    <div class="min-width-0">
+                        <div class="text-muted small text-uppercase fw-semibold">Ownership & tags</div>
+                        <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+                            <span class=${`badge ${impactClass}`}>${context.businessImpact || 'UNCLASSIFIED'}</span>
+                            ${labels.length ? labels.slice(0, 5).map(label => html`<span class="badge bg-azure-lt text-azure">${label}</span>`) : html`<span class="text-muted small">No labels assigned</span>`}
+                            ${labels.length > 5 ? html`<span class="badge bg-secondary-lt text-secondary">+${labels.length - 5}</span>` : ''}
                         </div>
                     </div>
+                    <div class="device-context-compact__meta">
+                        ${context.updatedAtUtc ? html`<span class="text-muted small">Updated ${DateUtils.formatDate(context.updatedAtUtc)}${context.updatedBy ? ` by ${context.updatedBy}` : ''}</span>` : html`<span class="text-muted small">No saved ownership context</span>`}
+                        <button type="button" class="btn btn-sm ${editing ? 'btn-secondary' : 'btn-outline-primary'}" disabled=${readOnly || undefined} onclick=${() => this.setState({ contextEditing: !editing })} title=${readOnly ? 'Read-only mode' : 'Edit device tags and business impact'}>
+                            <i class="ti ti-tags me-1"></i>${editing ? 'Close' : 'Edit tags'}
+                        </button>
+                    </div>
+                </div>
 
-                    <div class="row g-2 align-items-end mt-2">
-                        <div class="col-md-3">
+                ${editing ? html`
+                    <div class="device-context-compact__editor">
+                        <div>
                             <label class="form-label small mb-1">Impact</label>
                             <select class="form-select form-select-sm" value=${draft.businessImpact || 'UNCLASSIFIED'} disabled=${readOnly || undefined} onchange=${(event) => this.setContextDraft('businessImpact', event.target.value)}>
                                 <option value="UNCLASSIFIED">Unclassified</option>
@@ -865,23 +866,196 @@ export class DeviceDetailPage extends window.Component {
                                 <option value="LBI">LBI</option>
                             </select>
                         </div>
-                        <div class="col-md-5">
+                        <div>
                             <label class="form-label small mb-1">Labels</label>
                             <input class="form-control form-control-sm" value=${draft.assignedLabelsText || ''} placeholder="executive, public-exposed, mobile" disabled=${readOnly || undefined} oninput=${(event) => this.setContextDraft('assignedLabelsText', event.target.value)} />
                         </div>
-                        <div class="col-md-3">
+                        <div>
                             <label class="form-label small mb-1">Note</label>
                             <input class="form-control form-control-sm" value=${draft.notes || ''} placeholder="Optional" disabled=${readOnly || undefined} oninput=${(event) => this.setContextDraft('notes', event.target.value)} />
                         </div>
-                        <div class="col-md-1 d-grid">
+                        <div class="d-grid align-self-end">
                             <button class="btn btn-sm btn-primary" data-mutates-state="true" disabled=${readOnly || this.state.contextSaving || undefined} onclick=${() => this.saveDeviceContext()} title=${readOnly ? 'Read-only mode' : 'Save device context'}>
-                                ${this.state.contextSaving ? '...' : 'Save'}
+                                ${this.state.contextSaving ? 'Saving...' : 'Save tags'}
                             </button>
                         </div>
                     </div>
-                    ${this.state.contextError ? html`<div class="text-danger small mt-2">${this.state.contextError}</div>` : ''}
+                ` : ''}
+                ${this.state.contextError ? html`<div class="text-danger small mt-2">${this.state.contextError}</div>` : ''}
+            </section>
+        `;
+    }
+
+    renderDeviceDossier(model) {
+        const { html } = window;
+        const visibilityStatus = String(model.health?.status || '').toLowerCase();
+        const visibilityCap = visibilityStatus === 'ghosted' || visibilityStatus === 'error'
+            ? 25
+            : visibilityStatus === 'dormant'
+                ? 45
+                : visibilityStatus === 'stale'
+                    ? 60
+                    : 100;
+        const baseTrustScore = Math.max(0, Math.min(100, 100 - Math.round(Number.isFinite(model.riskScore) ? model.riskScore : 0)));
+        const trustScore = Math.min(baseTrustScore, visibilityCap);
+        const trustTone = trustScore >= 75 ? 'success' : trustScore >= 50 ? 'warning' : 'danger';
+        const trustLabel = trustScore >= 75 ? 'Trusted' : trustScore >= 50 ? 'Review' : 'Act now';
+        const cveCount = model.activeCves?.length || 0;
+        const criticalHigh = (model.criticalCves?.length || 0) + (model.highCves?.length || 0);
+        const suggestedNextStep = model.nextStep || this.getRecommendedNextStep();
+        const visibilityNeedsAction = ['stale', 'dormant', 'ghosted', 'error', 'partial'].includes(visibilityStatus);
+        const nextStep = visibilityNeedsAction && suggestedNextStep.action === 'monitor'
+            ? {
+                label: model.health?.text ? `Restore ${model.health.text.toLowerCase()} visibility` : 'Restore device visibility',
+                detail: model.health?.reason || 'Heartbeat evidence is stale; verify the device and agent before trusting its state.',
+                badgeClass: visibilityStatus === 'stale' ? 'bg-warning-lt text-warning' : 'bg-danger-lt text-danger',
+                action: 'visibility'
+            }
+            : suggestedNextStep;
+        const isReadOnly = orgContext.isReadOnly?.() || rewindContext.isActive?.();
+        const nextActionMutates = nextStep.action === 'updates' || nextStep.action === 'monitor';
+        const contextPanel = this.renderDeviceContextCard();
+
+        const fixItems = [
+            model.knownExploitCount > 0 ? {
+                tone: 'danger',
+                title: `${model.knownExploitCount} known exploit${model.knownExploitCount === 1 ? '' : 's'}`,
+                detail: 'Review exploited CVEs before routine patch work.',
+                action: () => this.scrollToCveTable()
+            } : null,
+            model.updateAvailable ? {
+                tone: 'warning',
+                title: `Update agent${model.latestClientVersion ? ` to v${model.latestClientVersion}` : ''}`,
+                detail: 'IT should keep the agent current so evidence and commands stay reliable.',
+                action: () => this.queueDeviceCommand('CheckUpdates'),
+                mutates: true
+            } : null,
+            criticalHigh > 0 ? {
+                tone: 'danger',
+                title: `${criticalHigh} critical/high CVE${criticalHigh === 1 ? '' : 's'}`,
+                detail: 'Security should prioritize the highest severity findings on this device.',
+                action: () => this.scrollToCveTable()
+            } : null,
+            model.appBreakdown?.vulnerableApps > 0 ? {
+                tone: 'warning',
+                title: `${model.appBreakdown.vulnerableApps} vulnerable app${model.appBreakdown.vulnerableApps === 1 ? '' : 's'}`,
+                detail: model.appBreakdown.projectionPending ? 'CVE evidence is present while app projection catches up.' : 'Open software evidence and patch the riskiest apps first.',
+                action: () => model.appBreakdown.projectionPending ? this.scrollToCveTable() : this.openAdvancedDetails('detailApps')
+            } : null,
+            model.networkRisk?.publicIpPresent ? {
+                tone: 'warning',
+                title: 'Internet-exposed signal',
+                detail: model.networkRisk.reason || 'Review network exposure and gateway posture.',
+                action: () => this.openAdvancedDetails('detailSignals')
+            } : null,
+            (model.health?.status === 'stale' || model.health?.status === 'dormant' || model.health?.status === 'ghosted' || model.health?.status === 'error') ? {
+                tone: model.health.status === 'stale' ? 'warning' : 'danger',
+                title: model.health.text || 'Visibility issue',
+                detail: model.health.reason || 'Restore current heartbeat evidence before trusting the device state.',
+                action: () => this.openAdvancedDetails('detailTimeline')
+            } : null
+        ].filter(Boolean).slice(0, 5);
+
+        const runNextAction = () => {
+            if (nextStep.action === 'monitor') {
+                this.openAdvancedDetails();
+                return;
+            }
+            if (nextStep.action === 'visibility') {
+                this.openAdvancedDetails('detailTimeline');
+                return;
+            }
+            this.runRecommendedNextStep(nextStep.action);
+        };
+
+        const evidenceItems = [
+            { label: 'Visibility', value: model.health?.text || 'Unknown', badge: model.healthBadgeClass, detail: model.health?.reason || 'Latest heartbeat state' },
+            { label: 'Security', value: `${cveCount} CVEs`, badge: this.getSeverityColor(model.worstSeverity || 'LOW'), detail: `${criticalHigh} critical/high · ${model.knownExploitCount} exploited` },
+            { label: 'Software', value: `${model.appBreakdown?.totalApps || 0} apps`, badge: (model.appBreakdown?.vulnerableApps || 0) > 0 ? 'bg-warning-lt text-warning' : 'bg-success-lt text-success', detail: `${model.appBreakdown?.vulnerableApps || 0} vulnerable` },
+            { label: 'Exposure', value: model.networkRisk?.publicIpPresent ? 'Internet-exposed' : 'Private', badge: model.networkRisk?.publicIpPresent ? 'bg-warning-lt text-warning' : 'bg-success-lt text-success', detail: model.networkRisk?.reason || 'Network signal' },
+            { label: 'Agent', value: model.clientVersion ? `v${model.clientVersion}` : 'Not reported', badge: model.updateAvailable ? 'bg-warning-lt text-warning' : 'bg-success-lt text-success', detail: model.updateAvailable ? `Update to ${model.latestClientVersion || 'latest'}` : 'Current baseline' },
+            { label: 'Evidence', value: model.summarySignalAt ? DateUtils.formatDate(model.summarySignalAt) : 'Pending', badge: model.summarySignalBadgeClass, detail: model.summarySignalSource === 'cached' ? 'Last verified report' : model.summarySignalSource === 'fresh' ? 'Live summary' : 'Awaiting summary' }
+        ];
+
+        return html`
+            <section class="device-dossier mb-3">
+                <div class="device-dossier-hero">
+                    <div class="device-dossier-score device-dossier-score--${trustTone}">
+                        <span>${trustScore}</span>
+                        <small>${trustLabel}</small>
+                    </div>
+                    <div class="device-dossier-main">
+                        <div class="device-dossier-eyebrow">Device dossier</div>
+                        <h3>${nextStep.label}</h3>
+                        <p>${nextStep.detail}</p>
+                        <div class="device-dossier-meta">
+                            <span><i class="ti ti-device-desktop"></i>${model.displayOs}</span>
+                            <span><i class="ti ti-user"></i>${model.displayUser}</span>
+                            ${model.primaryIp ? html`<span><i class="ti ti-network"></i><code>${model.primaryIp}</code></span>` : null}
+                            <span><i class="ti ti-clock"></i>${model.lastSeenAt ? DateUtils.formatDate(model.lastSeenAt) : 'No recent evidence'}</span>
+                        </div>
+                    </div>
+                    <div class="device-dossier-actions">
+                        <button class="btn btn-primary" data-mutates-state=${nextActionMutates ? 'true' : undefined} disabled=${isReadOnly && nextActionMutates || undefined} onclick=${runNextAction} title=${isReadOnly && nextActionMutates ? 'Read-only mode' : nextStep.detail}>
+                            ${nextStep.action === 'monitor' ? 'Open evidence' : 'Take action'}
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick=${() => this.openAdvancedDetails()}>
+                            Evidence workspace
+                        </button>
+                    </div>
                 </div>
-            </div>
+
+                <div class="row g-3 mt-1">
+                    <div class="col-lg-5">
+                        <div class="device-dossier-panel h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <div class="device-dossier-eyebrow">Fix first</div>
+                                    <h4 class="mb-0">What needs attention</h4>
+                                </div>
+                                <span class="badge ${nextStep.badgeClass}">Now</span>
+                            </div>
+                            ${fixItems.length === 0 ? html`
+                                <div class="device-dossier-empty">
+                                    <i class="ti ti-circle-check"></i>
+                                    <div>
+                                        <div class="fw-semibold">No urgent action</div>
+                                        <div class="text-muted small">Keep this device monitored and use evidence tabs for review.</div>
+                                    </div>
+                                </div>
+                            ` : html`
+                                <div class="device-dossier-fix-list">
+                                    ${fixItems.map(item => html`
+                                        <button type="button" class="device-dossier-fix-row" data-mutates-state=${item.mutates ? 'true' : undefined} disabled=${isReadOnly && item.mutates || undefined} onclick=${() => { if (!(isReadOnly && item.mutates)) item.action(); }}>
+                                            <span class=${`device-dossier-dot device-dossier-dot--${item.tone}`}></span>
+                                            <span>
+                                                <strong>${item.title}</strong>
+                                                <small>${item.detail}</small>
+                                            </span>
+                                            <i class="ti ti-chevron-right"></i>
+                                        </button>
+                                    `)}
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="device-dossier-panel h-100">
+                            <div class="device-dossier-eyebrow">Evidence snapshot</div>
+                            <div class="device-dossier-evidence-grid">
+                                ${evidenceItems.map(item => html`
+                                    <button type="button" class="device-dossier-evidence" onclick=${() => this.openAdvancedDetails()}>
+                                        <span>${item.label}</span>
+                                        <strong>${item.value}</strong>
+                                        <em class=${`badge ${item.badge}`}>${item.detail}</em>
+                                    </button>
+                                `)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            ${contextPanel}
         `;
     }
 
@@ -1105,7 +1279,7 @@ export class DeviceDetailPage extends window.Component {
                     detectionMethod: x.detectionMethod || x.DetectionMethod || x.howFound || x.HowFound || x.source || x.Source || x.detectedBy || x.DetectedBy || 'database'
                 }));
 
-            // Build timeline from telemetry changes
+                    // Build timeline from device signal changes
             const timeline = this.buildTimeline(telemetryData);
 
             // Extract device summary for risk scoring. Prefer top-level payload summary,
@@ -1335,7 +1509,7 @@ export class DeviceDetailPage extends window.Component {
             });
         });
 
-        // Add telemetry snapshots as events
+        // Add device signal snapshots as events
         (telemetryData.history || []).slice(0, 20).forEach((snapshot, idx) => {
             if (idx === 0) {
                 timeline.push({
@@ -1510,62 +1684,6 @@ export class DeviceDetailPage extends window.Component {
         return this.getSeverityStyles(severity).outline;
     }
 
-    classifyDetectionSource(cve) {
-        const source = (cve?.detectionMethod || cve?.howFound || cve?.source || cve?.detectedBy || '').toString().toLowerCase();
-        if (source.includes('ai') || source.includes('heur')) return 'ai';
-        return 'db';
-    }
-
-    getDetectionBuckets(cves = []) {
-        const buckets = { db: { count: 0, highest: null }, ai: { count: 0, highest: null } };
-        (cves || []).forEach((cve) => {
-            const key = this.classifyDetectionSource(cve);
-            const sev = (cve?.severity || '').toUpperCase();
-            const bucket = buckets[key] || buckets.db;
-            bucket.count += 1;
-            const currentWeight = this.severityWeight(bucket.highest);
-            if (this.severityWeight(sev) > currentWeight) {
-                bucket.highest = sev;
-            }
-            buckets[key] = bucket;
-        });
-        return buckets;
-    }
-
-    renderDetectionButtons(buckets, options = {}) {
-        const { html } = window;
-        const size = options.size === 'sm' ? 'sm' : 'md';
-        const onClick = options.onClick;
-        const showLabels = options.showLabels !== false;
-        const keys = ['db', 'ai'];
-
-        const iconFor = (key) => key === 'db'
-            ? html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.657 3.582 3 8 3s8 -1.343 8 -3v-6" /><path d="M4 12v6c0 1.657 3.582 3 8 3s8 -1.343 8 -3v-6" /></svg>`
-            : html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 9a3 3 0 0 1 6 0v1a3 3 0 0 1 0 6v1a3 3 0 0 1 -6 0v-1a3 3 0 0 1 0 -6z" /><path d="M9 12v1" /><path d="M12 7v1" /><path d="M15 12v1" /><path d="M12 17v1" /></svg>`;
-
-        const labelFor = (key) => key === 'db' ? 'Database matches' : 'AI heuristic matches';
-        const tooltipFor = (key) => key === 'db'
-            ? 'Database match: high confidence signatures from advisories'
-            : 'AI heuristic: behavior-based confidence';
-
-        return html`
-            <div class="d-flex flex-wrap gap-2">
-                ${keys.map(key => {
-                    const data = buckets?.[key] || { count: 0, highest: null };
-                    const outlineClass = this.getSeverityOutlineClass(data.highest);
-                    const badgeClass = this.getSeverityColor(data.highest);
-                    return html`
-                        <button class="btn ${outlineClass} ${size === 'sm' ? 'btn-sm' : ''} d-flex align-items-center gap-2" title=${tooltipFor(key)} onclick=${(e) => { e.preventDefault(); if (onClick) onClick(key); }}>
-                            ${iconFor(key)}
-                            ${showLabels ? html`<span>${labelFor(key)}</span>` : ''}
-                            <span class="badge ${badgeClass}">${data.count || 0}</span>
-                        </button>
-                    `;
-                })}
-            </div>
-        `;
-    }
-
     scrollToCveTable() {
         const el = document.getElementById('cve-table');
         if (el) {
@@ -1694,7 +1812,7 @@ export class DeviceDetailPage extends window.Component {
         };
     }
 
-    // Derive last scan time from app telemetry when heartbeat doesn't have it
+    // Derive last scan time from app evidence when heartbeat doesn't have it
     deriveLastScanTime() {
         const heartbeatScan = this.state.telemetryDetail?.latest?.fields?.LastScanEnd 
             || this.state.telemetryDetail?.latest?.fields?.LastScanStart;
@@ -1720,7 +1838,7 @@ export class DeviceDetailPage extends window.Component {
 
     // Filter out uninstalled and patched vulnerabilities from risk calculations
     getActiveAppsAndCves() {
-        // Keep only installed apps or apps still showing in current telemetry
+        // Keep only installed apps or apps still showing in current evidence
         const activeApps = this.state.appInventory.filter(app => {
             // Keep if installed
             if (app.isInstalled === true) return true;
@@ -2052,10 +2170,10 @@ export class DeviceDetailPage extends window.Component {
     </tbody>
   </table>
 
-    <h2>Network &amp; Telemetry Snapshot</h2>
+    <h2>Network &amp; Signal Snapshot</h2>
   <div class="card">
     <div class="grid">
-      <div><strong>Last Telemetry</strong><div>${FormattingUtils.escapeHtml(model?.telemetry?.latestTimestamp || 'N/A')}</div></div>
+    <div><strong>Last Signal</strong><div>${FormattingUtils.escapeHtml(model?.telemetry?.latestTimestamp || 'N/A')}</div></div>
       <div><strong>Current User</strong><div>${FormattingUtils.escapeHtml(model?.telemetry?.currentUser || 'N/A')}</div></div>
       <div><strong>Exposure</strong><div>${FormattingUtils.escapeHtml(model?.telemetry?.publicIpPresent ? 'Internet-exposed' : 'Private')}</div></div>
       <div><strong>Mobility</strong><div>${FormattingUtils.escapeHtml(model?.telemetry?.mobile ? 'Mobile' : 'Stationary')}</div></div>
@@ -2210,9 +2328,9 @@ export class DeviceDetailPage extends window.Component {
                         </div>
                         <div class="col-sm-6 col-lg-3">
                             <div class="kpi-card">
-                                <div class="kpi-label">Heartbeat / Telemetry</div>
+                                <div class="kpi-label">Heartbeat / Signals</div>
                                 <div class="kpi-value">${FormattingUtils.escapeHtml(model?.telemetry?.lastHeartbeat || 'N/A')}</div>
-                                <div class="text-muted">Last telemetry: ${FormattingUtils.escapeHtml(model?.telemetry?.lastTelemetry || 'N/A')}</div>
+                                <div class="text-muted">Last signal: ${FormattingUtils.escapeHtml(model?.telemetry?.lastTelemetry || 'N/A')}</div>
                                 ${this.renderTelemetryHealthBadge()}
                             </div>
                         </div>
@@ -2442,7 +2560,7 @@ export class DeviceDetailPage extends window.Component {
 
     /**
      * Block device from device detail page
-     * @param {boolean} deleteTelemetry - Whether to delete telemetry data
+    * @param {boolean} deleteTelemetry - Whether to delete stored evidence data
      */
     async blockDevice(deleteTelemetry = false) {
         const { device } = this.state;
@@ -2462,7 +2580,7 @@ export class DeviceDetailPage extends window.Component {
         }
 
         const confirmMessage = deleteTelemetry
-            ? `Block device "${deviceName}" and delete its telemetry?\n\nDevice will remove license and terminate. Seat will be released.\nTelemetry deletion cannot be undone.`
+            ? `Block device "${deviceName}" and delete its stored evidence?\n\nDevice will remove license and terminate. Seat will be released.\nEvidence deletion cannot be undone.`
             : `Block device "${deviceName}"?\n\nDevice will remove license and terminate. Seat will be released.`;
 
         if (!confirm(confirmMessage)) {
@@ -2476,7 +2594,7 @@ export class DeviceDetailPage extends window.Component {
             const response = await api.updateDeviceState(currentOrg.orgId, deviceId, 'BLOCKED', {
                 deleteTelemetry,
                 reason: deleteTelemetry 
-                    ? 'Admin blocked device with telemetry deletion via Device Detail page'
+                    ? 'Admin blocked device with evidence deletion via Device Detail page'
                     : 'Admin blocked device via Device Detail page'
             });
 
@@ -2494,7 +2612,7 @@ export class DeviceDetailPage extends window.Component {
                 });
 
                 alert(deleteTelemetry 
-                    ? 'Device blocked successfully. Seat released. Telemetry deleted.' 
+                    ? 'Device blocked successfully. Seat released. Stored evidence deleted.' 
                     : 'Device blocked successfully. Seat released.');
                 
                 // BUG FIX #1: Redirect to devices list so user sees updated badge immediately
@@ -2790,7 +2908,7 @@ export class DeviceDetailPage extends window.Component {
         const registeredAt = device.FirstHeartbeat || device.firstSeen || device.createdAt || null;
         const lastSeenAt = this.state.telemetryDetail?.latest?.timestamp || device.LastHeartbeat || device.lastHeartbeat || device.LastSeen || device.lastSeen || null;
         const displayUser = (() => {
-            // Try telemetry detail first, then device's telemetry summary from list API
+            // Try detail evidence first, then device's summary from list API
             const encoded = latestFields.UserName || latestFields.Username || latestFields.userName
                 || latestFields.LoggedOnUser || latestFields.CurrentUser
                 || device.Telemetry?.Username || device.Telemetry?.userName
@@ -2800,11 +2918,11 @@ export class DeviceDetailPage extends window.Component {
             return resolved ? String(resolved) : 'Unknown';
         })();
         const displayOs = (() => {
-            // Try telemetry detail fields first
+            // Try detail evidence fields first
             const edition = latestFields.OSEdition || latestFields.osEdition || '';
             const version = latestFields.OSVersion || latestFields.osVersion || '';
             if (edition || version) return `${edition} ${version}`.trim();
-            // Fall back to device's telemetry summary (from Devices list API)
+            // Fall back to device's summary from Devices list API
             const telem = device.Telemetry || device.telemetry;
             if (telem) {
                 const te = telem.OSEdition || telem.osEdition || telem.OsEdition || '';
@@ -2975,7 +3093,7 @@ export class DeviceDetailPage extends window.Component {
                                                 <a class="dropdown-item${canEnable ? ' text-success' : ' disabled'}"
                                                                     data-mutates-state="true"
                                                    href="#"
-                                                   title=${canEnable ? 'Re-enable this device so the agent resumes telemetry' : 'Device is already active'}
+                                                   title=${canEnable ? 'Re-enable this device so the agent resumes reporting' : 'Device is already active'}
                                                    aria-disabled=${canEnable ? undefined : 'true'}
                                                    onclick=${(e) => { e.preventDefault(); if (canEnable) this.enableDevice(); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
@@ -2984,7 +3102,7 @@ export class DeviceDetailPage extends window.Component {
                                                 <a class="dropdown-item${canBlock ? ' text-danger' : ' disabled'}"
                                                                     data-mutates-state="true"
                                                    href="#"
-                                                   title=${canBlock ? 'Block device, keep telemetry data for analysis' : (s === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state')}
+                                                   title=${canBlock ? 'Block device and keep stored evidence for analysis' : (s === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state')}
                                                    aria-disabled=${canBlock ? undefined : 'true'}
                                                    onclick=${(e) => { e.preventDefault(); if (canBlock) this.blockDevice(false); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M5.7 5.7l12.6 12.6" /></svg>
@@ -2993,11 +3111,11 @@ export class DeviceDetailPage extends window.Component {
                                                 <a class="dropdown-item${canBlock ? ' text-danger' : ' disabled'}"
                                                                     data-mutates-state="true"
                                                    href="#"
-                                                   title=${canBlock ? 'Block device and permanently delete all telemetry data' : (s === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state')}
+                                                   title=${canBlock ? 'Block device and permanently delete stored evidence' : (s === 'blocked' ? 'Device is already blocked' : 'Device cannot be blocked from this state')}
                                                    aria-disabled=${canBlock ? undefined : 'true'}
                                                    onclick=${(e) => { e.preventDefault(); if (canBlock) this.blockDevice(true); }}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 6l3 18h12l3 -18h-18" /><path d="M8 6v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" /></svg>
-                                                    Block + Delete Telemetry
+                                                    Block + Delete Evidence
                                                 </a>
                                                 `}
                                             </div>
@@ -3015,11 +3133,34 @@ export class DeviceDetailPage extends window.Component {
                             </div>
                         ` : null}
 
-                        ${this.renderDeviceContextCard()}
+                        ${this.renderDeviceDossier({
+                            riskScore,
+                            worstSeverity,
+                            activeCves,
+                            criticalCves,
+                            highCves,
+                            knownExploitCount,
+                            appBreakdown,
+                            networkRisk,
+                            health,
+                            healthBadgeClass,
+                            displayOs,
+                            displayUser,
+                            primaryIp,
+                            lastSeenAt,
+                            updateAvailable,
+                            updateState,
+                            clientVersion,
+                            latestClientVersion,
+                            summarySignalAt,
+                            summarySignalSource,
+                            summarySignalBadgeClass,
+                            nextStep
+                        })}
 
                         ${html`
 <!-- Metrics Row -->
-                        <div class="row row-cards mb-3">
+                        <div class="row row-cards mb-3 d-none" aria-hidden="true">
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-body">
@@ -3084,7 +3225,7 @@ export class DeviceDetailPage extends window.Component {
                                                                 <span class="${getStatusDotClass(health.status)} me-1"></span>
                                                                 ${health.text}
                                                             </span>
-                                                            <span class="text-muted">${health.reason || 'Telemetry is reporting normally.'}</span>
+                                                            <span class="text-muted">${health.reason || 'Signals are reporting normally.'}</span>
                                                         </div>
                                                     </div>
                                                     <div class="col-md-4">
@@ -3214,7 +3355,7 @@ export class DeviceDetailPage extends window.Component {
                         </div>
 
                         <!-- Highlights Row -->
-                        <div class="row row-cards mb-3">
+                        <div class="row row-cards mb-3 d-none" aria-hidden="true">
                             <div class="col-md-4">
                                 <div class="card card-sm h-100">
                                     <div class="card-body">
@@ -3235,7 +3376,7 @@ export class DeviceDetailPage extends window.Component {
                                             <div class="h3 mb-0">${recentChangeCount > 0 ? recentChangeCount : 'None'}</div>
                                             <span class="badge ${recentChangeCount > 0 ? 'bg-primary-lt text-primary' : 'bg-secondary-lt text-secondary'}">${recentChangeCount > 0 ? 'Changes' : 'Stable'}</span>
                                         </div>
-                                        <div class="text-muted small mt-1">${recentChangeCount > 0 ? 'Recent system or telemetry changes were observed.' : (lastSeenAt ? `Last signal updated ${DateUtils.formatDate(lastSeenAt)}` : 'No recent signal intelligence yet')}</div>
+                                        <div class="text-muted small mt-1">${recentChangeCount > 0 ? 'Recent system or signal changes were observed.' : (lastSeenAt ? `Last signal updated ${DateUtils.formatDate(lastSeenAt)}` : 'No recent signal intelligence yet')}</div>
                                     </div>
                                 </div>
                             </div>
@@ -3322,42 +3463,59 @@ export class DeviceDetailPage extends window.Component {
 
                         
 `}
-<!-- Device Assessment -->
-                        <div class="card">
-                            <div class="card-body">
-                                <!-- Risk Assessment (always visible) -->
-                                ${this.renderRiskAssessment()}
-                                
-                                <!-- CVE List inline -->
-                                ${this.state.cveInventory.length > 0 ? html`
-                                    <hr class="my-4" />
-                                    <h3 class="mb-3">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.871l-8.106 -13.534a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/></svg>
-                                        Known Vulnerabilities
-                                        <span class="badge ${this.getSeverityColor(worstSeverity)} ms-2">${this.state.cveInventory.length}</span>
-                                    </h3>
-                                    ${this.renderRisksTab()}
-                                ` : ''}
+                        <section class="device-workbench mt-3">
+                            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                                <div>
+                                    <div class="text-muted small text-uppercase fw-semibold">Device workbench</div>
+                                    <h3 class="mb-1">Posture, remediation, and evidence</h3>
+                                    <div class="text-muted small">Posture drivers, active CVEs, software evidence, device specifications, signal history, and timeline for this device.</div>
+                                </div>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-sm btn-outline-primary" onclick=${(e) => { e.preventDefault(); this.openAdvancedDetails('detailApps'); }}>
+                                        <i class="ti ti-apps"></i> Software
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick=${(e) => { e.preventDefault(); this.openAdvancedDetails('detailSignals'); }}>
+                                        <i class="ti ti-activity-heartbeat"></i> Signals
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                            ${this.renderRiskAssessment()}
 
-                        <!-- Technical Evidence (collapsed) -->
-                        <div class="card mt-3">
-                            <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#advancedDetails" aria-expanded="false">
-                                <h4 class="card-title mb-0">Technical Evidence</h4>
-                                <span class="text-muted small">Software, specs, telemetry, timeline</span>
+                            ${this.state.cveInventory.length > 0 ? html`
+                                <div class="card mt-3 device-evidence-panel">
+                                    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <h3 class="card-title mb-0">Active Vulnerability Queue</h3>
+                                            <div class="text-muted small">Prioritized CVEs for this one device. Patch application evidence first, then revisit network exposure.</div>
+                                        </div>
+                                        <span class="badge ${this.getSeverityColor(worstSeverity)}">${this.state.cveInventory.length} active</span>
+                                    </div>
+                                    <div class="card-body">
+                                        ${this.renderRisksTab()}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </section>
+
+                        <div class="card mt-3 device-evidence-panel">
+                            <div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-2" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#advancedDetails" aria-expanded="true">
+                                <div>
+                                    <h4 class="card-title mb-0">Evidence Workspace</h4>
+                                    <div class="text-muted small">Software, specifications, missing patches, device signals, and timeline</div>
+                                </div>
+                                <span class="badge bg-primary-lt text-primary">Expanded</span>
                             </div>
-                            <div id="advancedDetails" class="collapse">
+                            <div id="advancedDetails" class="collapse show">
                                 <div class="card-body p-0">
                                     <div class="accordion" id="deviceDetailsAccordion">
                                         <div class="accordion-item border-0">
                                             <h2 class="accordion-header">
-                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detailApps" aria-expanded="false">
-                                                    Installed Apps
+                                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#detailApps" aria-expanded="true">
+                                                    Software Evidence
                                                     <span class="badge bg-primary-lt text-primary ms-2">${appBreakdown.totalApps}</span>
                                                 </button>
                                             </h2>
-                                            <div id="detailApps" class="accordion-collapse collapse" data-bs-parent="#deviceDetailsAccordion">
+                                            <div id="detailApps" class="accordion-collapse collapse show" data-bs-parent="#deviceDetailsAccordion">
                                                 <div class="accordion-body">
                                                     ${this.renderInventoryTab(enrichedApps, filteredApps)}
                                                 </div>
@@ -3394,12 +3552,12 @@ export class DeviceDetailPage extends window.Component {
                                         </div>
                                         <div class="accordion-item border-0">
                                             <h2 class="accordion-header">
-                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detailTelemetry" aria-expanded="false">
-                                                    Telemetry
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detailSignals" aria-expanded="false">
+                                                    Signal History
                                                     ${(this.state.telemetryHistory?.length || 0) > 0 ? html`<span class="badge bg-info-lt text-info ms-2">${this.state.telemetryHistory.length}</span>` : ''}
                                                 </button>
                                             </h2>
-                                            <div id="detailTelemetry" class="accordion-collapse collapse" data-bs-parent="#deviceDetailsAccordion">
+                                            <div id="detailSignals" class="accordion-collapse collapse" data-bs-parent="#deviceDetailsAccordion">
                                                 <div class="accordion-body">
                                                     ${this.renderTelemetryTab()}
                                                 </div>
@@ -4403,11 +4561,11 @@ export class DeviceDetailPage extends window.Component {
                 return html`<span class="badge bg-danger mt-1" title="${consecutiveFailures} consecutive failures">⚠ Contact Support</span>`;
             }
 
-            return html`<span class="badge bg-warning mt-1" title="Telemetry upload delayed">⚠ Telemetry Delayed</span>`;
+            return html`<span class="badge bg-warning mt-1" title="Signal upload delayed">Signal Delayed</span>`;
         }
 
         // 4. Both fresh → Healthy
-        return html`<span class="badge bg-success mt-1">✓ Telemetry Healthy</span>`;
+        return html`<span class="badge bg-success mt-1">Signals Healthy</span>`;
     }
 }
 

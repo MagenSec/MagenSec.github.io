@@ -8,7 +8,7 @@
  * Features:
  * - Vendor accordion with app counts and CVE summary
  * - Version history timeline for multi-version apps
- * - Detection confidence badges (database vs AI matches)
+ * - Vulnerability count badges and application evidence status
  * - Status indicators (installed vs running from disk)
  * - CVE filtering by application name
  */
@@ -28,7 +28,9 @@ export function renderVendorGroupedView(component) {
                 const appGroups = component.groupAppVersions(vendorApps);
                 const vendorCves = vendorApps.reduce((sum, app) => sum.concat(component.getCvesByApp(app.appRowKey, app.appName)), []);
                 const totalCves = vendorCves.length;
-                const vendorDetection = component.getDetectionBuckets(vendorCves);
+                const worstVendorSeverity = totalCves > 0
+                    ? component.severityLabelFromWeight(Math.max(...vendorCves.map(c => component.severityWeight(c.severity || '')), 0))
+                    : 'CLEAN';
 
                 return html`
                     <div class="accordion-item">
@@ -38,12 +40,14 @@ export function renderVendorGroupedView(component) {
                                     <span class="fw-bold">${vendorName}</span>
                                     <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
                                         <span class="badge bg-secondary-lt text-secondary">${vendorApps.length} apps</span>
-                                        ${totalCves > 0 ? html`<span class="badge ${component.getSeverityColor(component.severityLabelFromWeight(Math.max(...vendorCves.map(c => component.severityWeight(c.severity || '')), 0)))}">${totalCves} CVEs</span>` : ''}
-                                        ${component.renderDetectionButtons(vendorDetection, {
-                                            size: 'sm',
-                                            showLabels: false,
-                                            onClick: () => component.setState({ activeTab: 'risks', cveFilterApp: null }, () => component.scrollToCveTable())
-                                        })}
+                                        ${totalCves > 0 ? html`
+                                            <button class=${`btn btn-sm ${component.getSeverityOutlineClass(worstVendorSeverity)} d-inline-flex align-items-center gap-1`}
+                                                    title="Review CVEs for this vendor"
+                                                    onclick=${(e) => { e.stopPropagation(); component.setState({ activeTab: 'risks', cveFilterApp: null }, () => component.scrollToCveTable()); }}>
+                                                <i class="ti ti-shield-exclamation"></i>
+                                                <span>${totalCves}</span>
+                                            </button>
+                                        ` : ''}
                                     </div>
                                 </div>
                             </button>

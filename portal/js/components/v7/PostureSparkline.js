@@ -45,6 +45,7 @@ function formatScore(value) {
 export function PostureSparkline({
     series = null,
     days = 14,
+    width = 360,
     height = 64,
     ariaLabel = '14-day Trust Score trend'
 } = {}) {
@@ -53,7 +54,6 @@ export function PostureSparkline({
 
     // Layout
     const slotCount = days;
-    const width = 360;
     const padLeft = 10;
     const padRight = 10;
     const padTop = 10;

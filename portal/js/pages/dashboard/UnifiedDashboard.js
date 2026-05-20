@@ -1092,6 +1092,26 @@ export default class UnifiedDashboard extends Component {
     return 'Target: open posture evidence';
   }
 
+  normalizeDashboardActionHref(item, fallbackHref = '#!/alerts') {
+    const href = String(item?.href || item?.url || item?.drillDownUrl || item?.route || fallbackHref || '').trim();
+    const title = this.cleanActionTitle(item?.title || item?.name || '');
+    const context = [
+      title,
+      item?.fixQueueReason,
+      item?.pathRiskReason,
+      item?.businessImpactReason,
+      item?.description,
+      item?.reason,
+      href
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    if (/patch|update|cve|vulnerab|remediate|exploit/.test(context)) return '#!/vulnerabilities';
+    if (/compliance|control|cis|nist|audit gap/.test(context)) return '#!/compliance';
+    if (/device|fleet|coverage|ghost|ghosted|dormant|heartbeat|reporting/.test(context)) return '#!/devices';
+    if (href && href !== '#!/security') return href;
+    return fallbackHref;
+  }
+
   getTopActionViewItems(data = this.state.data, { limit = 3 } = {}) {
     if (!data) return [];
 
@@ -1107,7 +1127,7 @@ export default class UnifiedDashboard extends Component {
           kind: 'action',
           index: index + 1,
           key: `action-${index}`,
-          href: action.href || action.url || action.drillDownUrl || action.route || '#!/security',
+          href: this.normalizeDashboardActionHref(action, '#!/alerts'),
           tone: this.getUrgencyTone(action.urgency),
           readableTone: this.getReadableUrgencyTone(action.urgency),
           badge: String(action.urgency || 'action').toUpperCase(),
@@ -2340,7 +2360,7 @@ export default class UnifiedDashboard extends Component {
                   }
                 }} style="white-space:nowrap;align-self:flex-start;justify-content:center;flex:0 0 auto;">
                   <i class="ti ti-messages"></i>
-                  ${isSmallScreen ? null : 'Analyst view'}
+                  ${isSmallScreen ? null : 'Officer view'}
                 </a>
               </div>
 
@@ -2408,7 +2428,7 @@ export default class UnifiedDashboard extends Component {
                           window.location.hash = '#!/analyst';
                         }}
                         class=${this.isPersonalOrg() ? 'btn btn-sm btn-outline-indigo business-license-only' : 'btn btn-sm btn-outline-indigo'}
-                        title="Continue this answer in the full Analyst view."
+                        title="Continue this answer with Officer MAGI."
                       >Continue</button>
                       <button class="btn btn-action" aria-label="Clear MAGI answer" title="Clear MAGI answer" onClick=${this.clearAiAnswer}><i class="ti ti-x"></i></button>
                     </div>
@@ -2794,13 +2814,13 @@ export default class UnifiedDashboard extends Component {
       ],
       it: [
         { href: '#!/devices',   label: 'Devices' },
-        { href: '#!/inventory', label: 'Inventory' },
+        { href: '#!/apps',      label: 'Software' },
         { href: '#!/security',  label: 'Vulnerabilities' }
       ],
       security: [
         { href: '#!/security',    label: 'Full Analysis' },
         { href: '#!/reports',     label: 'Reports', businessOnly: true },
-        { href: '#!/analyst',     label: 'Ask 🛡️MAGI', businessOnly: true }
+        { href: '#!/analyst',     label: 'Ask MAGI', businessOnly: true }
       ],
       auditor: [
         { href: '#!/auditor',     label: 'Auditor Dashboard', businessOnly: true },
@@ -4234,7 +4254,7 @@ export default class UnifiedDashboard extends Component {
     return [
       { key: 'security',     label: 'Security',     href: '#!/security',     status: securityStatus },
       { key: 'compliance',   label: 'Compliance',   href: '#!/compliance',   status: complianceStatus },
-      { key: 'remediation',  label: 'Remediation',  href: '#!/remediation',  status: remediationStatus },
+      { key: 'remediation',  label: 'Alerts',       href: '#!/alerts',       status: remediationStatus },
       { key: 'proof',        label: 'Proof',        href: '#!/proof',        status: proofStatus },
       { key: 'audit',        label: 'Audit',        href: '#!/audit',        status: auditStatus },
       { key: 'hygiene',      label: 'Hygiene',      href: '#!/hygiene',      status: 'locked', hint: 'Add-on' },
@@ -4259,20 +4279,20 @@ export default class UnifiedDashboard extends Component {
     // Stop key → chevron <li id>. Trust is intentionally excluded — it is the
     // landing page and never "needs action".
     const KEY_TO_NAV_ID = {
-      security:    'nav-security-item',
-      compliance:  'nav-compliance-item',
-      remediation: 'nav-remediation-item',
-      proof:       'nav-proof-item',
-      audit:       'nav-audit-item',
-      hygiene:     'nav-hygiene-item',
-      insurance:   'nav-insurance-item',
+      security:    'nav-protect-item',
+      compliance:  'nav-comply-item',
+      remediation: 'nav-protect-item',
+      proof:       'nav-prove-item',
+      audit:       'nav-prove-item',
+      hygiene:     'nav-improve-item',
+      insurance:   'nav-improve-item',
       // Personal-tier mappings:
       insights:    'nav-home-item'
     };
     const NEEDS = new Set(['gap', 'attention']);
 
     // Clear all chevron needs-action attrs first so removed conditions clean up.
-    document.querySelectorAll('.journey-arc-item[data-needs-action]')
+    document.querySelectorAll('.portal-product-nav-shell > .nav-item[data-needs-action]')
       .forEach(el => el.removeAttribute('data-needs-action'));
 
     for (const s of steps) {
@@ -4287,19 +4307,19 @@ export default class UnifiedDashboard extends Component {
   }
 
   buildTrustHubSubtitle(data, hs, dossierProps) {
-    const total = Number(
-      data?.quickStats?.devices?.totalCount
-      ?? data?.quickStats?.coverage?.total
-      ?? data?.itAdmin?.coverage?.total
-      ?? data?.itAdmin?.inventory?.totalDevices
-    ) || 0;
     const score = Number(hs?.score);
-    const critical = Number(data?.securityPro?.threatIntel?.uniqueCriticalCveCount ?? data?.securityPro?.threatIntel?.criticalCveCount ?? data?.quickStats?.cves?.criticalCount ?? 0);
     const parts = [];
-    if (Number.isFinite(score) && score > 0) parts.push(`Trust Score ${Math.round(score)}/100`);
-    if (hs?.grade) parts.push(`Grade ${hs.grade}`);
-    if (critical > 0) parts.push(`${critical} critical CVE${critical === 1 ? '' : 's'}`);
-    if (total > 0) parts.push(`${total} device${total === 1 ? '' : 's'}`);
+    if (!Number.isFinite(score) || score <= 0) {
+      parts.push('Trust baseline building');
+    } else if (score <= 20) {
+      parts.push('Critical trust posture');
+    } else if (score < 60) {
+      parts.push('Trust posture at risk');
+    } else if (score < 80) {
+      parts.push('Trust posture uneven');
+    } else {
+      parts.push('Trust posture healthy');
+    }
     parts.push(dossierProps?.sealedAt ? 'Daily Report ready' : 'Daily Report building');
     return parts.join(' · ');
   }
@@ -4313,7 +4333,7 @@ export default class UnifiedDashboard extends Component {
     const mapped = raw.map(it => ({
       title: it.title,
       hint: it.deviceText || it.supportText || '',
-      href: it.href || '#!/remediation',
+      href: this.normalizeDashboardActionHref(it, '#!/alerts'),
       severity: SEV_MAP[String(it.badge || '').toUpperCase()] || 'info',
       kind: it.kind
     }));
@@ -4373,17 +4393,7 @@ export default class UnifiedDashboard extends Component {
       || data?.healthScore?.snapshotDate
       || data?.generatedAt
       || null;
-    const total = Number(
-      data?.quickStats?.devices?.totalCount
-      ?? data?.quickStats?.coverage?.total
-      ?? data?.itAdmin?.coverage?.total
-      ?? data?.itAdmin?.inventory?.totalDevices
-    ) || 0;
-    const grade = hs?.grade || null;
-    const crit = (data?.securityPro?.threatIntel?.uniqueCriticalCveCount ?? data?.securityPro?.threatIntel?.criticalCveCount) || 0;
-    const summary = total > 0
-      ? `${total} device${total !== 1 ? 's' : ''}${grade ? ' · Grade ' + grade : ''}${crit > 0 ? ' · ' + crit + ' critical CVE' + (crit !== 1 ? 's' : '') : ''}`
-      : '';
+    const summary = sealedAt ? 'Evidence record ready for review and sharing.' : '';
     const state = sealedAt ? 'sealed' : 'building';
     return { sealedAt, summary, state };
   }
@@ -4416,8 +4426,10 @@ export default class UnifiedDashboard extends Component {
     magiDrawerPrompt: typeof prompt === 'string' ? prompt : ''
   });
   closeMagiDrawer = () => this.setState({ magiDrawerOpen: false, magiDrawerPrompt: '' });
-  toggleTrustBreakdown = () => this.setState(s => ({ trustBreakdownOpen: !s.trustBreakdownOpen }));
-  toggleNeedsPanel = () => this.setState(s => ({ needsPanelExpanded: !s.needsPanelExpanded }));
+  toggleTrustCommandExpansion = () => this.setState(s => {
+    const expanded = !(s.trustBreakdownOpen && s.needsPanelExpanded);
+    return { trustBreakdownOpen: expanded, needsPanelExpanded: expanded };
+  });
 
   buildTrustScoreContext(data, hs, baseline) {
     if (baseline === 'building') {
@@ -4454,6 +4466,76 @@ export default class UnifiedDashboard extends Component {
       driver: `Why it moved: ${hs?.narration || 'score reflects the latest captured evidence.'}`,
       chips: [deviceChip, complianceChip, riskChip]
     };
+  }
+
+  buildMagiTrustHubSnapshot(data, hs, scoreContext, headerSubtitle, items, dossierProps, trajectory, delta) {
+    const coverage = data?.quickStats?.coverage || data?.itAdmin?.coverage || {};
+    const totalDevices = Number(
+      coverage.total
+      ?? data?.quickStats?.devices?.totalCount
+      ?? data?.itAdmin?.coverage?.total
+      ?? data?.itAdmin?.inventory?.totalDevices
+    ) || 0;
+    const reportingDevices = Number(coverage.healthy ?? coverage.online ?? data?.quickStats?.devices?.activeCount) || 0;
+    const critical = Number(data?.securityPro?.threatIntel?.uniqueCriticalCveCount ?? data?.securityPro?.threatIntel?.criticalCveCount ?? data?.quickStats?.cves?.criticalCount ?? 0);
+    const high = Number(data?.securityPro?.threatIntel?.uniqueHighCveCount ?? data?.securityPro?.threatIntel?.highCveCount ?? data?.quickStats?.cves?.highCount ?? 0);
+    const complianceGaps = Number(data?.businessOwner?.complianceCard?.gapCount || 0);
+    const score = Number(hs?.score);
+
+    return {
+      page: 'trust-hub',
+      source: 'visible-dashboard-render',
+      subtitle: headerSubtitle,
+      trustScore: Number.isFinite(score) ? Math.round(score) : null,
+      grade: hs?.grade || null,
+      scoreDriver: scoreContext?.driver || null,
+      evidenceChips: Array.isArray(scoreContext?.chips) ? scoreContext.chips : [],
+      devices: {
+        reporting: Math.max(0, Math.min(reportingDevices, totalDevices)),
+        total: totalDevices
+      },
+      cves: {
+        critical,
+        high,
+        criticalHigh: critical + high
+      },
+      compliance: {
+        gaps: complianceGaps
+      },
+      trajectory: {
+        state: trajectory || null,
+        delta: Number.isFinite(Number(delta)) ? Number(delta) : null
+      },
+      dailyReport: {
+        state: dossierProps?.state || null,
+        capturedAt: dossierProps?.sealedAt || null,
+        summary: dossierProps?.summary || null
+      },
+      topActions: (Array.isArray(items) ? items : []).slice(0, 5).map((item) => ({
+        title: item.title || '',
+        scope: item.hint || '',
+        severity: item.severity || '',
+        href: item.href || ''
+      }))
+    };
+  }
+
+  formatMagiVisibleEvidence(snapshot) {
+    if (!snapshot) return '';
+    const lines = [
+      'Visible Trust Hub evidence from the current dashboard render:',
+      `Trust Score: ${snapshot.trustScore ?? 'unknown'}/100${snapshot.grade ? ` (Grade ${snapshot.grade})` : ''}`,
+      `Critical CVEs: ${snapshot.cves?.critical ?? 0}; High CVEs: ${snapshot.cves?.high ?? 0}; Critical/High total: ${snapshot.cves?.criticalHigh ?? 0}`,
+      `Devices reporting: ${snapshot.devices?.reporting ?? 0}/${snapshot.devices?.total ?? 0}`,
+      `Compliance gaps: ${snapshot.compliance?.gaps ?? 0}`,
+      `Daily Report: ${snapshot.dailyReport?.state || 'unknown'}${snapshot.dailyReport?.capturedAt ? ` at ${snapshot.dailyReport.capturedAt}` : ''}`
+    ];
+    if (snapshot.scoreDriver) lines.push(`Score driver: ${String(snapshot.scoreDriver).replace(/^Why it moved:\s*/i, '')}`);
+    if (snapshot.evidenceChips?.length) lines.push(`Evidence chips: ${snapshot.evidenceChips.join(' | ')}`);
+    if (snapshot.topActions?.length) {
+      lines.push(`Top actions: ${snapshot.topActions.map((item) => [item.title, item.scope].filter(Boolean).join(' - ')).join(' | ')}`);
+    }
+    return lines.join('\n');
   }
 
   renderHubV7() {
@@ -4497,13 +4579,15 @@ export default class UnifiedDashboard extends Component {
     const scoreContext = this.buildTrustScoreContext(data, hs, baseline);
 
     const briefing = buildHubBriefing(data, hs);
-    const expandedNeeds = !!this.state.needsPanelExpanded;
-    const needsMax = expandedNeeds ? 8 : 3;
+    const commandExpanded = !!(this.state.trustBreakdownOpen && this.state.needsPanelExpanded);
+    const needsMax = commandExpanded ? 6 : 3;
     const dossierProps = this.buildSealedDossierProps(data, hs);
-    const attentionModel = this.buildWhatNeedsYouModel(data, needsMax);
-    const items = attentionModel.items;
+    const attentionModel = this.buildWhatNeedsYouModel(data, 12);
+    const items = attentionModel.items.slice(0, needsMax);
     const totalActionable = attentionModel.total;
     const headerSubtitle = this.buildTrustHubSubtitle(data, hs, dossierProps);
+    const magiSnapshot = this.buildMagiTrustHubSnapshot(data, hs, scoreContext, headerSubtitle, items, dossierProps, trajectory, delta);
+    const magiVisibleEvidence = this.formatMagiVisibleEvidence(magiSnapshot);
     const tier = this.getTier();
 
     // Wire the chevron stepper's `data-needs-action` from per-stop status.
@@ -4514,18 +4598,25 @@ export default class UnifiedDashboard extends Component {
     const openMagiDialog = hasMagiAccess
       ? this.openMagiDrawer
       : () => { window.location.hash = '#!/upgrade?feature=MAGI'; };
+    const scoreLabel = baseline === 'building'
+      ? 'the Trust Score while evidence is building'
+      : `Trust Score ${Math.round(scoreNum)}/100${hs?.grade ? `, Grade ${hs.grade}` : ''}`;
+    const scorePrompt = `Explain ${scoreLabel}. Use the visible Trust Hub evidence, name the strongest drivers, and tell me the fastest safe way to improve it.`;
+    const prioritizePrompt = `Prioritize the Fix First queue on this Trust Hub. Explain which action should happen first, why it matters, and what evidence page I should open.`;
+    const reportPrompt = `Draft a stakeholder summary from the Daily Report and visible Trust Hub evidence. Keep it concise: trust state, top risk, first fix, and proof status.`;
+    const briefingPrompt = `Give me the daily Officer MAGI briefing for this Trust Hub: situation, what changed, what I should do first, and what proof is ready.`;
 
     const headerActions = html`
       <a href="#!/proof" class="btn btn-sm btn-outline-secondary">
-        <i class="ti ti-mail-opened me-1" aria-hidden="true"></i>Open Report
+        <i class="ti ti-mail-opened me-1" aria-hidden="true"></i>Open Daily Report
       </a>
-      <button class="btn btn-sm btn-outline-secondary" onClick=${() => this.loadDashboard({ refresh: true })} title="Refresh from latest telemetry" aria-label="Refresh Trust Hub from latest telemetry">
+      <button class="btn btn-sm btn-outline-secondary" data-mutates-state="true" onClick=${() => this.loadDashboard({ refresh: true })} title="Refresh from latest telemetry" aria-label="Refresh Trust Hub from latest telemetry">
         <i class="ti ti-refresh" aria-hidden="true"></i>
       </button>
     `;
 
     return html`
-      <div class="container-xl py-3" style="max-width:1280px;">
+      <div class="container-xl py-2 trust-hub-container" style="max-width:1280px;">
         <${PageModeShell}
           mode="A"
           title="Trust Hub"
@@ -4535,22 +4626,36 @@ export default class UnifiedDashboard extends Component {
           onExitWarp=${isTimeWarped ? () => rewindContext.deactivate?.() : null}
           actions=${headerActions}
         >
-          <div class="v7-hub-grid">
-            <!-- LEFT COLUMN: MAGI command box → Trust Score -->
-            <div class="v7-hub-col">
-              <${MAGIOfficerBriefingPanel}
-                briefing=${briefing}
-                items=${items}
-                scoreContext=${scoreContext}
-                trajectory=${trajectory}
-                delta=${delta}
-                hasMagiAccess=${hasMagiAccess}
-                onAsk=${openMagiDialog}
-                onOpenBriefing=${() => openMagiDialog('')}
-              />
+          <div class=${`v7-trust-command-grid ${commandExpanded ? 'v7-trust-command-grid--expanded' : ''}`}>
+            <${MAGIOfficerBriefingPanel}
+              briefing=${briefing}
+              items=${items}
+              scoreContext=${scoreContext}
+              trajectory=${trajectory}
+              delta=${delta}
+              hasMagiAccess=${hasMagiAccess}
+              onAsk=${openMagiDialog}
+              onOpenBriefing=${() => openMagiDialog(briefingPrompt)}
+            />
 
-              <!-- 2. Trust Score line -->
-              <div class="v7-hub-card v7-trust-cluster" style="background:#fff;border:1px solid rgba(148,163,184,0.2);border-radius:14px;box-shadow:0 4px 14px rgba(15,23,42,0.05);overflow:hidden;">
+            <section class="v7-fix-first-panel" aria-label="Fix First actions">
+              <${WhatNeedsYou}
+                title="Fix First"
+                subtitle="Highest impact work from the current evidence."
+                items=${items}
+                max=${needsMax}
+                total=${totalActionable}
+                moreHref="#!/alerts"
+                expanded=${commandExpanded}
+                onToggleExpand=${this.toggleTrustCommandExpansion}
+                onAskMagi=${() => openMagiDialog(prioritizePrompt)}
+                magiLabel="Prioritize"
+              />
+            </section>
+
+            <section class="v7-trust-state-panel" aria-label="Trust state">
+              <div class="v7-hub-card v7-trust-cluster">
+                <div class="v7-trust-panel-kicker">Trust State</div>
                 <${TrustScoreLine}
                   score=${baseline === 'building' ? null : hs?.score}
                   grade=${baseline === 'building' ? null : hs?.grade}
@@ -4559,27 +4664,33 @@ export default class UnifiedDashboard extends Component {
                   deltaWindowLabel="vs 14 days ago"
                   baseline=${baseline}
                   components=${components}
-                  onDrillDown=${this.toggleTrustBreakdown}
+                  onDrillDown=${this.toggleTrustCommandExpansion}
                   expanded=${this.state.trustBreakdownOpen}
                 />
-                <div class="v7-score-context" aria-label="Trust Score evidence context">
-                  <div class="v7-score-driver">${scoreContext.driver}</div>
-                  <div class="v7-score-chips">
-                    ${scoreContext.chips.map((chip) => html`<span class="badge bg-secondary-lt text-secondary">${chip}</span>`)}
-                  </div>
-                </div>
                 ${this.state.trustBreakdownOpen ? html`
                   <${TrustScoreBreakdown}
                     components=${components}
-                    onClose=${this.toggleTrustBreakdown}
+                    onClose=${this.toggleTrustCommandExpansion}
                   />
                 ` : null}
               </div>
-            </div>
+            </section>
 
-            <!-- RIGHT COLUMN: Trajectory → WhatNeedsYou -->
-            <div class="v7-hub-col">
-              <div class="v7-trajectory-card">
+            <section class="v7-trust-driver-card" aria-label="Why trust changed">
+              <div class="v7-trust-driver-copy">
+                <div class="v7-section-eyebrow">Why it changed</div>
+                <div class="v7-trust-driver-text">${String(scoreContext.driver || '').replace(/^Why it moved:\s*/i, '')}</div>
+                <div class="v7-score-chips">
+                  ${scoreContext.chips.map((chip) => html`<span class="badge bg-secondary-lt text-secondary">${chip}</span>`)}
+                </div>
+                <div class="v7-driver-actions">
+                  <button type="button" class="btn btn-sm btn-outline-indigo" onClick=${() => openMagiDialog(scorePrompt)}>
+                    <i class="ti ti-sparkles me-1" aria-hidden="true"></i>Explain score
+                  </button>
+                  <a href="#!/proof" class="btn btn-sm btn-outline-secondary">View history</a>
+                </div>
+              </div>
+              <div class="v7-trust-driver-chart">
                 <div class="v7-trajectory-card-header">
                   <div>
                     <div class="v7-trajectory-eyebrow">14-day trajectory</div>
@@ -4587,29 +4698,20 @@ export default class UnifiedDashboard extends Component {
                   </div>
                   <a href="#!/proof" class="v7-trajectory-link">Full history →</a>
                 </div>
-                <${PostureSparkline} series=${sparkline} days=${14} height=${84} />
+                <${PostureSparkline} series=${sparkline} days=${14} width=${300} height=${132} />
               </div>
-              <${WhatNeedsYou}
-                items=${items}
-                max=${needsMax}
-                total=${totalActionable}
-                moreHref="#!/remediation"
-                expanded=${expandedNeeds}
-                onToggleExpand=${this.toggleNeedsPanel}
-              />
-            </div>
-          </div>
+            </section>
 
-          <!-- BOTTOM ROW: Daily Report (the journey lane is rendered as the
-               top-nav chevron stepper — duplicating it here was redundant noise). -->
-          <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
-            <${SealedDossierCard}
-              sealedAt=${dossierProps.sealedAt}
-              summary=${dossierProps.summary}
-              state=${dossierProps.state}
-              href="#!/proof"
-              onRefresh=${() => this.loadDashboard({ refresh: true })}
-            />
+            <section class="v7-daily-report-band" aria-label="Daily Report proof artifact">
+              <${SealedDossierCard}
+                sealedAt=${dossierProps.sealedAt}
+                summary=${dossierProps.summary}
+                state=${dossierProps.state}
+                href="#!/proof"
+                onRefresh=${() => this.loadDashboard({ refresh: true })}
+                onSummarize=${() => openMagiDialog(reportPrompt)}
+              />
+            </section>
           </div>
         <//>
 
@@ -4619,6 +4721,8 @@ export default class UnifiedDashboard extends Component {
           initialPrompt=${this.state.magiDrawerPrompt}
           briefing=${briefing}
           pageContext="Trust Hub"
+          visibleEvidence=${magiVisibleEvidence}
+          pageSnapshot=${magiSnapshot}
           onClose=${this.closeMagiDrawer}
         />
       </div>

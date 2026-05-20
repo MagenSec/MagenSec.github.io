@@ -1,9 +1,11 @@
 /**
- * Telemetry Tab - Device telemetry history and field-level changes
+ * Signal History Tab - Device evidence packets and field-level changes
  * 
- * Displays a timeline of telemetry snapshots and field changes detected over time.
- * Includes visual timeline with markers for snapshots vs changes.
+ * Displays a customer-facing history of device signals and changes detected over time.
+ * Raw field names are kept behind compact evidence rows so the operator sees meaning first.
  */
+import { PiiDecryption } from '@utils/piiDecryption.js';
+
 export function renderTelemetryTab(component) {
     const { html } = window;
     
@@ -14,8 +16,8 @@ export function renderTelemetryTab(component) {
     if (!telemetryData || (!telemetryHistory.length && !changes.length)) {
         return html`
             <div class="alert alert-info">
-                <svg class="icon me-2" width="20" height="20"><path stroke="currentColor" stroke-width="2" fill="none" d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z"/><path d="M12 7v5"/><circle cx="12" cy="16" r="1"/></svg>
-                No telemetry history available
+                <i class="ti ti-info-circle me-2"></i>
+                No signal history available yet.
             </div>
         `;
     }
@@ -23,7 +25,6 @@ export function renderTelemetryTab(component) {
     // Build timeline from history and changes
     const timeline = [];
     
-    // Add history snapshots
     (telemetryHistory || []).forEach((snapshot, idx) => {
         timeline.push({
             type: 'snapshot',
@@ -33,7 +34,6 @@ export function renderTelemetryTab(component) {
         });
     });
     
-    // Add field-level changes
     (changes || []).forEach((change, idx) => {
         timeline.push({
             type: 'change',
@@ -66,13 +66,148 @@ export function renderTelemetryTab(component) {
         if (typeof val === 'object') return JSON.stringify(val);
         return String(val).substring(0, 100);
     };
+
+    const parseIpEvidence = (value) => {
+        if (typeof component.parseIpAddresses === 'function') {
+            const parsed = component.parseIpAddresses(value);
+            if (parsed.length) return parsed;
+        }
+
+        if (Array.isArray(value)) return value.map(ip => String(ip || '').trim()).filter(Boolean);
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return [];
+
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) return parsed.map(ip => String(ip || '').trim()).filter(Boolean);
+                if (parsed && typeof parsed === 'object') {
+                    return Object.values(parsed).flat().map(ip => String(ip || '').trim()).filter(ip => /\d+\.\d+\.\d+\.\d+/.test(ip));
+                }
+            } catch {
+                // fall through to delimited string parsing
+            }
+
+            return trimmed.split(/[;,\s]+/).map(ip => ip.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+        }
+
+        return [];
+    };
+
+    const normalizeSignalValue = (key, label, value) => {
+        const keyText = String(key || label || '').toLowerCase();
+        if (keyText.includes('ipaddress')) {
+            const ips = [...new Set(parseIpEvidence(value))];
+            return { kind: 'ips', ips, title: ips.join(', ') || String(value || '') };
+        }
+
+        if (keyText.includes('host') || keyText.includes('machine') || keyText.includes('user')) {
+            const decoded = PiiDecryption.decryptIfEncrypted(String(value || ''));
+            return { kind: 'text', value: decoded || '—', title: decoded || String(value || '') };
+        }
+
+        return { kind: 'text', value: formatValue(value), title: typeof value === 'object' ? JSON.stringify(value) : String(value ?? '') };
+    };
+
+    const renderSignalValue = (key, label, value) => {
+        const normalized = normalizeSignalValue(key, label, value);
+        if (normalized.kind === 'ips') {
+            if (!normalized.ips.length) return html`<div class="font-weight-medium text-muted">—</div>`;
+            return html`
+                <div class="signal-ip-list" title=${normalized.title}>
+                    ${normalized.ips.slice(0, 3).map(ip => html`<code>${ip}</code>`)}
+                    ${normalized.ips.length > 3 ? html`<span class="badge bg-secondary-lt text-secondary">+${normalized.ips.length - 3}</span>` : ''}
+                </div>
+            `;
+        }
+
+        return html`<div class="font-weight-medium text-truncate" title=${normalized.title}>${normalized.value}</div>`;
+    };
+
+    const metadataKeys = new Set(['odata.etag', 'partitionkey', 'rowkey', 'timestamp', 'etag']);
+    const preferredFields = [
+        ['Hostname', 'Host'],
+        ['MachineName', 'Machine'],
+        ['ClientVersion', 'Agent'],
+        ['OSVersion', 'OS'],
+        ['CurrentUser', 'User'],
+        ['IPAddresses', 'IP evidence'],
+        ['PublicEgressHint', 'Egress'],
+        ['LastScanEnd', 'Scan finished'],
+        ['CPUArch', 'Architecture'],
+        ['BIOSVersion', 'BIOS']
+    ];
+    const isSignalField = (key) => !metadataKeys.has(String(key || '').toLowerCase());
+    const collectSignalFields = (fields, limit = 6) => {
+        const preferred = preferredFields
+            .map(([key, label]) => [key, label, fields[key] ?? fields[key.charAt(0).toLowerCase() + key.slice(1)]])
+            .filter(([, , value]) => value !== undefined && value !== null && value !== '')
+            .slice(0, limit);
+        if (preferred.length) return preferred;
+        return Object.entries(fields)
+            .filter(([key, value]) => isSignalField(key) && value !== undefined && value !== null && value !== '')
+            .slice(0, limit)
+            .map(([key, value]) => [key, key, value]);
+    };
+
+    const latest = telemetryData.latest || telemetryHistory[0] || {};
+    const latestTimestamp = latest.timestamp || latest.Timestamp;
+    const latestFields = latest.fields || latest || {};
+    const fieldCount = Object.keys(latestFields).filter(isSignalField).length;
+    const visibleFields = collectSignalFields(latestFields);
     
     return html`
-        <div class="telemetry-timeline">
-            <div class="mb-3">
-                <div class="text-muted small">
-                    <strong>${telemetryHistory.length}</strong> telemetry snapshots · 
-                    <strong>${changes.length}</strong> field changes detected
+        <div class="signal-history">
+            <div class="row row-cards mb-3">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Latest signal</div>
+                            <div class="fw-semibold">${latestTimestamp ? formatDate(latestTimestamp) : 'Not available'}</div>
+                            <div class="text-muted small">Last device evidence received by the portal.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Evidence packets</div>
+                            <div class="fw-semibold">${telemetryHistory.length}</div>
+                            <div class="text-muted small">Historical reports available for trend and drift review.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Changed fields</div>
+                            <div class="fw-semibold">${changes.length}</div>
+                            <div class="text-muted small">Configuration or posture changes detected between reports.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <div class="card-title mb-0">Latest Signal Summary</div>
+                        <div class="text-muted small">${fieldCount} observed fields from ${latestTimestamp ? formatDate(latestTimestamp) : 'the latest device report'}.</div>
+                    </div>
+                    <span class="badge bg-info-lt text-info">Device signals</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 small">
+                        ${visibleFields.map(([fieldKey, label, val]) => html`
+                            <div class="col-sm-6 col-lg-4">
+                                <div class="signal-field">
+                                    <div class="text-muted">${label}</div>
+                                    ${renderSignalValue(fieldKey, label, val)}
+                                </div>
+                            </div>
+                        `)}
+                    </div>
                 </div>
             </div>
             
@@ -82,6 +217,8 @@ export function renderTelemetryTab(component) {
                         const snapshot = item.snapshot;
                         const fields = snapshot.fields || snapshot || {};
                         const timestamp = snapshot.timestamp || snapshot.Timestamp || new Date().toISOString();
+                        const snapshotFields = collectSignalFields(fields);
+                        const snapshotFieldCount = Object.keys(fields).filter(isSignalField).length;
                         
                         return html`
                             <div class="timeline-item mb-3" key=${idx}>
@@ -93,26 +230,24 @@ export function renderTelemetryTab(component) {
                                         <div class="card-header py-2">
                                             <div class="d-flex align-items-center justify-content-between">
                                                 <div class="small">
-                                                    <strong>Telemetry Snapshot</strong>
+                                                    <strong>Evidence Packet</strong>
                                                     <div class="text-muted">${formatDate(timestamp)}</div>
                                                 </div>
-                                                <span class="badge bg-info-lt text-info">Snapshot</span>
+                                                <span class="badge bg-info-lt text-info">Signal</span>
                                             </div>
                                         </div>
                                         <div class="card-body py-2">
                                             <div class="row g-2 small">
-                                                ${Object.entries(fields).slice(0, 6).map(([key, val]) => html`
+                                                ${snapshotFields.map(([fieldKey, label, val]) => html`
                                                     <div class="col-6">
-                                                        <div class="text-muted">${key}</div>
-                                                        <div class="font-weight-medium text-truncate" title=${String(val)}>
-                                                            ${formatValue(val)}
-                                                        </div>
+                                                                                <div class="text-muted">${label}</div>
+                                                                                ${renderSignalValue(fieldKey, label, val)}
                                                     </div>
                                                 `)}
                                             </div>
-                                            ${Object.keys(fields).length > 6 ? html`
+                                            ${snapshotFieldCount > snapshotFields.length ? html`
                                                 <div class="mt-2 text-muted small">
-                                                    +${Object.keys(fields).length - 6} more fields
+                                                    +${snapshotFieldCount - snapshotFields.length} more observed fields
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -136,7 +271,7 @@ export function renderTelemetryTab(component) {
                                                     <strong>${item.field}</strong>
                                                     <div class="text-muted">${formatDate(item.timestamp)}</div>
                                                 </div>
-                                                <span class="badge bg-warning-lt text-warning">Change</span>
+                                                <span class="badge bg-warning-lt text-warning">Changed</span>
                                             </div>
                                         </div>
                                         <div class="card-body py-2">
@@ -165,7 +300,7 @@ export function renderTelemetryTab(component) {
             
             ${timeline.length > 50 ? html`
                 <div class="alert alert-info small mt-3">
-                    Showing first 50 items of ${timeline.length} total
+                    Showing first 50 signal events of ${timeline.length} total
                 </div>
             ` : ''}
         </div>

@@ -61,7 +61,7 @@ export class NetworkService {
          * SECURITY/COMPLIANCE USE CASES:
          * - Detect unusual network patterns (public-routable IPs, APIPA, gateway drift)
          * - Track network movement (included in timeline)
-         * - Identify exposure posture using the richer network telemetry bag
+         * - Identify exposure posture using the richer network signal bag
          */
         const normalizedIps = Array.isArray(ipAddresses) ? ipAddresses : this.normalizeIpAddresses(ipAddresses);
         const exposure = this.extractExposureData(normalizedIps, latestFields);
@@ -69,7 +69,7 @@ export class NetworkService {
             risk: 'Normal',
             label: 'Private network',
             badgeClass: 'bg-success-lt text-success',
-            reason: 'Telemetry shows local/private connectivity with no major exposure indicators.',
+            reason: 'Signals show local/private connectivity with no major exposure indicators.',
             publicIpPresent: exposure.publicIpCount > 0,
             apipaPresent: exposure.apipaPresent,
             suspiciousPatterns: [],
@@ -80,9 +80,9 @@ export class NetworkService {
         };
 
         if (!normalizedIps || normalizedIps.length === 0) {
-            result.label = 'No telemetry';
+            result.label = 'No signal';
             result.badgeClass = 'bg-secondary-lt text-secondary';
-            result.reason = 'No network telemetry was available for this device.';
+            result.reason = 'No network signal was available for this device.';
             return result;
         }
 

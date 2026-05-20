@@ -12,16 +12,16 @@ const BUSINESS_ONLY_TOOLTIP = 'Feature available in Business License only';
 const REPORTS = [
   {
     id: 'executive',
-    title: 'Executive Report',
-    description: 'High-level security posture summary for leadership — key risks, scores, and recommendations.',
+    title: 'MAGI Briefing',
+    description: 'Officer MAGI packages the security posture, proof gaps, and next actions for leadership.',
     href: '#!/mission-brief',
     viewHref: '#!/mission-brief',
     icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><line x1="9" y1="12" x2="15" y2="12" /><line x1="9" y1="16" x2="15" y2="16" /></svg>`
   },
   {
     id: 'brief-preview',
-    title: 'Brief Preview',
-    description: 'Daily and weekly email brief previews with the same evidence formatting customers receive.',
+    title: 'Email Brief Preview',
+    description: 'Preview daily and weekly emails with the same evidence formatting customers receive.',
     href: '#!/reports/preview',
     viewHref: '#!/reports/preview',
     businessOnly: true,
@@ -65,8 +65,8 @@ const REPORTS = [
     id: 'software',
     title: 'Software Inventory',
     description: 'Installed applications across all managed devices — vendor, version, and risk score.',
-    href: '#!/inventory',
-    viewHref: '#!/inventory',
+    href: '#!/apps',
+    viewHref: '#!/apps',
     icon: html`<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18" /><path d="M10 3l-2 2l2 2" /><path d="M14 3l2 2l-2 2" /></svg>`
   },
   {
@@ -116,7 +116,7 @@ export class ReportsPage extends Component {
                 Reports Library
               </h2>
               <div class="page-subtitle text-muted">
-                Preview, download, email, and trace each report back to the workspace that produced it
+                Preview, download, email, and trace every report back to the evidence workspace that produced it
                 <span class="badge bg-success-lt text-success ms-2">${liveCount} available</span>
                 ${isHistorical ? html`<span class="badge bg-blue-lt text-blue ms-2">As of ${dateLabel}</span>` : null}
               </div>

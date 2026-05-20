@@ -58,7 +58,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Officer MAGI',
             icon: '\ud83e\udd16',
-            desc: 'Your security analyst experience. Ask questions in plain language about your organization\u2019s security posture, vulnerabilities, devices, or scores \u2014 and get answers backed by your real data when the analyst service is enabled. Static reviewed remediation guidance and evidence views remain available without Cloud model generation. You can also reach MAGI via WhatsApp if enabled in Settings.',
+            desc: 'Your AI Security Officer. Ask questions in plain language about your organization\u2019s security posture, vulnerabilities, devices, or scores and get answers backed by your real data. MAGI is live for Business deployments when the Cloud LLM switch is enabled; static reviewed remediation guidance and evidence views remain available without model generation. You can also reach MAGI via WhatsApp if enabled in Settings.',
             tips: [
                 'Try asking "What are my most critical vulnerabilities right now?"',
                 'Ask "Which devices are at highest risk?" to get a prioritized list',

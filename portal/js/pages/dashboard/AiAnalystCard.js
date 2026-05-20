@@ -97,7 +97,7 @@ export default class AiAnalystCard extends Component {
 
             ${hasQueries ? html`
               <div class="mb-3">
-                <div class="subheader mb-2">Ask 🛡️MAGI</div>
+                <div class="subheader mb-2">Ask Officer MAGI</div>
                 <div class="d-flex flex-wrap gap-2">
                   ${data.suggestedQueries.map((query) => html`
                     <button

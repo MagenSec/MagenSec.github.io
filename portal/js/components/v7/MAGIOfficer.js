@@ -128,11 +128,10 @@ export function MAGIOfficerBriefingPanel({
     const driver = _stripDriverPrefix(scoreContext?.driver) || _firstText(observations[0]) || briefing?.situation || 'MAGI is reviewing the latest captured evidence.';
     const trajectoryCopy = _trajectorySentence(trajectory, delta);
     const defaultQuestion = 'Why did the Trust Score change today, and what should I fix first?';
-    const stats = Array.isArray(scoreContext?.chips) ? scoreContext.chips.filter(Boolean).slice(0, 2) : [];
     const primaryFix = topItems[0]?.title || '';
     const summary = trajectoryCopy || driver;
     const recommendation = primaryFix
-        ? `Start with ${primaryFix}.`
+        ? 'Start with the first queued fix.'
         : 'Open the briefing for the next best action.';
     const ask = (prompt) => {
         if (typeof onAsk === 'function') onAsk(prompt);
@@ -166,10 +165,9 @@ export function MAGIOfficerBriefingPanel({
                 <span>${recommendation}</span>
             </div>
 
-            ${stats.length || primaryFix ? html`
+            ${primaryFix ? html`
                 <div class="v7-magi-briefing-stats" aria-label="Trust Hub evidence MAGI will use">
-                    ${stats.map((stat) => html`<span>${stat}</span>`)}
-                    ${primaryFix ? html`<a href=${topItems[0]?.href || '#!/remediation'}>Open first action</a>` : null}
+                    <a href=${topItems[0]?.href || '#!/alerts'}>Open first action</a>
                 </div>
             ` : null}
 
@@ -272,12 +270,14 @@ export class MAGIOfficerDrawer extends Component {
             return;
         }
 
-        const { persona, pageContext } = this.props;
+        const { persona, pageContext, pageSnapshot, visibleEvidence } = this.props;
         const routeHash = (window.location.hash || '').split('?')[0] || '';
         const requestContext = {
             hint: pageContext || null,
             route: routeHash || null,
-            source: 'magi-officer-drawer'
+            source: 'magi-officer-drawer',
+            ...(visibleEvidence ? { visibleEvidence } : {}),
+            ...(pageSnapshot ? { snapshot: pageSnapshot } : {})
         };
 
         // Push user turn + clear input.

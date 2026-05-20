@@ -8,7 +8,6 @@
  * Features:
  * - Sortable columns (risk, CVE count)
  * - Status badges (installed/updated/uninstalled)
- * - Detection confidence indicators (database vs heuristic)
  * - Days installed counter
  * - Click-to-filter CVEs by application
  */
@@ -64,7 +63,7 @@ export function renderFlatListView(component) {
                                             <line x1="12" y1="12" x2="4" y2="7.5"/>
                                         </svg>
                                     `}
-                                    ${app.appName}${isFiltered ? ' ⚡' : ''}
+                                    ${app.appName}${isFiltered ? html`<span class="badge bg-blue-lt text-blue ms-1">Filtered</span>` : ''}
                                 </td>
                                 <td>${app.vendor || '—'}</td>
                                 <td><code class="text-sm">${app.version || '—'}</code></td>
@@ -82,8 +81,6 @@ export function renderFlatListView(component) {
                                         <button class=${`btn btn-sm ${component.getSeverityOutlineClass(worstSeverity)} d-inline-flex align-items-center gap-2`}
                                             onclick=${(e) => { e.preventDefault(); component.setState({ cveFilterApp: app.appName, activeTab: 'risks' }, () => component.scrollToCveTable()); }}
                                             title="View CVEs for this application">
-                                            ${app.matchType === 'absolute' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 L12 3 L21 12 Z"/></svg>` : ''}
-                                            ${app.matchType === 'heuristic' ? html`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l3 4.5l-3 4.5h-6l-3 -4.5z"/><path d="M9 4v9"/><path d="M15 4v9"/></svg>` : ''}
                                             <span class="fw-semibold">${worstSeverity}</span>
                                             <span class=${`badge ${component.getSeverityColor(worstSeverity)}`}>${cves.length} CVE${cves.length > 1 ? 's' : ''}</span>
                                         </button>

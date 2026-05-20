@@ -571,13 +571,13 @@ export class AuditorPage extends Component {
                   <span class="badge bg-info-lt text-info">Risk ${risk?.riskScore || '—'}</span>
                 </div>
                 <div class="text-muted small">
-                  Executive Report: Compliance ${compliance?.percent || 0}% with ${urgent} priority item(s) pending.
+                  Daily Report: Compliance ${compliance?.percent || 0}% with ${urgent} priority item(s) pending.
                   ${asOf ? `${asOfLabel} ${asOf}.` : ''}
                 </div>
               </div>
               <div class="col-lg-auto d-flex gap-2">
-                <a href="#!/mission-brief" class="btn btn-sm btn-primary">Open Briefing Builder</a>
-                <a href="#!/reports" class="btn btn-sm btn-outline-secondary">Open Board Report</a>
+                <a href="#!/mission-brief" class="btn btn-sm btn-primary">Open MAGI Briefing</a>
+                <a href="#!/reports" class="btn btn-sm btn-outline-secondary">Open Reports Library</a>
               </div>
             </div>
           </div>
@@ -596,7 +596,7 @@ export class AuditorPage extends Component {
       { title: 'Phase 1', name: 'Scope & Inventory', detail: 'Assets, users, and boundaries', href: '#!/devices' },
       { title: 'Phase 2', name: 'Control Validation', detail: 'Compliance and security controls', href: '#!/compliance' },
       { title: 'Phase 3', name: 'Evidence & Timeline', detail: 'Command chronology and proofs', href: '#!/audit' },
-      { title: 'Phase 4', name: 'Executive Reporting', detail: 'Findings and recommendations', href: '#!/mission-brief' }
+      { title: 'Phase 4', name: 'MAGI Briefing', detail: 'Findings and recommendations', href: '#!/mission-brief' }
     ];
 
     return html`
@@ -897,8 +897,8 @@ export class AuditorPage extends Component {
 
             <div class="mt-3 d-flex flex-wrap gap-2 justify-content-center">
               <a href="#!/compliance" class="btn btn-sm btn-outline-${complianceColor}">Validate Controls</a>
-              <a href="#!/mission-brief" class="btn btn-sm btn-outline-primary">Open Briefing Builder</a>
-              <a href="#!/reports" class="btn btn-sm btn-outline-secondary">Executive Reports</a>
+              <a href="#!/mission-brief" class="btn btn-sm btn-outline-primary">Open MAGI Briefing</a>
+              <a href="#!/reports" class="btn btn-sm btn-outline-secondary">Reports Library</a>
             </div>
           </div>
         </div>

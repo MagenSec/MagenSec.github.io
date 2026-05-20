@@ -516,14 +516,23 @@ export class ReviewPage extends Component {
   render() {
     const isPersonalOrg = window.orgContext?.getCurrentOrg?.()?.type === 'Personal';
     const businessTooltip = 'Feature available in Business License only';
-    const isBusinessOnlyRoute = (route) => route === '#!/analyst' || route === '#!/mission-brief' || route.startsWith('#!/add-ons/');
+    const isBusinessOnlyRoute = (route) => route === '#!/analyst'
+      || route === '#!/mission-brief'
+      || route === '#!/security/response'
+      || route === '#!/audit'
+      || route === '#!/audit-log'
+      || route === '#!/reports'
+      || route === '#!/proof'
+      || route.startsWith('#!/add-ons/');
     const reviewPages = [
-      { name: 'Officer MAGI', route: '#!/analyst', description: 'Interactive AI Security Officer chat', status: 'Wired', location: 'Actions / Officer MAGI' },
-      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine report view', status: 'Wired', location: 'Prove / Posture Trends' },
-      { name: 'Mission Brief Builder', route: '#!/mission-brief', description: 'Prepare and review security/compliance/inventory briefs', status: 'Wired', location: 'Prove / Mission Briefs' },
+      { name: 'Officer MAGI', route: '#!/analyst', description: 'Interactive AI Security Officer chat', status: 'Wired', location: 'Dedicated top-level button' },
+      { name: 'Security Posture', route: '#!/posture', description: 'PostureEngine report view', status: 'Wired', location: 'Protect / Security Posture' },
+      { name: 'MAGI Briefing Builder', route: '#!/mission-brief', description: 'Prepare and review security, compliance, and inventory briefings', status: 'Wired', location: 'Prove / MAGI Briefings' },
       { name: 'Vulnerabilities', route: '#!/vulnerabilities', description: 'CVE and vulnerability list view', status: 'Wired', location: 'Protect / Active Exposures' },
-      { name: 'Compliance Plus', route: '#!/add-ons/compliance-plus', description: 'Advanced compliance add-on review surface', status: 'Wired', location: 'Prove / Compliance Plus' },
-      { name: 'Supply Chain Intel', route: '#!/add-ons/supply-chain-intel', description: 'Supply-chain risk add-on review surface', status: 'Wired', location: 'Insure / Supply Chain Risk' }
+      { name: 'Compliance Plus', route: '#!/add-ons/compliance-plus', description: 'Advanced compliance add-on review surface', status: 'Wired', location: 'Comply / Compliance Plus' },
+      { name: 'Supply Chain Intel', route: '#!/add-ons/supply-chain-intel', description: 'Supply-chain risk add-on review surface', status: 'Wired', location: 'Improve / Supply Chain Intel' },
+      { name: 'Fleet Response Actions', route: '#!/security/response', description: 'Operator-only fleet command queue hidden from customer navigation', status: 'Hidden', location: 'Site Admin review only' },
+      { name: 'Legacy Remediation Route', route: '#!/remediation', description: 'Compatibility redirect into the Alerts action queue', status: 'Redirect', location: 'Alerts alias' }
     ];
 
     return html`
@@ -565,7 +574,7 @@ export class ReviewPage extends Component {
                       <td><code>${p.route}</code></td>
                       <td class="text-muted">${p.description}</td>
                       <td class="text-muted small">${p.location}</td>
-                      <td><span class="badge bg-success text-white">${p.status}</span></td>
+                      <td><span class=${`badge ${p.status === 'Wired' ? 'bg-success' : p.status === 'Hidden' ? 'bg-secondary' : 'bg-info'} text-white`}>${p.status}</span></td>
                       <td>
                         <a
                           href="${p.route}"

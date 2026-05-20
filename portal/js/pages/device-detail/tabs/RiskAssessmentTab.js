@@ -33,190 +33,180 @@ export function renderRiskAssessment(component) {
     const networkRisk = component.networkService.analyzeNetworkRisk(ipList, component.state.telemetryDetail?.history, latestFields);
     const updateState = component.getClientUpdateState ? component.getClientUpdateState() : { updateAvailable: false, latest: null };
 
-    const progressClass = riskScoreValue >= 80 ? 'bg-danger' : riskScoreValue >= 60 ? 'bg-warning' : riskScoreValue >= 40 ? 'bg-warning' : 'bg-success';
-
     const postureRisk = component.state.enrichedScore?.score ?? riskScoreValue;
     const postureScore = Math.max(0, Math.min(100, 100 - Math.round(postureRisk)));
     const postureLabel = postureScore >= 75 ? 'Good' : postureScore >= 50 ? 'Fair' : postureScore >= 25 ? 'Poor' : 'Critical';
-    const riskPercentBase = (() => {
-        const enrichedRaw = component.state.enrichedScore?.score;
-        const canonicalRaw = component.getRiskScoreValue(
-            component.state.deviceSummary,
-            component.calculateRiskScore(component.state.device)
-        );
-        const raw = enrichedRaw !== undefined ? enrichedRaw : canonicalRaw;
-        const n = Number(raw);
-        return Number.isFinite(n) ? n : 0;
-    })();
-    const riskPercent = Math.max(0, Math.min(100, Math.round(riskPercentBase)));
     const postureBadge = postureScore >= 75 ? 'bg-success' : postureScore >= 50 ? 'bg-info' : postureScore >= 25 ? 'bg-warning' : 'bg-danger';
-    const riskPercentBadge = riskPercent >= 80 ? 'bg-danger' : riskPercent >= 60 ? 'bg-warning' : riskPercent >= 40 ? 'bg-warning' : riskPercent >= 20 ? 'bg-info' : 'bg-success';
-    const postureCopy = postureScore >= 75
-        ? 'Strong resilience and minimal exposure; continue monitoring.'
-        : postureScore >= 50
-            ? 'Mostly resilient with some findings; keep patching cadence steady.'
-            : postureScore >= 25
-                ? 'Significant vulnerabilities detected; prioritize remediation and segmentation.'
-                : 'Critical exposure; isolate and patch immediately.';
-    const riskPercentCopy = 'Based on CVE severity counts, EPSS probability, and vulnerable app density.';
+
+    const visibilityStatus = String(component.getDeviceHealthStatus?.(component.state.device)?.status || '').toLowerCase();
+    const visibilityNeedsAction = ['stale', 'dormant', 'ghosted', 'error', 'partial'].includes(visibilityStatus);
+    const criticalHigh = critical.length + high.length;
+    const decision = visibilityNeedsAction
+        ? {
+            label: 'Restore visibility',
+            detail: 'Heartbeat or signal evidence is stale; verify the agent before trusting this device posture.',
+            badge: visibilityStatus === 'stale' ? 'bg-warning-lt text-warning' : 'bg-danger-lt text-danger',
+            primary: 'Open signal history',
+            action: () => component.openAdvancedDetails('detailSignals')
+        }
+        : knownExploitCount > 0 || critical.length > 0
+            ? {
+                label: 'Patch now',
+                detail: 'Known exploit or Critical CVE evidence makes this a security queue item, not routine maintenance.',
+                badge: 'bg-danger-lt text-danger',
+                primary: 'Review CVEs',
+                action: () => component.scrollToCveTable()
+            }
+            : high.length > 0 || vulnerableApps > 0
+                ? {
+                    label: 'Patch next',
+                    detail: 'This device has active vulnerable software. Start with the highest severity application rows.',
+                    badge: 'bg-warning-lt text-warning',
+                    primary: appBreakdown.projectionPending ? 'Review CVE evidence' : 'Open patch queue',
+                    action: () => appBreakdown.projectionPending ? component.scrollToCveTable() : component.openAdvancedDetails('detailApps')
+                }
+                : updateState.updateAvailable
+                    ? {
+                        label: 'Update agent',
+                        detail: 'Security posture is clean, but the endpoint agent is behind the current baseline.',
+                        badge: 'bg-info-lt text-info',
+                        primary: updateState.latest ? `Update to v${updateState.latest}` : 'Check updates',
+                        action: () => component.queueDeviceCommand('CheckUpdates'),
+                        mutates: true
+                    }
+                    : {
+                        label: 'Monitor',
+                        detail: 'No urgent CVE, exploit, or visibility issue is driving this device right now.',
+                        badge: 'bg-success-lt text-success',
+                        primary: 'Open evidence',
+                        action: () => component.openAdvancedDetails()
+                    };
+
+    const driverRows = [
+        visibilityNeedsAction ? {
+            tone: visibilityStatus === 'stale' ? 'warning' : 'danger',
+            title: 'Visibility evidence',
+            metric: visibilityStatus || 'issue',
+            detail: networkRisk?.reason || 'Device evidence should be refreshed before acting on old posture data.',
+            action: 'Verify heartbeat and signal history',
+            onClick: () => component.openAdvancedDetails('detailSignals')
+        } : null,
+        knownExploitCount > 0 ? {
+            tone: 'danger',
+            title: 'Known exploit exposure',
+            metric: `${knownExploitCount}`,
+            detail: 'Public exploit evidence exists for one or more active CVEs.',
+            action: 'Review exploited CVEs',
+            onClick: () => component.scrollToCveTable()
+        } : null,
+        criticalHigh > 0 ? {
+            tone: 'danger',
+            title: 'Critical and High CVEs',
+            metric: `${criticalHigh}`,
+            detail: `${critical.length} Critical and ${high.length} High findings are still active.`,
+            action: 'Triage high severity first',
+            onClick: () => component.scrollToCveTable()
+        } : null,
+        vulnerableApps > 0 ? {
+            tone: 'warning',
+            title: 'Vulnerable software',
+            metric: `${vulnerableApps}`,
+            detail: appBreakdown.projectionPending ? 'CVE evidence is present while app projection catches up.' : 'Patch queue can group the affected apps by operational owner.',
+            action: appBreakdown.projectionPending ? 'Review CVE evidence' : 'Open patch queue',
+            onClick: () => appBreakdown.projectionPending ? component.scrollToCveTable() : component.openAdvancedDetails('detailApps')
+        } : null,
+        maxEpss >= 0.3 ? {
+            tone: maxEpss >= 0.5 ? 'danger' : 'warning',
+            title: 'Exploit probability',
+            metric: `${(maxEpss * 100).toFixed(1)}%`,
+            detail: 'Highest EPSS value among active CVEs.',
+            action: 'Prioritize by exploit likelihood',
+            onClick: () => component.scrollToCveTable()
+        } : null,
+        networkRisk?.publicIpPresent ? {
+            tone: 'warning',
+            title: 'Network exposure',
+            metric: networkRisk?.label || 'Exposed',
+            detail: networkRisk?.reason || 'Public routing evidence increases remediation urgency.',
+            action: 'Review network signals',
+            onClick: () => component.openAdvancedDetails('detailSignals')
+        } : null,
+        updateState.updateAvailable ? {
+            tone: 'info',
+            title: 'Agent baseline',
+            metric: updateState.latest ? `v${updateState.latest}` : 'Update',
+            detail: 'Update the endpoint agent so command handling and signal quality stay reliable.',
+            action: 'Queue update check',
+            onClick: () => component.queueDeviceCommand('CheckUpdates'),
+            mutates: true
+        } : null
+    ].filter(Boolean);
+
+    const cleanRows = driverRows.length === 0;
+
     return html`
-        <div class="row row-cards">
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="text-muted small">Security Score</div>
-                            <span class="badge ${postureBadge}">${postureLabel}</span>
+        <div class="card device-posture-brief">
+            <div class="card-body">
+                <div class="device-posture-brief__hero">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">Posture decision</div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap mt-1">
+                            <h3 class="mb-0">${decision.label}</h3>
+                            <span class=${`badge ${decision.badge}`}>${worstSeverity}</span>
                         </div>
-                        <div class="d-flex align-items-center gap-3 mb-3">
-                            <div class="display-4 fw-bold mb-0">${Math.round(postureScore)}</div>
-                            <div class="small text-muted">Higher is better. Combines vulnerability severity, exploit probability, and patch status.</div>
+                        <p class="text-muted mb-0 mt-2">${decision.detail}</p>
+                    </div>
+                    <div class="device-posture-score">
+                        <div ref=${(el) => { component.detailRiskChartEl = el; }} class="device-posture-score__chart"></div>
+                        <div>
+                            <div class="h2 mb-0">${Math.round(postureScore)}</div>
+                            <span class=${`badge ${postureBadge}`}>${postureLabel}</span>
                         </div>
-                        <div ref=${(el) => { component.detailRiskChartEl = el; }} style="min-height: 120px;"></div>
-                        <div class="text-muted small">${postureCopy}</div>
+                    </div>
+                    <div class="device-posture-actions">
+                        <button class="btn btn-primary" data-mutates-state=${decision.mutates ? 'true' : undefined} onclick=${(event) => { event.preventDefault(); decision.action(); }}>
+                            ${decision.primary}
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick=${(event) => { event.preventDefault(); component.openAdvancedDetails(); }}>
+                            Evidence workspace
+                        </button>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="text-muted small">Risk Level</div>
-                            <span class="badge ${component.getSeverityColor(worstSeverity)}">${worstSeverity}</span>
-                        </div>
-                        <div class="d-flex align-items-center gap-3 mb-3">
-                            <div class="display-4 fw-bold mb-0">${riskPercent}%</div>
-                            <div class="small text-muted">Raw risk score used on the Devices page. Higher = more risk factors present.</div>
-                        </div>
-                        <div class="progress mb-2" style="height: 8px;">
-                            <div class="progress-bar ${riskPercentBadge}" style="width: ${Math.min(100, Math.max(0, riskPercent))}%"></div>
-                        </div>
-                        <div class="text-muted small">${riskPercentCopy}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="row row-cards mt-3">
-            <div class="col-md-4 col-sm-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted small mb-1">Known exploits</div>
-                        <div class="d-flex align-items-baseline gap-2">
-                            <div class="h3 mb-0">${knownExploitCount}</div>
-                            ${knownExploitCount > 0 ? html`<span class="badge bg-danger-lt text-danger">Active</span>` : html`<span class="badge bg-secondary-lt text-secondary">None</span>`}
-                        </div>
-                        <div class="text-muted small">Publicly exploited issues detected on this device.</div>
-                    </div>
+                <div class="device-posture-pills mt-3">
+                    <span class="badge ${component.getSeverityColor('CRITICAL')}">${critical.length} Critical</span>
+                    <span class="badge ${component.getSeverityColor('HIGH')}">${high.length} High</span>
+                    <span class="badge ${component.getSeverityColor('MEDIUM')}">${medium.length} Medium</span>
+                    <span class="badge ${component.getSeverityColor('LOW')}">${low.length} Low</span>
+                    <span class="badge ${epssBadge}">EPSS ${(maxEpss * 100).toFixed(1)}%</span>
+                    <span class="badge ${networkRisk?.badgeClass || 'bg-secondary-lt text-secondary'}">${networkRisk?.label || 'Limited network signals'}</span>
                 </div>
-            </div>
-            <div class="col-md-4 col-sm-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted small mb-1">Exploit probability (max EPSS)</div>
-                        <div class="d-flex align-items-baseline gap-2">
-                            <div class="h3 mb-0">${(maxEpss * 100).toFixed(1)}%</div>
-                            <span class="badge ${epssBadge}">${maxEpss >= 0.5 ? 'Very High' : maxEpss >= 0.3 ? 'High' : maxEpss > 0 ? 'Elevated' : 'Low'}</span>
-                        </div>
-                        <div class="text-muted small">Highest likelihood of exploit activity among the active CVEs.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 col-sm-12">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="text-muted small mb-1">Vulnerable applications</div>
-                        <div class="d-flex align-items-baseline gap-2">
-                            <div class="h3 mb-0">${vulnerableApps}</div>
-                            ${vulnerableApps > 0 ? html`<span class="badge bg-warning-lt text-warning">Patch needed</span>` : html`<span class="badge bg-success-lt text-success">Clean</span>`}
-                        </div>
-                        <div class="text-muted small">Unique apps with unpatched CVEs. Network exposure is summarized above in the device overview.</div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="row row-cards mt-3">
-            <div class="col-md-6">
-                <div class="card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <div class="card-title mb-0">What Drives This Posture</div>
-                        </div>
-                    <div class="list-group list-group-flush">
-                        <div class="list-group-item d-flex justify-content-between align-items-start">
+                <div class="device-posture-driver-list mt-3">
+                    ${cleanRows ? html`
+                        <div class="device-posture-driver device-posture-driver--success">
+                            <span class="device-posture-driver__dot"></span>
                             <div>
-                                <div class="text-sm fw-bold">Vulnerability Severity</div>
-                                <div class="text-muted small">Highest CVE severity detected</div>
+                                <strong>No active driver</strong>
+                                <div class="text-muted small">No vulnerable app, known exploit, update, or visibility problem needs attention.</div>
                             </div>
-                            <span class="badge ${component.getSeverityColor(worstSeverity)}">${worstSeverity}</span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick=${() => component.openAdvancedDetails()}>Review evidence</button>
                         </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="text-sm fw-bold">Total CVEs</div>
-                                <div class="text-muted small">Active, unpatched CVEs across installed apps</div>
-                                <div class="d-flex flex-wrap gap-1 mt-2">
-                                    <span class="badge ${component.getSeverityColor('CRITICAL')}">${critical.length} Critical</span>
-                                    <span class="badge ${component.getSeverityColor('HIGH')}">${high.length} High</span>
-                                    <span class="badge ${component.getSeverityColor('MEDIUM')}">${medium.length} Medium</span>
-                                    <span class="badge ${component.getSeverityColor('LOW')}">${low.length} Low</span>
+                    ` : driverRows.map(row => html`
+                        <div class=${`device-posture-driver device-posture-driver--${row.tone}`}>
+                            <span class="device-posture-driver__dot"></span>
+                            <div class="min-width-0">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <strong>${row.title}</strong>
+                                    <span class="badge bg-secondary-lt text-secondary">${row.metric}</span>
                                 </div>
+                                <div class="text-muted small">${row.detail}</div>
                             </div>
-                            <span class="badge bg-secondary-lt text-secondary">${activeCves.length}</span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="text-sm fw-bold">Known Exploits</div>
-                                <div class="text-muted small">CVEs with public exploits detected</div>
-                            </div>
-                            ${knownExploitCount > 0 ? html`<span class="badge bg-danger-lt text-danger">${knownExploitCount} exploit${knownExploitCount > 1 ? 's' : ''}</span>` : html`<span class="text-muted">None known</span>`}
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="text-sm fw-bold">Network Exposure</div>
-                                <div class="text-muted small">Public routing, VPN, gateway, and metered telemetry</div>
-                                <div class="text-muted small mt-1">${networkRisk?.reason || 'No network exposure details available.'}</div>
-                            </div>
-                            <span class="badge ${networkRisk?.badgeClass || 'bg-secondary-lt text-secondary'}">
-                                ${networkRisk?.label || 'Limited signals'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <div class="card-title mb-0">Next Steps</div>
-                        <span class="badge bg-primary-lt text-primary">Guided actions</span>
-                    </div>
-                    <div class="card-body">
-                        <ol class="small mb-3">
-                            ${vulnerableApps > 0
-                                ? appBreakdown.projectionPending
-                                    ? html`<li class="mb-2">Review ${vulnerableApps} vulnerable application${vulnerableApps > 1 ? 's' : ''} from current CVE evidence while the app projection catches up.</li>`
-                                    : html`<li class="mb-2">Patch ${vulnerableApps} vulnerable application${vulnerableApps > 1 ? 's' : ''} to reduce exposure fastest.</li>`
-                                : html`<li class="mb-2">Keep applications updated; no vulnerable apps detected.</li>`}
-                            ${(critical.length + high.length) > 0 ? html`<li class="mb-2">Prioritize the ${critical.length + high.length} Critical/High CVEs first.</li>` : html`<li class="mb-2">No Critical/High CVEs detected right now.</li>`}
-                            <li class="mb-2">Review network exposure (${networkRisk?.label || 'latest telemetry'}) and ensure firewall/VPN/gateway coverage.</li>
-                        </ol>
-                        <div class="d-flex flex-wrap gap-2">
-                            <button class="btn btn-primary" onclick=${(e) => {
-                                e.preventDefault();
-                                if (updateState.updateAvailable) {
-                                    component.queueDeviceCommand('CheckUpdates');
-                                } else if (appBreakdown.projectionPending) {
-                                    component.scrollToCveTable();
-                                } else {
-                                    component.openAdvancedDetails('detailApps');
-                                }
-                            }}>
-                                ${updateState.updateAvailable && updateState.latest ? `Update client to v${updateState.latest}` : appBreakdown.projectionPending ? 'Review CVE evidence' : 'Review vulnerable software'}
-                            </button>
-                            <button class="btn btn-outline-secondary" onclick=${(e) => { e.preventDefault(); component.openAdvancedDetails(); }}>
-                                Open technical evidence
+                            <button class="btn btn-sm btn-outline-secondary" data-mutates-state=${row.mutates ? 'true' : undefined} onclick=${(event) => { event.preventDefault(); row.onClick(); }}>
+                                ${row.action}
                             </button>
                         </div>
-                    </div>
+                    `)}
                 </div>
             </div>
         </div>

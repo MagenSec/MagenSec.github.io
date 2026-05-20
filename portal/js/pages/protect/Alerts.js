@@ -4,7 +4,10 @@
  * Severity scale (backend int):
  *   4 = Critical, 3 = High, 2 = Medium, 1 = Low, 0 = Info
  *
- * Domain values: "Vulnerability" | "Compliance"
+ * Domain values are backend control families (Vulnerability, PatchManagement,
+ * OS Hardening, Identity & Access, etc.). Route query lens=security/compliance
+ * maps those backend domains into buyer-facing product lenses; legacy
+ * domain=Compliance/Vulnerability routes are retained as compatibility aliases.
  *
  * SWR pattern: localStorage cache (10 min TTL) + background refresh
  */
@@ -15,14 +18,160 @@ import { orgContext } from '@orgContext';
 import { rewindContext } from '@rewindContext';
 import { getAlertRemediationTemplate } from '../../data/compliance-remediation-cache.js';
 import { metricPhrase, metricTitle } from '../../utils/metricUnits.js';
-import { MagiGuideCard } from '../../components/shared/MagiGuideCard.js';
 import { EvidenceBanner } from '../../components/shared/EvidenceBanner.js';
-import { SegmentedControl, CollapsibleSectionCard, resolveDeviceLabel } from '../../components/shared/CommonComponents.js';
+import { CollapsibleSectionCard, resolveDeviceLabel } from '../../components/shared/CommonComponents.js';
 
 const { html, Component } = window;
 
 const SEV_INT_MAP = { 4: 'Critical', 3: 'High', 2: 'Medium', 1: 'Low', 0: 'Info' };
 const SEV_COLOR   = { Critical: 'danger', High: 'warning', Medium: 'info', Low: 'secondary', Info: 'azure' };
+const ALERT_LENS = Object.freeze({
+    ALL: 'all',
+    SECURITY: 'security',
+    COMPLIANCE: 'compliance',
+});
+const SECURITY_ALERT_DOMAINS = new Set([
+    'Antivirus',
+    'DeviceHealth',
+    'DeviceSync',
+    'PatchManagement',
+    'Software Security',
+    'Vulnerability',
+]);
+const LENS_COPY = Object.freeze({
+    [ALERT_LENS.SECURITY]: {
+        eyebrow: 'Protect',
+        title: 'Security Alerts',
+        subtitle: 'Exposures, missing patches, endpoint health, and software-risk signals that can become active incidents.',
+        guideTitle: 'MAGI security triage guide',
+    },
+    [ALERT_LENS.COMPLIANCE]: {
+        eyebrow: 'Comply',
+        title: 'Compliance Alerts',
+        subtitle: 'Control, policy, logging, identity, and audit-readiness gaps that need evidence or configuration closure.',
+        guideTitle: 'MAGI compliance triage guide',
+    },
+    [ALERT_LENS.ALL]: {
+        eyebrow: 'Action Queue',
+        title: 'Action Items',
+        subtitle: 'All open security and compliance work in one queue for cross-domain triage.',
+        guideTitle: 'MAGI triage guide',
+    },
+});
+
+const LENS_ROUTES = Object.freeze({
+    [ALERT_LENS.SECURITY]: '#!/alerts/security',
+    [ALERT_LENS.COMPLIANCE]: '#!/alerts/compliance',
+    [ALERT_LENS.ALL]: '#!/alerts',
+});
+
+function defaultGroupByForLens(alertLens) {
+    if (alertLens === ALERT_LENS.COMPLIANCE) return 'control';
+    if (alertLens === ALERT_LENS.SECURITY) return 'bundle';
+    return 'control';
+}
+
+function supportsGroupBy(alertLens, groupBy) {
+    if (alertLens === ALERT_LENS.COMPLIANCE) return ['control', 'domain', 'device'].includes(groupBy);
+    if (alertLens === ALERT_LENS.SECURITY) return ['bundle', 'control', 'application', 'vendor', 'device'].includes(groupBy);
+    return ['control', 'domain', 'device'].includes(groupBy);
+}
+
+function normalizeDomKey(value) {
+    return String(value || 'group')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80) || 'group';
+}
+
+function alertGroupDomKey(groupBy, key, title) {
+    return `alerts-${groupBy}-${normalizeDomKey(key || title || 'group')}`;
+}
+
+function getLensRoute(alertLens) {
+    return LENS_ROUTES[alertLens] || LENS_ROUTES[ALERT_LENS.ALL];
+}
+
+function normalizeBundleText(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/\b(?:x64|x86|arm64|en-us|update|updates|setup|installer)\b/g, ' ')
+        .replace(/\b\d+(?:\.\d+){1,4}\b/g, ' ')
+        .replace(/[^a-z0-9.+#]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function bundleTitleTokens(value) {
+    const stopWords = new Set(['for', 'and', 'the', 'a', 'an', 'of', 'with', 'to', 'in', 'on', 'by']);
+    return normalizeBundleText(value)
+        .split(' ')
+        .filter(token => token && !stopWords.has(token));
+}
+
+function formatBundleLabel(tokens) {
+    const known = new Map([
+        ['microsoft', 'Microsoft'],
+        ['office', 'Office'],
+        ['edge', 'Edge'],
+        ['framework', 'Framework'],
+        ['runtime', 'Runtime'],
+        ['visual', 'Visual'],
+        ['studio', 'Studio'],
+        ['adobe', 'Adobe'],
+        ['acrobat', 'Acrobat'],
+        ['reader', 'Reader'],
+        ['citrix', 'Citrix'],
+    ]);
+    return tokens.map(token => {
+        if (token === '.net' || token === 'net') return '.NET';
+        if (token === 'asp.net') return 'ASP.NET';
+        if (token === 'c++') return 'C++';
+        if (known.has(token)) return known.get(token);
+        return token.length <= 3 ? token.toUpperCase() : token.charAt(0).toUpperCase() + token.slice(1);
+    }).join(' ');
+}
+
+function inferKnownBundleLabel(titles, vendor) {
+    const corpus = normalizeBundleText([vendor, ...titles].join(' '));
+    const hasMicrosoft = corpus.includes('microsoft') || normalizeBundleText(vendor).includes('microsoft');
+    const hasAdobe = corpus.includes('adobe') || normalizeBundleText(vendor).includes('adobe');
+
+    if (hasMicrosoft && /\b(edge|webview2)\b/.test(corpus)) return 'Microsoft Edge';
+    if (hasMicrosoft && /\b(office|microsoft 365|word|excel|powerpoint|outlook|onenote|access|publisher|proofing)\b/.test(corpus)) return 'Microsoft Office';
+    if (hasMicrosoft && /\b(\.net|net framework)\b/.test(corpus)) return 'Microsoft .NET Framework';
+    if (hasMicrosoft && /\b(visual studio|msbuild|visual c\+\+|vc\+\+)\b/.test(corpus)) return 'Microsoft Visual Studio';
+    if (hasAdobe && /\b(acrobat|reader)\b/.test(corpus)) return 'Adobe Acrobat';
+
+    return '';
+}
+
+function inferMajorityCommonTitle(titles) {
+    const tokenRows = titles
+        .map(title => bundleTitleTokens(title))
+        .filter(tokens => tokens.length >= 2);
+    if (tokenRows.length === 0) return '';
+
+    const candidateCounts = new Map();
+    tokenRows.forEach(tokens => {
+        const maxLength = Math.min(tokens.length, 4);
+        const seen = new Set();
+        for (let length = 2; length <= maxLength; length += 1) {
+            const key = tokens.slice(0, length).join(' ');
+            if (seen.has(key)) continue;
+            seen.add(key);
+            candidateCounts.set(key, (candidateCounts.get(key) || 0) + 1);
+        }
+    });
+
+    const majority = Math.max(2, Math.ceil(tokenRows.length * 0.5));
+    const ranked = [...candidateCounts.entries()]
+        .filter(([, count]) => count >= majority)
+        .sort((a, b) => b[1] - a[1] || b[0].split(' ').length - a[0].split(' ').length || a[0].localeCompare(b[0]));
+    const [best] = ranked[0] || [];
+    return best ? formatBundleLabel(best.split(' ')) : '';
+}
 
 function severityLabel(sevInt) {
     return SEV_INT_MAP[sevInt] ?? 'Unknown';
@@ -94,6 +243,59 @@ function formatSuspiciousCount(count) {
     return numeric === 256 ? '256+' : String(numeric);
 }
 
+function hasLiveMagiAccess() {
+    return orgContext.hasMagi?.() ?? orgContext.hasAddOn?.('MAGI') ?? false;
+}
+
+function isSecurityAlertDomain(domain) {
+    return SECURITY_ALERT_DOMAINS.has(domain || '');
+}
+
+function isComplianceAlertDomain(domain) {
+    return !!domain && !isSecurityAlertDomain(domain);
+}
+
+function getRouteAlertFilters() {
+    const filters = { alertLens: ALERT_LENS.ALL, domainFilter: 'all' };
+    try {
+        const hash = window.location.hash || '';
+        const rawHashPath = hash.startsWith('#!') ? hash.slice(2) : hash;
+        const routePath = (rawHashPath.split('?')[0] || '').toLowerCase();
+        const query = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+        const params = new URLSearchParams(query);
+        const lens = (params.get('lens') || '').toLowerCase();
+        const domainParam = params.get('domain') || '';
+        const normalizedDomain = domainParam.toLowerCase();
+        if (routePath === '/alerts/security') {
+            filters.alertLens = ALERT_LENS.SECURITY;
+        } else if (routePath === '/alerts/compliance') {
+            filters.alertLens = ALERT_LENS.COMPLIANCE;
+        } else if (lens === ALERT_LENS.SECURITY || lens === ALERT_LENS.COMPLIANCE || lens === ALERT_LENS.ALL) {
+            filters.alertLens = lens;
+        } else if (normalizedDomain === 'vulnerability' || normalizedDomain === 'security') {
+            filters.alertLens = ALERT_LENS.SECURITY;
+        } else if (normalizedDomain === 'compliance') {
+            filters.alertLens = ALERT_LENS.COMPLIANCE;
+        } else if (domainParam) {
+            filters.domainFilter = domainParam;
+            filters.alertLens = isSecurityAlertDomain(domainParam) ? ALERT_LENS.SECURITY : ALERT_LENS.COMPLIANCE;
+        }
+    } catch {
+        // Ignore malformed hash query strings and fall back to all alerts.
+    }
+    return filters;
+}
+
+function lensMatchesAlert(alert, alertLens) {
+    if (alertLens === ALERT_LENS.SECURITY) return isSecurityAlertDomain(alert?.domain || '');
+    if (alertLens === ALERT_LENS.COMPLIANCE) return isComplianceAlertDomain(alert?.domain || '');
+    return true;
+}
+
+function getLensCopy(alertLens) {
+    return LENS_COPY[alertLens] || LENS_COPY[ALERT_LENS.ALL];
+}
+
 // SLA deadlines by severity (days from openedAt)
 const SLA_DAYS = { 4: 2, 3: 7, 2: 30, 1: 90 };  // Critical=2d, High=7d, Medium=30d, Low=90d
 
@@ -113,6 +315,8 @@ function slaInfo(severity, openedAt, referenceDate = new Date()) {
 export class AlertsPage extends Component {
     constructor(props) {
         super(props);
+        const routeFilters = getRouteAlertFilters();
+        const initialLens = props?.forcedLens || routeFilters.alertLens;
         this.state = {
             loading: true,
             error: null,
@@ -121,10 +325,12 @@ export class AlertsPage extends Component {
             deviceMap: {},          // deviceId → deviceName
             stateFilter: 'OPEN',
             severityFilter: 'all',
-            domainFilter: 'all',
+            alertLens: initialLens,
+            domainFilter: routeFilters.domainFilter,
             deviceFilter: 'all',        // 'all' or deviceId
-            groupBy: 'application',
+            groupBy: defaultGroupByForLens(initialLens),
             expandedGroups: {},
+            focusedIssueKey: null,
             isRefreshingInBackground: false,
 
             // Suppress modal
@@ -146,6 +352,7 @@ export class AlertsPage extends Component {
             magiAnswer: null,
             magiError: null,
             magiFromCache: false,   // true if answer came from local cache
+            magiLiveLocked: false,
             magiFeedback: null,     // 'up' | 'down' | null
 
             // Glossary popover
@@ -157,17 +364,54 @@ export class AlertsPage extends Component {
         };
         this.orgUnsubscribe = null;
         this._rewindUnsub = null;
+        this._hashChangeHandler = () => this.syncDomainFilterFromRoute();
     }
 
     componentDidMount() {
         this.orgUnsubscribe = orgContext.onChange(() => this.loadAlerts());
         this._rewindUnsub = rewindContext.onChange(() => this.loadAlerts());
+        window.addEventListener('hashchange', this._hashChangeHandler);
         this.loadAlerts();
     }
 
     componentWillUnmount() {
         if (this.orgUnsubscribe) this.orgUnsubscribe();
         if (this._rewindUnsub) this._rewindUnsub();
+        window.removeEventListener('hashchange', this._hashChangeHandler);
+    }
+
+    syncDomainFilterFromRoute() {
+        if (!window.location.hash.startsWith('#!/alerts')) return;
+        const routeFilters = getRouteAlertFilters();
+        const nextLens = this.props?.forcedLens || routeFilters.alertLens;
+        if (routeFilters.alertLens !== this.state.alertLens || routeFilters.domainFilter !== this.state.domainFilter) {
+            this.setState(prev => {
+                const nextGroupBy = supportsGroupBy(nextLens, prev.groupBy)
+                    ? prev.groupBy
+                    : defaultGroupByForLens(nextLens);
+                return {
+                    alertLens: nextLens,
+                    domainFilter: routeFilters.domainFilter,
+                    groupBy: nextGroupBy,
+                    expandedGroups: {},
+                    focusedIssueKey: null,
+                };
+            });
+        }
+    }
+
+    setAlertLens(alertLens) {
+        const nextHash = getLensRoute(alertLens);
+        if (window.location.hash !== nextHash) {
+            window.location.hash = nextHash;
+            return;
+        }
+        this.setState(prev => {
+            const nextGroupBy = supportsGroupBy(alertLens, prev.groupBy)
+                ? prev.groupBy
+                : defaultGroupByForLens(alertLens);
+            return { alertLens, domainFilter: 'all', groupBy: nextGroupBy, expandedGroups: {}, focusedIssueKey: null };
+        });
     }
 
     // ── SWR helpers ────────────────────────────────────────────────────────────
@@ -375,11 +619,6 @@ export class AlertsPage extends Component {
     // ── Inline MAGI panel ───────────────────────────────────────────────────
 
     askMagi(alert) {
-        if (!orgContext.hasAddOn?.('MAGI')) {
-            window.location.hash = '#!/upgrade?feature=MAGI';
-            return;
-        }
-
         // Cache-first: use static remediation templates for known alert categories.
         const cached = getAlertRemediationTemplate({
             ...alert,
@@ -392,6 +631,20 @@ export class AlertsPage extends Component {
                 magiAnswer: cached,
                 magiError: null,
                 magiFromCache: true,
+                magiLiveLocked: false,
+                magiFeedback: null,
+            });
+            return;
+        }
+
+        if (!hasLiveMagiAccess()) {
+            this.setState({
+                magiAlert: alert,
+                magiLoading: false,
+                magiAnswer: null,
+                magiError: 'Static guidance is not available for this alert yet. Live MAGI chat requires the MAGI entitlement.',
+                magiFromCache: false,
+                magiLiveLocked: true,
                 magiFeedback: null,
             });
             return;
@@ -402,7 +655,20 @@ export class AlertsPage extends Component {
     }
 
     _askMagiAI(alert) {
-        this.setState({ magiAlert: alert, magiLoading: true, magiAnswer: null, magiError: null, magiFromCache: false, magiFeedback: null });
+        if (!hasLiveMagiAccess()) {
+            this.setState({
+                magiAlert: alert,
+                magiLoading: false,
+                magiAnswer: null,
+                magiError: 'Live MAGI chat requires the MAGI entitlement.',
+                magiFromCache: false,
+                magiLiveLocked: true,
+                magiFeedback: null,
+            });
+            return;
+        }
+
+        this.setState({ magiAlert: alert, magiLoading: true, magiAnswer: null, magiError: null, magiFromCache: false, magiLiveLocked: false, magiFeedback: null });
 
         const deviceName = this.state.deviceMap[alert.deviceId] || alert.deviceId;
         const controlTitle = getAlertTitle(alert);
@@ -441,7 +707,7 @@ export class AlertsPage extends Component {
     }
 
     closeMagiPanel() {
-        this.setState({ magiAlert: null, magiAnswer: null, magiError: null, magiLoading: false, magiFromCache: false, magiFeedback: null });
+        this.setState({ magiAlert: null, magiAnswer: null, magiError: null, magiLoading: false, magiFromCache: false, magiLiveLocked: false, magiFeedback: null });
     }
 
     submitMagiFeedback(vote) {
@@ -460,8 +726,9 @@ export class AlertsPage extends Component {
     }
 
     renderMagiPanel() {
-        const { magiAlert, magiLoading, magiAnswer, magiError, magiFromCache, magiFeedback } = this.state;
+        const { magiAlert, magiLoading, magiAnswer, magiError, magiFromCache, magiFeedback, magiLiveLocked } = this.state;
         if (!magiAlert) return null;
+        const hasLiveMagi = hasLiveMagiAccess();
         const deviceName = this.state.deviceMap[magiAlert.deviceId] || magiAlert.deviceId;
         const sevLabel = severityLabel(magiAlert.severity);
         const sevCol = severityColor(magiAlert.severity);
@@ -540,15 +807,28 @@ export class AlertsPage extends Component {
                                     </button>
                                 ` : ''}
                                 ${magiFromCache ? html`
+                                    ${hasLiveMagi ? html`
                                     <button class="btn btn-outline-purple" onClick=${() => this._askMagiAI(magiAlert)}>
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path d="M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3" /><path d="M7 14a6 6 0 0 0 -3 6a6 6 0 0 0 6 -3" /></svg>
                                         Ask MAGI
                                     </button>
+                                    ` : html`
+                                        <button class="btn btn-outline-secondary" disabled title="Live MAGI chat requires the MAGI entitlement">
+                                            <i class="ti ti-lock me-1"></i>Live MAGI locked
+                                        </button>
+                                        <a class="btn btn-outline-purple" href="#!/upgrade?feature=MAGI">Unlock MAGI</a>
+                                    `}
                                 ` : html`
+                                    ${hasLiveMagi ? html`
                                     <a href=${`#!/analyst?q=${encodeURIComponent(controlTitle || magiAlert.controlId || '')}`} class="btn btn-outline-purple">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path d="M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3" /><path d="M7 14a6 6 0 0 0 -3 6a6 6 0 0 0 6 -3" /></svg>
                                         Open in MAGI
                                     </a>
+                                    ` : html`
+                                        <a class="btn btn-outline-purple ${magiLiveLocked ? '' : ''}" href="#!/upgrade?feature=MAGI">
+                                            <i class="ti ti-lock me-1"></i>Unlock live MAGI
+                                        </a>
+                                    `}
                                 `}
                             </div>
                         </div>
@@ -565,9 +845,10 @@ export class AlertsPage extends Component {
     }
 
     getFiltered() {
-        const { alerts, severityFilter, domainFilter, deviceFilter, sortBy, sortDir } = this.state;
+        const { alerts, severityFilter, alertLens, domainFilter, deviceFilter, sortBy, sortDir } = this.state;
         let result = alerts.filter(a => {
             if (severityFilter !== 'all' && severityLabel(a.severity) !== severityFilter) return false;
+            if (!lensMatchesAlert(a, alertLens)) return false;
             if (domainFilter !== 'all' && (a.domain || '') !== domainFilter) return false;
             if (deviceFilter !== 'all' && a.deviceId !== deviceFilter) return false;
             return true;
@@ -601,12 +882,100 @@ export class AlertsPage extends Component {
         }));
     }
 
+    focusPriorityIssue(issue, askMagi = false) {
+        if (!issue) return;
+        const groupBy = 'control';
+        const groupKey = alertGroupDomKey(groupBy, issue.key, issue.title);
+        this.setState(prev => ({
+            domainFilter: issue.domain || 'all',
+            severityFilter: 'all',
+            groupBy,
+            focusedIssueKey: issue.key,
+            expandedGroups: {
+                ...prev.expandedGroups,
+                [groupKey]: true,
+            },
+        }), () => {
+            const scrollToTarget = () => {
+                const target = document.querySelector(`[data-alert-group-key="${groupKey}"]`) || document.querySelector('.alerts-datagrid-card');
+                target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+            };
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(scrollToTarget);
+            } else {
+                setTimeout(scrollToTarget, 0);
+            }
+            if (askMagi && issue.sampleAlert) {
+                this.askMagi(issue.sampleAlert);
+            }
+        });
+    }
+
     inferVendorLabel(alert) {
         if ((alert?.domain || '').toLowerCase() === 'compliance') return 'Compliance';
         const title = getAlertTitle(alert);
         if (!title) return 'Unknown vendor';
         const words = title.split(/\s+/).filter(Boolean);
         return words.slice(0, Math.min(2, words.length)).join(' ') || 'Unknown vendor';
+    }
+
+    deriveSecurityBundle(alert) {
+        const appName = (alert?.appName || '').trim();
+        const appVendor = (alert?.appVendor || '').trim();
+        const appVersion = (alert?.appVersion || '').trim();
+        const title = getAlertTitle(alert);
+        const vendorOrFamily = appVendor || this.inferVendorLabel(alert) || appName || title || 'Unknown software';
+
+        if (appVersion) {
+            return {
+                key: `${vendorOrFamily}||${appVersion}`,
+                title: `${vendorOrFamily} ${appVersion}`,
+                subtitle: 'Vendor/version bundle',
+            };
+        }
+
+        if (appName || appVendor) {
+            return {
+                key: `${appVendor || 'Unknown vendor'}||${appName || 'Unknown application'}`,
+                title: appName || appVendor || 'Unknown software',
+                subtitle: appVendor ? `${appVendor} application family` : 'Application family',
+            };
+        }
+
+        return {
+            key: `${title}||${alert?.domain || 'security'}`,
+            title,
+            subtitle: `${alert?.domain || 'Security'} signal bundle`,
+        };
+    }
+
+    inferSecurityBundleIdentity(alerts, section) {
+        const titles = alerts
+            .map(alert => (alert.appName || '').trim())
+            .filter(Boolean);
+        const vendors = alerts
+            .map(alert => (alert.appVendor || '').trim())
+            .filter(Boolean);
+        const versions = alerts
+            .map(alert => (alert.appVersion || '').trim())
+            .filter(Boolean);
+        const vendor = vendors.sort((a, b) => vendors.filter(x => x === b).length - vendors.filter(x => x === a).length)[0] || '';
+        const version = versions.sort((a, b) => versions.filter(x => x === b).length - versions.filter(x => x === a).length)[0] || '';
+        const knownLabel = inferKnownBundleLabel(titles, vendor);
+        const commonLabel = knownLabel || inferMajorityCommonTitle(titles);
+        const fallbackTitle = section.title || [vendor, version].filter(Boolean).join(' ') || 'Software bundle';
+
+        if (commonLabel) {
+            return {
+                title: version ? `${commonLabel} ${version}` : commonLabel,
+                subtitle: knownLabel ? 'Recognized software bundle' : 'Majority-title bundle',
+            };
+        }
+
+        return {
+            title: fallbackTitle,
+            subtitle: titles.length > 1 ? 'Shared vendor/version cluster' : section.subtitle || 'Vendor/version bundle',
+        };
     }
 
     buildGroupedAlerts(filtered) {
@@ -624,10 +993,23 @@ export class AlertsPage extends Component {
             const deviceLabel = resolveDeviceLabel(alert.deviceId, deviceMap, alert.deviceId);
             const isVulnAppAlert = (alert.domain || '').toLowerCase() === 'vulnerability' && !!appName;
 
-            if (groupBy === 'device') {
+            if (groupBy === 'bundle') {
+                const bundle = this.deriveSecurityBundle(alert);
+                key = bundle.key;
+                title = bundle.title;
+                subtitle = bundle.subtitle;
+            } else if (groupBy === 'device') {
                 key = alert.deviceId || 'unattributed-device';
                 title = resolveDeviceLabel(alert.deviceId, deviceMap, 'Unattributed device');
                 subtitle = title !== (alert.deviceId || '') ? alert.deviceId || 'Endpoint activity' : 'Endpoint activity';
+            } else if (groupBy === 'domain') {
+                key = alert.domain || 'Unknown domain';
+                title = key;
+                subtitle = 'Control family';
+            } else if (groupBy === 'control') {
+                key = alert.controlId || `${getAlertTitle(alert)}||${alert.domain || 'domain'}`;
+                title = getAlertTitle(alert);
+                subtitle = `${alert.domain || 'Compliance'}${alert.controlId ? ` · ${alert.controlId}` : ''}`;
             } else if (groupBy === 'vendor') {
                 key = isVulnAppAlert ? (appVendor || 'Unknown vendor') : this.inferVendorLabel(alert);
                 title = key;
@@ -648,6 +1030,9 @@ export class AlertsPage extends Component {
 
         return Object.values(groups)
             .map(section => {
+                const bundleIdentity = groupBy === 'bundle'
+                    ? this.inferSecurityBundleIdentity(section.alerts, section)
+                    : null;
                 const deviceIds = new Set(section.alerts.map(a => a.deviceId).filter(Boolean));
                 const primaryAlert = section.alerts
                     .slice()
@@ -661,6 +1046,8 @@ export class AlertsPage extends Component {
                     .sort((a, b) => b - a)[0] || 0;
                 return {
                     ...section,
+                    title: bundleIdentity?.title || section.title,
+                    subtitle: bundleIdentity?.subtitle || section.subtitle,
                     alertCount: section.alerts.length,
                     deviceCount: deviceIds.size || (groupBy === 'device' ? 1 : 0),
                     primaryDeviceName,
@@ -670,6 +1057,44 @@ export class AlertsPage extends Component {
                 };
             })
             .sort((a, b) => b.worstSeverity - a.worstSeverity || b.alertCount - a.alertCount || a.title.localeCompare(b.title));
+    }
+
+    buildIssueRollups(alerts) {
+        const issueMap = new Map();
+        alerts.forEach(alert => {
+            const key = alert.controlId || `${getAlertTitle(alert)}|${alert.domain || 'domain'}`;
+            if (!issueMap.has(key)) {
+                issueMap.set(key, {
+                    key,
+                    title: getAlertTitle(alert),
+                    domain: alert.domain || 'Unknown',
+                    severity: Number(alert.severity || 0),
+                    open: 0,
+                    total: 0,
+                    devices: new Set(),
+                    alerts: [],
+                    sampleAlert: alert,
+                    newest: 0,
+                });
+            }
+            const issue = issueMap.get(key);
+            issue.total += 1;
+            issue.alerts.push(alert);
+            if ((alert.state || '').toUpperCase() === 'OPEN') issue.open += 1;
+            issue.severity = Math.max(issue.severity, Number(alert.severity || 0));
+            if (Number(alert.severity || 0) >= Number(issue.sampleAlert?.severity || 0)) {
+                issue.sampleAlert = alert;
+            }
+            if (alert.deviceId) issue.devices.add(alert.deviceId);
+            const openedAt = new Date(alert.openedAt || 0).getTime();
+            if (Number.isFinite(openedAt)) issue.newest = Math.max(issue.newest, openedAt);
+        });
+        return Array.from(issueMap.values())
+            .map(issue => ({
+                ...issue,
+                deviceCount: issue.devices.size,
+            }))
+            .sort((a, b) => b.severity - a.severity || b.open - a.open || b.deviceCount - a.deviceCount || a.title.localeCompare(b.title));
     }
 
     renderGroupedSections(filtered) {
@@ -683,27 +1108,25 @@ export class AlertsPage extends Component {
         return html`
             ${sections.map(section => {
                 const tone = severityColor(section.worstSeverity);
-                const groupKey = `alerts-${groupBy}-${String(section.key || section.title || 'group')
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/^-+|-+$/g, '')
-                    .slice(0, 80) || 'group'}`;
+                const groupKey = alertGroupDomKey(groupBy, section.key, section.title);
                 const isOpen = !!expandedGroups[groupKey];
 
                 return html`
-                    <${CollapsibleSectionCard}
-                        title=${section.title}
-                        subtitle=${section.subtitle || ''}
-                        meta=${`${formatSuspiciousCount(section.alertCount)} action item${section.alertCount === 1 ? '' : 's'} · ${section.deviceCount} device${section.deviceCount === 1 ? '' : 's'} · latest ${fmtDate(section.newest)}`}
-                        badges=${[
-                            { text: `${formatSuspiciousCount(section.openCount)} open`, className: `bg-${tone} text-white` },
-                            { text: isOpen ? 'Collapse' : 'Expand', className: 'bg-secondary-lt text-secondary' }
-                        ]}
-                        accent=${tone}
-                        isOpen=${isOpen}
-                        onToggle=${() => this.toggleExpandedGroup(groupKey)}>
-                        ${this.renderTable(section.alerts, true)}
-                    </${CollapsibleSectionCard}>
+                    <div data-alert-group-key=${groupKey} class=${this.state.focusedIssueKey === section.key ? 'alerts-focused-group' : ''}>
+                        <${CollapsibleSectionCard}
+                            title=${section.title}
+                            subtitle=${section.subtitle || ''}
+                            meta=${`${formatSuspiciousCount(section.alertCount)} action item${section.alertCount === 1 ? '' : 's'} · ${section.deviceCount} device${section.deviceCount === 1 ? '' : 's'} · latest ${fmtDate(section.newest)}`}
+                            badges=${[
+                                { text: `${formatSuspiciousCount(section.openCount)} open`, className: `bg-${tone} text-white` },
+                                { text: isOpen ? 'Collapse' : 'Expand', className: 'bg-secondary-lt text-secondary' }
+                            ]}
+                            accent=${tone}
+                            isOpen=${isOpen}
+                            onToggle=${() => this.toggleExpandedGroup(groupKey)}>
+                            ${this.renderTable(section.alerts, true)}
+                        </${CollapsibleSectionCard}>
+                    </div>
                 `;
             })}
         `;
@@ -711,20 +1134,20 @@ export class AlertsPage extends Component {
 
     // ── Render helpers ────────────────────────────────────────────────────────
 
-    renderSummaryBar() {
-        const { summary, alerts, stateFilter } = this.state;
-        const open = summary?.totalOpen ?? alerts.filter(a => (a.state || '').toUpperCase() === 'OPEN').length;
-        const suppressed = summary?.totalSuppressed ?? alerts.filter(a => (a.state || '').toUpperCase() === 'SUPPRESSED').length;
+    renderSummaryBar(filtered) {
+        const { summary, stateFilter, alertLens } = this.state;
+        const scopedAlerts = filtered || [];
+        const open = scopedAlerts.filter(a => (a.state || '').toUpperCase() === 'OPEN').length;
+        const suppressed = scopedAlerts.filter(a => (a.state || '').toUpperCase() === 'SUPPRESSED').length;
         const isHistoricalSummary = summary?.isHistoricalSnapshot === true;
         const isCappedSummary = summary?.isCapped === true;
-        const capturedOpen = Number(summary?.capturedOpen ?? alerts.length);
-        // Backend summary now returns distinctControls + affectedDevices so the UI can
-        // show "X distinct issues across Y devices" instead of an exposure-multiplied count.
-        const distinctIssues = summary?.distinctControls ?? null;
-        const affectedDevices = summary?.affectedDevices ?? null;
-        const topControls = Array.isArray(summary?.topControls) ? summary.topControls : [];
+        const capturedOpen = Number(summary?.capturedOpen ?? scopedAlerts.length);
+        const issueRollups = this.buildIssueRollups(scopedAlerts);
+        const distinctIssues = issueRollups.length;
+        const affectedDevices = new Set(scopedAlerts.map(a => a.deviceId).filter(Boolean)).size;
+        const lensMeta = getLensCopy(alertLens);
 
-        const visibleOpen = alerts.filter(a => (a.state || '').toUpperCase() === 'OPEN');
+        const visibleOpen = scopedAlerts.filter(a => (a.state || '').toUpperCase() === 'OPEN');
         const referenceDate = this.getReferenceDate();
         const referenceTime = referenceDate.getTime();
         const critical = visibleOpen.filter(a => Number(a.severity) === 4).length;
@@ -747,11 +1170,9 @@ export class AlertsPage extends Component {
         // Headline KPI: prefer "distinct issues" over raw exposure count when available.
         // Each distinct issue is one ControlId (e.g. "Chrome critical CVE") even if it
         // reaches many devices. Operators have ~controlCount things to fix, not totalOpen.
-        const headlineValue = distinctIssues != null && distinctIssues > 0 ? distinctIssues : open;
-        const headlineLabel = distinctIssues != null ? metricTitle('distinctIssues') : metricTitle('openAlertInstances');
-        const headlineSub = distinctIssues != null
-            ? `${metricPhrase('openAlertInstances', open)}${affectedDevices != null ? ` · ${metricPhrase('affectedDevices', affectedDevices)}` : ''}`
-            : `${suppressed} suppressed`;
+        const headlineValue = distinctIssues > 0 ? distinctIssues : open;
+        const headlineLabel = metricTitle('distinctIssues');
+        const headlineSub = `${metricPhrase('openAlertInstances', open)} · ${metricPhrase('affectedDevices', affectedDevices)}`;
 
         const cards = [
             { label: headlineLabel, value: headlineValue.toLocaleString(), sub: headlineSub, tone: headlineValue > 0 ? 'danger' : 'success' },
@@ -788,65 +1209,198 @@ export class AlertsPage extends Component {
                     <div class="text-muted small">
                         ${isHistoricalSummary && isCappedSummary
                             ? `Historical report captured ${metricPhrase('openAlertInstances', capturedOpen)} as row-level samples of ${metricPhrase('openAlertInstances', open)}; the remaining count is aggregate-only.`
-                            : stateFilter === 'OPEN' && open > alerts.length
-                            ? `Showing newest ${alerts.length} of ${metricPhrase('openAlertInstances', open)} · grouped into ${distinctIssues ?? '—'} ${metricTitle('distinctIssues').toLowerCase()} for triage.`
-                            : `Showing ${alerts.length} ${stateFilter === 'ALL' ? 'loaded' : stateFilter.toLowerCase()} action item${alerts.length === 1 ? '' : 's'}.`}
+                            : `${lensMeta.title}: ${scopedAlerts.length} ${stateFilter === 'ALL' ? 'loaded' : stateFilter.toLowerCase()} action item${scopedAlerts.length === 1 ? '' : 's'}${suppressed > 0 ? ` · ${suppressed} suppressed in this view` : ''}.`}
                     </div>
                 </div>
             </div>
-            ${topControls.length > 0 ? html`
-                <div class="card card-sm mb-3">
-                    <div class="card-body py-2">
-                        <div class="text-muted small text-uppercase mb-2">Top issues by reach</div>
-                        <div class="d-flex flex-wrap gap-2">
-                            ${topControls.map(tc => html`
-                                <span class="badge bg-secondary-lt text-secondary" title="${tc.controlId}">
-                                    ${tc.controlId}: ${metricPhrase('affectedDevices', tc.affectedDevices)} · ${metricPhrase('openAlertInstances', tc.open)}
-                                </span>
-                            `)}
-                        </div>
-                    </div>
-                </div>
-            ` : ''}
         `;
     }
 
-    renderMagiGuide(filtered) {
-        const summary = this.state.summary || {};
-        const open = Number(summary.totalOpen ?? filtered.filter(a => (a.state || '').toUpperCase() === 'OPEN').length) || 0;
-        const distinct = Number(summary.distinctControls ?? 0) || 0;
-        const affected = Number(summary.affectedDevices ?? 0) || 0;
-        const topSection = this.buildGroupedAlerts(filtered)[0] || null;
-        const summaryText = distinct > 0
-            ? `MAGI is reducing ${metricPhrase('openAlertInstances', open)} into ${metricPhrase('distinctIssues', distinct)} across ${metricPhrase('affectedDevices', affected)}.`
-            : `MAGI is reviewing ${metricPhrase('openAlertInstances', open)} by severity, device reach, and due date.`;
-        const fallbackAlertWithDevice = filtered.find(alert => alert.deviceId);
-        const fallbackDeviceName = fallbackAlertWithDevice?.deviceId
-            ? resolveDeviceLabel(fallbackAlertWithDevice.deviceId, this.state.deviceMap, fallbackAlertWithDevice.deviceId)
-            : null;
-        const actionDeviceName = topSection?.primaryDeviceName || fallbackDeviceName;
-        const nextAction = topSection
-            ? `Start with ${topSection.title}${actionDeviceName ? ` on ${actionDeviceName}` : ''}; it has ${metricPhrase('openAlertInstances', topSection.openCount || topSection.alertCount)} and the highest reach or severity in this evidence set.`
+    renderQueueBrief(filtered) {
+        const lensMeta = getLensCopy(this.state.alertLens);
+        const open = filtered.filter(a => (a.state || '').toUpperCase() === 'OPEN').length;
+        const issueRollups = this.buildIssueRollups(filtered);
+        const topIssues = issueRollups.slice(0, 5);
+        const distinct = issueRollups.length;
+        const affected = new Set(filtered.map(a => a.deviceId).filter(Boolean)).size;
+        const primaryIssue = topIssues[0] || null;
+        const nextAction = primaryIssue
+            ? `Open ${primaryIssue.title}, clear the highest-reach rows, then ask MAGI for the exact evidence trail before suppression or closure.`
             : 'No open action cluster needs attention in the current filter.';
+        const lensStatement = this.state.alertLens === ALERT_LENS.COMPLIANCE
+            ? 'MAGI is treating this as audit risk, not vulnerability volume. The goal is to remove the blockers that would make evidence look incomplete, stale, or untrustworthy.'
+            : this.state.alertLens === ALERT_LENS.SECURITY
+            ? 'MAGI is treating this as attack surface. The goal is to collapse exploitable software bundles, missing patches, and endpoint-defense gaps before they become incident paths.'
+            : 'MAGI is reading this as the full action queue across protection and compliance work.';
+        const scopeStatement = this.state.alertLens === ALERT_LENS.COMPLIANCE
+            ? 'CVE and patch-noise is excluded here; broad control failures and evidence blockers stay visible.'
+            : this.state.alertLens === ALERT_LENS.SECURITY
+            ? 'Audit-control gaps are excluded here; protection signals are grouped bundle-first so shared vendor/version exposure is easier to close once.'
+            : 'Both security exposure and compliance-control domains are included in this blended view.';
+        const pressureStatement = primaryIssue
+            ? `${primaryIssue.title} is the current pressure point: ${metricPhrase('openAlertInstances', primaryIssue.open)} across ${metricPhrase('affectedDevices', primaryIssue.deviceCount)}.`
+            : `${lensMeta.title} has no open pressure point in the current filters.`;
 
         return html`
-            <${MagiGuideCard}
-                title="MAGI triage guide"
-                verified=${rewindContext.isActive() ? 'Historical alert evidence' : 'Live alert evidence'}
-                summary=${summaryText}
-                nextAction=${nextAction}
-                provenance=${['alert-summary', 'alerts', 'sla-rules']}
-                confidence="Deterministic"
-                ctaHref="#!/analyst?ctx=alert%20triage%20and%20remediation"
-            />
+            <div class="card alerts-queue-brief mb-3">
+                <div class="card-header align-items-center">
+                    <div>
+                        <div class="subheader">Queue brief</div>
+                        <h3 class="card-title mb-0">${lensMeta.title} workbench</h3>
+                    </div>
+                    <div class="ms-auto d-flex flex-wrap gap-2 align-items-center">
+                        <span class="badge bg-azure-lt text-azure">${rewindContext.isActive() ? 'Historical evidence' : 'Live evidence'}</span>
+                        <span class="badge bg-secondary-lt text-secondary">${metricPhrase('distinctIssues', distinct)}</span>
+                        <span class="badge bg-secondary-lt text-secondary">${metricPhrase('affectedDevices', affected)}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alerts-queue-brief-grid">
+                        <div class="alerts-priority-panel">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div>
+                                    <div class="text-muted small text-uppercase fw-semibold">Priority stack</div>
+                                    <div class="small text-muted">Sorted by severity, open count, and affected devices</div>
+                                </div>
+                                <span class="badge bg-primary text-white">${metricPhrase('openAlertInstances', open)}</span>
+                            </div>
+                            ${topIssues.length > 0 ? html`
+                                <div class="table-responsive alerts-priority-table-wrap">
+                                    <table class="table table-sm table-vcenter mb-0 alerts-priority-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Issue</th>
+                                                <th>Family</th>
+                                                <th class="text-end">Reach</th>
+                                                <th class="text-end">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${topIssues.map(issue => {
+                                                const tone = severityColor(issue.severity);
+                                                return html`
+                                                    <tr data-priority-clickable="true" onClick=${() => this.focusPriorityIssue(issue)}>
+                                                        <td>
+                                                            <div class="fw-semibold text-truncate" title=${issue.title}>${issue.title}</div>
+                                                            <div class="small text-muted">${issue.key}</div>
+                                                        </td>
+                                                        <td><span class="badge bg-${domainColor(issue.domain)}-lt text-${domainColor(issue.domain)}">${issue.domain}</span></td>
+                                                        <td class="text-end">
+                                                            <div><span class="badge bg-${tone} text-white">${severityLabel(issue.severity)}</span></div>
+                                                            <div class="small text-muted mt-1">${issue.open} open · ${issue.deviceCount} device${issue.deviceCount === 1 ? '' : 's'}</div>
+                                                        </td>
+                                                        <td class="text-end">
+                                                            <div class="alerts-priority-actions" onClick=${event => event.stopPropagation()}>
+                                                                <button class="btn btn-sm btn-outline-primary" onClick=${() => this.focusPriorityIssue(issue)}>View</button>
+                                                                <button class="btn btn-sm btn-outline-purple" disabled=${!issue.sampleAlert} title=${issue.sampleAlert ? 'Ask MAGI about this issue' : 'No representative alert available'} onClick=${() => this.focusPriorityIssue(issue, true)}>
+                                                                    MAGI
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                `;
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ` : html`
+                                <div class="empty py-3">
+                                    <p class="empty-title mb-1">No priority stack</p>
+                                    <p class="empty-subtitle text-muted mb-0">No open work in this lens and filter set.</p>
+                                </div>
+                            `}
+                        </div>
+                        <div class="alerts-magi-read-panel">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="avatar avatar-sm bg-purple-lt text-purple">M</span>
+                                <div>
+                                    <div class="text-muted small text-uppercase fw-semibold">MAGI read</div>
+                                    <div class="fw-semibold">${lensMeta.title} context</div>
+                                </div>
+                            </div>
+                            <p class="mb-2">${lensStatement}</p>
+                            <p class="fw-semibold mb-2">${pressureStatement}</p>
+                            <p class="text-muted small mb-3">${scopeStatement}</p>
+                            <div class="alerts-next-action">
+                                <div class="text-muted small text-uppercase fw-semibold mb-1">Next move</div>
+                                <div>${nextAction}</div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+                                <span class="badge bg-secondary-lt text-secondary">Alert facts</span>
+                                <span class="badge bg-secondary-lt text-secondary">SLA rules</span>
+                                ${hasLiveMagiAccess() ? html`
+                                    <a class="btn btn-sm btn-outline-purple ms-auto" href="#!/analyst?ctx=alert%20triage%20and%20actions">Ask MAGI</a>
+                                ` : html`
+                                    <button class="btn btn-sm btn-outline-secondary ms-auto" disabled title="Live MAGI chat requires the MAGI entitlement">
+                                        <i class="ti ti-lock me-1"></i>Live MAGI locked
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         `;
     }
 
     renderFilters() {
-        const { stateFilter, severityFilter, domainFilter, deviceFilter, groupBy, alerts, deviceMap } = this.state;
+        const { stateFilter, severityFilter, alertLens, domainFilter, deviceFilter, groupBy, alerts, deviceMap } = this.state;
 
-        // Build unique domain values from loaded alerts
-        const domains = [...new Set(alerts.map(a => a.domain).filter(Boolean))].sort();
+        const domains = [...new Set(alerts
+            .filter(alert => lensMatchesAlert(alert, alertLens))
+            .map(a => a.domain)
+            .filter(Boolean))].sort();
+        const lensOptions = [
+            { id: ALERT_LENS.SECURITY, label: 'Security Alerts' },
+            { id: ALERT_LENS.COMPLIANCE, label: 'Compliance Alerts' },
+            { id: ALERT_LENS.ALL, label: 'All Alerts' }
+        ];
+        const stateOptions = [
+            { id: 'OPEN', label: 'Open' },
+            { id: 'SUPPRESSED', label: 'Suppressed' },
+            { id: 'ALL', label: 'All States' }
+        ];
+        const severityOptions = [
+            { id: 'all', label: 'All Severities' },
+            { id: 'Critical', label: 'Critical' },
+            { id: 'High', label: 'High' },
+            { id: 'Medium', label: 'Medium' },
+            { id: 'Low', label: 'Low' }
+        ];
+        const groupOptions = alertLens === ALERT_LENS.COMPLIANCE
+            ? [
+                { id: 'control', label: 'Control' },
+                { id: 'domain', label: 'Domain' },
+                { id: 'device', label: 'Device' }
+            ]
+            : alertLens === ALERT_LENS.SECURITY
+            ? [
+                { id: 'bundle', label: 'Bundle' },
+                { id: 'control', label: 'Issue' },
+                { id: 'application', label: 'Application' },
+                { id: 'vendor', label: 'Vendor' },
+                { id: 'device', label: 'Device' }
+            ]
+            : [
+                { id: 'control', label: 'Issue' },
+                { id: 'domain', label: 'Domain' },
+                { id: 'device', label: 'Device' }
+            ];
+        const activeGroupBy = groupOptions.some(option => option.id === groupBy) ? groupBy : groupOptions[0].id;
+
+        const renderFilterSelect = ({ label, value, options, onChange, disabled = false }) => html`
+            <label class="alerts-filter-field">
+                <span class="triage-filter-label">${label}</span>
+                <span class="alerts-filter-select-shell">
+                    <select class="form-select form-select-sm alerts-filter-select"
+                            value=${value}
+                            disabled=${disabled}
+                            onChange=${onChange}>
+                        ${options.map(option => html`<option value=${option.id}>${option.label}</option>`)}
+                    </select>
+                </span>
+            </label>
+        `;
 
         // Build device dropdown options from deviceMap, sorted by name
         const deviceEntries = Object.entries(deviceMap)
@@ -854,72 +1408,55 @@ export class AlertsPage extends Component {
             .sort((a, b) => a.name.localeCompare(b.name));
 
         return html`
-            <div class="card mb-3">
+            <div class="card alerts-filter-card mb-3">
+                <div class="card-header align-items-center">
+                    <div>
+                        <div class="subheader">View controls</div>
+                        <h3 class="card-title mb-0">Filters and grouping</h3>
+                    </div>
+                    <button class="btn btn-sm btn-icon btn-outline-secondary border-0 ms-auto" title="Legend" onClick=${() => this.setState({ showGlossary: true })}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l.01 0" /><path d="M11 12h1v4h1" /></svg>
+                    </button>
+                </div>
                 <div class="card-body py-3">
-                    <div class="triage-filter-toolbar">
-                        <div class="triage-filter-block">
-                            <div class="triage-filter-label">State</div>
-                            <${SegmentedControl}
-                                options=${[
-                                    { id: 'OPEN', label: 'Open' },
-                                    { id: 'SUPPRESSED', label: 'Suppressed' },
-                                    { id: 'ALL', label: 'All States' }
-                                ]}
-                                value=${stateFilter}
-                                onChange=${value => this.setState({ stateFilter: value, alerts: [] }, () => this.loadAlerts(true))}
-                            />
-                        </div>
-                        <div class="triage-filter-block">
-                            <div class="triage-filter-label">Severity</div>
-                            <${SegmentedControl}
-                                options=${[
-                                    { id: 'all', label: 'All' },
-                                    { id: 'Critical', label: 'Critical' },
-                                    { id: 'High', label: 'High' },
-                                    { id: 'Medium', label: 'Medium' },
-                                    { id: 'Low', label: 'Low' }
-                                ]}
-                                value=${severityFilter}
-                                onChange=${value => this.setState({ severityFilter: value })}
-                            />
-                        </div>
-                        <div class="triage-filter-block">
-                            <div class="triage-filter-label">Group by</div>
-                            <${SegmentedControl}
-                                options=${[
-                                    { id: 'application', label: 'Application' },
-                                    { id: 'vendor', label: 'Vendor' },
-                                    { id: 'device', label: 'Device' }
-                                ]}
-                                value=${groupBy}
-                                onChange=${value => this.setState({ groupBy: value })}
-                            />
-                        </div>
-                        <div class="triage-filter-block">
-                            <div class="triage-filter-label">Domain</div>
-                            <select class="form-select form-select-sm" style="min-width:160px;"
-                                    value=${domainFilter}
-                                    onChange=${e => this.setState({ domainFilter: e.target.value })}>
-                                <option value="all">All Domains</option>
-                                ${domains.map(d => html`<option value=${d}>${d}</option>`)}
-                            </select>
-                        </div>
-                        ${deviceEntries.length > 1 ? html`
-                            <div class="triage-filter-block">
-                                <div class="triage-filter-label">Device</div>
-                                <select class="form-select form-select-sm" style="min-width:200px;"
-                                        value=${deviceFilter}
-                                        onChange=${e => this.setState({ deviceFilter: e.target.value })}>
-                                    <option value="all">All Devices (${deviceEntries.length})</option>
-                                    ${deviceEntries.map(d => html`<option value=${d.id}>${d.name}</option>`)}
-                                </select>
-                            </div>
-                        ` : ''}
-                        <div class="ms-auto align-self-end">
-                            <button class="btn btn-sm btn-icon btn-outline-secondary border-0" title="Legend" onClick=${() => this.setState({ showGlossary: true })}>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l.01 0" /><path d="M11 12h1v4h1" /></svg>
-                            </button>
-                        </div>
+                    <div class="triage-filter-toolbar alerts-filter-grid">
+                        ${renderFilterSelect({
+                            label: 'Alert type',
+                            value: alertLens,
+                            options: lensOptions,
+                            onChange: event => this.setAlertLens(event.target.value)
+                        })}
+                        ${renderFilterSelect({
+                            label: 'State',
+                            value: stateFilter,
+                            options: stateOptions,
+                            onChange: event => this.setState({ stateFilter: event.target.value, alerts: [] }, () => this.loadAlerts(true))
+                        })}
+                        ${renderFilterSelect({
+                            label: 'Severity',
+                            value: severityFilter,
+                            options: severityOptions,
+                            onChange: event => this.setState({ severityFilter: event.target.value })
+                        })}
+                        ${renderFilterSelect({
+                            label: 'Group by',
+                            value: activeGroupBy,
+                            options: groupOptions,
+                            onChange: event => this.setState({ groupBy: event.target.value })
+                        })}
+                        ${renderFilterSelect({
+                            label: 'Domain',
+                            value: domainFilter,
+                            options: [{ id: 'all', label: 'All Domains' }, ...domains.map(domain => ({ id: domain, label: domain }))],
+                            onChange: event => this.setState({ domainFilter: event.target.value })
+                        })}
+                        ${renderFilterSelect({
+                            label: 'Device',
+                            value: deviceFilter,
+                            options: [{ id: 'all', label: deviceEntries.length > 1 ? `All Devices (${deviceEntries.length})` : 'All Devices' }, ...deviceEntries.map(device => ({ id: device.id, label: device.name }))],
+                            disabled: deviceEntries.length <= 1,
+                            onChange: event => this.setState({ deviceFilter: event.target.value })
+                        })}
                     </div>
                 </div>
             </div>
@@ -963,7 +1500,8 @@ export class AlertsPage extends Component {
     }
 
     renderTable(filtered, nested = false) {
-        const { pendingRowKey, stateFilter, selectedAlerts } = this.state;
+        const { pendingRowKey, stateFilter, selectedAlerts, alertLens } = this.state;
+        const lensMeta = getLensCopy(alertLens);
         if (filtered.length === 0) {
             if (nested) return null;
             const historicalOpen = Number(this.state.summary?.totalOpen ?? 0);
@@ -988,7 +1526,7 @@ export class AlertsPage extends Component {
                     </div>
                     <p class="empty-title">No alerts found</p>
                     <p class="empty-subtitle text-muted">
-                        ${stateFilter === 'OPEN' ? 'No open alerts for your current filters. Your security posture looks good!' : 'No alerts match the selected filters.'}
+                        ${stateFilter === 'OPEN' ? `No open ${lensMeta.title.toLowerCase()} match the current filters.` : 'No alerts match the selected filters.'}
                     </p>
                 </div>
             `;
@@ -1000,9 +1538,18 @@ export class AlertsPage extends Component {
         const someSelected = openKeys.some(k => selectedAlerts.has(k));
 
         return html`
-            ${nested ? html`` : html`<div class="card">`}
-                <div class="table-responsive">
-                    <table class="table table-vcenter card-table mb-0">
+            ${nested ? html`` : html`
+                <div class="card alerts-datagrid-card">
+                    <div class="card-header align-items-center">
+                        <div>
+                            <div class="subheader">Alert datagrid</div>
+                            <h3 class="card-title mb-0">${lensMeta.title}</h3>
+                        </div>
+                        <span class="badge bg-secondary-lt text-secondary ms-auto">${filtered.length} row${filtered.length === 1 ? '' : 's'}</span>
+                    </div>
+            `}
+                <div class="table-responsive alerts-datagrid-wrap">
+                    <table class="table table-vcenter card-table table-hover table-nowrap mb-0 alerts-datatable">
                         <thead>
                             <tr>
                                 <th class="w-1">
@@ -1012,8 +1559,8 @@ export class AlertsPage extends Component {
                                            onChange=${() => this.toggleAll(filtered)}
                                            title="Select all open alerts" />
                                 </th>
-                                <th>Domain / Severity</th>
-                                <th>Alert</th>
+                                <th>${alertLens === ALERT_LENS.COMPLIANCE ? 'Control / Severity' : 'Category / Severity'}</th>
+                                <th>${alertLens === ALERT_LENS.COMPLIANCE ? 'Control gap' : 'Alert'}</th>
                                 <th>Device</th>
                                 <th>Opened</th>
                                 <th style="cursor:pointer;user-select:none;" onClick=${() => this.toggleSort('sla')} title="Sort by SLA">
@@ -1258,6 +1805,7 @@ export class AlertsPage extends Component {
     render() {
         const { loading, error, alerts, isRefreshingInBackground, evidence } = this.state;
         const filtered = this.getFiltered();
+        const lensMeta = getLensCopy(this.state.alertLens);
 
         if (loading && !alerts.length) {
             return html`<div class="d-flex align-items-center justify-content-center" style="min-height:60vh;"><div class="spinner-border text-primary"></div></div>`;
@@ -1272,9 +1820,9 @@ export class AlertsPage extends Component {
                 <div class="container-xl">
                     <div class="row g-2 align-items-center">
                         <div class="col">
-                            <div class="text-uppercase small fw-semibold text-warning mb-1" style="letter-spacing:0.08em;">Remediation Queue</div>
+                            <div class="text-uppercase small fw-semibold text-warning mb-1" style="letter-spacing:0.08em;">${lensMeta.eyebrow}</div>
                             <div class="d-flex align-items-center gap-2">
-                                <h2 class="page-title mb-0">Action Items</h2>
+                                <h2 class="page-title mb-0">${lensMeta.title}</h2>
                                 ${isRefreshingInBackground ? html`
                                     <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1">
                                         <span class="spinner-border spinner-border-sm" style="width:12px;height:12px;"></span>
@@ -1283,7 +1831,7 @@ export class AlertsPage extends Component {
                                 ` : ''}
                             </div>
                             <p class="page-subtitle mt-1 mb-0">
-                                Things that need your attention — prioritize what is urgent now, suppress known noise, or ask MAGI for help
+                                ${lensMeta.subtitle}
                                 ${rewindContext.isActive() ? html` · <span class="badge bg-azure-lt text-azure">As of ${rewindContext.getDateLabel?.() || api.getEffectiveDate?.() || 'selected date'}</span>` : ''}
                             </p>
                         </div>
@@ -1300,8 +1848,8 @@ export class AlertsPage extends Component {
             <div class="page-body">
                 <div class="container-xl">
                     <${EvidenceBanner} evidence=${evidence} pageName="alerts" />
-                    ${this.renderSummaryBar()}
-                    ${this.renderMagiGuide(filtered)}
+                    ${this.renderSummaryBar(filtered)}
+                    ${this.renderQueueBrief(filtered)}
                     ${this.renderFilters()}
                     <div class="text-muted small mb-2">${filtered.length} item${filtered.length !== 1 ? 's' : ''} shown</div>
                     ${this.renderGroupedSections(filtered)}
@@ -1314,4 +1862,12 @@ export class AlertsPage extends Component {
             ${this.renderMagiPanel()}
         `;
     }
+}
+
+export function SecurityAlertsPage() {
+    return html`<${AlertsPage} forcedLens=${ALERT_LENS.SECURITY} />`;
+}
+
+export function ComplianceAlertsPage() {
+    return html`<${AlertsPage} forcedLens=${ALERT_LENS.COMPLIANCE} />`;
 }

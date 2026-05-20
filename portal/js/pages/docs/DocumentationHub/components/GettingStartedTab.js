@@ -138,8 +138,8 @@ export function GettingStartedTab(html) {
                 </div>
                 <div class="card mb-3">
                     <div class="card-body" style="padding:14px 18px;">
-                        <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83e\udd16</span> <strong>Officer MAGI \u2014 Security Analyst</strong> <span class="badge bg-blue-lt text-blue" style="font-size:10px;">Business</span></h5>
-                        <p class="mb-0 text-muted" style="font-size:13px;">Ask questions about your security posture in plain language \u2014 \u201cWhat are my most critical vulnerabilities?\u201d or \u201cWhich devices need attention?\u201d \u2014 and get answers backed by your real data. Reachable through the portal and WhatsApp.</p>
+                        <h5 class="d-flex align-items-center gap-2 mb-1" style="font-size:14px;"><span style="font-size:16px;">\ud83e\udd16</span> <strong>Officer MAGI \u2014 AI Security Officer</strong> <span class="badge bg-blue-lt text-blue" style="font-size:10px;">Business</span></h5>
+                        <p class="mb-0 text-muted" style="font-size:13px;">Ask questions about your security posture in plain language \u2014 \u201cWhat are my most critical vulnerabilities?\u201d or \u201cWhich devices need attention?\u201d \u2014 and get answers backed by your real data. MAGI gives a security-officer read without adding another hire.</p>
                     </div>
                 </div>
                 <div class="card mb-3">

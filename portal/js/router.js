@@ -224,9 +224,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
-        if (guardBusinessOnlyRoute(ctx, page)) {
-            return;
-        }
+        if (guardSiteAdminRoute(page)) return;
         page.redirect('/security/response');
     });
 
@@ -236,9 +234,7 @@ export function initRouter(renderApp) {
             page.redirect('/');
             return;
         }
-        if (guardBusinessOnlyRoute(ctx, page)) {
-            return;
-        }
+        if (guardSiteAdminRoute(page)) return;
         renderApp({ page: 'response-actions', ctx });
     });
 
@@ -413,19 +409,27 @@ export function initRouter(renderApp) {
 
     // Reports routes REMOVED - compliance-report is placeholder/unreachable
 
-    // Alerts / Action Items (protected)
+    // Alerts / Action Items (protected). This is the customer-facing action queue.
+    page('/alerts/security', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        renderApp({ page: 'alerts/security', ctx });
+    });
+
+    page('/alerts/compliance', (ctx) => {
+        if (!ctx.isAuthenticated) { page.redirect('/'); return; }
+        renderApp({ page: 'alerts/compliance', ctx });
+    });
+
     page('/alerts', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardBusinessOnlyRoute(ctx, page)) return;
         renderApp({ page: 'alerts', ctx });
     });
 
-    // Remediation (protected) — work queue: Vulnerability / Configuration / License Lifecycle.
-    // Slice 1: same renderer as /alerts; Slice 3 will git mv to its own page.
+    // Legacy Remediation route. Fleet Response Actions are site-admin/operator-only;
+    // end users land on the consolidated Alerts action queue instead.
     page('/remediation', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
-        if (guardBusinessOnlyRoute(ctx, page)) return;
-        renderApp({ page: 'remediation', ctx });
+        page.redirect('/alerts');
     });
 
     // Proof (protected) — daily report landing
@@ -455,15 +459,6 @@ export function initRouter(renderApp) {
     page('/changelog', (ctx) => {
         if (!ctx.isAuthenticated) { page.redirect('/'); return; }
         renderApp({ page: 'changelog', ctx });
-    });
-
-    // Inventory (protected)
-    page('/inventory', (ctx) => {
-        if (!ctx.isAuthenticated) {
-            page.redirect('/');
-            return;
-        }
-        renderApp({ page: 'inventory', ctx });
     });
 
     // Software Inventory (protected)

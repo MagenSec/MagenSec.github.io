@@ -11,8 +11,9 @@
  * Props:
  *   sealedAt   ISO datetime  — when last sealed
  *   summary    string        — one-line summary of what's inside
- *   href       string        — Open Report link (default #!/proof)
+ *   href       string        — Open Daily Report link (default #!/proof)
  *   onRefresh  function | null — Refresh action; null hides the button
+ *   onSummarize function | null — Ask MAGI for stakeholder summary
  *   state      'sealed'|'building'|'stale' — visual variant
  */
 
@@ -51,6 +52,7 @@ export function SealedDossierCard({
     summary = '',
     href = '#!/proof',
     onRefresh = null,
+    onSummarize = null,
     state = 'sealed'
 } = {}) {
     const tone = state || (sealedAt ? 'sealed' : 'building');
@@ -75,11 +77,16 @@ export function SealedDossierCard({
                 `}
             </div>
             <div class="v7-sealed-dossier-actions">
+                ${(typeof onSummarize === 'function') ? html`
+                    <button class="btn btn-sm v7-sealed-dossier-summary-btn" onClick=${onSummarize} title="Ask Officer MAGI to draft a stakeholder summary">
+                        <i class="ti ti-sparkles me-1" aria-hidden="true"></i>Draft summary
+                    </button>
+                ` : null}
                 <a href=${href} class="btn btn-sm v7-sealed-dossier-open">
-                    <i class="ti ti-mail-opened me-1"></i>Open Report
+                    <i class="ti ti-mail-opened me-1"></i>Open Daily Report
                 </a>
                 ${(typeof onRefresh === 'function') ? html`
-                    <button class="btn btn-sm v7-sealed-dossier-refresh" onClick=${onRefresh} title="Prepare latest report from current telemetry" aria-label="Prepare latest report">
+                    <button class="btn btn-sm v7-sealed-dossier-refresh" data-mutates-state="true" onClick=${onRefresh} title="Prepare latest report from current telemetry" aria-label="Prepare latest report">
                         <i class="ti ti-refresh"></i>
                     </button>
                 ` : null}

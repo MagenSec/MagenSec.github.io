@@ -38,7 +38,7 @@ export function FAQTab(html) {
         },
         {
             q: 'What is Officer MAGI?',
-            a: 'Officer MAGI is MagenSec\u2019s security analyst experience, available on the Business plan. It is grounded in your actual MagenSec data, static reviewed remediation guidance, and deterministic evidence views. Cloud model answers are available only when explicitly enabled for the deployment. It can also be reached via WhatsApp if configured in Settings.',
+            a: 'Officer MAGI is MagenSec\u2019s AI Security Officer, available on the Business plan. It is grounded in your actual MagenSec data, static reviewed remediation guidance, and deterministic evidence views. Live Cloud model answers are available when the deployment switch is enabled; evidence views and reviewed guidance remain available without model generation. MAGI can also be reached via WhatsApp if configured in Settings.',
         },
         {
             q: 'What compliance frameworks are supported?',

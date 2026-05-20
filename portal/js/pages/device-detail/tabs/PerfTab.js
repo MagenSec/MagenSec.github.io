@@ -56,7 +56,7 @@ export function renderPerfTab(component, embedded = false) {
 
     const points = perf.points || [];
     if (points.length === 0) {
-        return html`<div class="alert alert-info">No performance telemetry available for this window.</div>`;
+        return html`<div class="alert alert-info">No performance signals available for this window.</div>`;
     }
 
     const fmtRange = (val) => val ? new Date(val).toLocaleString() : 'N/A';

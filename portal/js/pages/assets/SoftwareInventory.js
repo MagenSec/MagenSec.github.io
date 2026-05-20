@@ -2673,7 +2673,7 @@ export class SoftwareInventoryPage extends Component {
                 <div class="container-xl">
                     <div class="row g-2 align-items-center">
                         <div class="col">
-                            <div class="text-uppercase text-muted fw-semibold small mb-1">Operations · Software</div>
+                            <div class="text-uppercase text-muted fw-semibold small mb-1">Assets · Software</div>
                             <div class="d-flex align-items-center gap-2">
                                 <h2 class="page-title mb-0">Software</h2>
                                 ${sourceLabel ? html`

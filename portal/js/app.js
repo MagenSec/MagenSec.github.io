@@ -19,25 +19,23 @@ import { DeviceDetailPage } from './pages/device-detail/DeviceDetail.js';
 import { ResponseActionsPage } from './pages/response-actions/ResponseActions.js';
 import { AnalystPage } from './pages/analyst/Analyst.js';
 import AIAnalystChatPage from './pages/ai/aiAnalystChat.js';
-import { PosturePage } from './pages/posture/Posture.js';
-import { PatchPosturePage } from './pages/posture/PatchPosture.js';
-import { AIPosturePage } from './pages/posture-ai/PostureAI.js';
-import { AssetsPage } from './pages/inventory/Assets.js';
-import { InventoryHubPage } from './pages/inventory/InventoryHub.js';
-import { SoftwareInventoryPage } from './pages/inventory/SoftwareInventory.js';
-import { InventoryChangelogPage } from './pages/inventory/InventoryChangelog.js';
+import { PosturePage } from './pages/protect/Posture.js';
+import { PatchPosturePage } from './pages/protect/PatchPosture.js';
+import { AIPosturePage } from './pages/prove/MissionBriefs.js';
+import { SoftwareInventoryPage } from './pages/assets/SoftwareInventory.js';
+import { InventoryChangelogPage } from './pages/assets/InventoryChangelog.js';
 import { Vulnerabilities } from './pages/vulnerabilities/index.js';
-import { AlertsPage } from './pages/alerts/Alerts.js';
+import { AlertsPage, SecurityAlertsPage, ComplianceAlertsPage } from './pages/protect/Alerts.js';
 import { CVEDetails } from './pages/cves/index.js';
 import { ReviewPage } from './pages/placeholders.js';
 import { AppVulnerabilityReviewPage } from './pages/siteAdmin/review/AppVulnerabilityReviewPage.js';
 import { AccountPage } from './pages/account/Account.js';
-import { CompliancePage } from './pages/compliance/Compliance.js';
-import { AuditorPage } from './pages/auditor/Auditor.js';
-import { ReportsPage } from './pages/reports/Reports.js';
+import { CompliancePage } from './pages/comply/Compliance.js';
+import { AuditorPage } from './pages/prove/EvidenceHub.js';
+import { ReportsPage } from './pages/prove/ReportsLibrary.js';
 import { ChatDrawer } from './components/ChatDrawer.js';
 import { SettingsPage } from './pages/settings/Settings.js';
-import { AuditPage } from './pages/audit/Audit.js';
+import { AuditPage } from './pages/prove/CommandLog.js';
 import { BusinessPage } from './pages/siteAdmin/business/BusinessPage.js';
 import { ManagePage } from './pages/siteAdmin/manage/ManagePage.js';
 import { ActivityPage } from './pages/siteAdmin/activity/ActivityPage.js';
@@ -52,9 +50,9 @@ import { HygieneCoachPage }       from './pages/add-ons/HygieneCoach.js';
 import { InsuranceReadinessPage } from './pages/add-ons/InsuranceReadiness.js';
 import { CompliancePlusPage }     from './pages/add-ons/CompliancePlus.js';
 import { SupplyChainPage }        from './pages/add-ons/SupplyChain.js';
-import { SecurityOverview }       from './pages/security/SecurityOverview.js';
+import { SecurityOverview }       from './pages/protect/SecurityOverview.js';
 import { Upgrade }                from './pages/upgrade/Upgrade.js';
-import { AttackChainPage }        from './pages/attack-chain/AttackChain.js';
+import { AttackChainPage }        from './pages/protect/AttackChain.js';
 import { AiResponsesAdminPage }   from './pages/siteAdmin/ai-responses/AiResponsesAdmin.js';
 import { scoreGuidancePage }      from './pages/help/ScoreGuidance.js';
 
@@ -214,28 +212,24 @@ function applyPersonaNavigationLabels(orgType) {
     const labelsByOrgType = {
         Personal: {
             'nav-home-item':        'Trust',
-            'nav-operations-item':  'Operations',
-            'nav-security-item':    'Security',
+            'nav-assets-item':      'Assets',
+            'nav-protect-item':     'Protect',
             'nav-magi-item':        'MAGI',
         },
         Education: {
             'nav-home-item':        'Trust',
-            'nav-operations-item':  'Operations',
-            'nav-security-item':    'Security',
-            'nav-compliance-item':  'Readiness',
-            'nav-audit-item':       'Evidence',
+            'nav-assets-item':      'Assets',
+            'nav-protect-item':     'Protect',
+            'nav-comply-item':      'Comply',
             'nav-magi-item':        'MAGI',
         },
         Business: {
             'nav-home-item':        'Trust',
-            'nav-operations-item':  'Operations',
-            'nav-security-item':    'Security',
-            'nav-compliance-item':  'Compliance',
-            'nav-remediation-item': 'Remediation',
-            'nav-proof-item':       'Proof',
-            'nav-audit-item':       'Audit',
-            'nav-hygiene-item':     'Hygiene',
-            'nav-insurance-item':   'Insurance',
+            'nav-assets-item':      'Assets',
+            'nav-protect-item':     'Protect',
+            'nav-comply-item':      'Comply',
+            'nav-prove-item':       'Prove',
+            'nav-improve-item':     'Improve',
             'nav-magi-item':        'Officer MAGI',
         },
     };
@@ -258,27 +252,30 @@ function setFeatureLockBadge(target, show, label = 'Locked') {
     if (show && target.classList.contains('dropdown-item')) {
         target.classList.add('d-flex', 'align-items-center');
     }
-    if (label === 'Business') {
-        badge.innerHTML = '<i class="ti ti-briefcase" aria-hidden="true"></i><span class="visually-hidden">Business</span>';
-        badge.setAttribute('title', 'Business feature');
-        badge.setAttribute('aria-label', 'Business feature');
-    } else {
-        badge.textContent = label;
-        badge.removeAttribute('aria-label');
-        badge.removeAttribute('title');
-    }
+    badge.innerHTML = `<i class="ti ti-lock" aria-hidden="true"></i><span class="visually-hidden">${label}</span>`;
+    badge.setAttribute('title', `${label} locked`);
+    badge.setAttribute('aria-label', `${label} locked`);
     badge.style.display = show ? '' : 'none';
 }
 
-function setFeatureLocked(target, locked, message, label = 'Locked') {
+function setFeatureLocked(target, locked, message, label = 'Locked', options = {}) {
     if (!target) return;
+    const allowClick = options.allowClick === true;
     if (!target.dataset.featureOriginalTitle && target.hasAttribute('title')) {
         target.dataset.featureOriginalTitle = target.getAttribute('title') || '';
     }
     target.classList.toggle('feature-locked', locked);
     if (locked) {
-        target.setAttribute('data-feature-locked', 'true');
-        target.setAttribute('aria-disabled', 'true');
+        target.setAttribute('data-feature-locked', allowClick ? 'site-admin-bypass' : 'true');
+        if (allowClick) {
+            target.removeAttribute('aria-disabled');
+            target.removeAttribute('tabindex');
+            target.classList.remove('disabled');
+        } else {
+            target.setAttribute('aria-disabled', 'true');
+            target.setAttribute('tabindex', '-1');
+            target.classList.add('disabled');
+        }
         target.setAttribute('title', message);
         setFeatureLockBadge(target, true, label);
     } else {
@@ -308,12 +305,10 @@ function applyOrgUiRestrictions() {
     const isPersonal = orgType === 'Personal';
     const isEducation = orgType === 'Education';
     const isBusiness = orgType === 'Business';
-    const isSiteAdminUser = auth.isAuthenticated() && auth.getUser()?.userType === 'SiteAdmin';
-    // D-1 tier-aware nav: Education and Personal both hide Business-only journey stops
-    // (Remediation, Proof, Audit, Hygiene, Insurance, Officer MAGI). Education keeps
-    // Compliance visible (it's their second journey stop); Personal hides Compliance too,
-    // leaving only Security as the single visible stop. Business keeps the full 9-stop arc.
-    const hideBusinessMenus = (isPersonal || isEducation) && !isSiteAdminUser;
+    const isSiteAdminUser = auth.isAuthenticated() && (auth.getUser()?.userType === 'SiteAdmin' || orgContext.isSiteAdmin?.());
+    // Keep gated product areas visible as locked menu items. Site Admin can still
+    // click through to review gated work surfaces; regular users see a lock and toast.
+    const hideBusinessMenus = false;
     body.classList.toggle('org-personal', isPersonal);
     body.classList.toggle('org-education', isEducation);
     body.classList.toggle('org-business', isBusiness);
@@ -336,20 +331,32 @@ function applyOrgUiRestrictions() {
         }
         item.style.display = '';
         const locked = !isSiteAdminUser && !isBusiness;
+        const businessTierMissing = !isBusiness;
         item.classList.toggle('feature-locked-container', locked);
-        if (locked) {
+        if (businessTierMissing) {
             item.setAttribute('title', tooltip);
             if (navTrigger) {
                 navTrigger.setAttribute('title', tooltip);
                 setFeatureLockBadge(navTrigger, true, 'Business');
+                navTrigger.classList.toggle('feature-locked', true);
+                navTrigger.setAttribute('data-feature-locked', isSiteAdminUser ? 'site-admin-bypass' : 'true');
+                if (!isSiteAdminUser) {
+                    navTrigger.setAttribute('aria-disabled', 'true');
+                    navTrigger.classList.add('disabled');
+                } else {
+                    navTrigger.removeAttribute('aria-disabled');
+                    navTrigger.classList.remove('disabled');
+                }
             }
             if (directTrigger) {
-                setFeatureLocked(directTrigger, true, tooltip, 'Business');
+                setFeatureLocked(directTrigger, true, tooltip, 'Business', { allowClick: isSiteAdminUser });
             }
         } else {
             item.removeAttribute('title');
             if (navTrigger) {
                 navTrigger.removeAttribute('title');
+                navTrigger.classList.remove('feature-locked');
+                navTrigger.removeAttribute('data-feature-locked');
                 navTrigger.classList.remove('disabled');
                 navTrigger.removeAttribute('aria-disabled');
                 navTrigger.removeAttribute('tabindex');
@@ -378,26 +385,24 @@ function applyOrgUiRestrictions() {
             rewindNavItem.style.display = 'none';
             if (rewindTrigger) setFeatureLocked(rewindTrigger, false, 'Time Warp is available with a Business Rewind entitlement', 'Business');
         } else {
-        const rewindLocked = !isSiteAdminUser && !orgContext.hasRewind();
+        const hasRewindForOrg = isBusiness && (orgContext.hasAddOnForOrg?.('Rewind') ?? orgContext.hasRewind());
+        const rewindLocked = !hasRewindForOrg;
         rewindNavItem.style.display = '';
         if (rewindTrigger) {
-            setFeatureLocked(rewindTrigger, rewindLocked, 'Time Warp is available with a Business Rewind entitlement', 'Business');
+            setFeatureLocked(rewindTrigger, rewindLocked, 'Time Warp is available with a Business Rewind entitlement', 'Business', { allowClick: isSiteAdminUser });
         }
         }
     }
 
-    // Journey arc: business-license-only items (Remediation through Insurance) are
-    // hidden for personal orgs via .business-license-only CSS + applyOrgUiRestrictions.
+    // Primary IA: keep non-applicable buyer areas out of the row for Personal/Education.
     // This map only needs entries for items NOT carrying business-license-only in HTML.
     const personalNavHideMap = {
         'nav-home-item':          false,
-        'nav-operations-item':    false,
-        'nav-compliance-item':    isPersonal && !isSiteAdminUser,
-        'nav-remediation-item':   hideBusinessMenus,
-        'nav-proof-item':         hideBusinessMenus,
-        'nav-audit-item':         hideBusinessMenus,
-        'nav-hygiene-item':       hideBusinessMenus,
-        'nav-insurance-item':     hideBusinessMenus,
+        'nav-assets-item':        false,
+        'nav-protect-item':       false,
+        'nav-comply-item':        false,
+        'nav-prove-item':         hideBusinessMenus,
+        'nav-improve-item':       hideBusinessMenus,
         'nav-magi-item':          hideBusinessMenus,
     };
     if (auth.isAuthenticated()) {
@@ -426,11 +431,11 @@ function applyOrgUiRestrictions() {
                 setFeatureLocked(hiddenTarget, false, 'Feature available in Business License only', 'Business');
                 return;
             }
-            const hasLicenseType = isSiteAdminUser || !isBusinessOnlyNav || isBusiness;
+            const hasLicenseType = !isBusinessOnlyNav || isBusiness;
             const lockTarget = el.classList.contains('nav-item') ? (el.querySelector(':scope > .nav-link') || el) : el;
-            const hasIt = isSiteAdminUser || (hasLicenseType && (addOnKey.toLowerCase() === 'magi'
-                ? (orgContext.hasMagi?.() ?? false)
-                : (orgContext.hasAddOn?.(addOnKey) ?? false)));
+            const hasIt = hasLicenseType && (addOnKey.toLowerCase() === 'magi'
+                ? (isBusiness && (orgContext.hasAddOnForOrg?.('MAGI') ?? orgContext.hasMagi?.() ?? false))
+                : (orgContext.hasAddOnForOrg?.(addOnKey) ?? orgContext.hasAddOn?.(addOnKey) ?? false));
             // The static markup ships with a `ti-lock` glyph on every gated item; toggle its
             // visibility based on entitlement so an Ultimate/Site-Admin user does not see padlocks.
             const lockIcon = lockTarget.querySelector('.ti-lock') || el.querySelector('.ti-lock');
@@ -444,7 +449,7 @@ function applyOrgUiRestrictions() {
                 const lockMessage = hasLicenseType
                     ? 'Not included in your current plan'
                     : 'Feature available in Business License only';
-                setFeatureLocked(lockTarget, true, lockMessage, lockLabel);
+                setFeatureLocked(lockTarget, true, lockMessage, lockLabel, { allowClick: isSiteAdminUser });
                 if (lockIcon) lockIcon.style.display = '';
             }
         });
@@ -456,8 +461,8 @@ function applyOrgUiRestrictions() {
                 setFeatureLocked(el, false, 'Feature available in Business License only', 'Business');
                 return;
             }
-            const locked = !isSiteAdminUser && !isBusiness;
-            setFeatureLocked(el, locked, 'Feature available in Business License only', 'Business');
+            const locked = !isBusiness;
+            setFeatureLocked(el, locked, 'Feature available in Business License only', 'Business', { allowClick: isSiteAdminUser });
         });
 
         // Business-nav-only items: show for every role, lock when the selected org
@@ -472,13 +477,13 @@ function applyOrgUiRestrictions() {
                 }
                 return;
             }
-            const locked = !isSiteAdminUser && !isBusiness;
+            const locked = !isBusiness;
             el.style.display = '';
             if (el.hasAttribute('data-addon')) {
                 return;
             }
             if (el.matches('a,button,[role="button"]')) {
-                setFeatureLocked(el, locked, 'Feature available in Business License only', 'Business');
+                setFeatureLocked(el, locked, 'Feature available in Business License only', 'Business', { allowClick: isSiteAdminUser });
             } else {
                 el.classList.toggle('feature-locked-divider', locked);
             }
@@ -573,22 +578,35 @@ function renderCurrentPage() {
             return html`<${CompliancePlusPage} />`;
         case 'add-on/supply-chain-intel':
             return html`<${SupplyChainPage} />`;
-        case 'inventory':
-            return html`<${InventoryHubPage} />`;
         case 'apps':
             return html`<${SoftwareInventoryPage} />`;
         case 'changelog':
             return html`<${InventoryChangelogPage} />`;
         case 'remediation':
         case 'alerts':
-            if (orgContext.getCurrentOrg()?.type === 'Personal' && !orgContext.isSiteAdmin()) {
-                return html`<${SecurityOverview} />`;
-            }
             return html`
                 <div>
                     <${AlertsPage} />
                     ${orgContext.getCurrentOrg()?.type !== 'Personal'
                         ? html`<${ChatDrawer} contextHint="security alerts, open findings, compliance gaps" persona="threat_hunter" />`
+                        : null}
+                </div>
+            `;
+        case 'alerts/security':
+            return html`
+                <div>
+                    <${SecurityAlertsPage} />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="security alerts, open findings, CVEs, endpoint health, and patch exposure" persona="threat_hunter" />`
+                        : null}
+                </div>
+            `;
+        case 'alerts/compliance':
+            return html`
+                <div>
+                    <${ComplianceAlertsPage} />
+                    ${orgContext.getCurrentOrg()?.type !== 'Personal'
+                        ? html`<${ChatDrawer} contextHint="compliance alerts, control gaps, audit evidence, policy drift" persona="threat_hunter" />`
                         : null}
                 </div>
             `;

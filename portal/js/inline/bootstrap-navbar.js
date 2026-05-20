@@ -10,6 +10,7 @@ if (typeof bootstrap !== 'undefined') {
     document.addEventListener('click', (e) => {
         const toggle = e.target.closest('[data-bs-toggle="dropdown"]');
         if (!toggle) return;
+        if (toggle.getAttribute('data-feature-locked') === 'true') return;
 
         // If Bootstrap is available, always drive via the Dropdown API to avoid
         // timing issues where data-api isn't bound for SPA-rendered nodes.
@@ -104,9 +105,19 @@ function getCurrentRoutePath() {
     return routeWithoutQuery.startsWith('/') ? routeWithoutQuery : `/${routeWithoutQuery}`;
 }
 
+function getCurrentRouteQueryParams() {
+    const hash = window.location.hash || '';
+    if (!hash.startsWith('#!/')) {
+        return new URLSearchParams();
+    }
+    const routeWithQuery = hash.slice(2);
+    const query = routeWithQuery.includes('?') ? routeWithQuery.slice(routeWithQuery.indexOf('?') + 1) : '';
+    return new URLSearchParams(query);
+}
+
 function getNavScopes() {
     // Row 1 (top-right utility cluster) and Row 2 (#navbar-menu collapse) both
-    // host nav items that need active-state highlighting (Trust/Operations on Row 2,
+    // host nav items that need active-state highlighting (Trust/Assets on Row 2,
     // Tools/Settings/MAGI on Row 1). Treat them as a single nav surface.
     const scopes = [];
     const topRight = document.querySelector('.navbar-top-right');
@@ -121,6 +132,9 @@ function clearNavbarActiveState() {
         scope.querySelectorAll('.nav-link.active, .dropdown-item.active, .nav-item.active').forEach((el) => {
             el.classList.remove('active');
         });
+        scope.querySelectorAll('[aria-current="page"]').forEach((el) => {
+            el.removeAttribute('aria-current');
+        });
     });
 }
 
@@ -128,16 +142,15 @@ function markActive(anchor) {
     if (!anchor) return;
 
     anchor.classList.add('active');
+    anchor.setAttribute('aria-current', 'page');
     anchor.closest('.nav-item')?.classList.add('active');
 
     const dropdownMenu = anchor.closest('.dropdown-menu');
     if (!dropdownMenu) return;
 
     // The toggle is the parent .nav-item's first .nav-link with
-    // data-bs-toggle="dropdown" (covers both Tabler's `dropdown-toggle`-classed
-    // toggles AND our journey-arc toggles which deliberately omit that class
-    // so they don't render Bootstrap's caret — the chevron clip-path is the
-    // indicator). Walking from the dropdown-menu's previousElementSibling is
+    // data-bs-toggle="dropdown" (covers Tabler's `dropdown-toggle`-classed
+    // toggles and any plain data-toggle links). Walking from the dropdown-menu's previousElementSibling is
     // unreliable because the menu can be wrapped or rendered separately, so
     // resolve via the parent .nav-item.dropdown.
     const parentDropdown = dropdownMenu.closest('.nav-item.dropdown');
@@ -157,6 +170,9 @@ function setNavbarActiveState() {
     if (scopes.length === 0) return;
 
     const routePath = getCurrentRoutePath();
+    const routeQuery = getCurrentRouteQueryParams();
+    const alertDomain = (routeQuery.get('domain') || '').toLowerCase();
+    const alertLens = (routeQuery.get('lens') || '').toLowerCase();
     clearNavbarActiveState();
 
     let targetHref = null;
@@ -165,19 +181,20 @@ function setNavbarActiveState() {
     if (routePath.startsWith('/analyst')) {
         targetHref = '#!/analyst';
 
-    // ── Journey Arc ──────────────────────────────────────────────────────────
-
-    // Security dropdown owns Overview + Attack Chain + Risks + Security Posture.
+    // Protect owns Security Overview, Security Alerts, vulnerabilities, patch posture,
+    // posture, and attack-chain evidence.
     // Route map points at the specific child anchor so markActive() walks up to
     // light the Security parent.
     } else if (routePath.startsWith('/attack-chain')) {
         targetHref = '#!/attack-chain';
     } else if (routePath.startsWith('/vulnerabilities')) {
         targetHref = '#!/vulnerabilities';
-    } else if (routePath.startsWith('/posture') || routePath.startsWith('/posture-ai')) {
+    } else if (routePath.startsWith('/patch-posture')) {
+        targetHref = '#!/patch-posture';
+    } else if (routePath.startsWith('/posture')) {
         targetHref = '#!/posture';
     } else if (
-        routePath.startsWith('/security') ||
+        (routePath.startsWith('/security') && !routePath.startsWith('/security/response')) ||
         routePath.startsWith('/cves') ||
         routePath.startsWith('/unified-dashboard')
     ) {
@@ -190,25 +207,34 @@ function setNavbarActiveState() {
         targetHref = '#!/compliance';
 
     } else if (routePath.startsWith('/alerts') || routePath.startsWith('/remediation')) {
-        targetHref = '#!/remediation';
+        targetHref = routePath.startsWith('/alerts/compliance') || alertLens === 'compliance' || alertDomain === 'compliance'
+            ? '#!/alerts/compliance'
+            : '#!/alerts/security';
 
     } else if (
         routePath.startsWith('/proof') ||
-        routePath.startsWith('/patch-posture')
-    ) {
-        targetHref = '#!/proof';
-
-    } else if (
         routePath.startsWith('/audit') ||
         routePath.startsWith('/auditor') ||
-        routePath.startsWith('/reports')
+        routePath.startsWith('/reports') ||
+        routePath.startsWith('/mission-brief') ||
+        routePath.startsWith('/posture-ai')
     ) {
-        targetHref = '#!/audit';
+        if (routePath.startsWith('/audit-log')) {
+            targetHref = '#!/audit-log';
+        } else if (routePath.startsWith('/audit') || routePath.startsWith('/auditor')) {
+            targetHref = '#!/audit';
+        } else if (routePath.startsWith('/reports')) {
+            targetHref = (routeQuery.get('scope') || '').toLowerCase() === 'compliance' ? '#!/reports?scope=compliance' : '#!/reports';
+        } else if (routePath.startsWith('/mission-brief') || routePath.startsWith('/posture-ai')) {
+            targetHref = '#!/mission-brief';
+        } else {
+            targetHref = '#!/proof';
+        }
 
     } else if (routePath.startsWith('/add-ons/hygiene-coach') || routePath.startsWith('/hygiene')) {
         targetHref = '#!/hygiene';
 
-    // Insurance dropdown owns Readiness + Supply Chain Intel.
+    // Improve owns hygiene, insurance readiness, peer benchmark, and supply-chain intelligence.
     } else if (routePath.startsWith('/add-ons/supply-chain-intel')) {
         targetHref = '#!/add-ons/supply-chain-intel';
     } else if (
@@ -219,16 +245,22 @@ function setNavbarActiveState() {
     ) {
         targetHref = '#!/insurance';
 
-    // Operations dropdown — Fleet / Software / Change Log / Response Actions all
-    // live under the same Operations trigger; markActive() walks up to highlight the trigger.
+    // Assets dropdown owns Fleet / Software / Change Log plus Site Admin Response Actions.
     } else if (
         routePath.startsWith('/devices') ||
-        routePath.startsWith('/inventory') ||
         routePath.startsWith('/apps') ||
         routePath.startsWith('/changelog') ||
-        routePath.startsWith('/response-actions')
+        routePath.startsWith('/security/response')
     ) {
-        targetHref = '#!/devices';
+        if (routePath.startsWith('/security/response')) {
+            targetHref = '#!/security/response';
+        } else if (routePath.startsWith('/apps')) {
+            targetHref = '#!/apps';
+        } else if (routePath.startsWith('/changelog')) {
+            targetHref = '#!/changelog';
+        } else {
+            targetHref = '#!/devices';
+        }
 
     // Settings (Row 1 plain link).
     } else if (
@@ -243,7 +275,6 @@ function setNavbarActiveState() {
         routePath === '/' ||
         routePath.startsWith('/dashboard') ||
         routePath.startsWith('/hub') ||
-        routePath.startsWith('/mission-brief') ||
         routePath.startsWith('/getting-started')
     ) {
         targetHref = '#!/dashboard';
@@ -258,10 +289,11 @@ function setNavbarActiveState() {
 
     const PREFERRED_DROPDOWN_IDS = new Set([
         'nav-home-item',
-        'nav-operations-item',
-        'nav-security-item',
-        'nav-compliance-item',
-        'nav-insurance-item',
+        'nav-assets-item',
+        'nav-protect-item',
+        'nav-comply-item',
+        'nav-prove-item',
+        'nav-improve-item',
         'nav-magi-item',
     ]);
 
@@ -271,15 +303,10 @@ function setNavbarActiveState() {
     });
     // Sort candidates with two priorities, in order:
     //  1. Anchors whose parent `.nav-item.dropdown` is currently *visible* win.
-    //     This makes the mobile journey dropdown win at <1200px (where the
-    //     chevron arc is `display:none`) and the chevron arc win at ≥1200px
-    //     (where the mobile journey dropdown is `display:none`). Without this
-    //     priority, at <1200px we'd pick a chevron-arc child and walk up to a
-    //     hidden `nav-insurance-item` — leaving the visible mobile journey
-    //     trigger with no active indicator.
-    //  2. Site Admin dropdown historically duplicated journey-dropdown entries.
-    //     Prefer the canonical journey/Trust/Operations dropdowns so
-    //     Security/Compliance/Insurance/Trust/Operations light up instead of Site Admin
+    //     Hidden entitlement-gated parents should not win over visible parents.
+    //  2. Site Admin dropdown historically duplicated customer-menu entries.
+    //     Prefer the canonical Trust/Assets/Protect/Comply/Prove/Improve row so
+    //     customer areas light up instead of Site Admin
     //     when both contain the same href.
     candidates.sort((a, b) => {
         const aParent = a.closest('.nav-item.dropdown');
