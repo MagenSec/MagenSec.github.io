@@ -36,6 +36,7 @@ const SECURITY_ALERT_DOMAINS = new Set([
     'DeviceSync',
     'PatchManagement',
     'Software Security',
+    'Threats',
     'Vulnerability',
 ]);
 const LENS_COPY = Object.freeze({
@@ -205,6 +206,10 @@ function isSyncControl(alert) {
 
 function getAlertTitle(alert) {
     const controlId = (alert?.controlId || '').toUpperCase();
+    if (controlId === 'THREAT-DETECTION') {
+        const [topThreat] = getThreatDetections(alert);
+        return topThreat?.title ? `Active threat: ${topThreat.title}` : 'Active Threat Detection';
+    }
     if (controlId === 'SYNC-CONFIG') return 'Configuration Out-of-Sync';
     if (controlId === 'VERSION-CLIENT') return 'Client App Update Required';
     if (controlId === 'KB-MISSING') {
@@ -220,6 +225,7 @@ function getRiskTag(alert) {
     const controlId = (alert?.controlId || '').toUpperCase();
     const actual = (alert?.actual || '').toUpperCase();
 
+    if (controlId === 'THREAT-DETECTION') return 'Active Malware';
     if (controlId === 'VERSION-CLIENT') return 'Version Risk';
     if (controlId === 'KB-MISSING') return 'Patch Risk';
     if (isSyncControl(alert)) return 'Sync Risk';
@@ -236,6 +242,98 @@ function shouldShowStateDetails(alert) {
 
 function getSyncAlertGuidance() {
     return 'Fingerprint drift detected. Ask the user to update the client, confirm the device is online, and verify internet connectivity so the latest inventory and compliance data can sync.';
+}
+
+function isThreatDetectionAlert(alert) {
+    return (alert?.controlId || '').toUpperCase() === 'THREAT-DETECTION'
+        || (alert?.alertType || '').toUpperCase() === 'THREAT'
+        || (alert?.domain || '').toLowerCase() === 'threats';
+}
+
+function readAlertDetailJson(alert) {
+    const detail = alert?.detailJson;
+    if (!detail) return null;
+    if (typeof detail === 'object') return detail;
+    if (typeof detail !== 'string') return null;
+    try { return JSON.parse(detail); }
+    catch { return null; }
+}
+
+function getThreatDetections(alert) {
+    const detail = readAlertDetailJson(alert);
+    const detections = detail?.detections || detail?.Detections || [];
+    return Array.isArray(detections) ? detections : [];
+}
+
+function threatField(detection, camel, pascal) {
+    return detection?.[camel] ?? detection?.[pascal] ?? '';
+}
+
+function fmtThreatDate(value) {
+    if (!value) return '';
+    try {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return '';
+    }
+}
+
+function renderThreatEvidence(alert) {
+    if (!isThreatDetectionAlert(alert)) return null;
+    const detections = getThreatDetections(alert);
+    if (detections.length === 0) return null;
+    const shown = detections.slice(0, 2);
+    const more = detections.length - shown.length;
+
+    return html`
+        <div class="alerts-threat-evidence mt-2">
+            ${shown.map(detection => {
+                const title = threatField(detection, 'title', 'Title') || 'Unknown threat';
+                const severity = threatField(detection, 'severity', 'Severity');
+                const resource = threatField(detection, 'resource', 'Resource');
+                const process = threatField(detection, 'process', 'Process');
+                const detectedAt = fmtThreatDate(threatField(detection, 'detectedAt', 'DetectedAt'));
+                const source = threatField(detection, 'source', 'Source');
+                const origin = threatField(detection, 'origin', 'Origin');
+                const threatId = threatField(detection, 'threatId', 'ThreatId');
+
+                return html`
+                    <div class="alerts-threat-evidence-item">
+                        <div class="d-flex flex-wrap gap-1 align-items-center">
+                            <span class="badge bg-danger text-white">${severity || 'Threat'}</span>
+                            <span class="fw-semibold">${title}</span>
+                            ${threatId ? html`<span class="text-muted small">ID ${threatId}</span>` : ''}
+                        </div>
+                        ${resource ? html`<div class="small text-muted text-break"><strong>File:</strong> ${resource}</div>` : ''}
+                        ${process ? html`<div class="small text-muted text-break"><strong>Process:</strong> ${process}</div>` : ''}
+                        ${(source || origin || detectedAt) ? html`
+                            <div class="small text-muted">
+                                ${source || 'Defender'}${origin ? ` - ${origin}` : ''}${detectedAt ? ` - ${detectedAt}` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            })}
+            ${more > 0 ? html`<div class="small text-muted mt-1">+${more} more detection${more === 1 ? '' : 's'}</div>` : ''}
+        </div>
+    `;
+}
+
+function buildThreatEvidencePrompt(alert) {
+    const detections = getThreatDetections(alert);
+    if (!isThreatDetectionAlert(alert) || detections.length === 0) return '';
+    const lines = detections.slice(0, 5).map((detection, index) => {
+        const title = threatField(detection, 'title', 'Title') || 'Unknown threat';
+        const severity = threatField(detection, 'severity', 'Severity') || 'Unknown severity';
+        const resource = threatField(detection, 'resource', 'Resource') || 'Unknown file/resource';
+        const process = threatField(detection, 'process', 'Process') || 'Unknown process';
+        const source = threatField(detection, 'source', 'Source') || 'Defender';
+        const detectedAt = threatField(detection, 'detectedAt', 'DetectedAt') || 'unknown time';
+        return `${index + 1}. ${title} (${severity}) detected by ${source} at ${detectedAt}; resource: ${resource}; process: ${process}`;
+    });
+    return `\n**Defender evidence:**\n${lines.join('\n')}\n`;
 }
 
 function formatSuspiciousCount(count) {
@@ -681,6 +779,7 @@ export class AlertsPage extends Component {
             (riskTag ? `**Risk category:** ${riskTag}\n` : '') +
             (shouldShowStateDetails(alert) && alert.expected ? `**Expected state:** ${alert.expected}\n` : '') +
             (shouldShowStateDetails(alert) && alert.actual ? `**Current state:**  ${fmtActual(alert.actual)}\n` : '') +
+            buildThreatEvidencePrompt(alert) +
             (!shouldShowStateDetails(alert) ? `**Observed issue:** Cloud and device configuration are out-of-sync. Recommend updating the client and checking device/network connectivity before deeper troubleshooting.\n` : '') +
             `\nExplain likely causes, business impact if unresolved, and provide step-by-step remediation with a quick verification checklist.`;
 
@@ -1607,6 +1706,7 @@ export class AlertsPage extends Component {
                                                     ${getSyncAlertGuidance()}
                                                 </div>
                                             ` : ''}
+                                            ${renderThreatEvidence(alert)}
                                             ${isSuppressed && alert.suppressReason ? html`
                                                 <div class="text-muted small mt-1">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-xs me-1" width="12" height="12" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M12 8l0 4" /><path d="M12 16l.01 0" /></svg>

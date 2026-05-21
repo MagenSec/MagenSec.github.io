@@ -1383,6 +1383,49 @@ ${title} indicates the device is not aligned with the expected client or platfor
 - Alert clears`;
 }
 
+function readDetailJson(alert) {
+    const detail = alert?.detailJson;
+    if (!detail) return null;
+    if (typeof detail === 'object') return detail;
+    if (typeof detail !== 'string') return null;
+    try { return JSON.parse(detail); }
+    catch { return null; }
+}
+
+function buildThreatDetectionTemplate(alert) {
+    const detail = readDetailJson(alert);
+    const detections = Array.isArray(detail?.detections) ? detail.detections : [];
+    const primary = detections[0] || {};
+    const threatName = primary.title || primary.Title || 'a threat';
+    const resource = primary.resource || primary.Resource || 'the affected file or resource';
+    const process = primary.process || primary.Process || 'the reported process';
+    const source = primary.source || primary.Source || 'Microsoft Defender';
+
+    return `## Why This Matters
+Microsoft Defender reported ${threatName}. Treat this as active endpoint security evidence, not a generic compliance gap: the device has observed malware or potentially unwanted software and needs confirmation that remediation completed.
+
+## Reported Evidence
+- Detection source: ${source}
+- Affected resource: ${resource}
+- Related process: ${process}
+- Detection count: ${alert?.actual || detail?.detectionCount || detections.length || 'Unknown'}
+
+## Step-by-Step Remediation
+1. Open the affected device and confirm Microsoft Defender protection is enabled
+2. Review Defender protection history for the reported threat and action result
+3. Quarantine or remove the threat if Defender did not already complete the action
+4. Investigate the related process and download/source path for repeat exposure
+5. Run a quick scan, then a full scan if the same threat returns
+6. Wait for fresh telemetry and confirm the alert clears
+
+## Quick Verification Checklist
+- Threat no longer appears in Defender protection history as active
+- The affected file/resource is removed or quarantined
+- Defender signatures are current
+- Follow-up scan is clean
+- MagenSec alert clears after the next telemetry/detection cycle`;
+}
+
 export function getAlertRemediationTemplate(alert) {
     const controlId = normalizeControlId(alert);
 
@@ -1400,6 +1443,10 @@ export function getAlertRemediationTemplate(alert) {
 
     if (controlId.startsWith('VULN-')) {
         return buildVulnerabilityTemplate(alert);
+    }
+
+    if (controlId === 'THREAT-DETECTION') {
+        return buildThreatDetectionTemplate(alert);
     }
 
     if (controlId.startsWith('UNSTABLE|')) {

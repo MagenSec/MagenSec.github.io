@@ -4165,6 +4165,20 @@ pre.json-metadata {
   vertical-align: top;
 }
 
+.alerts-threat-evidence {
+  max-width: min(42rem, 70vw);
+  white-space: normal;
+}
+
+.alerts-threat-evidence-item {
+  border-left: 3px solid var(--tblr-red, #d63939);
+  background: rgba(214, 57, 57, 0.06);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+}
+
 [data-bs-theme="dark"] .alerts-priority-panel,
 [data-bs-theme="dark"] .alerts-magi-read-panel {
   border-color: rgba(148, 163, 184, 0.2);
@@ -4185,6 +4199,11 @@ pre.json-metadata {
 [data-bs-theme="dark"] .alerts-filter-select:disabled {
   background-color: rgba(15, 23, 42, 0.45);
   color: var(--tblr-muted);
+}
+
+[data-bs-theme="dark"] .alerts-threat-evidence-item {
+  background: rgba(214, 57, 57, 0.16);
+  border-left-color: #ff6b6b;
 }
 
 @media (max-width: 1199.98px) {
