@@ -12,9 +12,9 @@ export function SecurityTab(html) {
                             <span style="font-size:20px;">\ud83d\udd10</span> Data Protection
                         </h4>
                         <ul class="mb-0">
-                            <li><strong>Encryption in transit</strong> \u2014 all communication between your devices and MagenSec uses TLS 1.3 encryption.</li>
-                            <li><strong>Encryption at rest</strong> \u2014 your data is stored using AES-256 encryption with regularly rotated keys.</li>
-                            <li><strong>Minimal data collection</strong> \u2014 MagenSec collects only security metadata needed for posture assessment. This includes OS version, installed applications, security configurations, and hardware identifiers.</li>
+                            <li><strong>Encryption in transit</strong> \u2014 communication between your devices, browser, and MagenSec is encrypted.</li>
+                            <li><strong>Encryption at rest</strong> \u2014 customer security data is encrypted when stored.</li>
+                            <li><strong>Minimal data collection</strong> \u2014 MagenSec collects security metadata needed for posture assessment, such as OS version, installed applications, device status, and security settings.</li>
                         </ul>
                     </div>
                 </div>
@@ -46,7 +46,7 @@ export function SecurityTab(html) {
                             <li><strong>Sign-in</strong> \u2014 MagenSec uses Google OAuth for authentication. Your password is never stored by MagenSec.</li>
                             <li><strong>Organization isolation</strong> \u2014 each organization\u2019s data is completely separate. Team members only see data for the organizations they belong to.</li>
                             <li><strong>Role-based access</strong> \u2014 Business plans support Co-Admin (read/write) and Auditor (read-only) roles for team members.</li>
-                            <li><strong>Audit trail</strong> \u2014 all actions are logged in the Command Log, so you can see who did what and when.</li>
+                            <li><strong>Activity trail</strong> \u2014 important organization and device actions appear in the Command Log, so you can review who did what and when.</li>
                         </ul>
                     </div>
                 </div>
@@ -61,7 +61,7 @@ export function SecurityTab(html) {
                         <ul class="mb-0">
                             <li>License keys are masked in the portal UI by default (click to reveal)</li>
                             <li>Keys can be rotated at any time in Settings \u2192 Licenses \u2014 the old key is immediately invalidated</li>
-                            <li>Devices automatically receive the new key at their next heartbeat</li>
+                            <li>Enrolled devices receive the new key automatically the next time they check in</li>
                             <li>Rotate your key immediately if you suspect it has been compromised</li>
                         </ul>
                     </div>
@@ -84,13 +84,13 @@ export function SecurityTab(html) {
                             <span style="font-size:20px;">\ud83d\udc1b</span> Vulnerability Disclosure
                         </h4>
                         <p class="mb-2">If you discover a security vulnerability in MagenSec, please report it responsibly:</p>
-                        <p class="mb-0"><strong>Email:</strong> security@magensec.io</p>
+                        <p class="mb-0"><strong>Email:</strong> security@magensec.co.in</p>
                         <p class="text-muted mb-0" style="font-size:13px;margin-top:4px;">We take all reports seriously and will respond promptly. Please avoid public disclosure until we\u2019ve had a chance to investigate and release a fix.</p>
                     </div>
                 </div>
 
                 <div class="alert alert-info mt-3" style="border-left:4px solid #4299e1;">
-                    <strong>Questions about your data?</strong> Contact us at <strong>support@magensec.io</strong> \u2014 we\u2019re happy to explain our practices in more detail.
+                    <strong>Questions about your data?</strong> Contact us at <strong>support@gigabits.co.in</strong> \u2014 we\u2019re happy to explain our practices in more detail.
                 </div>
             </div>
         </div>

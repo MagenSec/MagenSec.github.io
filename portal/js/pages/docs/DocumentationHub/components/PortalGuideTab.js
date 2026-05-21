@@ -7,7 +7,7 @@ export function PortalGuideTab(html) {
             tips: [
                 'Check your Security Score grade daily \u2014 drops usually mean new vulnerabilities were published',
                 'Review the "Top Actions" section for the highest-impact steps you can take right now',
-                'The Telemetry Health indicator shows how many devices are actively reporting'
+                'The Device Coverage indicator shows how many devices are actively reporting'
             ],
             tier: 'All plans (Business gets full dashboard; Personal sees Security page)',
         },
@@ -25,7 +25,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Devices',
             icon: '\ud83d\udcbb',
-            desc: 'Browse every device registered in your organization. Switch between tile view (visual cards with health indicators) and table view (compact list). Each device shows its name, OS, connection status (Online, Degraded, Offline), risk indicators, and last heartbeat time. You can search by device name, filter by CVE severity or connection status, and sort by risk level.',
+            desc: 'Browse every device registered in your organization. Switch between tile view and table view. Each device shows its name, OS, connection status, risk indicators, and last check-in time. You can search by device name, filter by CVE severity or connection status, and sort by risk level.',
             tips: [
                 'Look for devices marked Degraded or Offline \u2014 they may need attention',
                 'Click any device to open its detail page with full specs, vulnerabilities, installed software, and performance data',
@@ -36,7 +36,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Device Detail',
             icon: '\ud83d\udcf1',
-            desc: 'When you click a device, you\u2019ll see its full profile with seven tabs. The landing page shows Security Score, Risk Score, Compliance Score, Posture Score, and Network Exposure at a glance, plus a prioritized action plan. Tabs include Risk Assessment (CVE breakdown and timeline), Specs (hardware and OS details), Performance (CPU, memory, disk and network charts), Telemetry (heartbeat and connection data), Risks (searchable CVE table with severity, EPSS scores, and remediation steps), Timeline (chronological event log), and Inventory (installed applications grouped by vendor).',
+            desc: 'When you click a device, you\u2019ll see its full profile with scores, open risks, hardware and OS details, performance charts, recent check-ins, vulnerability details, timeline events, and installed applications. Start with the prioritized action plan at the top of the page.',
             tips: [
                 'The Risk Assessment tab shows both active and mitigated CVEs \u2014 toggle mitigated CVEs to see your progress',
                 'Performance charts can zoom to 6-hour, 24-hour, or 7-day windows',
@@ -47,18 +47,18 @@ export function PortalGuideTab(html) {
         {
             title: 'Response',
             icon: '\u26a1',
-            desc: 'Take remote actions on your devices. Response lets you queue operations that execute on the device at its next heartbeat. Available actions include Probe (collect a security posture evidence package), Scan (full vulnerability and malware scan), Inventory (refresh the installed applications list), Logs (securely collect encrypted diagnostic logs), and Updates (check for OS and application patches). You can track each action\u2019s status as it moves from Queued to Delivered to Completed.',
+            desc: 'Request fresh checks on your devices. Response lets you ask a device to refresh its security status, scan for vulnerabilities, update inventory, collect diagnostics, or check for updates. Actions run when the device next checks in, and the portal shows progress until they complete.',
             tips: [
                 'Use Probe to get a fresh security evidence package from a specific device on demand',
                 'Action results appear in the portal once the device completes the task \u2014 check back after a few minutes',
-                'The action history shows everything that\u2019s been run, with status and timestamps'
+                'The action history shows requested actions, status, and timestamps'
             ],
             tier: 'Business only',
         },
         {
             title: 'Officer MAGI',
             icon: '\ud83e\udd16',
-            desc: 'Your AI Security Officer. Ask questions in plain language about your organization\u2019s security posture, vulnerabilities, devices, or scores and get answers backed by your real data. MAGI is live for Business deployments when the Cloud LLM switch is enabled; static reviewed remediation guidance and evidence views remain available without model generation. You can also reach MAGI via WhatsApp if enabled in Settings.',
+            desc: 'Your AI Security Officer. Ask questions in plain language about your organization\u2019s security posture, vulnerabilities, devices, or scores and get answers based on your MagenSec findings and reviewed guidance. You can also reach MAGI via WhatsApp if enabled in Settings.',
             tips: [
                 'Try asking "What are my most critical vulnerabilities right now?"',
                 'Ask "Which devices are at highest risk?" to get a prioritized list',
@@ -123,7 +123,7 @@ export function PortalGuideTab(html) {
         {
             title: 'Command Log',
             icon: '\ud83d\udcdc',
-            desc: 'A full audit timeline of everything that\u2019s happened in your organization. The Command Log has four tabs: Analytics (event volume charts, top users, and top devices), Timeline (chronological list of all events with infinite scroll), User Activity (per-user breakdown), and Device Activity (per-device breakdown). Every action is logged \u2014 configuration changes, response actions, scans, report generation, team changes, and more.',
+            desc: 'A searchable activity timeline for your organization. The Command Log has Analytics, Timeline, User Activity, and Device Activity views so you can review configuration changes, response actions, scans, report generation, team changes, and other important events.',
             tips: [
                 'Use it to investigate unexpected changes or verify that actions completed successfully',
                 'Filter by event type, user, device, or date range to find specific activity',
@@ -155,7 +155,7 @@ export function PortalGuideTab(html) {
                             <div class="d-flex align-items-center gap-2 mb-2">
                                 <span style="font-size:20px;">${s.icon}</span>
                                 <h4 class="mb-0">${s.title}</h4>
-                                <span class="badge bg-blue-lt" style="font-size:11px; margin-left:auto;">${s.tier}</span>
+                                <span class="badge bg-blue-lt text-blue" style="font-size:11px; margin-left:auto;">${s.tier}</span>
                             </div>
                             <p class="mb-2">${s.desc}</p>
                             ${s.tips.length > 0 && html`

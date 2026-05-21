@@ -51,8 +51,8 @@ export class DocumentationHub extends Component {
             <div>
                 <div class="page-header d-print-none" style="border-bottom:1px solid var(--tblr-border-color, #e0e0e0); padding:24px 0 0;">
                     <div class="container-xl">
-                        <h2 class="page-title" style="margin-bottom:4px;">Documentation & Help Center</h2>
-                        <div class="text-muted" style="margin-bottom:16px;">Learn how to use MagenSec, understand your scores, and follow security best practices.</div>
+                        <h2 class="page-title" style="margin-bottom:4px;">MagenSec Help Center</h2>
+                        <div class="text-muted" style="margin-bottom:16px;">Customer self-help for setup, daily use, scores, reports, privacy, and common security tasks.</div>
                         <div style="display:flex; gap:4px; overflow-x:auto; padding-bottom:0; margin:0 -4px;">
                             ${TABS.map(t => html`
                                 <button

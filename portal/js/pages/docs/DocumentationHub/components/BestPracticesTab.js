@@ -82,11 +82,11 @@ export function BestPracticesTab(html) {
                         </h4>
                         <p>Devices that go Degraded or Offline can\u2019t be scanned and may have undetected issues. Periodically check the <strong>Devices</strong> page for:</p>
                         <ul>
-                            <li>Devices marked Degraded (heartbeat 30 minutes \u2013 24 hours old) or Offline</li>
+                            <li>Devices marked Degraded or Offline</li>
                             <li>Devices with significantly lower scores than the rest of your fleet</li>
                             <li>Unexpected new devices that may need review</li>
                         </ul>
-                        <p class="text-muted mb-0" style="font-size:13px;">The Telemetry Health indicator on the dashboard shows the percentage of devices actively reporting.</p>
+                        <p class="text-muted mb-0" style="font-size:13px;">The Device Coverage indicator on the dashboard shows the percentage of devices actively reporting.</p>
                     </div>
                 </div>
 
@@ -113,8 +113,8 @@ export function BestPracticesTab(html) {
                         </h4>
                         <p>If you\u2019re on a Business plan with team members, periodically review who has access and at what level:</p>
                         <ul>
-                            <li><strong>Co-Admin</strong> \u2014 can manage devices, licenses, and view all telemetry</li>
-                            <li><strong>Auditor</strong> \u2014 view-only access to telemetry and device lists</li>
+                            <li><strong>Co-Admin</strong> \u2014 can manage devices, licenses, and security data</li>
+                            <li><strong>Auditor</strong> \u2014 view-only access to security data and device lists</li>
                         </ul>
                         <p class="text-muted mb-0" style="font-size:13px;">Remove access for anyone who no longer needs it. Check team members in <strong>Settings \u2192 Team</strong>.</p>
                     </div>
