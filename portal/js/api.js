@@ -1075,6 +1075,14 @@ export class ApiClient {
         return this.get('/api/v1/admin/cron/status', { _ts: Date.now() }, { skipCache: true });
     }
 
+    async adminGetCronChurn(days = 7) {
+        return this.get('/api/v1/admin/cron/churn', { days, _ts: Date.now() }, { skipCache: true });
+    }
+
+    async adminBackfillCronChurn(payload = {}) {
+        return this.post('/api/v1/admin/cron/churn/backfill', payload);
+    }
+
     async adminResetStaleCronRuns(taskId = null) {
         return this.post('/api/v1/admin/cron/reset-stale', taskId ? { taskId } : {});
     }

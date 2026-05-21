@@ -220,13 +220,16 @@ export class AIPosturePage extends Component {
         try {
             // Get recent audit logs for email sends
             const res = await api.getAuditLogs(currentOrg.orgId, {
-                eventType: 'EmailSent',
-                subType: 'AttachmentEmail',
-                limit: 1
+                eventType: 'EMAIL',
+                subType: 'EmailSent',
+                pageSize: 20,
+                days: 30,
+                includeUxSummary: false
             });
 
-            if (res.success && res.data && res.data.length > 0) {
-                const lastEmail = res.data[0];
+            const events = Array.isArray(res?.data?.events) ? res.data.events : [];
+            const lastEmail = events.find(event => event?.metadata?.emailEventType === 'AttachmentEmail') || null;
+            if (res.success && lastEmail) {
                 const sentAt = new Date(lastEmail.timestamp);
                 const hoursSince = (Date.now() - sentAt.getTime()) / (1000 * 60 * 60);
                 const recipient = lastEmail.metadata?.recipient || 'Unknown';
