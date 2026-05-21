@@ -1618,6 +1618,90 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
         `;
     }
 
+    const renderCronChurnTrendCard = () => html`
+        <div class="card cron-hourly-crud-card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title mb-0">Cron Churn Trend</h3>
+                    <div class="card-subtitle text-muted cron-trend-readline">${hourlyCronChurnTrend.sourceLabel} grouped by hour and task</div>
+                </div>
+                <div class="card-actions d-flex flex-wrap align-items-center gap-2">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Audit churn metric">
+                        ${AUDIT_CHURN_METRICS.map((metric) => html`
+                            <button
+                                type="button"
+                                class=${`btn ${auditChurnMetric === metric.key ? 'btn-primary' : 'btn-outline-primary'}`}
+                                aria-pressed=${auditChurnMetric === metric.key ? 'true' : 'false'}
+                                onClick=${() => setAuditChurnMetric(metric.key)}>
+                                ${metric.label}
+                            </button>
+                        `)}
+                    </div>
+                    <span class="text-muted small">${formatCompactNumber(hourlyCronChurnTrend.totals.crudOps)} CRUD ops · ${formatPlural(hourlyCronChurnTrend.totals.auditEvents, 'audit event')}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                ${hourlyCronChurnTrend.points.length === 0 ? html`
+                    <div class="empty py-3">
+                        <div class="empty-icon"><i class="ti ti-chart-bar-off"></i></div>
+                        <p class="empty-title">No loaded audit rows</p>
+                    </div>
+                ` : html`
+                    <div class="cron-trend-stack">
+                        <div class="cron-trend-section">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                <div>
+                                    <div class="subheader mb-0">${hourlyCronChurnTrend.selectedMetric.label} By Cron Job</div>
+                                    <div class="text-muted small">${hourlyCronChurnTrend.spanLabel}</div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
+                                    <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
+                                    <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
+                                </div>
+                            </div>
+                            <div class="cron-audit-churn-chart" role="img" aria-label="Hourly cron audit read write and processed event trend">
+                                <canvas id="cronAuditChurnLineChart" ref=${auditChurnCanvasRef}></canvas>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                <span class="badge bg-purple text-white">audit events ${formatCompactNumber(hourlyCronChurnTrend.totals.auditEvents)}</span>
+                                <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
+                                <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
+                                <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
+                                ${hourlyCronChurnTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">deletes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsDeleted)}</span>`}
+                            </div>
+                        </div>
+                        <div class="cron-audit-task-list">
+                            ${hourlyCronChurnTrend.tasks.map((task) => {
+                                const rowShare = Math.max(1, Math.round((task.crudOps / hourlyCronChurnTrend.maxCrudOps) * 100));
+                                return html`
+                                    <div class="cron-audit-task-row">
+                                        <div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="cron-audit-task-swatch" style=${`background:${task.color}`}></span>
+                                                <div class="fw-semibold text-truncate">${task.label}</div>
+                                            </div>
+                                            <div class="text-muted small">${formatCompactNumber(task.crudOps)} CRUD ops · ${formatPlural(task.auditEvents, 'audit event')}</div>
+                                        </div>
+                                        <div class="progress progress-sm my-2">
+                                            <div class="progress-bar bg-primary" style=${`width:${rowShare}%`}></div>
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            <span class="badge bg-info text-white">processed ${formatCompactNumber(task.eventsProcessed)}</span>
+                                            <span class="badge bg-secondary text-white">read ${formatCompactNumber(task.rowsRead)}</span>
+                                            <span class="badge bg-success text-white">write ${formatCompactNumber(task.rowsWritten)}</span>
+                                            ${task.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">delete ${formatCompactNumber(task.rowsDeleted)}</span>`}
+                                        </div>
+                                    </div>
+                                `;
+                            })}
+                        </div>
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+
     return html`
         ${showHeader && html`<div class="page-header d-print-none mb-3">
             <div class="container-xl">
@@ -1730,6 +1814,9 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
 
             ${filteredEvents.length > 0 && html`
                 <div class="row g-3 mb-3">
+                    <div class="col-12">
+                        ${renderCronChurnTrendCard()}
+                    </div>
                     <div class="col-xl-6 d-flex flex-column gap-3">
                         <div class="card cron-runtime-trend-card">
                             <div class="card-header">
@@ -1833,87 +1920,6 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        <div class="card cron-hourly-crud-card">
-                            <div class="card-header">
-                                <div>
-                                    <h3 class="card-title mb-0">Cron Churn Trend</h3>
-                                    <div class="card-subtitle text-muted cron-trend-readline">${hourlyCronChurnTrend.sourceLabel} grouped by hour and task</div>
-                                </div>
-                                <div class="card-actions d-flex flex-wrap align-items-center gap-2">
-                                    <div class="btn-group btn-group-sm" role="group" aria-label="Audit churn metric">
-                                        ${AUDIT_CHURN_METRICS.map((metric) => html`
-                                            <button
-                                                type="button"
-                                                class=${`btn ${auditChurnMetric === metric.key ? 'btn-primary' : 'btn-outline-primary'}`}
-                                                aria-pressed=${auditChurnMetric === metric.key ? 'true' : 'false'}
-                                                onClick=${() => setAuditChurnMetric(metric.key)}>
-                                                ${metric.label}
-                                            </button>
-                                        `)}
-                                    </div>
-                                    <span class="text-muted small">${formatCompactNumber(hourlyCronChurnTrend.totals.crudOps)} CRUD ops · ${formatPlural(hourlyCronChurnTrend.totals.auditEvents, 'audit event')}</span>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                ${hourlyCronChurnTrend.points.length === 0 ? html`
-                                    <div class="empty py-3">
-                                        <div class="empty-icon"><i class="ti ti-chart-bar-off"></i></div>
-                                        <p class="empty-title">No loaded audit rows</p>
-                                    </div>
-                                ` : html`
-                                    <div class="cron-trend-stack">
-                                        <div class="cron-trend-section">
-                                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                                                <div>
-                                                    <div class="subheader mb-0">${hourlyCronChurnTrend.selectedMetric.label} By Cron Job</div>
-                                                    <div class="text-muted small">${hourlyCronChurnTrend.spanLabel}</div>
-                                                </div>
-                                                <div class="d-flex flex-wrap gap-1">
-                                                    <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
-                                                    <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
-                                                    <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
-                                                </div>
-                                            </div>
-                                            <div class="cron-audit-churn-chart" role="img" aria-label="Hourly cron audit read write and processed event trend">
-                                                <canvas id="cronAuditChurnLineChart" ref=${auditChurnCanvasRef}></canvas>
-                                            </div>
-                                            <div class="d-flex flex-wrap gap-2 mt-2">
-                                                <span class="badge bg-purple text-white">audit events ${formatCompactNumber(hourlyCronChurnTrend.totals.auditEvents)}</span>
-                                                <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
-                                                <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
-                                                <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
-                                                ${hourlyCronChurnTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">deletes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsDeleted)}</span>`}
-                                            </div>
-                                        </div>
-                                        <div class="cron-audit-task-list">
-                                            ${hourlyCronChurnTrend.tasks.map((task) => {
-                                                const rowShare = Math.max(1, Math.round((task.crudOps / hourlyCronChurnTrend.maxCrudOps) * 100));
-                                                return html`
-                                                    <div class="cron-audit-task-row">
-                                                        <div>
-                                                            <div class="d-flex align-items-center gap-2">
-                                                                <span class="cron-audit-task-swatch" style=${`background:${task.color}`}></span>
-                                                                <div class="fw-semibold text-truncate">${task.label}</div>
-                                                            </div>
-                                                            <div class="text-muted small">${formatCompactNumber(task.crudOps)} CRUD ops · ${formatPlural(task.auditEvents, 'audit event')}</div>
-                                                        </div>
-                                                        <div class="progress progress-sm my-2">
-                                                            <div class="progress-bar bg-primary" style=${`width:${rowShare}%`}></div>
-                                                        </div>
-                                                        <div class="d-flex flex-wrap gap-1">
-                                                            <span class="badge bg-info text-white">processed ${formatCompactNumber(task.eventsProcessed)}</span>
-                                                            <span class="badge bg-secondary text-white">read ${formatCompactNumber(task.rowsRead)}</span>
-                                                            <span class="badge bg-success text-white">write ${formatCompactNumber(task.rowsWritten)}</span>
-                                                            ${task.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">delete ${formatCompactNumber(task.rowsDeleted)}</span>`}
-                                                        </div>
-                                                    </div>
-                                                `;
-                                            })}
-                                        </div>
-                                    </div>
-                                `}
                             </div>
                         </div>
                         <div class="card">

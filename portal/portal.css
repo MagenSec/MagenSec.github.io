@@ -3208,8 +3208,8 @@ pre.json-metadata {
 .cron-audit-churn-chart {
   position: relative;
   width: 100%;
-  height: 260px;
-  min-height: 260px;
+  height: 320px;
+  min-height: 320px;
 }
 
 .cron-audit-task-list {
@@ -3328,6 +3328,11 @@ pre.json-metadata {
 }
 
 @media (max-width: 575.98px) {
+  .cron-audit-churn-chart {
+    height: 260px;
+    min-height: 260px;
+  }
+
   .cron-efficiency-grid,
   .cron-attribution-tiles {
     grid-template-columns: 1fr;
