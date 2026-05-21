@@ -20,6 +20,21 @@ const LANE_LABELS = {
     'manual': 'Manual'
 };
 
+const AUDIT_CHURN_METRICS = [
+    { key: 'crudOps', label: 'CRUD ops', axisLabel: 'Table read/scan/write/delete ops' },
+    { key: 'rowsRead', label: 'Reads', axisLabel: 'Rows read/scanned' },
+    { key: 'rowsWritten', label: 'Writes', axisLabel: 'Rows written' },
+    { key: 'eventsProcessed', label: 'Processed', axisLabel: 'Events or rows processed' }
+];
+
+const AUDIT_CHURN_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#be123c', '#4f46e5'];
+
+const DIRECT_CRON_EVENT_LABELS = {
+    SIGNAL_ASSIMILATION: 'Signal Assimilation',
+    VULN_DETECTION: 'Detection Engine',
+    THREAT_INTEL_ENRICHMENT: 'Threat Intel Enrichment'
+};
+
 const normalizeLaneId = (laneId) => String(laneId || '').trim().toLowerCase() || 'unassigned';
 
 const formatLaneLabel = (laneId) => {
@@ -96,9 +111,22 @@ const getEventDiagnostics = (event) => {
 
 const getEventVolumeMetrics = (event) => {
     const meta = event?.metadata || {};
-    const diagnostics = getEventDiagnostics(event);
-    const volume = meta.volumeMetrics || meta.VolumeMetrics || diagnostics.volumeMetrics || diagnostics.VolumeMetrics || {};
     const budget = getEventOperationBudget(event);
+    const budgetDetails = meta.operationBudget || meta.OperationBudget || {};
+    const budgetCounters = budgetDetails.counters || budgetDetails.Counters || {};
+    const diagnostics = { ...getEventDiagnostics(event), ...budgetCounters };
+    const volume = meta.volumeMetrics || meta.VolumeMetrics || diagnostics.volumeMetrics || diagnostics.VolumeMetrics || {};
+    const rowsScanned = getMetricValue(
+        volume.rowsScanned,
+        volume.RowsScanned,
+        budget.rowsScanned,
+        diagnostics.rowsScanned,
+        diagnostics.RowsScanned,
+        diagnostics.inventoryRowsScanned,
+        diagnostics.InventoryRowsScanned,
+        diagnostics.scanned,
+        diagnostics.Scanned
+    );
     const rowsCreated = getMetricValue(
         volume.rowsCreated,
         volume.RowsCreated,
@@ -125,15 +153,19 @@ const getEventVolumeMetrics = (event) => {
         diagnostics.staleVulnerableDemotions,
         diagnostics.StaleVulnerableDemotions,
         diagnostics.staleVulnerableTrimmed,
-        diagnostics.StaleVulnerableTrimmed
+        diagnostics.StaleVulnerableTrimmed,
+        diagnostics.refreshed,
+        diagnostics.Refreshed
     );
     const rowsWrittenTotal = getMetricValue(volume.rowsWritten, volume.RowsWritten, budget.rowsWritten);
     const rowsWritten = rowsWrittenTotal > 0 ? rowsWrittenTotal : rowsCreated + rowsUpdated;
+    const rowsRead = getMetricValue(volume.rowsRead, volume.RowsRead, budget.rowsRead) + rowsScanned;
 
     return {
         eventsProcessed: getMetricValue(volume.eventsProcessed, volume.EventsProcessed, diagnostics.eventsProcessed, diagnostics.EventsProcessed, meta.itemsProcessed, meta.entriesRefreshed),
         rowsProcessed: getMetricValue(volume.rowsProcessed, volume.RowsProcessed, diagnostics.rowsProcessed, diagnostics.RowsProcessed, diagnostics.totalRows, diagnostics.TotalRows, meta.itemsProcessed, meta.entriesRefreshed),
-        rowsRead: getMetricValue(volume.rowsRead, volume.RowsRead, budget.rowsRead),
+        rowsScanned,
+        rowsRead,
         rowsCreated,
         rowsUpdated,
         rowsWritten,
@@ -161,6 +193,19 @@ const formatCompactNumber = (value) => {
 
 const formatPlural = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
 
+const formatCronTaskLabel = (taskId) => {
+    const raw = String(taskId || '').trim();
+    if (!raw) return 'Unassigned';
+    if (DIRECT_CRON_EVENT_LABELS[raw.toUpperCase()]) return DIRECT_CRON_EVENT_LABELS[raw.toUpperCase()];
+
+    return raw
+        .replace(/CronTask$/i, '')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_.-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim() || raw;
+};
+
 const getScaleSeverityBadgeClass = (severity) => {
     const normalized = String(severity || '').toLowerCase();
     if (normalized === 'critical') return 'bg-danger text-white';
@@ -184,6 +229,19 @@ const getTaskIdFromEvent = (event) => {
     if (targetType && !syntheticTargets.has(targetType)) return targetType;
 
     return null;
+};
+
+const getCronVolumeTaskIdFromEvent = (event) => {
+    const eventType = String(event?.eventType || '').toUpperCase();
+    if (eventType === 'CRONRUN') return getTaskIdFromEvent(event);
+    return DIRECT_CRON_EVENT_LABELS[eventType] || null;
+};
+
+const getMetricValueFromPoint = (point, metricKey) => {
+    if (metricKey === 'rowsRead') return point.rowsRead;
+    if (metricKey === 'rowsWritten') return point.rowsWritten;
+    if (metricKey === 'eventsProcessed') return point.eventsProcessed;
+    return point.crudOps;
 };
 
 const floorToUtcHour = (date) => new Date(Date.UTC(
@@ -219,9 +277,13 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     const [hasMore, setHasMore] = useState(false);
     const [continuationToken, setContinuationToken] = useState(null);
     const scrollObserverRef = useRef(null);
+    const auditChurnCanvasRef = useRef(null);
+    const auditChurnChartRef = useRef(null);
     const [filterJob, setFilterJob] = useState('all'); // 'all', 'CronExecution', 'ReportSent', 'ReportFailed', 'BatchComplete'
     const [filterStatus, setFilterStatus] = useState('all');
     const [filterOrg, setFilterOrg] = useState('');
+    const [auditChurnMetric, setAuditChurnMetric] = useState('crudOps');
+    const [chartThemeVersion, setChartThemeVersion] = useState(0);
     const [expandedEvents, setExpandedEvents] = useState(new Set());
     const [cronStatus, setCronStatus] = useState(propCronStatus || null);
     const [loadingCronStatus, setLoadingCronStatus] = useState(false);
@@ -252,6 +314,12 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
 
         return new URLSearchParams(hash.substring(queryIndex + 1));
     };
+
+    useEffect(() => {
+        const observer = new MutationObserver(() => setChartThemeVersion((value) => value + 1));
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+        return () => observer.disconnect();
+    }, []);
 
     // Infinite scroll observer
     useEffect(() => {
@@ -765,8 +833,13 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
         return { points, maxDurationMs, maxRows, totals };
     })();
 
-    const hourlyCrudTrend = (() => {
-        const eventTimes = filteredEvents
+    const hourlyCronChurnTrend = (() => {
+        const cronRunEvents = filteredEvents
+            .filter((event) => String(event?.eventType || '').toUpperCase() === 'CRONRUN' && getCronVolumeTaskIdFromEvent(event));
+        const sourceEvents = cronRunEvents.length > 0
+            ? cronRunEvents
+            : filteredEvents.filter((event) => getCronVolumeTaskIdFromEvent(event));
+        const eventTimes = sourceEvents
             .map((event) => event?.timestamp ? new Date(event.timestamp) : null)
             .filter((date) => date && !Number.isNaN(date.getTime()))
             .sort((a, b) => a - b);
@@ -774,10 +847,12 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
         if (eventTimes.length === 0) {
             return {
                 points: [],
-                spikeHours: [],
+                tasks: [],
                 maxCrudOps: 1,
-                maxAuditEvents: 1,
                 spanLabel: 'No loaded audit rows',
+                sourceLabel: 'CRONRUN audit rows',
+                chartKey: `${auditChurnMetric}|empty|${chartThemeVersion}`,
+                selectedMetric: AUDIT_CHURN_METRICS.find((metric) => metric.key === auditChurnMetric) || AUDIT_CHURN_METRICS[0],
                 totals: { auditEvents: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0 }
             };
         }
@@ -803,11 +878,12 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                 rowsUpdated: 0,
                 rowsWritten: 0,
                 rowsDeleted: 0,
-                crudOps: 0
+                crudOps: 0,
+                byTask: new Map()
             });
         }
 
-        for (const event of filteredEvents) {
+        for (const event of sourceEvents) {
             const timestamp = event?.timestamp ? new Date(event.timestamp) : null;
             if (!timestamp || Number.isNaN(timestamp.getTime())) continue;
             const hour = floorToUtcHour(timestamp);
@@ -816,18 +892,91 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
             const bucket = buckets.get(hour.toISOString());
             if (!bucket) continue;
 
+            const taskId = getCronVolumeTaskIdFromEvent(event);
+            if (!taskId) continue;
             const volume = getEventVolumeMetrics(event);
+            const eventsProcessed = volume.eventsProcessed || volume.rowsProcessed;
+            const crudOps = volume.rowsRead + volume.rowsWritten + volume.rowsDeleted;
             bucket.auditEvents += 1;
-            bucket.eventsProcessed += volume.eventsProcessed;
+            bucket.eventsProcessed += eventsProcessed;
             bucket.rowsRead += volume.rowsRead;
             bucket.rowsCreated += volume.rowsCreated;
             bucket.rowsUpdated += volume.rowsUpdated;
             bucket.rowsWritten += volume.rowsWritten;
             bucket.rowsDeleted += volume.rowsDeleted;
-            bucket.crudOps += volume.rowsRead + volume.rowsWritten + volume.rowsDeleted;
+            bucket.crudOps += crudOps;
+
+            const taskKey = String(taskId);
+            const taskPoint = bucket.byTask.get(taskKey) || {
+                taskId: taskKey,
+                label: formatCronTaskLabel(taskKey),
+                auditEvents: 0,
+                eventsProcessed: 0,
+                rowsRead: 0,
+                rowsCreated: 0,
+                rowsUpdated: 0,
+                rowsWritten: 0,
+                rowsDeleted: 0,
+                crudOps: 0
+            };
+            taskPoint.auditEvents += 1;
+            taskPoint.eventsProcessed += eventsProcessed;
+            taskPoint.rowsRead += volume.rowsRead;
+            taskPoint.rowsCreated += volume.rowsCreated;
+            taskPoint.rowsUpdated += volume.rowsUpdated;
+            taskPoint.rowsWritten += volume.rowsWritten;
+            taskPoint.rowsDeleted += volume.rowsDeleted;
+            taskPoint.crudOps += crudOps;
+            bucket.byTask.set(taskKey, taskPoint);
         }
 
         const points = Array.from(buckets.values());
+        const taskTotals = new Map();
+        for (const point of points) {
+            for (const taskPoint of point.byTask.values()) {
+                const existing = taskTotals.get(taskPoint.taskId) || {
+                    taskId: taskPoint.taskId,
+                    label: taskPoint.label,
+                    auditEvents: 0,
+                    eventsProcessed: 0,
+                    rowsRead: 0,
+                    rowsCreated: 0,
+                    rowsUpdated: 0,
+                    rowsWritten: 0,
+                    rowsDeleted: 0,
+                    crudOps: 0
+                };
+                existing.auditEvents += taskPoint.auditEvents;
+                existing.eventsProcessed += taskPoint.eventsProcessed;
+                existing.rowsRead += taskPoint.rowsRead;
+                existing.rowsCreated += taskPoint.rowsCreated;
+                existing.rowsUpdated += taskPoint.rowsUpdated;
+                existing.rowsWritten += taskPoint.rowsWritten;
+                existing.rowsDeleted += taskPoint.rowsDeleted;
+                existing.crudOps += taskPoint.crudOps;
+                taskTotals.set(taskPoint.taskId, existing);
+            }
+        }
+
+        const tasks = Array.from(taskTotals.values())
+            .sort((a, b) => (b.crudOps - a.crudOps) || (b.eventsProcessed - a.eventsProcessed) || a.label.localeCompare(b.label))
+            .slice(0, 8)
+            .map((task, index) => ({
+                ...task,
+                color: AUDIT_CHURN_COLORS[index % AUDIT_CHURN_COLORS.length],
+                points: points.map((point) => point.byTask.get(task.taskId) || {
+                    taskId: task.taskId,
+                    label: task.label,
+                    auditEvents: 0,
+                    eventsProcessed: 0,
+                    rowsRead: 0,
+                    rowsCreated: 0,
+                    rowsUpdated: 0,
+                    rowsWritten: 0,
+                    rowsDeleted: 0,
+                    crudOps: 0
+                })
+            }));
         const totals = points.reduce((acc, point) => {
             acc.auditEvents += point.auditEvents;
             acc.eventsProcessed += point.eventsProcessed;
@@ -840,17 +989,132 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
             return acc;
         }, { auditEvents: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0 });
         const maxCrudOps = Math.max(1, ...points.map((point) => point.crudOps));
-        const maxAuditEvents = Math.max(1, ...points.map((point) => point.auditEvents));
-        const spikeHours = [...points]
-            .filter((point) => point.crudOps > 0 || point.auditEvents > 0)
-            .sort((a, b) => (b.crudOps - a.crudOps) || (b.auditEvents - a.auditEvents))
-            .slice(0, 5);
         const spanLabel = points.length === 1
             ? points[0].label
             : `${points[0].label} - ${points[points.length - 1].label}`;
+        const selectedMetric = AUDIT_CHURN_METRICS.find((metric) => metric.key === auditChurnMetric) || AUDIT_CHURN_METRICS[0];
+        const sourceLabel = cronRunEvents.length > 0 ? 'CRONRUN audit rows' : 'direct volume audit rows';
+        const chartKey = JSON.stringify({
+            metric: selectedMetric.key,
+            theme: chartThemeVersion,
+            labels: points.map((point) => point.key),
+            tasks: tasks.map((task) => ({
+                taskId: task.taskId,
+                data: task.points.map((point) => getMetricValueFromPoint(point, selectedMetric.key))
+            }))
+        });
 
-        return { points, spikeHours, maxCrudOps, maxAuditEvents, spanLabel, totals };
+        return { points, tasks, maxCrudOps, spanLabel, sourceLabel, selectedMetric, chartKey, totals };
     })();
+
+    useEffect(() => {
+        if (auditChurnChartRef.current) {
+            try {
+                auditChurnChartRef.current.destroy();
+            } catch (error) {
+                logger.warn('[Cron Activity] Failed to destroy previous audit churn chart', error);
+            }
+            auditChurnChartRef.current = null;
+        }
+
+        const canvas = auditChurnCanvasRef.current;
+        if (!canvas || !window.Chart || hourlyCronChurnTrend.tasks.length === 0) return undefined;
+
+        const existing = window.Chart.getChart(canvas);
+        if (existing) existing.destroy();
+
+        const theme = document.documentElement.getAttribute('data-bs-theme') || 'light';
+        const isDark = theme === 'dark';
+        const gridColor = isDark ? 'rgba(148, 163, 184, 0.20)' : 'rgba(148, 163, 184, 0.26)';
+        const tickColor = isDark ? '#cbd5e1' : '#475569';
+        const selectedMetricKey = hourlyCronChurnTrend.selectedMetric.key;
+
+        auditChurnChartRef.current = new window.Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: hourlyCronChurnTrend.points.map((point) => point.hour),
+                datasets: hourlyCronChurnTrend.tasks.map((task) => ({
+                    label: task.label,
+                    data: task.points.map((point) => getMetricValueFromPoint(point, selectedMetricKey)),
+                    borderColor: task.color,
+                    backgroundColor: `${task.color}22`,
+                    pointBackgroundColor: task.color,
+                    pointBorderColor: task.color,
+                    borderWidth: 2,
+                    pointRadius: 2.5,
+                    pointHoverRadius: 5,
+                    tension: 0.28,
+                    fill: false
+                }))
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'nearest', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: tickColor,
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => {
+                                const raw = items?.[0]?.label;
+                                const date = raw ? new Date(raw) : null;
+                                return date && !Number.isNaN(date.getTime())
+                                    ? date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' })
+                                    : raw;
+                            },
+                            label: (context) => {
+                                const task = hourlyCronChurnTrend.tasks[context.datasetIndex];
+                                const point = task?.points?.[context.dataIndex];
+                                if (!task || !point) return `${context.dataset.label}: ${formatCompactNumber(context.parsed.y)}`;
+                                return `${task.label}: ${formatCompactNumber(context.parsed.y)} ${hourlyCronChurnTrend.selectedMetric.label.toLowerCase()} | processed ${formatCompactNumber(point.eventsProcessed)}, read ${formatCompactNumber(point.rowsRead)}, write ${formatCompactNumber(point.rowsWritten)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'hour', tooltipFormat: 'MMM d, h a' },
+                        grid: { color: gridColor },
+                        ticks: {
+                            color: tickColor,
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 8
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: gridColor },
+                        ticks: {
+                            color: tickColor,
+                            callback: (value) => formatCompactNumber(value)
+                        },
+                        title: {
+                            display: true,
+                            text: hourlyCronChurnTrend.selectedMetric.axisLabel,
+                            color: tickColor
+                        }
+                    }
+                }
+            }
+        });
+
+        return () => {
+            if (auditChurnChartRef.current) {
+                auditChurnChartRef.current.destroy();
+                auditChurnChartRef.current = null;
+            }
+        };
+    }, [hourlyCronChurnTrend.chartKey]);
 
     const efficiencyTrend = (() => {
         const points = runtimeTrend.points.map((point) => {
@@ -1574,15 +1838,26 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                         <div class="card cron-hourly-crud-card">
                             <div class="card-header">
                                 <div>
-                                    <h3 class="card-title mb-0">Hourly Audit CRUD</h3>
-                                    <div class="card-subtitle text-muted cron-trend-readline">Loaded audit rows grouped by hour</div>
+                                    <h3 class="card-title mb-0">Cron Churn Trend</h3>
+                                    <div class="card-subtitle text-muted cron-trend-readline">${hourlyCronChurnTrend.sourceLabel} grouped by hour and task</div>
                                 </div>
-                                <div class="card-actions text-muted small">
-                                    ${formatCompactNumber(hourlyCrudTrend.totals.crudOps)} CRUD ops · ${formatPlural(hourlyCrudTrend.totals.auditEvents, 'audit event')}
+                                <div class="card-actions d-flex flex-wrap align-items-center gap-2">
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Audit churn metric">
+                                        ${AUDIT_CHURN_METRICS.map((metric) => html`
+                                            <button
+                                                type="button"
+                                                class=${`btn ${auditChurnMetric === metric.key ? 'btn-primary' : 'btn-outline-primary'}`}
+                                                aria-pressed=${auditChurnMetric === metric.key ? 'true' : 'false'}
+                                                onClick=${() => setAuditChurnMetric(metric.key)}>
+                                                ${metric.label}
+                                            </button>
+                                        `)}
+                                    </div>
+                                    <span class="text-muted small">${formatCompactNumber(hourlyCronChurnTrend.totals.crudOps)} CRUD ops · ${formatPlural(hourlyCronChurnTrend.totals.auditEvents, 'audit event')}</span>
                                 </div>
                             </div>
                             <div class="card-body">
-                                ${hourlyCrudTrend.points.length === 0 ? html`
+                                ${hourlyCronChurnTrend.points.length === 0 ? html`
                                     <div class="empty py-3">
                                         <div class="empty-icon"><i class="ti ti-chart-bar-off"></i></div>
                                         <p class="empty-title">No loaded audit rows</p>
@@ -1592,62 +1867,46 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                         <div class="cron-trend-section">
                                             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                                                 <div>
-                                                    <div class="subheader mb-0">Hour By Hour</div>
-                                                    <div class="text-muted small">${hourlyCrudTrend.spanLabel}</div>
+                                                    <div class="subheader mb-0">${hourlyCronChurnTrend.selectedMetric.label} By Cron Job</div>
+                                                    <div class="text-muted small">${hourlyCronChurnTrend.spanLabel}</div>
                                                 </div>
                                                 <div class="d-flex flex-wrap gap-1">
-                                                    <span class="badge bg-secondary text-white">reads</span>
-                                                    <span class="badge bg-success text-white">create/update</span>
-                                                    <span class="badge bg-warning text-white">delete</span>
-                                                    <span class="badge bg-purple text-white">events</span>
+                                                    <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
+                                                    <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
+                                                    <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
                                                 </div>
                                             </div>
-                                            <div class="cron-hourly-crud-chart" role="img" aria-label="Hourly audit CRUD operation trend from loaded rows">
-                                                ${hourlyCrudTrend.points.map((point) => {
-                                                    const readHeight = Math.max(point.rowsRead > 0 ? 2 : 0, Math.round((point.rowsRead / hourlyCrudTrend.maxCrudOps) * 40));
-                                                    const writeHeight = Math.max(point.rowsWritten > 0 ? 2 : 0, Math.round((point.rowsWritten / hourlyCrudTrend.maxCrudOps) * 32));
-                                                    const deleteHeight = Math.max(point.rowsDeleted > 0 ? 2 : 0, Math.round((point.rowsDeleted / hourlyCrudTrend.maxCrudOps) * 18));
-                                                    const eventHeight = Math.max(point.auditEvents > 0 ? 2 : 0, Math.round((point.auditEvents / hourlyCrudTrend.maxAuditEvents) * 12));
-                                                    const totalHeight = Math.max(2, readHeight + writeHeight + deleteHeight + eventHeight);
-                                                    return html`
-                                                        <div class="cron-trend-day cron-hourly-crud-hour" title=${`${point.label}: ${formatCompactNumber(point.auditEvents)} audit events, ${formatCompactNumber(point.eventsProcessed)} events processed, ${formatCompactNumber(point.rowsRead)} reads, ${formatCompactNumber(point.rowsCreated)} creates, ${formatCompactNumber(point.rowsUpdated)} updates, ${formatCompactNumber(point.rowsWritten)} writes, ${formatCompactNumber(point.rowsDeleted)} deletes`}>
-                                                            <div class="cron-trend-bar" style=${`height:${totalHeight}px`}>
-                                                                ${eventHeight > 0 && html`<div class="cron-trend-segment cron-trend-events" style=${`height:${eventHeight}px`}></div>`}
-                                                                ${deleteHeight > 0 && html`<div class="cron-trend-segment cron-trend-deletes" style=${`height:${deleteHeight}px`}></div>`}
-                                                                ${writeHeight > 0 && html`<div class="cron-trend-segment cron-trend-writes" style=${`height:${writeHeight}px`}></div>`}
-                                                                ${readHeight > 0 && html`<div class="cron-trend-segment cron-trend-reads" style=${`height:${readHeight}px`}></div>`}
-                                                            </div>
-                                                            <div class="cron-trend-label">${point.tickLabel}</div>
-                                                        </div>
-                                                    `;
-                                                })}
+                                            <div class="cron-audit-churn-chart" role="img" aria-label="Hourly cron audit read write and processed event trend">
+                                                <canvas id="cronAuditChurnLineChart" ref=${auditChurnCanvasRef}></canvas>
                                             </div>
                                             <div class="d-flex flex-wrap gap-2 mt-2">
-                                                <span class="badge bg-purple text-white">audit events ${formatCompactNumber(hourlyCrudTrend.totals.auditEvents)}</span>
-                                                <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCrudTrend.totals.eventsProcessed)}</span>
-                                                <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCrudTrend.totals.rowsRead)}</span>
-                                                <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCrudTrend.totals.rowsWritten)}</span>
-                                                ${hourlyCrudTrend.totals.rowsCreated > 0 && html`<span class="badge bg-info text-white">creates ${formatCompactNumber(hourlyCrudTrend.totals.rowsCreated)}</span>`}
-                                                ${hourlyCrudTrend.totals.rowsUpdated > 0 && html`<span class="badge bg-primary text-white">updates ${formatCompactNumber(hourlyCrudTrend.totals.rowsUpdated)}</span>`}
-                                                ${hourlyCrudTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">deletes ${formatCompactNumber(hourlyCrudTrend.totals.rowsDeleted)}</span>`}
+                                                <span class="badge bg-purple text-white">audit events ${formatCompactNumber(hourlyCronChurnTrend.totals.auditEvents)}</span>
+                                                <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
+                                                <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
+                                                <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
+                                                ${hourlyCronChurnTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">deletes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsDeleted)}</span>`}
                                             </div>
                                         </div>
-                                        <div class="cron-hourly-spike-list">
-                                            ${hourlyCrudTrend.spikeHours.map((point) => {
-                                                const rowShare = Math.max(1, Math.round((point.crudOps / hourlyCrudTrend.maxCrudOps) * 100));
+                                        <div class="cron-audit-task-list">
+                                            ${hourlyCronChurnTrend.tasks.map((task) => {
+                                                const rowShare = Math.max(1, Math.round((task.crudOps / hourlyCronChurnTrend.maxCrudOps) * 100));
                                                 return html`
-                                                    <div class="cron-hourly-spike-row">
+                                                    <div class="cron-audit-task-row">
                                                         <div>
-                                                            <div class="fw-semibold">${point.label}</div>
-                                                            <div class="text-muted small">${formatCompactNumber(point.crudOps)} CRUD ops · ${formatPlural(point.auditEvents, 'audit event')}</div>
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <span class="cron-audit-task-swatch" style=${`background:${task.color}`}></span>
+                                                                <div class="fw-semibold text-truncate">${task.label}</div>
+                                                            </div>
+                                                            <div class="text-muted small">${formatCompactNumber(task.crudOps)} CRUD ops · ${formatPlural(task.auditEvents, 'audit event')}</div>
                                                         </div>
                                                         <div class="progress progress-sm my-2">
                                                             <div class="progress-bar bg-primary" style=${`width:${rowShare}%`}></div>
                                                         </div>
                                                         <div class="d-flex flex-wrap gap-1">
-                                                            <span class="badge bg-secondary text-white">read ${formatCompactNumber(point.rowsRead)}</span>
-                                                            <span class="badge bg-success text-white">write ${formatCompactNumber(point.rowsWritten)}</span>
-                                                            ${point.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">delete ${formatCompactNumber(point.rowsDeleted)}</span>`}
+                                                            <span class="badge bg-info text-white">processed ${formatCompactNumber(task.eventsProcessed)}</span>
+                                                            <span class="badge bg-secondary text-white">read ${formatCompactNumber(task.rowsRead)}</span>
+                                                            <span class="badge bg-success text-white">write ${formatCompactNumber(task.rowsWritten)}</span>
+                                                            ${task.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">delete ${formatCompactNumber(task.rowsDeleted)}</span>`}
                                                         </div>
                                                     </div>
                                                 `;
