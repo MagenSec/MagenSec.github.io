@@ -79,6 +79,71 @@ const getEventOperationBudget = (event) => {
     };
 };
 
+const getMetricValue = (...values) => {
+    for (const value of values) {
+        if (value !== undefined && value !== null && value !== '') {
+            return toNumber(value);
+        }
+    }
+
+    return 0;
+};
+
+const getEventDiagnostics = (event) => {
+    const meta = event?.metadata || {};
+    return meta.diagnostics || meta.Diagnostics || meta.metrics || meta.Metrics || {};
+};
+
+const getEventVolumeMetrics = (event) => {
+    const meta = event?.metadata || {};
+    const diagnostics = getEventDiagnostics(event);
+    const volume = meta.volumeMetrics || meta.VolumeMetrics || diagnostics.volumeMetrics || diagnostics.VolumeMetrics || {};
+    const budget = getEventOperationBudget(event);
+    const rowsCreated = getMetricValue(
+        volume.rowsCreated,
+        volume.RowsCreated,
+        diagnostics.rowsCreated,
+        diagnostics.RowsCreated,
+        diagnostics.cacheInserts,
+        diagnostics.CacheInserts,
+        diagnostics.alertsOpened,
+        diagnostics.AlertsOpened,
+        diagnostics.alertsOpen,
+        diagnostics.AlertsOpen
+    );
+    const rowsUpdated = getMetricValue(
+        volume.rowsUpdated,
+        volume.RowsUpdated,
+        diagnostics.rowsUpdated,
+        diagnostics.RowsUpdated,
+        diagnostics.cacheUpdates,
+        diagnostics.CacheUpdates,
+        diagnostics.alertsResolved,
+        diagnostics.AlertsResolved,
+        diagnostics.alertsClosed,
+        diagnostics.AlertsClosed,
+        diagnostics.staleVulnerableDemotions,
+        diagnostics.StaleVulnerableDemotions,
+        diagnostics.staleVulnerableTrimmed,
+        diagnostics.StaleVulnerableTrimmed
+    );
+    const rowsWrittenTotal = getMetricValue(volume.rowsWritten, volume.RowsWritten, budget.rowsWritten);
+    const rowsWritten = rowsWrittenTotal > 0 ? rowsWrittenTotal : rowsCreated + rowsUpdated;
+
+    return {
+        eventsProcessed: getMetricValue(volume.eventsProcessed, volume.EventsProcessed, diagnostics.eventsProcessed, diagnostics.EventsProcessed, meta.itemsProcessed, meta.entriesRefreshed),
+        rowsProcessed: getMetricValue(volume.rowsProcessed, volume.RowsProcessed, diagnostics.rowsProcessed, diagnostics.RowsProcessed, diagnostics.totalRows, diagnostics.TotalRows, meta.itemsProcessed, meta.entriesRefreshed),
+        rowsRead: getMetricValue(volume.rowsRead, volume.RowsRead, budget.rowsRead),
+        rowsCreated,
+        rowsUpdated,
+        rowsWritten,
+        rowsDeleted: getMetricValue(volume.rowsDeleted, volume.RowsDeleted, budget.rowsDeleted),
+        alertsGenerated: getMetricValue(volume.alertsGenerated, volume.AlertsGenerated, diagnostics.alertsGenerated, diagnostics.AlertsGenerated, diagnostics.alertsOpened, diagnostics.AlertsOpened, diagnostics.alertsOpen, diagnostics.AlertsOpen),
+        alertsClosed: getMetricValue(volume.alertsClosed, volume.AlertsClosed, diagnostics.alertsClosed, diagnostics.AlertsClosed, diagnostics.alertsResolved, diagnostics.AlertsResolved),
+        alertsTouched: getMetricValue(volume.alertsTouched, volume.AlertsTouched, budget.alertsTouched)
+    };
+};
+
 const formatDuration = (durationMs) => {
     const ms = toNumber(durationMs);
     if (ms <= 0) return '-';
@@ -119,6 +184,31 @@ const getTaskIdFromEvent = (event) => {
     if (targetType && !syntheticTargets.has(targetType)) return targetType;
 
     return null;
+};
+
+const floorToUtcHour = (date) => new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    date.getUTCHours()
+));
+
+const formatHourLabel = (date) => date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric'
+});
+
+const formatHourTickLabel = (date, index) => {
+    if (index === 0 || date.getUTCHours() === 0) {
+        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    if (date.getUTCHours() % 6 === 0) {
+        return date.toLocaleTimeString(undefined, { hour: 'numeric' });
+    }
+
+    return '';
 };
 
 export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true, embedded = false }) {
@@ -673,6 +763,93 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
         }, { durationMs: 0, runs: 0, itemsProcessed: 0, rowsRead: 0, rowsWritten: 0, rowsDeleted: 0 });
 
         return { points, maxDurationMs, maxRows, totals };
+    })();
+
+    const hourlyCrudTrend = (() => {
+        const eventTimes = filteredEvents
+            .map((event) => event?.timestamp ? new Date(event.timestamp) : null)
+            .filter((date) => date && !Number.isNaN(date.getTime()))
+            .sort((a, b) => a - b);
+
+        if (eventTimes.length === 0) {
+            return {
+                points: [],
+                spikeHours: [],
+                maxCrudOps: 1,
+                maxAuditEvents: 1,
+                spanLabel: 'No loaded audit rows',
+                totals: { auditEvents: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0 }
+            };
+        }
+
+        const hourMs = 60 * 60 * 1000;
+        const maxBuckets = 24 * 7;
+        const firstLoadedHour = floorToUtcHour(eventTimes[0]);
+        const lastLoadedHour = floorToUtcHour(eventTimes[eventTimes.length - 1]);
+        const startHour = new Date(Math.max(firstLoadedHour.getTime(), lastLoadedHour.getTime() - ((maxBuckets - 1) * hourMs)));
+        const buckets = new Map();
+
+        for (let hour = new Date(startHour), index = 0; hour <= lastLoadedHour; hour = new Date(hour.getTime() + hourMs), index++) {
+            const key = hour.toISOString();
+            buckets.set(key, {
+                key,
+                hour: new Date(hour),
+                label: formatHourLabel(hour),
+                tickLabel: formatHourTickLabel(hour, index),
+                auditEvents: 0,
+                eventsProcessed: 0,
+                rowsRead: 0,
+                rowsCreated: 0,
+                rowsUpdated: 0,
+                rowsWritten: 0,
+                rowsDeleted: 0,
+                crudOps: 0
+            });
+        }
+
+        for (const event of filteredEvents) {
+            const timestamp = event?.timestamp ? new Date(event.timestamp) : null;
+            if (!timestamp || Number.isNaN(timestamp.getTime())) continue;
+            const hour = floorToUtcHour(timestamp);
+            if (hour < startHour || hour > lastLoadedHour) continue;
+
+            const bucket = buckets.get(hour.toISOString());
+            if (!bucket) continue;
+
+            const volume = getEventVolumeMetrics(event);
+            bucket.auditEvents += 1;
+            bucket.eventsProcessed += volume.eventsProcessed;
+            bucket.rowsRead += volume.rowsRead;
+            bucket.rowsCreated += volume.rowsCreated;
+            bucket.rowsUpdated += volume.rowsUpdated;
+            bucket.rowsWritten += volume.rowsWritten;
+            bucket.rowsDeleted += volume.rowsDeleted;
+            bucket.crudOps += volume.rowsRead + volume.rowsWritten + volume.rowsDeleted;
+        }
+
+        const points = Array.from(buckets.values());
+        const totals = points.reduce((acc, point) => {
+            acc.auditEvents += point.auditEvents;
+            acc.eventsProcessed += point.eventsProcessed;
+            acc.rowsRead += point.rowsRead;
+            acc.rowsCreated += point.rowsCreated;
+            acc.rowsUpdated += point.rowsUpdated;
+            acc.rowsWritten += point.rowsWritten;
+            acc.rowsDeleted += point.rowsDeleted;
+            acc.crudOps += point.crudOps;
+            return acc;
+        }, { auditEvents: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0 });
+        const maxCrudOps = Math.max(1, ...points.map((point) => point.crudOps));
+        const maxAuditEvents = Math.max(1, ...points.map((point) => point.auditEvents));
+        const spikeHours = [...points]
+            .filter((point) => point.crudOps > 0 || point.auditEvents > 0)
+            .sort((a, b) => (b.crudOps - a.crudOps) || (b.auditEvents - a.auditEvents))
+            .slice(0, 5);
+        const spanLabel = points.length === 1
+            ? points[0].label
+            : `${points[0].label} - ${points[points.length - 1].label}`;
+
+        return { points, spikeHours, maxCrudOps, maxAuditEvents, spanLabel, totals };
     })();
 
     const efficiencyTrend = (() => {
@@ -1392,6 +1569,92 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="card cron-hourly-crud-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title mb-0">Hourly Audit CRUD</h3>
+                                    <div class="card-subtitle text-muted cron-trend-readline">Loaded audit rows grouped by hour</div>
+                                </div>
+                                <div class="card-actions text-muted small">
+                                    ${formatCompactNumber(hourlyCrudTrend.totals.crudOps)} CRUD ops · ${formatPlural(hourlyCrudTrend.totals.auditEvents, 'audit event')}
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                ${hourlyCrudTrend.points.length === 0 ? html`
+                                    <div class="empty py-3">
+                                        <div class="empty-icon"><i class="ti ti-chart-bar-off"></i></div>
+                                        <p class="empty-title">No loaded audit rows</p>
+                                    </div>
+                                ` : html`
+                                    <div class="cron-trend-stack">
+                                        <div class="cron-trend-section">
+                                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                                <div>
+                                                    <div class="subheader mb-0">Hour By Hour</div>
+                                                    <div class="text-muted small">${hourlyCrudTrend.spanLabel}</div>
+                                                </div>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    <span class="badge bg-secondary text-white">reads</span>
+                                                    <span class="badge bg-success text-white">create/update</span>
+                                                    <span class="badge bg-warning text-white">delete</span>
+                                                    <span class="badge bg-purple text-white">events</span>
+                                                </div>
+                                            </div>
+                                            <div class="cron-hourly-crud-chart" role="img" aria-label="Hourly audit CRUD operation trend from loaded rows">
+                                                ${hourlyCrudTrend.points.map((point) => {
+                                                    const readHeight = Math.max(point.rowsRead > 0 ? 2 : 0, Math.round((point.rowsRead / hourlyCrudTrend.maxCrudOps) * 40));
+                                                    const writeHeight = Math.max(point.rowsWritten > 0 ? 2 : 0, Math.round((point.rowsWritten / hourlyCrudTrend.maxCrudOps) * 32));
+                                                    const deleteHeight = Math.max(point.rowsDeleted > 0 ? 2 : 0, Math.round((point.rowsDeleted / hourlyCrudTrend.maxCrudOps) * 18));
+                                                    const eventHeight = Math.max(point.auditEvents > 0 ? 2 : 0, Math.round((point.auditEvents / hourlyCrudTrend.maxAuditEvents) * 12));
+                                                    const totalHeight = Math.max(2, readHeight + writeHeight + deleteHeight + eventHeight);
+                                                    return html`
+                                                        <div class="cron-trend-day cron-hourly-crud-hour" title=${`${point.label}: ${formatCompactNumber(point.auditEvents)} audit events, ${formatCompactNumber(point.eventsProcessed)} events processed, ${formatCompactNumber(point.rowsRead)} reads, ${formatCompactNumber(point.rowsCreated)} creates, ${formatCompactNumber(point.rowsUpdated)} updates, ${formatCompactNumber(point.rowsWritten)} writes, ${formatCompactNumber(point.rowsDeleted)} deletes`}>
+                                                            <div class="cron-trend-bar" style=${`height:${totalHeight}px`}>
+                                                                ${eventHeight > 0 && html`<div class="cron-trend-segment cron-trend-events" style=${`height:${eventHeight}px`}></div>`}
+                                                                ${deleteHeight > 0 && html`<div class="cron-trend-segment cron-trend-deletes" style=${`height:${deleteHeight}px`}></div>`}
+                                                                ${writeHeight > 0 && html`<div class="cron-trend-segment cron-trend-writes" style=${`height:${writeHeight}px`}></div>`}
+                                                                ${readHeight > 0 && html`<div class="cron-trend-segment cron-trend-reads" style=${`height:${readHeight}px`}></div>`}
+                                                            </div>
+                                                            <div class="cron-trend-label">${point.tickLabel}</div>
+                                                        </div>
+                                                    `;
+                                                })}
+                                            </div>
+                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                <span class="badge bg-purple text-white">audit events ${formatCompactNumber(hourlyCrudTrend.totals.auditEvents)}</span>
+                                                <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCrudTrend.totals.eventsProcessed)}</span>
+                                                <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCrudTrend.totals.rowsRead)}</span>
+                                                <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCrudTrend.totals.rowsWritten)}</span>
+                                                ${hourlyCrudTrend.totals.rowsCreated > 0 && html`<span class="badge bg-info text-white">creates ${formatCompactNumber(hourlyCrudTrend.totals.rowsCreated)}</span>`}
+                                                ${hourlyCrudTrend.totals.rowsUpdated > 0 && html`<span class="badge bg-primary text-white">updates ${formatCompactNumber(hourlyCrudTrend.totals.rowsUpdated)}</span>`}
+                                                ${hourlyCrudTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">deletes ${formatCompactNumber(hourlyCrudTrend.totals.rowsDeleted)}</span>`}
+                                            </div>
+                                        </div>
+                                        <div class="cron-hourly-spike-list">
+                                            ${hourlyCrudTrend.spikeHours.map((point) => {
+                                                const rowShare = Math.max(1, Math.round((point.crudOps / hourlyCrudTrend.maxCrudOps) * 100));
+                                                return html`
+                                                    <div class="cron-hourly-spike-row">
+                                                        <div>
+                                                            <div class="fw-semibold">${point.label}</div>
+                                                            <div class="text-muted small">${formatCompactNumber(point.crudOps)} CRUD ops · ${formatPlural(point.auditEvents, 'audit event')}</div>
+                                                        </div>
+                                                        <div class="progress progress-sm my-2">
+                                                            <div class="progress-bar bg-primary" style=${`width:${rowShare}%`}></div>
+                                                        </div>
+                                                        <div class="d-flex flex-wrap gap-1">
+                                                            <span class="badge bg-secondary text-white">read ${formatCompactNumber(point.rowsRead)}</span>
+                                                            <span class="badge bg-success text-white">write ${formatCompactNumber(point.rowsWritten)}</span>
+                                                            ${point.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">delete ${formatCompactNumber(point.rowsDeleted)}</span>`}
+                                                        </div>
+                                                    </div>
+                                                `;
+                                            })}
+                                        </div>
+                                    </div>
+                                `}
                             </div>
                         </div>
                         <div class="card">

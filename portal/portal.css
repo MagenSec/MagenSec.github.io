@@ -3166,6 +3166,26 @@ pre.json-metadata {
   background: linear-gradient(180deg, #fbbf24, #d97706);
 }
 
+.cron-trend-reads {
+  background: linear-gradient(180deg, #94a3b8, #475569);
+}
+
+.cron-trend-writes {
+  background: linear-gradient(180deg, #34d399, #059669);
+}
+
+.cron-trend-deletes {
+  background: linear-gradient(180deg, #fbbf24, #d97706);
+}
+
+.cron-trend-alerts {
+  background: linear-gradient(180deg, #fb7185, #e11d48);
+}
+
+.cron-trend-events {
+  background: linear-gradient(180deg, #a78bfa, #7c3aed);
+}
+
 .cron-trend-work {
   background: linear-gradient(180deg, #4ade80, #16a34a);
 }
@@ -3183,6 +3203,45 @@ pre.json-metadata {
 .cron-runtime-leader-list .badge,
 .cron-runtime-leader-list .progress {
   flex: 0 0 auto;
+}
+
+.cron-hourly-crud-chart {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(10px, 1fr);
+  align-items: end;
+  gap: 0.28rem;
+  min-height: 72px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.25rem;
+}
+
+.cron-hourly-crud-hour {
+  min-width: 10px;
+}
+
+.cron-hourly-crud-hour .cron-trend-bar {
+  width: 12px;
+}
+
+.cron-hourly-spike-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.65rem;
+}
+
+.cron-hourly-spike-row {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+[data-bs-theme="dark"] .cron-hourly-spike-row {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.44);
 }
 
 .cron-card-section {
