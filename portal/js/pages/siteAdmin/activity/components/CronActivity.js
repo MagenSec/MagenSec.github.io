@@ -19,6 +19,14 @@ const LANE_LABELS = {
     'low-priority': 'Low Priority',
     'manual': 'Manual'
 };
+const LANE_ICON_CLASSES = {
+    'hot-detect': 'ti-shield-search',
+    'intel': 'ti-brain',
+    'sealed-org-data': 'ti-database',
+    'business-ops': 'ti-chart-bar',
+    'low-priority': 'ti-clock',
+    'manual': 'ti-hand-click'
+};
 
 const AUDIT_CHURN_METRICS = [
     { key: 'crudOps', label: 'CRUD ops', axisLabel: 'Table ops' },
@@ -28,6 +36,71 @@ const AUDIT_CHURN_METRICS = [
 ];
 
 const AUDIT_CHURN_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#be123c', '#4f46e5'];
+const AUDIT_CHURN_SERIES_LIMIT = 8;
+const OTHER_CRON_TASK_ID = '__other_cron_jobs__';
+const OTHER_CRON_TASK_LABEL = 'Other Cron Jobs';
+const OTHER_CRON_TASK_COLOR = '#64748b';
+const CRON_CHURN_WINDOW_OPTIONS = [
+    { key: '1d', days: 1, label: 'Last 24 hours', shortLabel: '1d' },
+    { key: '3d', days: 3, label: 'Last 3 days', shortLabel: '3d' },
+    { key: '7d', days: 7, label: 'Last 7 days', shortLabel: '7d' },
+    { key: '15d', days: 15, label: 'Last 15 days', shortLabel: '15d' },
+    { key: '30d', days: 30, label: 'Last 30 days', shortLabel: '30d' },
+    { key: '60d', days: 60, label: 'Last 60 days', shortLabel: '60d' },
+    { key: '90d', days: 90, label: 'Last 90 days', shortLabel: '90d' },
+    { key: 'mtd', label: 'This month', shortLabel: 'MTD', monthToDate: true }
+];
+const CRON_CHURN_DEFAULT_WINDOW_KEY = '7d';
+const CRON_CHURN_FETCH_DAYS = 90;
+const CRON_CHURN_DEFAULT_FOCUS_KEY = 'all';
+const CRON_CHURN_FOCUS_OPTIONS = [
+    { key: 'all', label: 'All cron jobs', shortLabel: 'All' },
+    {
+        key: 'detectIntel',
+        label: 'Detection + intel',
+        shortLabel: 'Detect',
+        laneIds: ['hot-detect', 'intel'],
+        taskIds: ['Signal Assimilation', 'Detection Engine', 'ThreatIntel Enrichment', 'AppVersionIntel Enricher', 'CPE Dictionary Sync', 'CVE Sync', 'MSRC Patch Sync']
+    },
+    {
+        key: 'businessDaily',
+        label: 'Business jobs',
+        shortLabel: 'Biz',
+        laneIds: ['sealed-org-data', 'business-ops'],
+        taskIds: ['Org Data Cook', 'Report Dispatch', 'Credit Consumption', 'Business Metrics Snapshots', 'Report Backfill', 'Daily Security Report']
+    }
+];
+const CRON_CHURN_COST_MODE_OPTIONS = [
+    { key: 'both', label: 'Split regular/manual', shortLabel: 'Split' },
+    { key: 'regular', label: 'Regular business', shortLabel: 'Regular' },
+    { key: 'manualRecovery', label: 'Manual/recovery', shortLabel: 'Manual' },
+    { key: 'total', label: 'Total combined', shortLabel: 'Total' }
+];
+const CRON_CHURN_DEFAULT_COST_MODE_KEY = 'both';
+const AZURE_TABLE_STANDARD_OPS_PRICE_USD_PER_10K = 0.00036;
+const AZURE_CONTAINER_APPS_CPU_CORES = 0.5;
+const AZURE_CONTAINER_APPS_MEMORY_GIB = 2;
+const AZURE_CONTAINER_APPS_STANDARD_ACTIVE_VCPU_SECOND_USD = 0.000024;
+const AZURE_CONTAINER_APPS_STANDARD_ACTIVE_GIB_SECOND_USD = 0.000003;
+const DEFAULT_CRON_COST_MODEL = {
+    currency: 'USD',
+    pricingSource: 'Azure Retail Prices API 2023-01-01-preview, East US primary meters',
+    defaultRegion: 'eastus',
+    azureTableStandardOpsPriceUsdPer10K: AZURE_TABLE_STANDARD_OPS_PRICE_USD_PER_10K,
+    containerApps: {
+        eastus: {
+            region: 'eastus',
+            location: 'East US',
+            skuName: 'Standard',
+            cpuCores: AZURE_CONTAINER_APPS_CPU_CORES,
+            memoryGiB: AZURE_CONTAINER_APPS_MEMORY_GIB,
+            activeVcpuSecondUsd: AZURE_CONTAINER_APPS_STANDARD_ACTIVE_VCPU_SECOND_USD,
+            activeGiBSecondUsd: AZURE_CONTAINER_APPS_STANDARD_ACTIVE_GIB_SECOND_USD,
+            activeComputeSecondUsd: 0.000018,
+            activeComputeHourUsd: 0.0648
+        }
+    }
+};
 
 const DIRECT_CRON_EVENT_LABELS = {
     SIGNAL_ASSIMILATION: 'Signal Assimilation',
@@ -46,6 +119,10 @@ const formatLaneLabel = (laneId) => {
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
 };
+
+    const getLaneIconClass = (laneId) => LANE_ICON_CLASSES[normalizeLaneId(laneId)] || 'ti-route';
+
+    const getLaneToneClass = (laneId) => `cron-task-lane-${normalizeLaneId(laneId).replace(/[^a-z0-9-]/g, '-')}`;
 
 const formatExecutionScope = (scopeId) => {
     const normalized = String(scopeId || 'global').trim().toLowerCase();
@@ -184,11 +261,96 @@ const formatDuration = (durationMs) => {
     return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
 };
 
+const formatRelativeTime = (value) => {
+    const date = value instanceof Date ? value : (value ? new Date(value) : null);
+    if (!date || Number.isNaN(date.getTime())) return '-';
+
+    const diffMs = Date.now() - date.getTime();
+    const absMs = Math.abs(diffMs);
+    const suffix = diffMs >= 0 ? 'ago' : 'from now';
+    if (absMs < 60000) return 'just now';
+    if (absMs < 3600000) return `${Math.round(absMs / 60000)}m ${suffix}`;
+    if (absMs < 86400000) return `${Math.round(absMs / 3600000)}h ${suffix}`;
+    return `${Math.round(absMs / 86400000)}d ${suffix}`;
+};
+
+const truncateMiddle = (value, maxLength = 48) => {
+    const text = String(value || '');
+    if (text.length <= maxLength) return text;
+    const head = Math.ceil((maxLength - 1) / 2);
+    const tail = Math.floor((maxLength - 1) / 2);
+    return `${text.slice(0, head)}...${text.slice(-tail)}`;
+};
+
+const truncateEnd = (value, maxLength = 96) => {
+    const text = String(value || '');
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+};
+
+const formatDiagnosticLabel = (key) => String(key || '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_.-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const formatDiagnosticValue = (value) => {
+    if (Array.isArray(value)) return value.join(', ');
+    if (value && typeof value === 'object') return JSON.stringify(value);
+    return String(value ?? '');
+};
+
 const formatCompactNumber = (value) => {
     const n = toNumber(value);
     if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
     if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
     return `${Math.round(n)}`;
+};
+
+const normalizeCronCostModel = (costModel) => ({
+    ...DEFAULT_CRON_COST_MODEL,
+    ...(costModel || {}),
+    containerApps: {
+        ...DEFAULT_CRON_COST_MODEL.containerApps,
+        ...((costModel && costModel.containerApps) || {})
+    }
+});
+
+const getCronContainerAppCostConfig = (costModel) => {
+    const model = normalizeCronCostModel(costModel);
+    const region = String(model.defaultRegion || DEFAULT_CRON_COST_MODEL.defaultRegion).toLowerCase();
+    return model.containerApps?.[region]
+        || model.containerApps?.[DEFAULT_CRON_COST_MODEL.defaultRegion]
+        || DEFAULT_CRON_COST_MODEL.containerApps.eastus;
+};
+
+const estimateAzureTableOperationCostUsd = (operationCount, costModel) => {
+    const model = normalizeCronCostModel(costModel);
+    return (toNumber(operationCount) / 10000) * toNumber(model.azureTableStandardOpsPriceUsdPer10K, AZURE_TABLE_STANDARD_OPS_PRICE_USD_PER_10K);
+};
+
+const estimateContainerAppComputeCostUsd = (durationMs, costModel) => {
+    const activeSeconds = toNumber(durationMs) / 1000;
+    if (activeSeconds <= 0) return 0;
+
+    const config = getCronContainerAppCostConfig(costModel);
+    const explicitSecondCost = toNumber(config.activeComputeSecondUsd);
+    if (explicitSecondCost > 0) return activeSeconds * explicitSecondCost;
+
+    const cpuCost = activeSeconds * toNumber(config.cpuCores, AZURE_CONTAINER_APPS_CPU_CORES) * toNumber(config.activeVcpuSecondUsd, AZURE_CONTAINER_APPS_STANDARD_ACTIVE_VCPU_SECOND_USD);
+    const memoryCost = activeSeconds * toNumber(config.memoryGiB, AZURE_CONTAINER_APPS_MEMORY_GIB) * toNumber(config.activeGiBSecondUsd, AZURE_CONTAINER_APPS_STANDARD_ACTIVE_GIB_SECOND_USD);
+    return cpuCost + memoryCost;
+};
+
+const estimateCronRunCostUsd = (source = {}, costModel) => estimateAzureTableOperationCostUsd(source.crudOps, costModel)
+    + estimateContainerAppComputeCostUsd(source.durationMs, costModel);
+
+const formatUsd = (value) => {
+    const amount = toNumber(value);
+    if (amount >= 1) return `$${amount.toFixed(2)}`;
+    if (amount >= 0.01) return `$${amount.toFixed(3)}`;
+    if (amount > 0) return `$${amount.toFixed(5)}`;
+    return '$0';
 };
 
 const formatPlural = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
@@ -219,6 +381,42 @@ const formatSampleWindow = (rangeDays) => {
     return days === 1 ? 'Last 24h' : `Last ${days}d`;
 };
 
+const getCronChurnWindowOption = (windowKey) => CRON_CHURN_WINDOW_OPTIONS.find((option) => option.key === windowKey)
+    || CRON_CHURN_WINDOW_OPTIONS.find((option) => option.key === CRON_CHURN_DEFAULT_WINDOW_KEY)
+    || CRON_CHURN_WINDOW_OPTIONS[0];
+
+const getCronChurnFocusOption = (focusKey) => CRON_CHURN_FOCUS_OPTIONS.find((option) => option.key === focusKey)
+    || CRON_CHURN_FOCUS_OPTIONS.find((option) => option.key === CRON_CHURN_DEFAULT_FOCUS_KEY)
+    || CRON_CHURN_FOCUS_OPTIONS[0];
+
+const getCronChurnCostModeOption = (costModeKey) => CRON_CHURN_COST_MODE_OPTIONS.find((option) => option.key === costModeKey)
+    || CRON_CHURN_COST_MODE_OPTIONS.find((option) => option.key === CRON_CHURN_DEFAULT_COST_MODE_KEY)
+    || CRON_CHURN_COST_MODE_OPTIONS[0];
+
+const isManualRecoveryCronRun = (source = {}) => {
+    const triggerSource = String(source.triggerSource || '').trim().toLowerCase();
+    const laneId = String(source.laneId || '').trim().toLowerCase();
+    if (laneId === 'manual') return true;
+    if (!triggerSource) return false;
+    return triggerSource !== 'schedule'
+        && triggerSource !== 'scheduled'
+        && triggerSource !== 'system'
+        && triggerSource !== 'scheduler';
+};
+
+const formatCronChurnWindowLabel = (option) => option?.monthToDate ? 'This month' : formatSampleWindow(option?.days || 7);
+
+const getCronChurnWindowCutoff = (option, lastHour) => {
+    if (!lastHour) return null;
+
+    if (option?.monthToDate) {
+        return new Date(Date.UTC(lastHour.getUTCFullYear(), lastHour.getUTCMonth(), 1, 0, 0, 0));
+    }
+
+    const safeDays = Math.min(CRON_CHURN_FETCH_DAYS, Math.max(1, Number(option?.days || 7)));
+    return new Date(lastHour.getTime() - (((safeDays * 24) - 1) * 60 * 60 * 1000));
+};
+
 const getTaskIdFromEvent = (event) => {
     const meta = event?.metadata || {};
     const explicitTaskId = meta.taskId || meta.TaskId || meta.taskName || meta.TaskName || meta.jobId || meta.JobId;
@@ -237,11 +435,113 @@ const getCronVolumeTaskIdFromEvent = (event) => {
     return DIRECT_CRON_EVENT_LABELS[eventType] || null;
 };
 
-const getMetricValueFromPoint = (point, metricKey) => {
+const getMetricValueFromPoint = (point, metricKey, costModel) => {
+    if (metricKey === 'estimatedTableCostUsd') return estimateCronRunCostUsd(point, costModel);
     if (metricKey === 'rowsRead') return point.rowsRead;
     if (metricKey === 'rowsWritten') return point.rowsWritten;
     if (metricKey === 'eventsProcessed') return point.eventsProcessed;
     return point.crudOps;
+};
+
+const getCronCostSplit = (source = {}) => {
+    const crudOps = toNumber(source.crudOps);
+    const explicitRegular = toNumber(source.regularCrudOps);
+    const explicitManual = toNumber(source.manualRecoveryCrudOps);
+    const durationMs = toNumber(source.durationMs);
+    const explicitRegularDuration = toNumber(source.regularDurationMs);
+    const explicitManualDuration = toNumber(source.manualRecoveryDurationMs);
+    const hasExplicitCrudSplit = explicitRegular > 0 || explicitManual > 0;
+    const hasExplicitDurationSplit = explicitRegularDuration > 0 || explicitManualDuration > 0;
+    const manualRecovery = isManualRecoveryCronRun(source);
+
+    return {
+        regularCrudOps: hasExplicitCrudSplit ? explicitRegular : (manualRecovery ? 0 : crudOps),
+        manualRecoveryCrudOps: hasExplicitCrudSplit ? explicitManual : (manualRecovery ? crudOps : 0),
+        regularDurationMs: hasExplicitDurationSplit ? explicitRegularDuration : (manualRecovery ? 0 : durationMs),
+        manualRecoveryDurationMs: hasExplicitDurationSplit ? explicitManualDuration : (manualRecovery ? durationMs : 0)
+    };
+};
+
+const splitCronCost = (source = {}, costModel) => {
+    const split = getCronCostSplit(source);
+    const storageCost = estimateAzureTableOperationCostUsd(source.crudOps, costModel);
+    const regularStorageCost = estimateAzureTableOperationCostUsd(split.regularCrudOps, costModel);
+    const manualRecoveryStorageCost = estimateAzureTableOperationCostUsd(split.manualRecoveryCrudOps, costModel);
+    const computeCost = estimateContainerAppComputeCostUsd(source.durationMs, costModel);
+    const regularComputeCost = estimateContainerAppComputeCostUsd(split.regularDurationMs, costModel);
+    const manualRecoveryComputeCost = estimateContainerAppComputeCostUsd(split.manualRecoveryDurationMs, costModel);
+
+    return {
+        storageCost,
+        regularStorageCost,
+        manualRecoveryStorageCost,
+        computeCost,
+        regularComputeCost,
+        manualRecoveryComputeCost,
+        totalCost: storageCost + computeCost,
+        regularTotalCost: regularStorageCost + regularComputeCost,
+        manualRecoveryTotalCost: manualRecoveryStorageCost + manualRecoveryComputeCost
+    };
+};
+
+const formatAuditChurnMetricValue = (value, metricKey) => metricKey === 'estimatedTableCostUsd'
+    ? formatUsd(value)
+    : formatCompactNumber(value);
+
+const buildAccumulatedCostSeries = (points, costModel) => {
+    let accumulatedCost = 0;
+    let accumulatedStorageCost = 0;
+    let accumulatedComputeCost = 0;
+    let regularAccumulatedCost = 0;
+    let regularAccumulatedStorageCost = 0;
+    let regularAccumulatedComputeCost = 0;
+    let manualRecoveryAccumulatedCost = 0;
+    let manualRecoveryAccumulatedStorageCost = 0;
+    let manualRecoveryAccumulatedComputeCost = 0;
+
+    return points.map((point) => {
+        const costs = splitCronCost(point, costModel);
+        const hourCost = costs.totalCost;
+        const hourStorageCost = costs.storageCost;
+        const hourComputeCost = costs.computeCost;
+        const regularHourCost = costs.regularTotalCost;
+        const regularHourStorageCost = costs.regularStorageCost;
+        const regularHourComputeCost = costs.regularComputeCost;
+        const manualRecoveryHourCost = costs.manualRecoveryTotalCost;
+        const manualRecoveryHourStorageCost = costs.manualRecoveryStorageCost;
+        const manualRecoveryHourComputeCost = costs.manualRecoveryComputeCost;
+        accumulatedCost += hourCost;
+        accumulatedStorageCost += hourStorageCost;
+        accumulatedComputeCost += hourComputeCost;
+        regularAccumulatedCost += regularHourCost;
+        regularAccumulatedStorageCost += regularHourStorageCost;
+        regularAccumulatedComputeCost += regularHourComputeCost;
+        manualRecoveryAccumulatedCost += manualRecoveryHourCost;
+        manualRecoveryAccumulatedStorageCost += manualRecoveryHourStorageCost;
+        manualRecoveryAccumulatedComputeCost += manualRecoveryHourComputeCost;
+
+        return {
+            hourCost,
+            hourStorageCost,
+            hourComputeCost,
+            accumulatedCost,
+            accumulatedStorageCost,
+            accumulatedComputeCost,
+            regularHourCost,
+            regularHourStorageCost,
+            regularHourComputeCost,
+            regularAccumulatedCost,
+            regularAccumulatedStorageCost,
+            regularAccumulatedComputeCost,
+            manualRecoveryHourCost,
+            manualRecoveryHourStorageCost,
+            manualRecoveryHourComputeCost,
+            manualRecoveryAccumulatedCost,
+            manualRecoveryAccumulatedStorageCost,
+            manualRecoveryAccumulatedComputeCost,
+            averageRunCost: point.auditEvents > 0 ? hourCost / point.auditEvents : 0
+        };
+    });
 };
 
 const floorToUtcHour = (date) => new Date(Date.UTC(
@@ -269,11 +569,293 @@ const formatHourTickLabel = (date, index) => {
     return '';
 };
 
-const buildHourlyCronChurnTrendFromApi = (trend, auditChurnMetric, chartThemeVersion) => {
+const formatAxisDateTimeLabel = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    return [
+        date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        date.toLocaleTimeString(undefined, { hour: 'numeric' })
+    ];
+};
+
+const normalizeCronChurnScope = (executionScope) => String(executionScope || 'global').trim().toLowerCase() || 'global';
+const normalizeCronChurnLane = (laneId) => String(laneId || '').trim().toLowerCase();
+const buildCronChurnTaskKey = (taskId, laneId, executionScope) => [
+    String(taskId || 'Unassigned'),
+    normalizeCronChurnLane(laneId),
+    normalizeCronChurnScope(executionScope)
+].join('|');
+const formatCronChurnSeriesLabel = (taskId, laneId, executionScope) => {
+    const baseLabel = formatCronTaskLabel(taskId);
+    const normalizedScope = normalizeCronChurnScope(executionScope);
+    const normalizedLane = normalizeCronChurnLane(laneId);
+    const suffixes = [];
+    if (normalizedScope !== 'global') suffixes.push(formatExecutionScope(normalizedScope));
+    if (normalizedLane) suffixes.push(formatLaneLabel(normalizedLane));
+    return suffixes.length > 0 ? `${baseLabel} · ${suffixes.join(' · ')}` : baseLabel;
+};
+
+const createEmptyCronChurnTaskPoint = (taskId, label, options = {}) => ({
+    taskKey: options.taskKey || buildCronChurnTaskKey(taskId, options.laneId, options.executionScope),
+    taskId,
+    laneId: options.laneId || '',
+    executionScope: options.executionScope || 'global',
+    triggerSource: options.triggerSource || '',
+    label,
+    auditEvents: 0,
+    durationMs: 0,
+    regularDurationMs: 0,
+    manualRecoveryDurationMs: 0,
+    eventsProcessed: 0,
+    rowsRead: 0,
+    rowsCreated: 0,
+    rowsUpdated: 0,
+    rowsWritten: 0,
+    rowsDeleted: 0,
+    crudOps: 0,
+    regularCrudOps: 0,
+    manualRecoveryCrudOps: 0
+});
+
+const addCronChurnMetrics = (target, source) => {
+    target.auditEvents += toNumber(source?.auditEvents);
+    target.durationMs += toNumber(source?.durationMs);
+    target.regularDurationMs += toNumber(source?.regularDurationMs);
+    target.manualRecoveryDurationMs += toNumber(source?.manualRecoveryDurationMs);
+    target.eventsProcessed += toNumber(source?.eventsProcessed);
+    target.rowsRead += toNumber(source?.rowsRead);
+    target.rowsCreated += toNumber(source?.rowsCreated);
+    target.rowsUpdated += toNumber(source?.rowsUpdated);
+    target.rowsWritten += toNumber(source?.rowsWritten);
+    target.rowsDeleted += toNumber(source?.rowsDeleted);
+    target.crudOps += toNumber(source?.crudOps);
+    target.regularCrudOps += toNumber(source?.regularCrudOps);
+    target.manualRecoveryCrudOps += toNumber(source?.manualRecoveryCrudOps);
+};
+
+const isCronChurnTaskInFocus = (taskPoint, focus) => {
+    if (!focus || focus.key === 'all') return true;
+
+    const laneId = String(taskPoint?.laneId || '').toLowerCase();
+    const taskId = String(taskPoint?.taskId || '');
+    const laneMatch = Array.isArray(focus.laneIds)
+        && focus.laneIds.some((candidate) => String(candidate).toLowerCase() === laneId);
+    const taskMatch = Array.isArray(focus.taskIds)
+        && focus.taskIds.some((candidate) => candidate.toLowerCase() === taskId.toLowerCase());
+
+    return laneMatch || taskMatch;
+};
+
+const applyCronChurnFocusToPoints = (points, focusKey) => {
+    const focus = getCronChurnFocusOption(focusKey);
+    if (focus.key === 'all') return { points, focus };
+
+    const focusedPoints = points.map((point) => {
+        const byTask = new Map();
+        const focusedTotals = createEmptyCronChurnTaskPoint('__focus_total__', 'Focus total');
+
+        for (const [taskKey, taskPoint] of point.byTask.entries()) {
+            if (!isCronChurnTaskInFocus(taskPoint, focus)) continue;
+            byTask.set(taskKey, taskPoint);
+            addCronChurnMetrics(focusedTotals, taskPoint);
+        }
+
+        return {
+            ...point,
+            auditEvents: focusedTotals.auditEvents,
+            durationMs: focusedTotals.durationMs,
+            regularDurationMs: focusedTotals.regularDurationMs,
+            manualRecoveryDurationMs: focusedTotals.manualRecoveryDurationMs,
+            eventsProcessed: focusedTotals.eventsProcessed,
+            rowsRead: focusedTotals.rowsRead,
+            rowsCreated: focusedTotals.rowsCreated,
+            rowsUpdated: focusedTotals.rowsUpdated,
+            rowsWritten: focusedTotals.rowsWritten,
+            rowsDeleted: focusedTotals.rowsDeleted,
+            crudOps: focusedTotals.crudOps,
+            regularCrudOps: focusedTotals.regularCrudOps,
+            manualRecoveryCrudOps: focusedTotals.manualRecoveryCrudOps,
+            byTask
+        };
+    });
+
+    return { points: focusedPoints, focus };
+};
+
+const hasCronChurnVolume = (point) => [
+    point.auditEvents,
+    point.eventsProcessed,
+    point.rowsRead,
+    point.rowsCreated,
+    point.rowsUpdated,
+    point.rowsWritten,
+    point.rowsDeleted,
+    point.crudOps
+].some((value) => toNumber(value) > 0);
+
+const buildOtherCronChurnTask = (points, selectedTaskKeys) => {
+    const selected = new Set(selectedTaskKeys);
+    const total = createEmptyCronChurnTaskPoint(OTHER_CRON_TASK_ID, OTHER_CRON_TASK_LABEL);
+    const otherPoints = points.map((point) => {
+        const used = createEmptyCronChurnTaskPoint(OTHER_CRON_TASK_ID, OTHER_CRON_TASK_LABEL);
+        for (const taskKey of selected) {
+            addCronChurnMetrics(used, point.byTask.get(taskKey));
+        }
+
+        const residual = {
+            taskKey: OTHER_CRON_TASK_ID,
+            taskId: OTHER_CRON_TASK_ID,
+            laneId: '',
+            executionScope: 'global',
+            label: OTHER_CRON_TASK_LABEL,
+            auditEvents: Math.max(0, point.auditEvents - used.auditEvents),
+            durationMs: Math.max(0, point.durationMs - used.durationMs),
+            regularDurationMs: Math.max(0, point.regularDurationMs - used.regularDurationMs),
+            manualRecoveryDurationMs: Math.max(0, point.manualRecoveryDurationMs - used.manualRecoveryDurationMs),
+            eventsProcessed: Math.max(0, point.eventsProcessed - used.eventsProcessed),
+            rowsRead: Math.max(0, point.rowsRead - used.rowsRead),
+            rowsCreated: Math.max(0, point.rowsCreated - used.rowsCreated),
+            rowsUpdated: Math.max(0, point.rowsUpdated - used.rowsUpdated),
+            rowsWritten: Math.max(0, point.rowsWritten - used.rowsWritten),
+            rowsDeleted: Math.max(0, point.rowsDeleted - used.rowsDeleted),
+            crudOps: Math.max(0, point.crudOps - used.crudOps),
+            regularCrudOps: Math.max(0, point.regularCrudOps - used.regularCrudOps),
+            manualRecoveryCrudOps: Math.max(0, point.manualRecoveryCrudOps - used.manualRecoveryCrudOps)
+        };
+
+        addCronChurnMetrics(total, residual);
+        return residual;
+    });
+
+    return { ...total, color: OTHER_CRON_TASK_COLOR, points: otherPoints };
+};
+
+const buildCronChurnTaskSeries = (points) => {
+    const taskTotals = new Map();
+    for (const point of points) {
+        for (const taskPoint of point.byTask.values()) {
+            const existing = taskTotals.get(taskPoint.taskKey) || createEmptyCronChurnTaskPoint(taskPoint.taskId, taskPoint.label, taskPoint);
+            addCronChurnMetrics(existing, taskPoint);
+            taskTotals.set(taskPoint.taskKey, existing);
+        }
+    }
+
+    const sortedTasks = Array.from(taskTotals.values())
+        .sort((a, b) => (b.crudOps - a.crudOps) || (b.eventsProcessed - a.eventsProcessed) || a.label.localeCompare(b.label));
+
+    let selectedTasks = sortedTasks.slice(0, AUDIT_CHURN_SERIES_LIMIT);
+    let otherTask = buildOtherCronChurnTask(points, selectedTasks.map((task) => task.taskKey));
+    if (hasCronChurnVolume(otherTask) && selectedTasks.length >= AUDIT_CHURN_SERIES_LIMIT) {
+        selectedTasks = sortedTasks.slice(0, AUDIT_CHURN_SERIES_LIMIT - 1);
+        otherTask = buildOtherCronChurnTask(points, selectedTasks.map((task) => task.taskKey));
+    }
+
+    const tasks = selectedTasks.map((task, index) => ({
+        ...task,
+        color: AUDIT_CHURN_COLORS[index % AUDIT_CHURN_COLORS.length],
+        points: points.map((point) => point.byTask.get(task.taskKey) || createEmptyCronChurnTaskPoint(task.taskId, task.label, task))
+    }));
+
+    if (hasCronChurnVolume(otherTask)) {
+        tasks.push(otherTask);
+    }
+
+    return tasks;
+};
+
+const getCronChurnTaskSignals = (task) => {
+    const processed = toNumber(task?.eventsProcessed);
+    const reads = toNumber(task?.rowsRead);
+    const writes = toNumber(task?.rowsWritten);
+    const deletes = toNumber(task?.rowsDeleted);
+    const crudOps = toNumber(task?.crudOps);
+    const runs = toNumber(task?.auditEvents);
+    const signals = [];
+
+    if (task?.taskId === OTHER_CRON_TASK_ID) {
+        signals.push({
+            tone: 'info',
+            title: 'Aggregated residual series',
+            description: 'This card covers churn that exists in hourly totals but was not retained as detailed task series in compact snapshots.'
+        });
+    }
+
+    if (processed > 0 && reads / processed >= 10) {
+        signals.push({
+            tone: 'warning',
+            title: 'Reads are high for the work processed',
+            description: 'Check for broad table scans, missing partition filters, or repeated lookups that do not change the workload count.'
+        });
+    }
+
+    if (processed > 0 && writes / processed >= 5) {
+        signals.push({
+            tone: 'warning',
+            title: 'Writes are high for the work processed',
+            description: 'Look for rows being re-dirtied or rewritten every run instead of settling after the first pass.'
+        });
+    }
+
+    if (processed === 0 && crudOps > 0) {
+        signals.push({
+            tone: 'danger',
+            title: 'Storage churn without processed work',
+            description: 'The job touched storage without reporting logical work. This is usually worth investigating first.'
+        });
+    }
+
+    if (deletes > 0) {
+        signals.push({
+            tone: 'info',
+            title: 'Deletes occurred',
+            description: 'Deletes are normal for cleanup jobs, but unexpected delete spikes should be checked against the job purpose.'
+        });
+    }
+
+    if (signals.length === 0) {
+        signals.push({
+            tone: 'success',
+            title: 'No obvious churn smell in this window',
+            description: 'Reads, writes, and processed volume do not show a clear mismatch. Compare against prior windows before calling it healthy.'
+        });
+    }
+
+    return signals.map((signal) => ({
+        ...signal,
+        badgeClass: signal.tone === 'danger'
+            ? 'bg-danger-lt text-danger'
+            : signal.tone === 'warning'
+                ? 'bg-warning-lt text-warning'
+                : signal.tone === 'success'
+                    ? 'bg-success-lt text-success'
+                    : 'bg-info-lt text-info'
+    }));
+};
+
+const getCronChurnTaskHealth = (task) => {
+    const signals = getCronChurnTaskSignals(task);
+    if (signals.some((signal) => signal.tone === 'danger')) {
+        return { tone: 'danger', progressClass: 'cron-audit-progress--danger', label: 'Bad churn pattern' };
+    }
+
+    if (signals.some((signal) => signal.tone === 'warning')) {
+        return { tone: 'warning', progressClass: 'cron-audit-progress--warning', label: 'Suspicious churn pattern' };
+    }
+
+    if (task?.taskId === OTHER_CRON_TASK_ID) {
+        return { tone: 'info', progressClass: 'cron-audit-progress--info', label: 'Aggregated residual churn' };
+    }
+
+    return { tone: 'success', progressClass: 'cron-audit-progress--success', label: 'No obvious churn smell' };
+};
+
+const buildHourlyCronChurnTrendFromApi = (trend, auditChurnMetric, chartThemeVersion, windowKey = CRON_CHURN_DEFAULT_WINDOW_KEY, focusKey = CRON_CHURN_DEFAULT_FOCUS_KEY) => {
     const apiPoints = Array.isArray(trend?.points) ? trend.points : [];
     if (apiPoints.length === 0) return null;
+    const costModel = normalizeCronCostModel(trend?.costModel);
 
-    const points = apiPoints.map((point, index) => {
+    const allPoints = apiPoints.map((point, index) => {
         const hour = point?.hourUtc ? new Date(point.hourUtc) : null;
         const safeHour = hour && !Number.isNaN(hour.getTime()) ? hour : new Date();
         const totals = point?.totals || {};
@@ -283,6 +865,9 @@ const buildHourlyCronChurnTrendFromApi = (trend, auditChurnMetric, chartThemeVer
             label: formatHourLabel(safeHour),
             tickLabel: formatHourTickLabel(safeHour, index),
             auditEvents: toNumber(totals.runs),
+            durationMs: toNumber(totals.durationMs),
+            regularDurationMs: toNumber(totals.regularDurationMs),
+            manualRecoveryDurationMs: toNumber(totals.manualRecoveryDurationMs),
             eventsProcessed: toNumber(totals.eventsProcessed),
             rowsRead: toNumber(totals.rowsRead),
             rowsCreated: toNumber(totals.rowsCreated),
@@ -290,77 +875,92 @@ const buildHourlyCronChurnTrendFromApi = (trend, auditChurnMetric, chartThemeVer
             rowsWritten: toNumber(totals.rowsWritten),
             rowsDeleted: toNumber(totals.rowsDeleted),
             crudOps: toNumber(totals.crudOps),
+            regularCrudOps: toNumber(totals.regularCrudOps),
+            manualRecoveryCrudOps: toNumber(totals.manualRecoveryCrudOps),
             byTask: new Map()
         };
 
         for (const task of point?.tasks || []) {
             const taskId = String(task?.taskId || 'Unassigned');
-            bucket.byTask.set(taskId, {
+            const laneId = String(task?.laneId || '');
+            const executionScope = normalizeCronChurnScope(task?.executionScope);
+            const triggerSource = String(task?.triggerSource || '');
+            const taskKey = buildCronChurnTaskKey(taskId, laneId, executionScope);
+            const crudOps = toNumber(task?.crudOps);
+            const durationMs = toNumber(task?.durationMs);
+            const split = getCronCostSplit({
                 taskId,
-                label: formatCronTaskLabel(taskId),
+                laneId,
+                triggerSource,
+                crudOps,
+                durationMs,
+                regularCrudOps: task?.regularCrudOps,
+                manualRecoveryCrudOps: task?.manualRecoveryCrudOps,
+                regularDurationMs: task?.regularDurationMs,
+                manualRecoveryDurationMs: task?.manualRecoveryDurationMs
+            });
+            bucket.byTask.set(taskKey, {
+                taskKey,
+                taskId,
+                laneId,
+                executionScope,
+                triggerSource,
+                label: formatCronChurnSeriesLabel(taskId, laneId, executionScope),
                 auditEvents: toNumber(task?.runs),
+                durationMs,
+                regularDurationMs: split.regularDurationMs,
+                manualRecoveryDurationMs: split.manualRecoveryDurationMs,
                 eventsProcessed: toNumber(task?.eventsProcessed),
                 rowsRead: toNumber(task?.rowsRead),
                 rowsCreated: toNumber(task?.rowsCreated),
                 rowsUpdated: toNumber(task?.rowsUpdated),
                 rowsWritten: toNumber(task?.rowsWritten),
                 rowsDeleted: toNumber(task?.rowsDeleted),
-                crudOps: toNumber(task?.crudOps)
+                crudOps,
+                regularCrudOps: split.regularCrudOps,
+                manualRecoveryCrudOps: split.manualRecoveryCrudOps
             });
+        }
+
+        const taskSplitTotals = Array.from(bucket.byTask.values()).reduce((acc, taskPoint) => {
+            acc.regularCrudOps += toNumber(taskPoint.regularCrudOps);
+            acc.manualRecoveryCrudOps += toNumber(taskPoint.manualRecoveryCrudOps);
+            acc.regularDurationMs += toNumber(taskPoint.regularDurationMs);
+            acc.manualRecoveryDurationMs += toNumber(taskPoint.manualRecoveryDurationMs);
+            return acc;
+        }, { regularCrudOps: 0, manualRecoveryCrudOps: 0, regularDurationMs: 0, manualRecoveryDurationMs: 0 });
+        if (bucket.crudOps > 0 && bucket.regularCrudOps === 0 && bucket.manualRecoveryCrudOps === 0) {
+            bucket.regularCrudOps = taskSplitTotals.regularCrudOps;
+            bucket.manualRecoveryCrudOps = taskSplitTotals.manualRecoveryCrudOps;
+            const unattributedCrudOps = Math.max(0, bucket.crudOps - bucket.regularCrudOps - bucket.manualRecoveryCrudOps);
+            bucket.regularCrudOps += unattributedCrudOps;
+        }
+        if (bucket.durationMs > 0 && bucket.regularDurationMs === 0 && bucket.manualRecoveryDurationMs === 0) {
+            bucket.regularDurationMs = taskSplitTotals.regularDurationMs;
+            bucket.manualRecoveryDurationMs = taskSplitTotals.manualRecoveryDurationMs;
+            const unattributedDurationMs = Math.max(0, bucket.durationMs - bucket.regularDurationMs - bucket.manualRecoveryDurationMs);
+            bucket.regularDurationMs += unattributedDurationMs;
         }
 
         return bucket;
     });
 
-    const taskTotals = new Map();
-    for (const point of points) {
-        for (const taskPoint of point.byTask.values()) {
-            const existing = taskTotals.get(taskPoint.taskId) || {
-                taskId: taskPoint.taskId,
-                label: taskPoint.label,
-                auditEvents: 0,
-                eventsProcessed: 0,
-                rowsRead: 0,
-                rowsCreated: 0,
-                rowsUpdated: 0,
-                rowsWritten: 0,
-                rowsDeleted: 0,
-                crudOps: 0
-            };
-            existing.auditEvents += taskPoint.auditEvents;
-            existing.eventsProcessed += taskPoint.eventsProcessed;
-            existing.rowsRead += taskPoint.rowsRead;
-            existing.rowsCreated += taskPoint.rowsCreated;
-            existing.rowsUpdated += taskPoint.rowsUpdated;
-            existing.rowsWritten += taskPoint.rowsWritten;
-            existing.rowsDeleted += taskPoint.rowsDeleted;
-            existing.crudOps += taskPoint.crudOps;
-            taskTotals.set(taskPoint.taskId, existing);
-        }
-    }
+    const sortedPoints = allPoints.sort((left, right) => left.hour - right.hour);
+    const selectedWindow = getCronChurnWindowOption(windowKey);
+    const lastHour = sortedPoints[sortedPoints.length - 1]?.hour;
+    const cutoff = getCronChurnWindowCutoff(selectedWindow, lastHour);
+    const windowedPoints = cutoff
+        ? sortedPoints.filter((point) => point.hour >= cutoff)
+        : sortedPoints;
+    const { points, focus } = applyCronChurnFocusToPoints(windowedPoints, focusKey);
 
-    const tasks = Array.from(taskTotals.values())
-        .sort((a, b) => (b.crudOps - a.crudOps) || (b.eventsProcessed - a.eventsProcessed) || a.label.localeCompare(b.label))
-        .slice(0, 8)
-        .map((task, index) => ({
-            ...task,
-            color: AUDIT_CHURN_COLORS[index % AUDIT_CHURN_COLORS.length],
-            points: points.map((point) => point.byTask.get(task.taskId) || {
-                taskId: task.taskId,
-                label: task.label,
-                auditEvents: 0,
-                eventsProcessed: 0,
-                rowsRead: 0,
-                rowsCreated: 0,
-                rowsUpdated: 0,
-                rowsWritten: 0,
-                rowsDeleted: 0,
-                crudOps: 0
-            })
-        }));
+    const tasks = buildCronChurnTaskSeries(points);
 
     const totals = points.reduce((acc, point) => {
         acc.auditEvents += point.auditEvents;
+        acc.durationMs += point.durationMs;
+        acc.regularDurationMs += point.regularDurationMs;
+        acc.manualRecoveryDurationMs += point.manualRecoveryDurationMs;
         acc.eventsProcessed += point.eventsProcessed;
         acc.rowsRead += point.rowsRead;
         acc.rowsCreated += point.rowsCreated;
@@ -368,30 +968,35 @@ const buildHourlyCronChurnTrendFromApi = (trend, auditChurnMetric, chartThemeVer
         acc.rowsWritten += point.rowsWritten;
         acc.rowsDeleted += point.rowsDeleted;
         acc.crudOps += point.crudOps;
+        acc.regularCrudOps += point.regularCrudOps;
+        acc.manualRecoveryCrudOps += point.manualRecoveryCrudOps;
         return acc;
-    }, { auditEvents: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0 });
+    }, { auditEvents: 0, durationMs: 0, regularDurationMs: 0, manualRecoveryDurationMs: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0, regularCrudOps: 0, manualRecoveryCrudOps: 0 });
 
     const selectedMetric = AUDIT_CHURN_METRICS.find((metric) => metric.key === auditChurnMetric) || AUDIT_CHURN_METRICS[0];
-    const maxCrudOps = Math.max(1, ...points.map((point) => point.crudOps));
+    const maxCrudOps = Math.max(1, ...tasks.map((task) => task.crudOps));
     const spanLabel = points.length === 1
         ? points[0].label
         : `${points[0].label} - ${points[points.length - 1].label}`;
-    const sourceLabel = trend?.fallbackMetricRows > 0 && trend?.snapshotDays === 0
+    const windowLabel = formatCronChurnWindowLabel(selectedWindow);
+    const sourceLabel = `${focus.shortLabel} · ${windowLabel} · cached ${formatSampleWindow(CRON_CHURN_FETCH_DAYS)} · ${trend?.fallbackMetricRows > 0 && trend?.snapshotDays === 0
         ? 'CronRunMetrics backfill source'
-        : 'CronRuns projection snapshots + delta';
+        : 'CronRuns projection snapshots + delta'}`;
     const chartKey = JSON.stringify({
         source: 'cronRunsProjection',
+        windowKey: selectedWindow.key,
+        focusKey: focus.key,
         metric: selectedMetric.key,
         theme: chartThemeVersion,
         generatedAtUtc: trend?.generatedAtUtc,
         labels: points.map((point) => point.key),
         tasks: tasks.map((task) => ({
-            taskId: task.taskId,
-            data: task.points.map((point) => getMetricValueFromPoint(point, selectedMetric.key))
+            taskId: task.taskKey || task.taskId,
+            data: task.points.map((point) => getMetricValueFromPoint(point, selectedMetric.key, costModel))
         }))
     });
 
-    return { points, tasks, maxCrudOps, spanLabel, sourceLabel, selectedMetric, chartKey, totals, eventNoun: 'cron run' };
+    return { points, tasks, maxCrudOps, spanLabel, sourceLabel, selectedMetric, chartKey, totals, eventNoun: 'cron run', focus, costModel };
 };
 
 export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true, embedded = false }) {
@@ -408,12 +1013,18 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     const [filterStatus, setFilterStatus] = useState('all');
     const [filterOrg, setFilterOrg] = useState('');
     const [auditChurnMetric, setAuditChurnMetric] = useState('crudOps');
+    const [showCronChurnCost, setShowCronChurnCost] = useState(true);
+    const [cronChurnCostModeKey, setCronChurnCostModeKey] = useState(CRON_CHURN_DEFAULT_COST_MODE_KEY);
     const [chartThemeVersion, setChartThemeVersion] = useState(0);
     const [expandedEvents, setExpandedEvents] = useState(new Set());
     const [cronStatus, setCronStatus] = useState(propCronStatus || null);
     const [loadingCronStatus, setLoadingCronStatus] = useState(false);
     const [cronChurnTrend, setCronChurnTrend] = useState(null);
+    const [cronChurnWindowKey, setCronChurnWindowKey] = useState(CRON_CHURN_DEFAULT_WINDOW_KEY);
+    const [cronChurnFocusKey, setCronChurnFocusKey] = useState(CRON_CHURN_DEFAULT_FOCUS_KEY);
     const [loadingCronChurnTrend, setLoadingCronChurnTrend] = useState(false);
+    const [cronChurnHelpOpen, setCronChurnHelpOpen] = useState(false);
+    const [selectedCronChurnTask, setSelectedCronChurnTask] = useState(null);
     const [highlightedEventId, setHighlightedEventId] = useState(null);
     const [highlightedPartitionKey, setHighlightedPartitionKey] = useState(null);
     const [highlightedRowKey, setHighlightedRowKey] = useState(null);
@@ -570,7 +1181,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
 
     useEffect(() => {
         loadCronChurnTrend();
-    }, [rangeDays]);
+    }, []);
 
     // Load cron status (registered tasks, schedules, execution history)
     async function loadCronStatus() {
@@ -594,7 +1205,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     async function loadCronChurnTrend() {
         setLoadingCronChurnTrend(true);
         try {
-            const res = await api.adminGetCronChurn(rangeDays);
+            const res = await api.adminGetCronChurn(CRON_CHURN_FETCH_DAYS);
             if (res.success && res.data) {
                 setCronChurnTrend(res.data);
             } else {
@@ -662,165 +1273,201 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     }
 
     function renderEventRow(e) {
-        const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : '-';
+        const ts = e.timestamp ? new Date(e.timestamp) : null;
         const isExpanded = expandedEvents.has(e.eventId);
-        
-        // Determine event type category and badge color
-        let eventCategory = 'Cron Run';
-        let badgeClass = 'bg-primary-lt text-primary';
-        let icon = 'ti-clock';
-        
-        if (e.eventType === 'CRONRUN') {
-            const isManual = e.subType === 'CronRunManual' || e.subType === 'Manual';
-            eventCategory = isManual ? 'Manual Trigger' : 'Scheduled Run';
-            badgeClass = isManual ? 'bg-purple-lt text-purple' : 'bg-blue-lt text-blue';
-            icon = isManual ? 'ti-hand-click' : 'ti-player-play';
-        } else if (e.eventType === 'SECURITY_REPORT') {
-            const stRaw = e.subType || '';
-            const st = stRaw.toLowerCase();
-            if (st.includes('failed')) {
-                eventCategory = 'Report Failed';
-                badgeClass = 'bg-red-lt text-danger';
-                icon = 'ti-mail-x';
-            } else if (st.includes('batch')) {
-                eventCategory = 'Report Batch';
-                badgeClass = 'bg-green-lt text-success';
-                icon = 'ti-mail-check';
-            } else if (st.includes('emailsent') || st.includes('dispatchcomplete') || st.endsWith('sent')) {
-                eventCategory = 'Report Sent';
-                badgeClass = 'bg-green-lt text-success';
-                icon = 'ti-mail-check';
-            } else {
-                eventCategory = 'Report Activity';
-                badgeClass = 'bg-green-lt text-success';
-                icon = 'ti-mail';
-            }
-        }
-        
-        // Extract metadata for detailed view
         const meta = e.metadata || {};
-        const recipientCount = meta.recipientCount || 0;
-        const tier = meta.tier || '';
-        // Task 2: Fix duration display - handle new durationSeconds (float seconds) and legacy DurationMs (int milliseconds)
-        const duration = meta.durationSeconds !== undefined
-            ? (meta.durationSeconds < 1 
-                ? `${Math.round(meta.durationSeconds * 1000)}ms` 
-                : `${parseFloat(meta.durationSeconds).toFixed(2)}s`)
-            : (meta.DurationMs !== undefined
-                ? (meta.DurationMs < 1000
-                    ? `${meta.DurationMs}ms`
-                    : `${(meta.DurationMs / 1000).toFixed(2)}s`)
-                : (meta.duration || ''));
-        const itemsProcessed = meta.itemsProcessed || 0;
-        const successful = meta.successful || 0;
-        const failed = meta.failed || 0;
-        const diagnostics = meta.diagnostics || meta.Diagnostics || null;
-        const hasDiagnostics = diagnostics && typeof diagnostics === 'object';
-        const diagnosticsEntries = hasDiagnostics ? Object.entries(diagnostics) : [];
-        
+        const eventType = String(e.eventType || '').toUpperCase();
+        const subType = String(e.subType || '');
+        const taskId = getTaskIdFromEvent(e) || e.targetType || '';
+        const laneId = eventType === 'CRONRUN' ? getLaneIdForEvent(e, taskId) : null;
+        const durationMs = getDurationMsFromEvent(e);
+        const duration = durationMs > 0 ? formatDuration(durationMs) : '';
+        const budget = getEventOperationBudget(e);
+        const volume = getEventVolumeMetrics(e);
+        const rowsRead = Math.max(budget.rowsRead, volume.rowsRead, volume.rowsScanned);
+        const rowsWritten = Math.max(budget.rowsWritten, volume.rowsWritten);
+        const rowsDeleted = Math.max(budget.rowsDeleted, volume.rowsDeleted);
+        const rowOps = rowsRead + rowsWritten + rowsDeleted;
+        const recipientCount = toNumber(meta.recipientCount);
+        const itemsProcessed = toNumber(meta.itemsProcessed ?? meta.entriesRefreshed ?? volume.eventsProcessed);
+        const successful = toNumber(meta.successful ?? meta.Successful);
+        const failed = toNumber(meta.failed ?? meta.Failed);
+        const diagnostics = getEventDiagnostics(e);
+        const diagnosticsEntries = diagnostics && typeof diagnostics === 'object' ? Object.entries(diagnostics) : [];
+        const status = (() => {
+            const cronStatusValue = getCronEventStatus(e);
+            if (cronStatusValue) return cronStatusValue;
+            if (eventType === 'SECURITY_REPORT') return subType.toLowerCase().includes('failed') ? 'failed' : 'completed';
+            return 'recorded';
+        })();
+        const statusMeta = (() => {
+            if (['completed', 'success', 'sent', 'recorded'].includes(status)) return { label: status === 'recorded' ? 'Recorded' : 'OK', badgeClass: 'bg-success-lt text-success' };
+            if (['running', 'queued'].includes(status)) return { label: status.charAt(0).toUpperCase() + status.slice(1), badgeClass: 'bg-info-lt text-info' };
+            if (['failed', 'exception', 'rejected', 'partialfailure', 'cancelled', 'canceled', 'timedout'].includes(status)) return { label: 'Needs review', badgeClass: 'bg-danger-lt text-danger' };
+            return { label: status.charAt(0).toUpperCase() + status.slice(1), badgeClass: 'bg-secondary-lt text-secondary' };
+        })();
+        const category = (() => {
+            if (eventType === 'CRONRUN') {
+                const isManual = subType === 'CronRunManual' || subType === 'Manual' || subType.toLowerCase().includes('manual');
+                return {
+                    label: isManual ? 'Manual' : 'Scheduled',
+                    badgeClass: isManual ? 'bg-purple-lt text-purple' : 'bg-blue-lt text-blue',
+                    icon: isManual ? 'ti-hand-click' : 'ti-player-play'
+                };
+            }
+
+            if (eventType === 'SECURITY_REPORT') {
+                const normalizedSubtype = subType.toLowerCase();
+                if (normalizedSubtype.includes('failed')) return { label: 'Report failed', badgeClass: 'bg-red-lt text-danger', icon: 'ti-mail-x' };
+                if (normalizedSubtype.includes('batch')) return { label: 'Report batch', badgeClass: 'bg-green-lt text-success', icon: 'ti-mail-check' };
+                if (normalizedSubtype.includes('emailsent') || normalizedSubtype.includes('dispatchcomplete') || normalizedSubtype.endsWith('sent')) {
+                    return { label: 'Report sent', badgeClass: 'bg-green-lt text-success', icon: 'ti-mail-check' };
+                }
+
+                return { label: 'Report', badgeClass: 'bg-green-lt text-success', icon: 'ti-mail' };
+            }
+
+            return { label: e.eventType || 'Audit', badgeClass: 'bg-primary-lt text-primary', icon: 'ti-clock' };
+        })();
+        const signalPills = [
+            meta.tier ? { label: meta.tier, badgeClass: 'bg-purple-lt text-purple' } : null,
+            duration ? { label: duration, badgeClass: 'bg-primary-lt text-primary' } : null,
+            rowOps > 0 ? { label: `${formatCompactNumber(rowOps)} ops`, badgeClass: 'bg-warning-lt text-warning' } : null,
+            itemsProcessed > 0 ? { label: `${formatCompactNumber(itemsProcessed)} work`, badgeClass: 'bg-success-lt text-success' } : null,
+            recipientCount > 0 ? { label: `${formatCompactNumber(recipientCount)} recipients`, badgeClass: 'bg-info-lt text-info' } : null,
+            failed > 0 ? { label: `${formatCompactNumber(failed)} failed`, badgeClass: 'bg-danger-lt text-danger' } : null,
+            successful > 0 ? { label: `${formatCompactNumber(successful)} ok`, badgeClass: 'bg-success-lt text-success' } : null
+        ].filter(Boolean);
+        const metricsTooltip = [
+            duration ? `Duration: ${duration}` : null,
+            rowOps > 0 ? `Rows: ${formatCompactNumber(rowsRead)} read/scanned, ${formatCompactNumber(rowsWritten)} written, ${formatCompactNumber(rowsDeleted)} deleted` : null,
+            itemsProcessed > 0 ? `Work items: ${formatCompactNumber(itemsProcessed)}` : null,
+            recipientCount > 0 ? `Recipients: ${formatCompactNumber(recipientCount)}` : null,
+            failed > 0 ? `Failures: ${formatCompactNumber(failed)}` : null
+        ].filter(Boolean).join('\n');
+        const description = e.description || meta.message || meta.stage || '-';
+        const title = taskId || e.targetId || category.label;
+        const scopeLabel = e.orgId || 'SYSTEM';
+        const targetLabel = e.targetId || meta.scopeKey || meta.tenantId || '';
+        const targetDuplicatesLane = targetLabel && laneId && normalizeLaneId(targetLabel) === laneId;
+        const requestId = meta.RequestId || meta.requestId || meta.correlationId;
         const isHighlighted = highlightedEventId && highlightedEventId === e.eventId;
 
         return html`
-            <tr id=${`cron-event-${e.eventId}`} class="cursor-pointer ${isHighlighted ? 'table-warning' : ''}" onClick=${() => {
+            <tr id=${`cron-event-${e.eventId}`} class=${`activity-row cursor-pointer ${isHighlighted ? 'table-warning' : ''} ${isExpanded ? 'activity-row-expanded' : ''}`} onClick=${() => {
                 const newSet = new Set(expandedEvents);
                 if (isExpanded) newSet.delete(e.eventId);
                 else newSet.add(e.eventId);
                 setExpandedEvents(newSet);
             }}>
-                <td>
-                    <i class="ti ${icon} me-2 ${badgeClass.replace('-lt', '')}"></i>
-                    <span class="badge ${badgeClass}">${eventCategory}</span>
+                <td class="cron-activity-main-cell">
+                    <div class="d-flex align-items-start gap-2 min-w-0">
+                        <span class=${`cron-event-icon ${category.badgeClass}`}><i class=${`ti ${category.icon}`}></i></span>
+                        <div class="min-w-0">
+                            <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                                <span class=${`badge ${category.badgeClass}`}>${category.label}</span>
+                                <span class=${`badge ${statusMeta.badgeClass}`}>${statusMeta.label}</span>
+                            </div>
+                            <div class="fw-semibold text-truncate cron-event-title" title=${title}>${title}</div>
+                        </div>
+                    </div>
                 </td>
                 <td>
-                    <span class="badge bg-secondary-lt text-secondary">${e.orgId || 'SYSTEM'}</span>
+                    <div class="d-flex flex-column gap-1 align-items-start">
+                        <span class="badge bg-secondary-lt text-secondary" title=${scopeLabel}>${truncateMiddle(scopeLabel, 30)}</span>
+                        ${laneId && html`<span class="badge bg-secondary-lt text-secondary" title=${`Lane: ${formatLaneLabel(laneId)}`}>${formatLaneLabel(laneId)}</span>`}
+                        ${targetLabel && !targetDuplicatesLane && html`<span class="text-muted small text-truncate cron-event-scope" title=${targetLabel}>${truncateMiddle(targetLabel, 34)}</span>`}
+                    </div>
                 </td>
-                <td class="text-muted small">${ts}</td>
-                <td>
-                    ${tier && html`<span class="badge bg-purple-lt text-purple me-1">${tier}</span>`}
-                    ${recipientCount > 0 && html`<span class="badge bg-info-lt text-info me-1">${recipientCount} recipient${recipientCount > 1 ? 's' : ''}</span>`}
-                    ${itemsProcessed > 0 && html`<span class="badge bg-yellow-lt text-yellow">${itemsProcessed} processed</span>`}
+                <td class="text-muted small" title=${ts ? ts.toLocaleString() : '-'}>
+                    <div class="fw-semibold text-body">${formatRelativeTime(ts)}</div>
+                    <div>${ts ? ts.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '-'}</div>
                 </td>
-                <td class="text-truncate" style="max-width: 300px;" title=${e.description}>
-                    ${e.description || '-'}
+                <td title=${metricsTooltip || 'No runtime, row, or delivery counters on this event.'}>
+                    <div class="cron-activity-signal-pills">
+                        ${signalPills.length > 0
+                            ? signalPills.slice(0, 5).map((pill) => html`<span class=${`badge ${pill.badgeClass}`}>${pill.label}</span>`)
+                            : html`<span class="text-muted small">-</span>`}
+                    </div>
                 </td>
-                <td>
-                    <i class="ti ti-chevron-${isExpanded ? 'up' : 'down'}"></i>
+                <td class="cron-event-context" title=${description}>
+                    <span>${truncateEnd(description, 92)}</span>
+                </td>
+                <td class="text-end">
+                    <i class=${`ti ti-chevron-${isExpanded ? 'up' : 'down'} text-muted`}></i>
                 </td>
             </tr>
             ${isExpanded && html`
                 <tr class="activity-details-row">
                     <td colspan="6">
                         <div class="p-3">
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <strong>Event Details</strong>
-                                    <ul class="list-unstyled mt-2 mb-0">
-                                        <li><strong>Event ID:</strong> ${e.eventId}</li>
-                                        <li><strong>Event Type:</strong> ${e.eventType}</li>
-                                        <li><strong>Performed By:</strong> ${e.performedBy || 'system'}</li>
-                                        ${e.targetId && html`<li><strong>Target:</strong> ${e.targetType || 'N/A'} (${e.targetId})</li>`}
-                                    </ul>
+                            <div class="cron-activity-detail-grid mb-3">
+                                <div>
+                                    <div class="text-muted small">Event ID</div>
+                                    <div class="fw-semibold font-monospace text-break">${e.eventId}</div>
                                 </div>
-                                <div class="col-md-6">
-                                    <strong>Execution Metrics</strong>
-                                    <ul class="list-unstyled mt-2 mb-0">
-                                        ${duration && html`<li><strong>Duration:</strong> ${duration}</li>`}
-                                        ${successful > 0 && html`<li><strong>Successful:</strong> <span class="text-success">${successful}</span></li>`}
-                                        ${failed > 0 && html`<li><strong>Failed:</strong> <span class="text-danger">${failed}</span></li>`}
-                                        ${meta.maxRetries && html`<li><strong>Retries:</strong> ${meta.attempt || 1} of ${meta.maxRetries}</li>`}
-                                    </ul>
+                                <div>
+                                    <div class="text-muted small">Performed By</div>
+                                    <div class="fw-semibold">${e.performedBy || 'system'}</div>
                                 </div>
-                                ${meta.error && html`
-                                    <div class="col-12">
-                                        <div class="alert alert-danger mb-0">
-                                            <strong>Error:</strong> ${meta.error}
-                                        </div>
-                                    </div>
-                                `}
-                                ${hasDiagnostics && html`
-                                    <div class="col-12">
-                                        <div class="alert alert-info mb-0">
-                                            <div class="fw-semibold mb-2">Execution Diagnostics</div>
-                                            <div class="row g-2">
-                                                ${diagnosticsEntries.map(([key, value]) => {
-                                                    const formattedValue = Array.isArray(value)
-                                                        ? value.join(', ')
-                                                        : (typeof value === 'object' && value !== null)
-                                                            ? JSON.stringify(value)
-                                                            : String(value);
-                                                    return html`
-                                                        <div class="col-md-6 col-lg-4">
-                                                            <div class="small text-muted">${key}</div>
-                                                            <div class="fw-semibold">${formattedValue}</div>
-                                                        </div>
-                                                    `;
-                                                })}
+                                <div>
+                                    <div class="text-muted small">Type</div>
+                                    <div class="fw-semibold">${e.eventType || '-'}${e.subType ? ` / ${e.subType}` : ''}</div>
+                                </div>
+                                <div>
+                                    <div class="text-muted small">Target</div>
+                                    <div class="fw-semibold text-break">${e.targetId || e.targetType || '-'}</div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                ${duration && html`<span class="badge bg-primary-lt text-primary">duration ${duration}</span>`}
+                                ${rowOps > 0 && html`<span class="badge bg-warning-lt text-warning">${formatCompactNumber(rowsRead)} read · ${formatCompactNumber(rowsWritten)} write · ${formatCompactNumber(rowsDeleted)} delete</span>`}
+                                ${itemsProcessed > 0 && html`<span class="badge bg-success-lt text-success">${formatCompactNumber(itemsProcessed)} work items</span>`}
+                                ${successful > 0 && html`<span class="badge bg-success-lt text-success">${formatCompactNumber(successful)} successful</span>`}
+                                ${failed > 0 && html`<span class="badge bg-danger-lt text-danger">${formatCompactNumber(failed)} failed</span>`}
+                                ${meta.maxRetries && html`<span class="badge bg-info-lt text-info">retry ${meta.attempt || 1}/${meta.maxRetries}</span>`}
+                            </div>
+
+                            ${meta.error && html`
+                                <div class="alert alert-danger mb-3">
+                                    <strong>Error:</strong> ${meta.error}
+                                </div>
+                            `}
+
+                            ${diagnosticsEntries.length > 0 && html`
+                                <div class="cron-diagnostic-grid mb-3">
+                                    ${diagnosticsEntries.slice(0, 8).map(([key, value]) => {
+                                        const formattedValue = formatDiagnosticValue(value);
+                                        return html`
+                                            <div class="cron-diagnostic-item" title=${`${key}: ${formattedValue}`}>
+                                                <div class="small text-muted text-truncate">${formatDiagnosticLabel(key)}</div>
+                                                <div class="fw-semibold text-truncate">${formattedValue}</div>
                                             </div>
-                                        </div>
-                                    </div>
-                                `}
-                                ${meta.RequestId && html`
-                                    <div class="col-12">
-                                        <button class="btn btn-sm btn-outline-primary" onClick=${(ev) => {
-                                            ev.stopPropagation();
-                                            const eventDate = e.timestamp ? new Date(e.timestamp) : new Date();
-                                            const pk = eventDate.getFullYear().toString()
-                                                + String(eventDate.getMonth() + 1).padStart(2, '0')
-                                                + String(eventDate.getDate()).padStart(2, '0');
-                                            openTraceModal(pk, meta.RequestId);
-                                        }}>
-                                            <i class="ti ti-list-search me-1"></i>
-                                            View Trace (${meta.RequestId})
-                                        </button>
-                                    </div>
+                                        `;
+                                    })}
+                                </div>
+                            `}
+
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                ${requestId && html`
+                                    <button class="btn btn-sm btn-outline-primary" onClick=${(ev) => {
+                                        ev.stopPropagation();
+                                        const eventDate = e.timestamp ? new Date(e.timestamp) : new Date();
+                                        const pk = eventDate.getFullYear().toString()
+                                            + String(eventDate.getMonth() + 1).padStart(2, '0')
+                                            + String(eventDate.getDate()).padStart(2, '0');
+                                        openTraceModal(pk, requestId);
+                                    }}>
+                                        <i class="ti ti-list-search me-1"></i>
+                                        Trace
+                                    </button>
                                 `}
                                 ${Object.keys(meta).length > 0 && html`
-                                    <div class="col-12">
-                                        <details>
-                                            <summary class="cursor-pointer text-muted small">Raw Metadata</summary>
-                                            <pre class="activity-details-pre mt-2 mb-0 small p-2 rounded">${JSON.stringify(meta, null, 2)}</pre>
-                                        </details>
-                                    </div>
+                                    <details class="cron-raw-metadata">
+                                        <summary class="cursor-pointer text-muted small">Raw metadata</summary>
+                                        <pre class="activity-details-pre mt-2 mb-0 small p-2 rounded">${JSON.stringify(meta, null, 2)}</pre>
+                                    </details>
                                 `}
                             </div>
                         </div>
@@ -983,10 +1630,12 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     })();
 
     const hourlyCronChurnTrend = (() => {
-        const apiTrend = buildHourlyCronChurnTrendFromApi(cronChurnTrend, auditChurnMetric, chartThemeVersion);
+        const apiTrend = buildHourlyCronChurnTrendFromApi(cronChurnTrend, auditChurnMetric, chartThemeVersion, cronChurnWindowKey, cronChurnFocusKey);
         if (apiTrend) {
             return apiTrend;
         }
+
+        const focus = getCronChurnFocusOption(cronChurnFocusKey);
 
         const cronRunEvents = filteredEvents
             .filter((event) => String(event?.eventType || '').toUpperCase() === 'CRONRUN' && getCronVolumeTaskIdFromEvent(event));
@@ -1004,19 +1653,21 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                 tasks: [],
                 maxCrudOps: 1,
                 spanLabel: 'No loaded audit rows',
-                sourceLabel: 'CRONRUN audit rows',
-                chartKey: `${auditChurnMetric}|empty|${chartThemeVersion}`,
+                sourceLabel: `${focus.shortLabel} · CRONRUN audit rows`,
+                chartKey: `${auditChurnMetric}|empty|${chartThemeVersion}|${focus.key}`,
                 selectedMetric: AUDIT_CHURN_METRICS.find((metric) => metric.key === auditChurnMetric) || AUDIT_CHURN_METRICS[0],
                 eventNoun: 'audit event',
-                totals: { auditEvents: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0 }
+                focus,
+                totals: { auditEvents: 0, durationMs: 0, regularDurationMs: 0, manualRecoveryDurationMs: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0, regularCrudOps: 0, manualRecoveryCrudOps: 0 }
             };
         }
 
         const hourMs = 60 * 60 * 1000;
-        const maxBuckets = 24 * 7;
+        const selectedWindow = getCronChurnWindowOption(cronChurnWindowKey);
         const firstLoadedHour = floorToUtcHour(eventTimes[0]);
         const lastLoadedHour = floorToUtcHour(eventTimes[eventTimes.length - 1]);
-        const startHour = new Date(Math.max(firstLoadedHour.getTime(), lastLoadedHour.getTime() - ((maxBuckets - 1) * hourMs)));
+        const cutoffHour = getCronChurnWindowCutoff(selectedWindow, lastLoadedHour) || firstLoadedHour;
+        const startHour = new Date(Math.max(firstLoadedHour.getTime(), cutoffHour.getTime()));
         const buckets = new Map();
 
         for (let hour = new Date(startHour), index = 0; hour <= lastLoadedHour; hour = new Date(hour.getTime() + hourMs), index++) {
@@ -1027,6 +1678,9 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                 label: formatHourLabel(hour),
                 tickLabel: formatHourTickLabel(hour, index),
                 auditEvents: 0,
+                durationMs: 0,
+                regularDurationMs: 0,
+                manualRecoveryDurationMs: 0,
                 eventsProcessed: 0,
                 rowsRead: 0,
                 rowsCreated: 0,
@@ -1034,6 +1688,8 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                 rowsWritten: 0,
                 rowsDeleted: 0,
                 crudOps: 0,
+                regularCrudOps: 0,
+                manualRecoveryCrudOps: 0,
                 byTask: new Map()
             });
         }
@@ -1052,7 +1708,12 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
             const volume = getEventVolumeMetrics(event);
             const eventsProcessed = volume.eventsProcessed || volume.rowsProcessed;
             const crudOps = volume.rowsRead + volume.rowsWritten + volume.rowsDeleted;
+            const laneId = String(event?.metadata?.laneId || event?.metadata?.LaneId || '');
+            const triggerSource = String(event?.metadata?.triggerSource || event?.metadata?.TriggerSource || event?.metadata?.requestedBy || event?.metadata?.RequestedBy || '');
+            const durationMs = getDurationMsFromEvent(event);
+            const split = getCronCostSplit({ taskId, laneId, triggerSource, crudOps, durationMs });
             bucket.auditEvents += 1;
+            bucket.durationMs += durationMs;
             bucket.eventsProcessed += eventsProcessed;
             bucket.rowsRead += volume.rowsRead;
             bucket.rowsCreated += volume.rowsCreated;
@@ -1060,21 +1721,37 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
             bucket.rowsWritten += volume.rowsWritten;
             bucket.rowsDeleted += volume.rowsDeleted;
             bucket.crudOps += crudOps;
+            bucket.regularCrudOps += split.regularCrudOps;
+            bucket.manualRecoveryCrudOps += split.manualRecoveryCrudOps;
+            bucket.regularDurationMs += split.regularDurationMs;
+            bucket.manualRecoveryDurationMs += split.manualRecoveryDurationMs;
 
             const taskKey = String(taskId);
             const taskPoint = bucket.byTask.get(taskKey) || {
+                taskKey,
                 taskId: taskKey,
+                laneId,
+                executionScope: 'global',
+                triggerSource,
                 label: formatCronTaskLabel(taskKey),
                 auditEvents: 0,
+                durationMs: 0,
+                regularDurationMs: 0,
+                manualRecoveryDurationMs: 0,
                 eventsProcessed: 0,
                 rowsRead: 0,
                 rowsCreated: 0,
                 rowsUpdated: 0,
                 rowsWritten: 0,
                 rowsDeleted: 0,
-                crudOps: 0
+                crudOps: 0,
+                regularCrudOps: 0,
+                manualRecoveryCrudOps: 0
             };
             taskPoint.auditEvents += 1;
+            taskPoint.durationMs += durationMs;
+            taskPoint.regularDurationMs += split.regularDurationMs;
+            taskPoint.manualRecoveryDurationMs += split.manualRecoveryDurationMs;
             taskPoint.eventsProcessed += eventsProcessed;
             taskPoint.rowsRead += volume.rowsRead;
             taskPoint.rowsCreated += volume.rowsCreated;
@@ -1082,58 +1759,18 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
             taskPoint.rowsWritten += volume.rowsWritten;
             taskPoint.rowsDeleted += volume.rowsDeleted;
             taskPoint.crudOps += crudOps;
+            taskPoint.regularCrudOps += split.regularCrudOps;
+            taskPoint.manualRecoveryCrudOps += split.manualRecoveryCrudOps;
             bucket.byTask.set(taskKey, taskPoint);
         }
 
-        const points = Array.from(buckets.values());
-        const taskTotals = new Map();
-        for (const point of points) {
-            for (const taskPoint of point.byTask.values()) {
-                const existing = taskTotals.get(taskPoint.taskId) || {
-                    taskId: taskPoint.taskId,
-                    label: taskPoint.label,
-                    auditEvents: 0,
-                    eventsProcessed: 0,
-                    rowsRead: 0,
-                    rowsCreated: 0,
-                    rowsUpdated: 0,
-                    rowsWritten: 0,
-                    rowsDeleted: 0,
-                    crudOps: 0
-                };
-                existing.auditEvents += taskPoint.auditEvents;
-                existing.eventsProcessed += taskPoint.eventsProcessed;
-                existing.rowsRead += taskPoint.rowsRead;
-                existing.rowsCreated += taskPoint.rowsCreated;
-                existing.rowsUpdated += taskPoint.rowsUpdated;
-                existing.rowsWritten += taskPoint.rowsWritten;
-                existing.rowsDeleted += taskPoint.rowsDeleted;
-                existing.crudOps += taskPoint.crudOps;
-                taskTotals.set(taskPoint.taskId, existing);
-            }
-        }
-
-        const tasks = Array.from(taskTotals.values())
-            .sort((a, b) => (b.crudOps - a.crudOps) || (b.eventsProcessed - a.eventsProcessed) || a.label.localeCompare(b.label))
-            .slice(0, 8)
-            .map((task, index) => ({
-                ...task,
-                color: AUDIT_CHURN_COLORS[index % AUDIT_CHURN_COLORS.length],
-                points: points.map((point) => point.byTask.get(task.taskId) || {
-                    taskId: task.taskId,
-                    label: task.label,
-                    auditEvents: 0,
-                    eventsProcessed: 0,
-                    rowsRead: 0,
-                    rowsCreated: 0,
-                    rowsUpdated: 0,
-                    rowsWritten: 0,
-                    rowsDeleted: 0,
-                    crudOps: 0
-                })
-            }));
+        const { points } = applyCronChurnFocusToPoints(Array.from(buckets.values()), cronChurnFocusKey);
+        const tasks = buildCronChurnTaskSeries(points);
         const totals = points.reduce((acc, point) => {
             acc.auditEvents += point.auditEvents;
+            acc.durationMs += point.durationMs;
+            acc.regularDurationMs += point.regularDurationMs;
+            acc.manualRecoveryDurationMs += point.manualRecoveryDurationMs;
             acc.eventsProcessed += point.eventsProcessed;
             acc.rowsRead += point.rowsRead;
             acc.rowsCreated += point.rowsCreated;
@@ -1141,26 +1778,33 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
             acc.rowsWritten += point.rowsWritten;
             acc.rowsDeleted += point.rowsDeleted;
             acc.crudOps += point.crudOps;
+            acc.regularCrudOps += point.regularCrudOps;
+            acc.manualRecoveryCrudOps += point.manualRecoveryCrudOps;
             return acc;
-        }, { auditEvents: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0 });
-        const maxCrudOps = Math.max(1, ...points.map((point) => point.crudOps));
+        }, { auditEvents: 0, durationMs: 0, regularDurationMs: 0, manualRecoveryDurationMs: 0, eventsProcessed: 0, rowsRead: 0, rowsCreated: 0, rowsUpdated: 0, rowsWritten: 0, rowsDeleted: 0, crudOps: 0, regularCrudOps: 0, manualRecoveryCrudOps: 0 });
+        const maxCrudOps = Math.max(1, ...tasks.map((task) => task.crudOps));
         const spanLabel = points.length === 1
             ? points[0].label
             : `${points[0].label} - ${points[points.length - 1].label}`;
         const selectedMetric = AUDIT_CHURN_METRICS.find((metric) => metric.key === auditChurnMetric) || AUDIT_CHURN_METRICS[0];
-        const sourceLabel = cronRunEvents.length > 0 ? 'CRONRUN audit rows' : 'direct volume audit rows';
+        const sourceLabel = `${focus.shortLabel} · ${formatCronChurnWindowLabel(selectedWindow)} · ${cronRunEvents.length > 0 ? 'CRONRUN audit rows' : 'direct volume audit rows'}`;
         const chartKey = JSON.stringify({
+            windowKey: selectedWindow.key,
+            focusKey: focus.key,
             metric: selectedMetric.key,
             theme: chartThemeVersion,
             labels: points.map((point) => point.key),
             tasks: tasks.map((task) => ({
-                taskId: task.taskId,
-                data: task.points.map((point) => getMetricValueFromPoint(point, selectedMetric.key))
+                taskId: task.taskKey || task.taskId,
+                data: task.points.map((point) => getMetricValueFromPoint(point, selectedMetric.key, DEFAULT_CRON_COST_MODEL))
             }))
         });
 
-        return { points, tasks, maxCrudOps, spanLabel, sourceLabel, selectedMetric, chartKey, totals, eventNoun: 'audit event' };
+        return { points, tasks, maxCrudOps, spanLabel, sourceLabel, selectedMetric, chartKey, totals, eventNoun: 'audit event', focus, costModel: DEFAULT_CRON_COST_MODEL };
     })();
+
+    const cronChurnCostModel = hourlyCronChurnTrend?.costModel || DEFAULT_CRON_COST_MODEL;
+    const cronChurnTotalCostParts = splitCronCost(hourlyCronChurnTrend?.totals || {}, cronChurnCostModel);
 
     useEffect(() => {
         if (auditChurnChartRef.current) {
@@ -1183,24 +1827,83 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
         const gridColor = isDark ? 'rgba(148, 163, 184, 0.20)' : 'rgba(148, 163, 184, 0.26)';
         const tickColor = isDark ? '#cbd5e1' : '#475569';
         const selectedMetricKey = hourlyCronChurnTrend.selectedMetric.key;
+        const selectedCostMode = getCronChurnCostModeOption(cronChurnCostModeKey);
+        const costModel = hourlyCronChurnTrend.costModel || DEFAULT_CRON_COST_MODEL;
+        const accumulatedCostSeries = buildAccumulatedCostSeries(hourlyCronChurnTrend.points, costModel);
+        const taskDatasets = hourlyCronChurnTrend.tasks.map((task) => ({
+            label: task.label,
+            data: task.points.map((point) => getMetricValueFromPoint(point, selectedMetricKey, costModel)),
+            borderColor: task.color,
+            backgroundColor: `${task.color}22`,
+            pointBackgroundColor: task.color,
+            pointBorderColor: task.color,
+            borderWidth: 2,
+            pointRadius: 2.5,
+            pointHoverRadius: 5,
+            tension: 0.28,
+            fill: false,
+            yAxisID: 'y'
+        }));
+        const costDatasetOptions = {
+            regular: {
+                label: 'Regular total accumulated cost',
+                accumulatedKey: 'regularAccumulatedCost',
+                hourKey: 'regularHourCost',
+                storageKey: 'regularHourStorageCost',
+                computeKey: 'regularHourComputeCost',
+                color: '#16a34a',
+                background: isDark ? 'rgba(22, 163, 74, 0.12)' : 'rgba(22, 163, 74, 0.09)'
+            },
+            manualRecovery: {
+                label: 'Manual/recovery total accumulated cost',
+                accumulatedKey: 'manualRecoveryAccumulatedCost',
+                hourKey: 'manualRecoveryHourCost',
+                storageKey: 'manualRecoveryHourStorageCost',
+                computeKey: 'manualRecoveryHourComputeCost',
+                color: '#f97316',
+                background: isDark ? 'rgba(249, 115, 22, 0.13)' : 'rgba(249, 115, 22, 0.09)'
+            },
+            total: {
+                label: 'Total accumulated cost',
+                accumulatedKey: 'accumulatedCost',
+                hourKey: 'hourCost',
+                storageKey: 'hourStorageCost',
+                computeKey: 'hourComputeCost',
+                color: '#0ea5e9',
+                background: isDark ? 'rgba(14, 165, 233, 0.13)' : 'rgba(14, 165, 233, 0.10)'
+            }
+        };
+        const selectedCostKinds = selectedCostMode.key === 'both'
+            ? ['regular', 'manualRecovery']
+            : [selectedCostMode.key];
+        const costOverlayDataset = showCronChurnCost ? selectedCostKinds
+            .map((kind) => costDatasetOptions[kind])
+            .filter(Boolean)
+            .map((config) => ({
+                label: config.label,
+                data: accumulatedCostSeries.map((point) => point[config.accumulatedKey]),
+                borderColor: config.color,
+                backgroundColor: config.background,
+                pointBackgroundColor: config.color,
+                pointBorderColor: config.color,
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                tension: 0.24,
+                fill: selectedCostKinds.length === 1,
+                yAxisID: 'yCost',
+                cronChurnCostOverlay: true,
+                cronChurnCostAccumulatedKey: config.accumulatedKey,
+                cronChurnCostHourKey: config.hourKey,
+                cronChurnCostStorageKey: config.storageKey,
+                cronChurnCostComputeKey: config.computeKey
+            })) : [];
 
         auditChurnChartRef.current = new window.Chart(canvas, {
             type: 'line',
             data: {
                 labels: hourlyCronChurnTrend.points.map((point) => point.hour),
-                datasets: hourlyCronChurnTrend.tasks.map((task) => ({
-                    label: task.label,
-                    data: task.points.map((point) => getMetricValueFromPoint(point, selectedMetricKey)),
-                    borderColor: task.color,
-                    backgroundColor: `${task.color}22`,
-                    pointBackgroundColor: task.color,
-                    pointBorderColor: task.color,
-                    borderWidth: 2,
-                    pointRadius: 2.5,
-                    pointHoverRadius: 5,
-                    tension: 0.28,
-                    fill: false
-                }))
+                datasets: [...taskDatasets, ...costOverlayDataset]
             },
             options: {
                 responsive: true,
@@ -1226,10 +1929,20 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                     : raw;
                             },
                             label: (context) => {
+                                if (context.dataset?.cronChurnCostOverlay) {
+                                    const costPoint = accumulatedCostSeries[context.dataIndex] || {};
+                                    const accumulatedKey = context.dataset.cronChurnCostAccumulatedKey || 'accumulatedCost';
+                                    const hourKey = context.dataset.cronChurnCostHourKey || 'hourCost';
+                                    const storageKey = context.dataset.cronChurnCostStorageKey || 'hourStorageCost';
+                                    const computeKey = context.dataset.cronChurnCostComputeKey || 'hourComputeCost';
+                                    return `${context.dataset.label}: ${formatUsd(costPoint[accumulatedKey])} | hour ${formatUsd(costPoint[hourKey])} (storage ${formatUsd(costPoint[storageKey])}, compute ${formatUsd(costPoint[computeKey])})`;
+                                }
+
                                 const task = hourlyCronChurnTrend.tasks[context.datasetIndex];
                                 const point = task?.points?.[context.dataIndex];
-                                if (!task || !point) return `${context.dataset.label}: ${formatCompactNumber(context.parsed.y)}`;
-                                return `${task.label}: ${formatCompactNumber(context.parsed.y)} ${hourlyCronChurnTrend.selectedMetric.label.toLowerCase()} | processed ${formatCompactNumber(point.eventsProcessed)}, read ${formatCompactNumber(point.rowsRead)}, write ${formatCompactNumber(point.rowsWritten)}`;
+                                const formattedValue = formatAuditChurnMetricValue(context.parsed.y, selectedMetricKey);
+                                if (!task || !point) return `${context.dataset.label}: ${formattedValue}`;
+                                return `${task.label}: ${formattedValue} ${hourlyCronChurnTrend.selectedMetric.label.toLowerCase()} | processed ${formatCompactNumber(point.eventsProcessed)}, read ${formatCompactNumber(point.rowsRead)}, write ${formatCompactNumber(point.rowsWritten)}, cost ${formatUsd(estimateCronRunCostUsd(point, costModel))}`;
                             }
                         }
                     }
@@ -1243,7 +1956,8 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                             color: tickColor,
                             maxRotation: 0,
                             autoSkip: true,
-                            maxTicksLimit: 8
+                            maxTicksLimit: 8,
+                            callback: (value) => formatAxisDateTimeLabel(value)
                         }
                     },
                     y: {
@@ -1251,11 +1965,26 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                         grid: { color: gridColor },
                         ticks: {
                             color: tickColor,
-                            callback: (value) => formatCompactNumber(value)
+                            callback: (value) => formatAuditChurnMetricValue(value, selectedMetricKey)
                         },
                         title: {
                             display: true,
                             text: hourlyCronChurnTrend.selectedMetric.axisLabel,
+                            color: tickColor
+                        }
+                    },
+                    yCost: {
+                        display: showCronChurnCost,
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false, color: gridColor },
+                        ticks: {
+                            color: tickColor,
+                            callback: (value) => formatUsd(value)
+                        },
+                        title: {
+                            display: showCronChurnCost,
+                            text: 'Accumulated est. total cost',
                             color: tickColor
                         }
                     }
@@ -1269,7 +1998,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                 auditChurnChartRef.current = null;
             }
         };
-    }, [hourlyCronChurnTrend.chartKey]);
+    }, [hourlyCronChurnTrend.chartKey, showCronChurnCost, cronChurnCostModeKey]);
 
     const efficiencyTrend = (() => {
         const points = runtimeTrend.points.map((point) => {
@@ -1311,12 +2040,22 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     const scaleIndexTooltip = 'No native Azure Table index is being proposed. Detection reuses the existing per-org Current AppProduct projection for MODR observed-resolution fan-out, alongside InventoryActive and AppVersionIntel MOD/MODR.';
     const activeLaneId = currentCronStatus.lockedLaneId || null;
     const activeExecutionScope = currentCronStatus.lockedScope || 'global';
-    const taskLaneLookup = new Map(cronTasks.map((task) => [String(task.taskId || task.displayName || ''), task.laneId]));
+    const taskLaneLookup = (() => {
+        const lookup = new Map();
+        for (const task of cronTasks) {
+            if (task.taskId && task.laneId) lookup.set(String(task.taskId), task.laneId);
+            if (task.displayName && task.laneId) lookup.set(String(task.displayName), task.laneId);
+        }
+        return lookup;
+    })();
 
     const getLaneIdForEvent = (event, taskId) => {
         const meta = event?.metadata || {};
         const explicitLane = meta.laneId || meta.LaneId || meta.lane || meta.Lane;
         if (explicitLane) return normalizeLaneId(explicitLane);
+
+        const targetLane = normalizeLaneId(event?.targetId || meta.scopeKey || meta.ScopeKey);
+        if (LANE_ORDER.includes(targetLane)) return targetLane;
 
         const mappedLane = taskId ? taskLaneLookup.get(String(taskId)) : null;
         if (mappedLane) return normalizeLaneId(mappedLane);
@@ -1366,6 +2105,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     })();
 
     const maxTaskDurationMs = Math.max(1, ...taskRuntimeLeaders.map((item) => item.totalDurationMs));
+    const totalTaskDurationMs = taskRuntimeLeaders.reduce((sum, item) => sum + item.totalDurationMs, 0);
 
     const taskEfficiencyLeaders = taskRuntimeLeaders
         .map((item) => {
@@ -1419,6 +2159,8 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
 
     const maxLaneDurationMs = Math.max(1, ...laneLoadMix.map((item) => item.durationMs));
     const maxLaneRows = Math.max(1, ...laneLoadMix.map((item) => item.totalRows));
+    const totalLaneDurationMs = laneLoadMix.reduce((sum, item) => sum + item.durationMs, 0);
+    const totalLaneRows = laneLoadMix.reduce((sum, item) => sum + item.totalRows, 0);
     const topLaneByRuntime = [...laneLoadMix].sort((a, b) => b.durationMs - a.durationMs)[0] || null;
 
     const laneIds = Array.from(new Set([
@@ -1435,6 +2177,11 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
             active: activeLaneId === laneId
         };
     });
+    const laneStatusSummary = {
+        healthy: laneSummaries.filter((lane) => lane.overdue === 0).length,
+        overdueTasks: laneSummaries.reduce((sum, lane) => sum + lane.overdue, 0),
+        runningLane: laneSummaries.find((lane) => lane.active) || null
+    };
     const lockExpiresAt = currentCronStatus.lockExpires ? new Date(currentCronStatus.lockExpires) : null;
     const activeLockExpired = lockExpiresAt && lockExpiresAt < new Date();
 
@@ -1773,6 +2520,207 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
         `;
     }
 
+    function renderCronChurnHelpModal() {
+        if (!cronChurnHelpOpen) return null;
+
+        return html`
+            <div class="modal modal-blur show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:7000" onClick=${(ev) => { if (ev.target === ev.currentTarget) setCronChurnHelpOpen(false); }}>
+                <div class="modal-dialog modal-dialog-scrollable modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="ti ti-help-circle me-2"></i>
+                                How to read Cron Churn
+                            </h5>
+                            <button class="btn-close" aria-label="Close" onClick=${() => setCronChurnHelpOpen(false)}></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info d-flex mb-3" role="alert">
+                                <div class="me-2"><i class="ti ti-chart-line"></i></div>
+                                <div>
+                                    Use this card to separate real workload growth from accidental table churn. A healthy spike usually moves Processed and CRUD together; a suspicious spike moves Reads or Writes while Processed stays flat.
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <div class="subheader mb-2">Metric definitions</div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0">
+                                            <tbody>
+                                                <tr>
+                                                    <td class="fw-semibold text-nowrap">CRUD ops</td>
+                                                    <td>Storage pressure: rows scanned, read, written, and deleted. It is the best first view for cost or scale regressions.</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold text-nowrap">Processed</td>
+                                                    <td>Logical workload handled by the job. It is not read plus write. One processed item can create many table rows.</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold text-nowrap">Reads</td>
+                                                    <td>Rows read by the job. In this card, scan pressure is counted with reads because scans also consume table capacity.</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold text-nowrap">Writes</td>
+                                                    <td>Rows inserted, updated, or upserted by the job. Repeated writes with flat Processed often mean a dirty-row loop.</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold text-nowrap">Est. cost</td>
+                                                    <td>Approximate cost combines Azure Tables operation cost from CRUD counters and Azure Container Apps active CPU/memory runtime from run duration. The chart overlays accumulated total cost by default; tooltips show storage and compute for the hour. It is directional, not the Azure bill.</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="subheader mb-2">Bad patterns</div>
+                                    <div class="list-group list-group-flush border rounded">
+                                        <div class="list-group-item">
+                                            <div class="fw-semibold">Reads jump, Processed is flat</div>
+                                            <div class="text-muted small">Likely a broad table scan or missing partition filter.</div>
+                                        </div>
+                                        <div class="list-group-item">
+                                            <div class="fw-semibold">Writes repeat every run</div>
+                                            <div class="text-muted small">Likely rows are being marked dirty again instead of settling.</div>
+                                        </div>
+                                        <div class="list-group-item">
+                                            <div class="fw-semibold">Processed jumps with similar CRUD growth</div>
+                                            <div class="text-muted small">Usually real workload growth. Check the task card to confirm which job did the work.</div>
+                                        </div>
+                                        <div class="list-group-item">
+                                            <div class="fw-semibold">Other Cron Jobs dominates</div>
+                                            <div class="text-muted small">The total is real, but older compacted snapshots did not retain full per-task detail.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="subheader mb-2">How to use the task cards</div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="fw-semibold mb-1">Find the owner</div>
+                                        <div class="text-muted small">The cards are ranked by CRUD pressure. Start at the top card when a chart line spikes.</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="fw-semibold mb-1">Compare badges</div>
+                                        <div class="text-muted small">Read, write, delete, and processed light pills are factual counters. The progress bar carries the state: green for normal churn, yellow for suspicious churn, red for bad churn, and blue for aggregated residual churn.</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="fw-semibold mb-1">Use controls as lenses</div>
+                                        <div class="text-muted small">The card loads ninety days once. Use the dropdown to slice it locally, switch CRUD, Reads, Writes, or Processed for the main lines, and turn Cost off only when the overlay is in the way.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onClick=${() => setCronChurnHelpOpen(false)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCronChurnTaskModal() {
+        const task = selectedCronChurnTask;
+        if (!task) return null;
+
+        const signals = getCronChurnTaskSignals(task);
+        const close = () => setSelectedCronChurnTask(null);
+        const taskCostParts = splitCronCost(task, cronChurnCostModel);
+        const taskEstimatedCost = taskCostParts.totalCost;
+        const taskAverageRunCost = task.auditEvents > 0 ? taskEstimatedCost / task.auditEvents : 0;
+
+        return html`
+            <div class="modal modal-blur show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:7000" onClick=${(ev) => { if (ev.target === ev.currentTarget) close(); }}>
+                <div class="modal-dialog modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <span class="cron-audit-task-swatch me-2" style=${`background:${task.color || OTHER_CRON_TASK_COLOR}`}></span>
+                                ${task.label}
+                            </h5>
+                            <button class="btn-close" aria-label="Close" onClick=${close}></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted mb-3">
+                                This card is one plotted series in the Cron Churn chart for the selected window. It shows how much storage pressure this job created and whether that pressure matches the logical work it processed.
+                            </p>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="subheader">CRUD ops</div>
+                                        <div class="h3 mb-0">${formatCompactNumber(task.crudOps)}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="subheader">Processed</div>
+                                        <div class="h3 mb-0">${formatCompactNumber(task.eventsProcessed)}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="subheader">Reads</div>
+                                        <div class="h3 mb-0">${formatCompactNumber(task.rowsRead)}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="subheader">Writes</div>
+                                        <div class="h3 mb-0">${formatCompactNumber(task.rowsWritten)}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="subheader">Total cost</div>
+                                        <div class="h3 mb-0">${formatUsd(taskEstimatedCost)}</div>
+                                        <div class="text-muted small">storage ${formatUsd(taskCostParts.storageCost)} · compute ${formatUsd(taskCostParts.computeCost)}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-2 h-100">
+                                        <div class="subheader">Avg/run</div>
+                                        <div class="h3 mb-0">${formatUsd(taskAverageRunCost)}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="subheader mb-2">What good and bad look like</div>
+                            <div class="list-group list-group-flush border rounded mb-3">
+                                ${signals.map((signal) => html`
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <span class=${`badge ${signal.badgeClass}`}>${signal.tone}</span>
+                                            <div class="fw-semibold">${signal.title}</div>
+                                        </div>
+                                        <div class="text-muted small">${signal.description}</div>
+                                    </div>
+                                `)}
+                            </div>
+
+                            <div class="alert alert-light border mb-0">
+                                <div class="fw-semibold mb-1">Quick read</div>
+                                <div class="small text-muted">
+                                    Healthy patterns usually show Processed moving with Reads and Writes. Suspicious patterns show Reads or Writes growing while Processed stays flat, or repeated Writes on every run with no new workload.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onClick=${close}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     const renderCronChurnTrendCard = () => html`
         <div class="card cron-hourly-crud-card">
             <div class="card-header">
@@ -1792,11 +2740,105 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                             </button>
                         `)}
                     </div>
-                    <span class="text-muted small">${loadingCronChurnTrend ? 'Refreshing trend...' : `${formatCompactNumber(hourlyCronChurnTrend.totals.crudOps)} CRUD ops · ${formatPlural(hourlyCronChurnTrend.totals.auditEvents, hourlyCronChurnTrend.eventNoun || 'audit event')}`}</span>
+                    <div class="dropdown">
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            aria-label="Cron churn focus">
+                            ${getCronChurnFocusOption(cronChurnFocusKey).shortLabel}
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            ${CRON_CHURN_FOCUS_OPTIONS.map((option) => html`
+                                <button
+                                    type="button"
+                                    class=${`dropdown-item ${cronChurnFocusKey === option.key ? 'active' : ''}`}
+                                    aria-current=${cronChurnFocusKey === option.key ? 'true' : 'false'}
+                                    onClick=${() => setCronChurnFocusKey(option.key)}>
+                                    <span>${option.label}</span>
+                                    <span class="text-muted ms-2">${option.shortLabel}</span>
+                                </button>
+                            `)}
+                        </div>
+                    </div>
+                    <label class="form-check form-switch mb-0 d-flex align-items-center gap-1" title="Show accumulated estimated total cost from Azure Tables and Container Apps runtime">
+                        <input
+                            class="form-check-input m-0"
+                            type="checkbox"
+                            checked=${showCronChurnCost}
+                            onChange=${(event) => setShowCronChurnCost(Boolean(event.currentTarget.checked))}
+                            aria-label="Show accumulated estimated cost" />
+                        <span class="form-check-label small">Cost</span>
+                    </label>
+                    ${showCronChurnCost && html`
+                        <div class="dropdown">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                aria-label="Cron churn cost attribution">
+                                ${getCronChurnCostModeOption(cronChurnCostModeKey).shortLabel}
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end">
+                                ${CRON_CHURN_COST_MODE_OPTIONS.map((option) => html`
+                                    <button
+                                        type="button"
+                                        class=${`dropdown-item ${cronChurnCostModeKey === option.key ? 'active' : ''}`}
+                                        aria-current=${cronChurnCostModeKey === option.key ? 'true' : 'false'}
+                                        onClick=${() => setCronChurnCostModeKey(option.key)}>
+                                        <span>${option.label}</span>
+                                        <span class="text-muted ms-2">${option.shortLabel}</span>
+                                    </button>
+                                `)}
+                            </div>
+                        </div>
+                    `}
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-icon btn-outline-secondary"
+                        title=${loadingCronChurnTrend ? 'Refreshing Cron Churn' : 'Refresh Cron Churn'}
+                        aria-label="Refresh Cron Churn"
+                        disabled=${loadingCronChurnTrend}
+                        onClick=${loadCronChurnTrend}>
+                        <i class=${`ti ${loadingCronChurnTrend ? 'ti-loader-2' : 'ti-refresh'}`}></i>
+                    </button>
+                    <div class="dropdown">
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-outline-primary dropdown-toggle"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            aria-label="Cron churn window">
+                            ${getCronChurnWindowOption(cronChurnWindowKey).shortLabel}
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            ${CRON_CHURN_WINDOW_OPTIONS.map((option) => html`
+                                <button
+                                    type="button"
+                                    class=${`dropdown-item ${cronChurnWindowKey === option.key ? 'active' : ''}`}
+                                    aria-current=${cronChurnWindowKey === option.key ? 'true' : 'false'}
+                                    onClick=${() => setCronChurnWindowKey(option.key)}>
+                                    <span>${option.label}</span>
+                                    <span class="text-muted ms-2">${option.shortLabel}</span>
+                                </button>
+                            `)}
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        title="How to read Cron Churn"
+                        aria-label="How to read Cron Churn"
+                        onClick=${() => setCronChurnHelpOpen(true)}>
+                        <i class="ti ti-help-circle me-1"></i>
+                        How to read
+                    </button>
                 </div>
             </div>
             <div class="card-body">
-                ${hourlyCronChurnTrend.points.length === 0 ? html`
+                ${hourlyCronChurnTrend.points.length === 0 || hourlyCronChurnTrend.tasks.length === 0 ? html`
                     <div class="empty py-3">
                         <div class="empty-icon"><i class="ti ti-chart-bar-off"></i></div>
                         <p class="empty-title">No cron churn rows</p>
@@ -1810,42 +2852,64 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                     <div class="text-muted small">${hourlyCronChurnTrend.spanLabel}</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-1">
-                                    <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
-                                    <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
-                                    <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
+                                    <span class="badge bg-secondary-lt text-secondary">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
+                                    <span class="badge bg-success-lt text-success">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
+                                    <span class="badge bg-info-lt text-info">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
+                                    <span class="badge bg-primary-lt text-primary">total ${formatUsd(cronChurnTotalCostParts.totalCost)}</span>
+                                    <span class="badge bg-secondary-lt text-secondary">storage ${formatUsd(cronChurnTotalCostParts.storageCost)}</span>
+                                    <span class="badge bg-info-lt text-info">compute ${formatUsd(cronChurnTotalCostParts.computeCost)}</span>
+                                    <span class="badge bg-success-lt text-success">regular ${formatUsd(cronChurnTotalCostParts.regularTotalCost)}</span>
+                                    <span class="badge bg-warning-lt text-warning">manual ${formatUsd(cronChurnTotalCostParts.manualRecoveryTotalCost)}</span>
                                 </div>
                             </div>
                             <div class="cron-audit-churn-chart" role="img" aria-label="Hourly cron audit read write and processed event trend">
                                 <canvas id="cronAuditChurnLineChart" ref=${auditChurnCanvasRef}></canvas>
                             </div>
                             <div class="d-flex flex-wrap gap-2 mt-2">
-                                <span class="badge bg-purple text-white">${hourlyCronChurnTrend.eventNoun || 'audit event'}s ${formatCompactNumber(hourlyCronChurnTrend.totals.auditEvents)}</span>
-                                <span class="badge bg-info text-white">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
-                                <span class="badge bg-secondary text-white">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
-                                <span class="badge bg-success text-white">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
-                                ${hourlyCronChurnTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">deletes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsDeleted)}</span>`}
+                                <span class="badge bg-purple-lt text-purple">${hourlyCronChurnTrend.eventNoun || 'audit event'}s ${formatCompactNumber(hourlyCronChurnTrend.totals.auditEvents)}</span>
+                                <span class="badge bg-info-lt text-info">processed ${formatCompactNumber(hourlyCronChurnTrend.totals.eventsProcessed)}</span>
+                                <span class="badge bg-secondary-lt text-secondary">reads ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsRead)}</span>
+                                <span class="badge bg-success-lt text-success">writes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsWritten)}</span>
+                                ${hourlyCronChurnTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning-lt text-warning">deletes ${formatCompactNumber(hourlyCronChurnTrend.totals.rowsDeleted)}</span>`}
+                                <span class="badge bg-primary-lt text-primary">total cost ${formatUsd(cronChurnTotalCostParts.totalCost)}</span>
+                                <span class="badge bg-secondary-lt text-secondary">storage cost ${formatUsd(cronChurnTotalCostParts.storageCost)}</span>
+                                <span class="badge bg-info-lt text-info">compute cost ${formatUsd(cronChurnTotalCostParts.computeCost)}</span>
+                                <span class="badge bg-success-lt text-success">regular cost ${formatUsd(cronChurnTotalCostParts.regularTotalCost)}</span>
+                                <span class="badge bg-warning-lt text-warning">manual cost ${formatUsd(cronChurnTotalCostParts.manualRecoveryTotalCost)}</span>
                             </div>
                         </div>
                         <div class="cron-audit-task-list">
                             ${hourlyCronChurnTrend.tasks.map((task) => {
                                 const rowShare = Math.max(1, Math.round((task.crudOps / hourlyCronChurnTrend.maxCrudOps) * 100));
+                                const taskHealth = getCronChurnTaskHealth(task);
                                 return html`
                                     <div class="cron-audit-task-row">
                                         <div>
-                                            <div class="d-flex align-items-center gap-2">
-                                                <span class="cron-audit-task-swatch" style=${`background:${task.color}`}></span>
-                                                <div class="fw-semibold text-truncate">${task.label}</div>
+                                            <div class="d-flex align-items-start justify-content-between gap-2">
+                                                <div class="d-flex align-items-center gap-2 min-w-0">
+                                                    <span class="cron-audit-task-swatch" style=${`background:${task.color}`}></span>
+                                                    <div class="fw-semibold text-truncate cron-audit-task-title">${task.label}</div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-icon btn-outline-secondary flex-shrink-0"
+                                                    title=${`Explain ${task.label}`}
+                                                    aria-label=${`Explain ${task.label}`}
+                                                    onClick=${() => setSelectedCronChurnTask(task)}>
+                                                    <i class="ti ti-info-circle"></i>
+                                                </button>
                                             </div>
-                                            <div class="text-muted small">${formatCompactNumber(task.crudOps)} CRUD ops · ${formatPlural(task.auditEvents, hourlyCronChurnTrend.eventNoun || 'audit event')}</div>
+                                            <div class="small cron-audit-task-meta">${formatCompactNumber(task.crudOps)} CRUD ops · ${formatPlural(task.auditEvents, hourlyCronChurnTrend.eventNoun || 'audit event')}</div>
                                         </div>
-                                        <div class="progress progress-sm my-2">
-                                            <div class="progress-bar bg-primary" style=${`width:${rowShare}%`}></div>
+                                        <div class=${`progress progress-sm my-2 cron-audit-progress ${taskHealth.progressClass}`} title=${taskHealth.label} aria-label=${`${task.label} churn share: ${rowShare}%, ${taskHealth.label}`}>
+                                            <div class="progress-bar" style=${`width:${rowShare}%`}></div>
                                         </div>
                                         <div class="d-flex flex-wrap gap-1">
-                                            <span class="badge bg-info text-white">processed ${formatCompactNumber(task.eventsProcessed)}</span>
-                                            <span class="badge bg-secondary text-white">read ${formatCompactNumber(task.rowsRead)}</span>
-                                            <span class="badge bg-success text-white">write ${formatCompactNumber(task.rowsWritten)}</span>
-                                            ${task.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">delete ${formatCompactNumber(task.rowsDeleted)}</span>`}
+                                            <span class="badge bg-info-lt text-info">processed ${formatCompactNumber(task.eventsProcessed)}</span>
+                                            <span class="badge bg-secondary-lt text-secondary">read ${formatCompactNumber(task.rowsRead)}</span>
+                                            <span class="badge bg-success-lt text-success">write ${formatCompactNumber(task.rowsWritten)}</span>
+                                            ${task.rowsDeleted > 0 && html`<span class="badge bg-warning-lt text-warning">delete ${formatCompactNumber(task.rowsDeleted)}</span>`}
+                                            <span class="badge bg-primary-lt text-primary">est ${formatUsd(estimateCronRunCostUsd(task, cronChurnCostModel))}</span>
                                         </div>
                                     </div>
                                 `;
@@ -1905,60 +2969,60 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                         }).length;
                         const successRate = sampleCount > 0 ? ((successCount / sampleCount) * 100).toFixed(1) : 0;
                         const lastEvent = filteredEvents[0] || events[0];
-                        const lastEventTime = lastEvent?.timestamp ? new Date(lastEvent.timestamp).toLocaleString() : 'N/A';
+                        const lastEventTime = lastEvent?.timestamp ? new Date(lastEvent.timestamp) : null;
                         const sampleLabel = sampleCount === totalEvents
                             ? `${formatPlural(sampleCount, 'event')} loaded`
                             : `${formatCompactNumber(sampleCount)} visible of ${formatCompactNumber(totalEvents)} loaded`;
+                        const totalRowOps = runtimeTrend.totals.rowsRead + runtimeTrend.totals.rowsWritten + runtimeTrend.totals.rowsDeleted;
+                        const topTask = taskRuntimeLeaders[0] || null;
+                        const hotspotTitle = topTask
+                            ? `${topTask.taskId}: ${formatDuration(topTask.totalDurationMs)} total, ${formatCompactNumber(topTask.totalRows)} row ops, ${formatPlural(topTask.runs, 'run')}`
+                            : topLaneByRuntime
+                                ? `${formatLaneLabel(topLaneByRuntime.laneId)}: ${formatDuration(topLaneByRuntime.durationMs)}, ${formatCompactNumber(topLaneByRuntime.totalRows)} ops`
+                                : 'No timed task or lane hotspot in the loaded sample.';
+                        const healthTitle = `${sampleLabel}\n${successCount} success / ${failureCount} failed in ${formatSampleWindow(rangeDays)}`;
+                        const costTitle = `Estimated total ${formatUsd(cronChurnTotalCostParts.totalCost)}\nCompute ${formatUsd(cronChurnTotalCostParts.computeCost)} from timed runtime\nStorage ${formatUsd(cronChurnTotalCostParts.storageCost)} from table operations`;
                         
                         return html`
                             <div class="col-md-3">
-                                <div class="card">
+                                <div class="card h-100" title=${healthTitle}>
                                     <div class="card-body">
-                                        <div class="text-muted small mb-2">Activity Sample</div>
-                                        <div class="h3 mb-0">${formatCompactNumber(sampleCount)}</div>
-                                        <small class="text-muted">${sampleLabel} · ${formatSampleWindow(rangeDays)}</small>
+                                        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                            <div class="subheader mb-0">Run health</div>
+                                            ${failureCount > 0 ? html`<span class="badge bg-danger-lt text-danger">review</span>` : html`<span class="badge bg-success-lt text-success">healthy</span>`}
+                                        </div>
+                                        <div class=${`h3 mb-0 ${failureCount > 0 ? 'text-danger' : 'text-success'}`}>${successRate}%</div>
+                                        <small class="text-muted">${successCount} ok · ${failureCount} failed · ${formatCompactNumber(sampleCount)} events</small>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="card">
+                                <div class="card h-100" title=${costTitle}>
                                     <div class="card-body">
-                                        <div class="text-muted small mb-2">Completion Rate</div>
-                                        <div class="h3 mb-0 text-success">${successRate}%</div>
-                                        <small class="text-muted">${successCount} success · ${failureCount} failed</small>
+                                        <div class="subheader mb-2">Estimated cost</div>
+                                        <div class="h3 mb-0 text-primary">${formatUsd(cronChurnTotalCostParts.totalCost)}</div>
+                                        <small class="text-muted">${formatUsd(cronChurnTotalCostParts.computeCost)} compute · ${formatUsd(cronChurnTotalCostParts.storageCost)} storage</small>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="card">
+                                <div class="card h-100" title=${`${formatCompactNumber(totalRowOps)} table operations\n${formatCompactNumber(runtimeTrend.totals.rowsRead)} read/scanned, ${formatCompactNumber(runtimeTrend.totals.rowsWritten)} written, ${formatCompactNumber(runtimeTrend.totals.rowsDeleted)} deleted`}>
                                     <div class="card-body">
-                                        <div class="text-muted small mb-2">Timed Runtime</div>
-                                        <div class="h3 mb-0 text-primary">${formatDuration(runtimeTrend.totals.durationMs)}</div>
-                                        <small class="text-muted">${formatPlural(runtimeTrend.totals.runs, 'timed run')} · ${formatSampleWindow(rangeDays)}</small>
+                                        <div class="subheader mb-2">Storage pressure</div>
+                                        <div class="h3 mb-0 text-warning">${formatCompactNumber(totalRowOps)}</div>
+                                        <small class="text-muted">${formatCompactNumber(runtimeTrend.totals.rowsRead)} read · ${formatCompactNumber(runtimeTrend.totals.rowsWritten)} write</small>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="card">
+                                <div class="card h-100" title=${hotspotTitle}>
                                     <div class="card-body">
-                                        <div class="text-muted small mb-2">Last Activity</div>
-                                        <div class="small mb-0">${lastEventTime}</div>
-                                        ${lastEvent && html`<span class="badge bg-${(lastEvent.eventType === 'SECURITY_REPORT' && (lastEvent.subType === 'SecurityReportFailed' || lastEvent.subType === 'FAILED')) ? 'danger' : 'success'}-lt text-${(lastEvent.eventType === 'SECURITY_REPORT' && (lastEvent.subType === 'SecurityReportFailed' || lastEvent.subType === 'FAILED')) ? 'danger' : 'success'} mt-2 mt-sm-0">${(() => {
-                                            if (lastEvent.eventType === 'CRONRUN') {
-                                                return (lastEvent.subType === 'CronRunManual' || lastEvent.subType === 'Manual')
-                                                    ? `Manual: ${lastEvent.metadata?.taskId || 'Unknown'}`
-                                                    : 'Scheduled';
-                                            }
-                                            if (lastEvent.eventType === 'SECURITY_REPORT') {
-                                                if (lastEvent.subType === 'SecurityReportFailed' || lastEvent.subType === 'FAILED') return 'Failed';
-                                                if (lastEvent.subType === 'SecurityReportBatchComplete') return 'Batch Complete';
-                                                if (lastEvent.subType === 'SecurityReportEmailSent') return 'Email Sent';
-                                                if (((lastEvent.subType || '').toLowerCase().includes('batch'))) return 'Batch';
-                                                if (((lastEvent.subType || '').toLowerCase().includes('sent'))) return 'Sent';
-                                                return 'Report';
-                                            }
-                                            return 'Other';
-                                        })()}</span>`}
+                                        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                            <div class="subheader mb-0">Hotspot</div>
+                                            <span class="badge bg-info-lt text-info">${formatRelativeTime(lastEventTime)}</span>
+                                        </div>
+                                        <div class="h3 mb-0 text-truncate">${topTask?.taskId || (topLaneByRuntime ? formatLaneLabel(topLaneByRuntime.laneId) : '-')}</div>
+                                        <small class="text-muted">${topTask ? `${formatDuration(topTask.totalDurationMs)} · ${formatCompactNumber(topTask.totalRows)} ops` : (topLaneByRuntime ? `${formatDuration(topLaneByRuntime.durationMs)} lane runtime` : 'No hotspot yet')}</small>
                                     </div>
                                 </div>
                             </div>
@@ -1984,8 +3048,28 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                 </div>
                             </div>
                             <div class="card-body">
+                                <div class="cron-insight-strip mb-3">
+                                    ${efficiencyTrend.peakRuntimeDay && html`
+                                        <div class="cron-insight-pill" title=${`${efficiencyTrend.peakRuntimeDay.label}: ${formatDuration(efficiencyTrend.peakRuntimeDay.durationMs)} sampled runtime`}>
+                                            <span class="text-muted small">Peak runtime</span>
+                                            <span class="fw-semibold">${efficiencyTrend.peakRuntimeDay.label}</span>
+                                        </div>
+                                    `}
+                                    ${efficiencyTrend.peakOpsDay && efficiencyTrend.peakOpsDay.rowOps > 0 && html`
+                                        <div class="cron-insight-pill" title=${`${efficiencyTrend.peakOpsDay.label}: ${formatCompactNumber(efficiencyTrend.peakOpsDay.rowOps)} row operations`}>
+                                            <span class="text-muted small">Peak ops</span>
+                                            <span class="fw-semibold">${formatCompactNumber(efficiencyTrend.peakOpsDay.rowOps)}</span>
+                                        </div>
+                                    `}
+                                    ${efficiencyTrend.peakEfficiencyDay && efficiencyTrend.peakEfficiencyDay.workPerMinute > 0 && html`
+                                        <div class="cron-insight-pill" title=${`${efficiencyTrend.peakEfficiencyDay.label}: ${formatCompactNumber(efficiencyTrend.peakEfficiencyDay.workPerMinute)} work/min`}>
+                                            <span class="text-muted small">Best throughput</span>
+                                            <span class="fw-semibold">${formatCompactNumber(efficiencyTrend.peakEfficiencyDay.workPerMinute)}/min</span>
+                                        </div>
+                                    `}
+                                </div>
                                 <div class="cron-trend-stack">
-                                    <div class="cron-trend-section">
+                                    <div class="cron-trend-section" title="Daily scheduled/manual run volume. Failed segments indicate runs that ended unsuccessfully.">
                                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                                             <div class="subheader mb-0">Executions</div>
                                             <div class="d-flex flex-wrap gap-1">
@@ -1993,7 +3077,6 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                                 <span class="badge bg-danger text-white">failed</span>
                                             </div>
                                         </div>
-                                        <div class="cron-trend-section-note text-muted">A taller bar means more cron runs that day; failed segments show runs that ended unsuccessfully.</div>
                                         <div class="cron-trend-chart cron-trend-chart-compact" role="img" aria-label="Daily cron execution trend">
                                             ${dailyTrend.points.map((point) => {
                                                 const successHeight = Math.max(2, Math.round((point.success / dailyTrend.max) * 30));
@@ -2012,7 +3095,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                         </div>
                                         <div class="small text-muted mt-2">${dailyTrend.totals.success} completed · ${dailyTrend.totals.failed} failed</div>
                                     </div>
-                                    <div class="cron-trend-section">
+                                    <div class="cron-trend-section" title="Elapsed cron runtime beside table read/write/delete pressure.">
                                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                                             <div class="subheader mb-0">Runtime</div>
                                             <div class="d-flex flex-wrap gap-1">
@@ -2020,7 +3103,6 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                                 <span class="badge bg-warning text-white">table ops</span>
                                             </div>
                                         </div>
-                                        <div class="cron-trend-section-note text-muted">Runtime shows elapsed cron time; table ops show rows read, written, or deleted during those runs.</div>
                                         <div class="cron-trend-chart cron-trend-chart-compact" role="img" aria-label="Daily cron runtime and table operation trend">
                                             ${runtimeTrend.points.map((point) => {
                                                 const durationHeight = Math.max(point.durationMs > 0 ? 3 : 0, Math.round((point.durationMs / runtimeTrend.maxDurationMs) * 34));
@@ -2044,7 +3126,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                             ${runtimeTrend.totals.rowsDeleted > 0 && html`<span class="badge bg-warning text-white">deletes ${formatCompactNumber(runtimeTrend.totals.rowsDeleted)}</span>`}
                                         </div>
                                     </div>
-                                    <div class="cron-trend-section cron-trend-section-tight">
+                                    <div class="cron-trend-section cron-trend-section-tight" title="Work completed and table operations per runtime minute.">
                                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                                             <div class="subheader mb-0">Efficiency</div>
                                             <div class="d-flex flex-wrap gap-1">
@@ -2052,7 +3134,6 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                                 <span class="badge bg-warning text-white">ops/min</span>
                                             </div>
                                         </div>
-                                        <div class="cron-trend-section-note text-muted">Higher efficiency means more items or table operations completed per runtime minute.</div>
                                         <div class="cron-trend-chart cron-trend-chart-compact cron-trend-chart-tiny" role="img" aria-label="Daily cron work and operation efficiency trend">
                                             ${efficiencyTrend.points.map((point) => {
                                                 const workHeight = Math.max(point.workPerMinute > 0 ? 2 : 0, Math.round((point.workPerMinute / efficiencyTrend.maxWorkPerMinute) * 28));
@@ -2068,37 +3149,35 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                                 `;
                                             })}
                                         </div>
-                                        <div class="d-flex flex-wrap gap-2 mt-2 small text-muted">
-                                            ${efficiencyTrend.peakRuntimeDay && html`<span>peak runtime ${efficiencyTrend.peakRuntimeDay.label} · ${formatDuration(efficiencyTrend.peakRuntimeDay.durationMs)}</span>`}
-                                            ${efficiencyTrend.peakOpsDay && efficiencyTrend.peakOpsDay.rowOps > 0 && html`<span>peak ops ${efficiencyTrend.peakOpsDay.label} · ${formatCompactNumber(efficiencyTrend.peakOpsDay.rowOps)}</span>`}
-                                            ${efficiencyTrend.peakEfficiencyDay && efficiencyTrend.peakEfficiencyDay.workPerMinute > 0 && html`<span>best work/min ${efficiencyTrend.peakEfficiencyDay.label} · ${formatCompactNumber(efficiencyTrend.peakEfficiencyDay.workPerMinute)}</span>`}
-                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="card">
                             <div class="card-header">
-                                <h3 class="card-title mb-0">Attribution Signals</h3>
+                                <div>
+                                    <h3 class="card-title mb-0">Attribution Signals</h3>
+                                    <div class="card-subtitle text-muted">What is driving runtime, storage, and manual/recovery cost.</div>
+                                </div>
                             </div>
                             <div class="card-body">
                                 <div class="cron-attribution-tiles">
-                                    <div class="cron-attribution-tile">
-                                        <div class="text-muted small">Compute Proxy</div>
+                                    <div class="cron-attribution-tile" title=${`Timed runtime ${formatDuration(runtimeTrend.totals.durationMs)}. Compute estimate ${formatUsd(cronChurnTotalCostParts.computeCost)}.`}>
+                                        <div class="text-muted small">Compute driver</div>
                                         <div class="h3 mb-0 text-primary">${formatDuration(runtimeTrend.totals.durationMs)}</div>
-                                        <div class="text-muted small">timed runtime</div>
+                                        <div class="text-muted small">${formatUsd(cronChurnTotalCostParts.computeCost)} est.</div>
                                     </div>
-                                    <div class="cron-attribution-tile">
+                                    <div class="cron-attribution-tile" title=${`${formatCompactNumber(runtimeTrend.totals.rowsRead)} read/scanned, ${formatCompactNumber(runtimeTrend.totals.rowsWritten)} written, ${formatCompactNumber(runtimeTrend.totals.rowsDeleted)} deleted. Storage estimate ${formatUsd(cronChurnTotalCostParts.storageCost)}.`}>
                                         <div class="text-muted small">Storage Pressure</div>
                                         <div class="h3 mb-0 text-warning">${formatCompactNumber(runtimeTrend.totals.rowsRead + runtimeTrend.totals.rowsWritten + runtimeTrend.totals.rowsDeleted)}</div>
-                                        <div class="text-muted small">table operations</div>
+                                        <div class="text-muted small">${formatUsd(cronChurnTotalCostParts.storageCost)} est.</div>
                                     </div>
-                                    <div class="cron-attribution-tile">
+                                    <div class="cron-attribution-tile" title="Logical work completed by cron runs. High work with low ops is good; high ops with low work is a tuning signal.">
                                         <div class="text-muted small">Workload Driver</div>
                                         <div class="h3 mb-0 text-success">${formatCompactNumber(runtimeTrend.totals.itemsProcessed)}</div>
-                                        <div class="text-muted small">items processed</div>
+                                        <div class="text-muted small">${formatPlural(runtimeTrend.totals.runs, 'timed run')}</div>
                                     </div>
-                                    <div class="cron-attribution-tile">
+                                    <div class="cron-attribution-tile" title=${topLaneByRuntime ? `${formatLaneLabel(topLaneByRuntime.laneId)} accounts for ${formatDuration(topLaneByRuntime.durationMs)} runtime and ${formatCompactNumber(topLaneByRuntime.totalRows)} ops.` : 'No lane runtime available.'}>
                                         <div class="text-muted small">Top Lane</div>
                                         <div class="h3 mb-0">${topLaneByRuntime ? formatLaneLabel(topLaneByRuntime.laneId) : '-'}</div>
                                         <div class="text-muted small">${topLaneByRuntime ? formatDuration(topLaneByRuntime.durationMs) : 'no timed runs'}</div>
@@ -2123,23 +3202,22 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                     <div class="list-group list-group-flush cron-runtime-leader-list">
                                         ${taskRuntimeLeaders.map((item) => {
                                             const runtimeShare = Math.max(1, Math.round((item.totalDurationMs / maxTaskDurationMs) * 100));
+                                            const sampleShare = totalTaskDurationMs > 0 ? Math.round((item.totalDurationMs / totalTaskDurationMs) * 100) : 0;
                                             return html`
-                                            <div class="list-group-item px-0">
+                                            <div class="list-group-item px-0" title=${`${item.taskId}\nTotal runtime ${formatDuration(item.totalDurationMs)}\nAverage ${formatDuration(item.averageDurationMs)}; max ${formatDuration(item.maxDurationMs)}\nRows ${formatCompactNumber(item.totalRows)}; work ${formatCompactNumber(item.itemsProcessed)}`}>
                                                 <div class="d-flex align-items-start gap-3">
                                                     <div class="flex-fill" style="min-width:0;">
                                                         <div class="fw-semibold text-truncate" title=${item.taskId}>${item.taskId}</div>
                                                         <div class="d-flex flex-wrap gap-1 mt-2">
-                                                            <span class="badge bg-primary text-white">total ${formatDuration(item.totalDurationMs)}</span>
-                                                            <span class="badge bg-secondary text-white">${formatPlural(item.runs, 'run')}</span>
-                                                            <span class="badge bg-info text-white">avg/run ${formatDuration(item.averageDurationMs)}</span>
-                                                            <span class="badge bg-dark text-white">max run ${formatDuration(item.maxDurationMs)}</span>
-                                                            ${item.itemsProcessed > 0 && html`<span class="badge bg-yellow-lt text-yellow">work ${formatCompactNumber(item.itemsProcessed)} items</span>`}
-                                                            ${item.totalRows > 0 && html`<span class="badge bg-warning text-white">table ops ${formatCompactNumber(item.totalRows)}</span>`}
+                                                            <span class="badge bg-primary-lt text-primary">${formatDuration(item.totalDurationMs)}</span>
+                                                            <span class="badge bg-secondary-lt text-secondary">${formatPlural(item.runs, 'run')}</span>
+                                                            <span class="badge bg-info-lt text-info">avg ${formatDuration(item.averageDurationMs)}</span>
+                                                            ${item.totalRows > 0 && html`<span class="badge bg-warning-lt text-warning">${formatCompactNumber(item.totalRows)} ops</span>`}
                                                         </div>
                                                     </div>
                                                     <div class="text-end">
-                                                        <div class="fw-semibold">${runtimeShare}%</div>
-                                                        <div class="text-muted small">of leader</div>
+                                                        <div class="fw-semibold">${sampleShare}%</div>
+                                                        <div class="text-muted small">sample</div>
                                                     </div>
                                                 </div>
                                                 <div class="progress progress-sm mt-2">
@@ -2181,7 +3259,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                             <div class="card-header">
                                 <div>
                                     <h3 class="card-title mb-0">Lane Load Mix</h3>
-                                    <div class="card-subtitle text-muted">Runtime and table operations by scheduled lane</div>
+                                    <div class="card-subtitle text-muted">Runtime share, table pressure, and failure cues by lane.</div>
                                 </div>
                                 <div class="card-actions text-muted small">${formatSampleWindow(rangeDays)} sample</div>
                             </div>
@@ -2190,8 +3268,10 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                     ${laneLoadMix.map((lane) => {
                                         const runtimePercent = Math.max(1, Math.round((lane.durationMs / maxLaneDurationMs) * 100));
                                         const rowPercent = Math.max(lane.totalRows > 0 ? 1 : 0, Math.round((lane.totalRows / maxLaneRows) * 100));
+                                        const runtimeShare = totalLaneDurationMs > 0 ? Math.round((lane.durationMs / totalLaneDurationMs) * 100) : 0;
+                                        const rowShare = totalLaneRows > 0 ? Math.round((lane.totalRows / totalLaneRows) * 100) : 0;
                                         return html`
-                                            <div class="cron-lane-load-row">
+                                            <div class="cron-lane-load-row" title=${`${formatLaneLabel(lane.laneId)}: ${runtimeShare}% runtime share, ${rowShare}% row-op share, ${formatPlural(lane.runs, 'timed run')}, ${lane.failed} failed.`}>
                                                 <div class="cron-lane-load-label">
                                                     <div class="fw-semibold">${formatLaneLabel(lane.laneId)}</div>
                                                     <div class="text-muted small">${formatPlural(lane.runs, 'timed run')}${lane.failed > 0 ? ` · ${lane.failed} failed` : ''}</div>
@@ -2205,9 +3285,9 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                                     </div>
                                                 </div>
                                                 <div class="cron-lane-load-metrics">
-                                                    <span class="badge bg-primary text-white">${formatDuration(lane.durationMs)}</span>
-                                                    <span class="badge bg-warning text-white">${formatCompactNumber(lane.totalRows)} ops</span>
-                                                    ${lane.itemsProcessed > 0 && html`<span class="badge bg-success text-white">${formatCompactNumber(lane.itemsProcessed)} work</span>`}
+                                                    <span class="badge bg-primary-lt text-primary">${runtimeShare}% runtime</span>
+                                                    <span class="badge bg-warning-lt text-warning">${rowShare}% ops</span>
+                                                    ${lane.failed > 0 && html`<span class="badge bg-danger-lt text-danger">${lane.failed} failed</span>`}
                                                 </div>
                                             </div>
                                         `;
@@ -2291,6 +3371,20 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                         </button>
                     </div>
                     <div class="card-body">
+                        <div class="cron-insight-strip mb-3">
+                            <div class="cron-insight-pill" title="Lanes with no overdue scheduled tasks.">
+                                <span class="text-muted small">Ready lanes</span>
+                                <span class="fw-semibold text-success">${laneStatusSummary.healthy}/${laneSummaries.length}</span>
+                            </div>
+                            <div class="cron-insight-pill" title="Overdue scheduled tasks across all lanes.">
+                                <span class="text-muted small">Overdue tasks</span>
+                                <span class=${`fw-semibold ${laneStatusSummary.overdueTasks > 0 ? 'text-danger' : 'text-success'}`}>${laneStatusSummary.overdueTasks}</span>
+                            </div>
+                            <div class="cron-insight-pill" title=${currentCronStatus.isLocked ? `Active lease held by ${currentCronStatus.lockedBy || 'unknown worker'}` : 'No scheduled lane currently holds the lease.'}>
+                                <span class="text-muted small">Running now</span>
+                                <span class="fw-semibold">${laneStatusSummary.runningLane ? laneStatusSummary.runningLane.label : 'Idle'}</span>
+                            </div>
+                        </div>
                         <div class="row g-3 align-items-stretch">
                             <div class="col-lg-4">
                                 <div class="border rounded p-3 h-100">
@@ -2339,9 +3433,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
 
             <div class="mb-3">
                 <h4>Activity Details & Filters</h4>
-                <p class="text-muted small">
-                    Cron jobs now run in independent scheduled lanes with per-task audit progress. This page shows lane health, execution history, email deliveries, and errors.
-                </p>
+                <p class="text-muted small">Compact audit stream. Hover for full context; expand a row for diagnostics and raw metadata.</p>
             </div>
 
             ${highlightedEventId && html`
@@ -2465,6 +3557,8 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                         <div class="col-md-3">
                             <label class="form-label">Time Range</label>
                             <select class="form-select" value=${rangeDays} onChange=${(e) => setRangeDays(parseInt(e.target.value, 10))}>
+                                <option value="1">Last 24 hours</option>
+                                <option value="3">Last 3 days</option>
                                 <option value="7">Last 7 days</option>
                                 <option value="15">Last 15 days</option>
                                 <option value="30">Last 30 days</option>
@@ -2498,17 +3592,15 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                 <div class="card mb-3">
                     <div class="card-header">
                         <h3 class="card-title">Scheduled Tasks</h3>
-                        <div class="card-subtitle text-muted">Includes latest execution per task</div>
+                        <div class="card-subtitle text-muted">Latest and next execution per task</div>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-vcenter card-table">
+                        <table class="table table-vcenter card-table cron-scheduled-tasks-table">
                             <thead>
                                 <tr>
-                                    <th>Task ID</th>
-                                    <th>Lane</th>
+                                    <th>Task</th>
                                     <th>Frequency</th>
-                                    <th>Last Execution</th>
-                                    <th>Next Scheduled</th>
+                                    <th>Schedule</th>
                                     <th>Executions</th>
                                     <th>Avg Duration</th>
                                     <th>Status</th>
@@ -2525,7 +3617,14 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                         .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0];
 
                                     const lastExecStatus = lastExec?.status || null;
-                                    const lastExecAt = lastExec?.completedAt ? new Date(lastExec.completedAt).toLocaleString() : null;
+                                    const lastExecDate = lastExec?.completedAt ? new Date(lastExec.completedAt) : null;
+                                    const lastExecAt = lastExecDate && !Number.isNaN(lastExecDate.getTime()) ? lastExecDate.toLocaleString() : null;
+                                    const nextScheduledDate = task.nextScheduledRun ? new Date(task.nextScheduledRun) : null;
+                                    const nextScheduledAt = nextScheduledDate && !Number.isNaN(nextScheduledDate.getTime()) ? nextScheduledDate.toLocaleString() : null;
+                                    const laneLabel = formatLaneLabel(task.laneId);
+                                    const executionScopeLabel = task.executionScope && String(task.executionScope).toLowerCase() !== 'global'
+                                        ? formatExecutionScope(task.executionScope)
+                                        : null;
                                     const lastExecBadgeClass =
                                         lastExecStatus === 'Success'
                                             ? 'bg-success-lt text-success'
@@ -2538,34 +3637,42 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                                     return html`
                                         <tr>
                                             <td>
-                                                <div class="fw-bold">${task.displayName || task.taskId}</div>
-                                                ${(task.displayName && task.displayName !== task.taskId)
-                                                    ? html`<div class="text-muted small">${task.taskId}</div>`
-                                                    : ''}
-                                                ${task.description ? html`<div class="text-muted small mt-1">${task.description}</div>` : ''}
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-secondary text-white">${formatLaneLabel(task.laneId)}</span>
-                                                ${task.executionScope && String(task.executionScope).toLowerCase() !== 'global' && html`
-                                                    <div class="mt-1"><span class="badge bg-dark text-white">${formatExecutionScope(task.executionScope)}</span></div>
-                                                `}
+                                                <div class="d-flex align-items-start gap-2 min-w-0">
+                                                    <span class=${`cron-task-lane-icon ${getLaneToneClass(task.laneId)}`} title=${`Lane: ${laneLabel}`} aria-label=${`Lane: ${laneLabel}`}>
+                                                        <i class=${`ti ${getLaneIconClass(task.laneId)}`}></i>
+                                                    </span>
+                                                    <div class="min-w-0">
+                                                        <div class="fw-bold text-truncate cron-scheduled-task-title" title=${task.description || task.displayName || task.taskId}>${task.displayName || task.taskId}</div>
+                                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                                            ${(task.displayName && task.displayName !== task.taskId)
+                                                                ? html`<span class="text-muted small text-truncate cron-scheduled-task-id" title=${task.taskId}>${task.taskId}</span>`
+                                                                : ''}
+                                                            ${executionScopeLabel && html`<span class="badge bg-dark text-white">${executionScopeLabel}</span>`}
+                                                        </div>
+                                                        ${task.description ? html`<div class="text-muted small mt-1 text-truncate cron-scheduled-task-description" title=${task.description}>${truncateMiddle(task.description, 56)}</div>` : ''}
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td>
                                                 <span class="badge bg-blue-lt text-blue">${task.frequencyHours}h</span>
                                             </td>
-                                            <td>
-                                                <span class="badge ${lastExecBadgeClass}">
-                                                    ${lastExecAt ? lastExecAt : 'Never'}
-                                                    ${lastExecStatus ? ` · ${lastExecStatus}` : ''}
-                                                </span>
-                                                ${lastExec?.durationMs != null
-                                                    ? html`<div class="text-muted small mt-1">${(lastExec.durationMs / 1000).toFixed(2)}s</div>`
-                                                    : ''}
-                                            </td>
-                                            <td>
-                                                ${task.nextScheduledRun 
-                                                    ? new Date(task.nextScheduledRun).toLocaleString() 
-                                                    : html`<span class="text-muted">-</span>`}
+                                            <td class="cron-task-schedule-cell">
+                                                <div class="d-flex flex-column gap-1">
+                                                    <div class="d-flex flex-wrap align-items-center gap-1" title=${lastExecAt || 'No previous execution'}>
+                                                        <span class="text-muted small">Last</span>
+                                                        <span class=${`badge ${lastExecBadgeClass}`}>
+                                                            ${lastExecDate ? formatRelativeTime(lastExecDate) : 'Never'}
+                                                            ${lastExecStatus ? ` · ${lastExecStatus}` : ''}
+                                                        </span>
+                                                        ${lastExec?.durationMs != null && html`<span class="text-muted small">${(lastExec.durationMs / 1000).toFixed(2)}s</span>`}
+                                                    </div>
+                                                    <div class="d-flex flex-wrap align-items-center gap-1" title=${nextScheduledAt || 'No next schedule available'}>
+                                                        <span class="text-muted small">Next</span>
+                                                        ${nextScheduledDate
+                                                            ? html`<span class="badge bg-secondary-lt text-secondary">${formatRelativeTime(nextScheduledDate)}</span>`
+                                                            : html`<span class="text-muted small">-</span>`}
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td>
                                                 <div>
@@ -2613,11 +3720,11 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
                     <table class="table table-sm table-hover">
                         <thead>
                             <tr>
-                                <th>Event</th>
-                                <th>Org</th>
-                                <th>Time</th>
-                                <th>Metrics</th>
-                                <th>Description</th>
+                                <th>Activity</th>
+                                <th>Scope</th>
+                                <th>When</th>
+                                <th>Signals</th>
+                                <th>Context</th>
                                 <th style="width: 40px;"></th>
                             </tr>
                         </thead>
@@ -2648,5 +3755,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
         </div>
 
         ${renderTraceModal()}
+        ${renderCronChurnHelpModal()}
+        ${renderCronChurnTaskModal()}
     `;
 }
