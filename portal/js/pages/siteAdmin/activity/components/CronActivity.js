@@ -376,6 +376,89 @@ const getScaleSeverityBadgeClass = (severity) => {
     return 'bg-secondary text-white';
 };
 
+const normalizeBadgeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const getCronBadgeInterpretation = (badgeText, existingTitle = '') => {
+    const label = normalizeBadgeText(badgeText);
+    const lower = label.toLowerCase();
+    let interpretation = '';
+
+    if (!label) return '';
+
+    if (lower.includes('ago') || lower.includes('from now') || lower === 'never') {
+        interpretation = 'Relative timing: when this event happened, or when the next scheduled run is expected.';
+    } else if (lower.includes('needs review') || lower.includes('review') || lower.includes('failed') || lower.includes('overdue') || lower.includes('expired')) {
+        interpretation = 'Action signal: this badge marks a failed, overdue, expired, or review-worthy cron state.';
+    } else if (lower.includes('healthy') || lower.includes('success') || lower === 'ok' || lower.includes('on schedule') || lower.includes('no active scheduled lease')) {
+        interpretation = 'Health signal: this badge indicates the cron task or lane is currently operating normally.';
+    } else if (lower.includes('running') || lower.includes('queued')) {
+        interpretation = 'Lifecycle signal: this badge shows work that is currently running or waiting to run.';
+    } else if (lower.includes('manual') || lower.includes('recovery')) {
+        interpretation = 'Cost attribution: manual/recovery work is separated from regular scheduled business cost.';
+    } else if (lower.includes('regular')) {
+        interpretation = 'Cost attribution: regular cost comes from scheduled/system cron work.';
+    } else if (lower.includes('storage')) {
+        interpretation = 'Storage cost estimate from Azure Table read, write, and delete operations.';
+    } else if (lower.includes('compute')) {
+        interpretation = 'Compute cost estimate from timed Azure Container Apps runtime for cron work.';
+    } else if (lower.includes('total cost') || lower.startsWith('total $') || lower.startsWith('est ')) {
+        interpretation = 'Estimated total combines table-operation storage cost and timed compute runtime cost.';
+    } else if (lower.includes('crud') || /\bops\b/.test(lower) || lower.includes('table ops')) {
+        interpretation = 'Table churn: total Azure Table rows read, written, or deleted by the selected cron work.';
+    } else if (lower.includes('read')) {
+        interpretation = 'Read pressure: rows scanned or read from Azure Tables for this window or task.';
+    } else if (lower.includes('write')) {
+        interpretation = 'Write pressure: rows created or updated in Azure Tables for this window or task.';
+    } else if (lower.includes('delete')) {
+        interpretation = 'Delete pressure: rows removed from Azure Tables by cleanup or reconciliation work.';
+    } else if (lower.includes('processed') || lower.includes('work item') || lower.includes('work/min')) {
+        interpretation = 'Workload signal: logical items completed by cron work, used to compare useful output against churn.';
+    } else if (lower.includes('runtime') || lower.includes('duration') || lower.startsWith('avg ') || lower.includes('/min') || lower.includes('per minute')) {
+        interpretation = 'Runtime signal: elapsed cron time or throughput, useful for spotting slow tasks and efficiency changes.';
+    } else if (lower.includes('recipient') || lower.includes('report')) {
+        interpretation = 'Report signal: email/report dispatch state or recipient volume for report jobs.';
+    } else if (lower.includes('lane:') || LANE_ORDER.some((lane) => lower.includes(formatLaneLabel(lane).toLowerCase()))) {
+        interpretation = 'Lane signal: the scheduler lane that owns this task, used to understand priority and contention.';
+    } else if (/^\d+(\.\d+)?h$/.test(lower)) {
+        interpretation = 'Schedule cadence: how often this task is expected to run.';
+    } else if (/^\d+ total$/.test(lower) || lower.includes('run')) {
+        interpretation = 'Execution count: how many cron runs are represented by this badge.';
+    } else if (lower === 'scheduled') {
+        interpretation = 'Trigger source: this run came from the automatic scheduler.';
+    } else if (lower === 'system' || lower === 'global' || lower.includes('scope')) {
+        interpretation = 'Scope: the organization, system, or execution scope this cron record applies to.';
+    } else {
+        interpretation = `Badge meaning: ${label}. Hover context helps interpret this cron signal.`;
+    }
+
+    const context = normalizeBadgeText(existingTitle);
+    if (context && context !== label && !context.toLowerCase().startsWith('action signal:') && !context.toLowerCase().startsWith('health signal:') && !context.toLowerCase().startsWith('badge meaning:')) {
+        return `${interpretation}\nContext: ${context}`;
+    }
+
+    return interpretation;
+};
+
+const applyCronBadgeTooltips = (root) => {
+    if (!root) return;
+
+    root.querySelectorAll('.badge').forEach((badge) => {
+        const label = normalizeBadgeText(badge.textContent);
+        if (!label) return;
+
+        if (!Object.prototype.hasOwnProperty.call(badge.dataset, 'cronBadgeOriginalTitle')) {
+            badge.dataset.cronBadgeOriginalTitle = badge.getAttribute('title') || '';
+        }
+
+        const tooltip = getCronBadgeInterpretation(label, badge.dataset.cronBadgeOriginalTitle);
+        if (!tooltip) return;
+
+        badge.setAttribute('title', tooltip);
+        badge.setAttribute('aria-label', tooltip);
+        badge.dataset.cronBadgeTooltip = 'true';
+    });
+};
+
 const formatSampleWindow = (rangeDays) => {
     const days = Math.max(1, Number(rangeDays || 7));
     return days === 1 ? 'Last 24h' : `Last ${days}d`;
@@ -1007,6 +1090,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     const [hasMore, setHasMore] = useState(false);
     const [continuationToken, setContinuationToken] = useState(null);
     const scrollObserverRef = useRef(null);
+    const cronActivityRootRef = useRef(null);
     const auditChurnCanvasRef = useRef(null);
     const auditChurnChartRef = useRef(null);
     const [filterJob, setFilterJob] = useState('all'); // 'all', 'CronExecution', 'ReportSent', 'ReportFailed', 'BatchComplete'
@@ -1182,6 +1266,17 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
     useEffect(() => {
         loadCronChurnTrend();
     }, []);
+
+    useEffect(() => {
+        const root = cronActivityRootRef.current;
+        if (!root) return;
+
+        applyCronBadgeTooltips(root);
+        const observer = new MutationObserver(() => applyCronBadgeTooltips(root));
+        observer.observe(root, { childList: true, subtree: true, characterData: true });
+
+        return () => observer.disconnect();
+    }, [events, cronStatus, cronChurnTrend, expandedEvents, selectedAuditEvent, traceLogs, selectedCronChurnTask]);
 
     // Load cron status (registered tasks, schedules, execution history)
     async function loadCronStatus() {
@@ -2944,7 +3039,7 @@ export function CronActivityPage({ cronStatus: propCronStatus, showHeader = true
             </div>
         </div>`}
 
-        <div class=${embedded ? '' : 'container-xl'}>
+        <div ref=${cronActivityRootRef} class=${embedded ? 'cron-activity-page' : 'container-xl cron-activity-page'}>
             <!-- Summary Statistics -->
             ${events.length > 0 && html`
                 <div class="row g-3 mb-3">
