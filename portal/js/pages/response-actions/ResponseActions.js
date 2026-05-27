@@ -660,10 +660,12 @@ export class ResponseActionsPage extends Component {
     }
 
     renderCommandSummary(cmd) {
+        const displayType = cmd.displayType || cmd.commandType || 'Command';
         return html`
             <tr>
                 <td>
-                    <div class="fw-semibold">${cmd.commandType}</div>
+                    <div class="fw-semibold">${displayType}</div>
+                    ${cmd.scopeSummary ? html`<div class="text-muted small">${cmd.scopeSummary}</div>` : ''}
                     <div class="text-muted small">${cmd.commandId}</div>
                 </td>
                 <td><span class="badge ${statusBadgeClass(cmd.status)}">${cmd.status}</span></td>
@@ -789,6 +791,7 @@ export class ResponseActionsPage extends Component {
     renderCommandDetailModal() {
         if (!this.state.showCommandDetailModal) return null;
         const { selectedCommandDetail, refreshingDetail } = this.state;
+        const detailDisplayType = selectedCommandDetail?.displayType || selectedCommandDetail?.commandType || 'Command';
 
         return html`
             <div class="modal modal-blur fade show" style="display: block; background: rgba(0,0,0,0.5);" tabindex="-1">
@@ -815,10 +818,14 @@ export class ResponseActionsPage extends Component {
                                     </div>
                                 ` : ''}
                                 <div class="row mb-3">
-                                    <div class="col-md-3"><span class="text-muted">Command:</span> ${selectedCommandDetail.commandType}</div>
+                                    <div class="col-md-3"><span class="text-muted">Command:</span> ${detailDisplayType}</div>
+                                    <div class="col-md-3"><span class="text-muted">Scope:</span> ${selectedCommandDetail.scopeSummary || '—'}</div>
                                     <div class="col-md-3"><span class="text-muted">Queued:</span> ${formatDateTime(selectedCommandDetail.queuedAt)}</div>
                                     <div class="col-md-3"><span class="text-muted">Offline:</span> ${selectedCommandDetail.offlineDevices || 0}</div>
+                                </div>
+                                <div class="row mb-3">
                                     <div class="col-md-3"><span class="text-muted">Expired undelivered:</span> ${selectedCommandDetail.expiredUndeliveredDevices || 0}</div>
+                                    <div class="col-md-3"><span class="text-muted">Online stalled:</span> ${selectedCommandDetail.onlineStalledDevices || 0}</div>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table table-vcenter">
