@@ -2,12 +2,12 @@
 
 Modern web portal for device security management and organization administration.
 
-**Live**: [magensec.github.io/portal](https://magensec.github.io/portal/)
+**Live**: legacy portal at [magensec.gigabits.co.in/portal](https://magensec.gigabits.co.in/portal/) and Cloudflare Pages marketing host at [magensec.app](https://magensec.app/).
 
 ## Runtime Vendor Assets
 
 The portal is a buildless static SPA. Its runtime libraries are pinned and served
-from `Web/vendor` so local development and GitHub Pages use the same same-origin
+from `Web/vendor` so local development and Cloudflare Pages use the same same-origin
 asset path. This avoids cross-origin CDN preflight failures during hard reloads
 while keeping Subresource Integrity hashes on the script and stylesheet tags.
 

@@ -66,8 +66,8 @@ export class Auth {
         
         // Determine redirect URI based on environment
         // Local: http://localhost:8080/portal/ or http://127.0.0.1:8080/portal/
-        // GitHub Pages: https://magensec.github.io/portal/
-        // Production: https://magensec.gigabits.co.in/portal/
+        // Cloudflare Pages marketing host: https://magensec.app/portal/
+        // Legacy host: https://magensec.gigabits.co.in/portal/
         const redirectUri = window.location.origin + '/portal/';
         
         // Store for callback

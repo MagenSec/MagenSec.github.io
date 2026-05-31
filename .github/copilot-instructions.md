@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-This is the MagenSec platform website and portal, hosted on GitHub Pages at [magensec.github.io](https://magensec.github.io). It consists of:
+This is the MagenSec platform website and legacy portal host. The public `magensec.app` domain is served by Cloudflare Pages from this static repository; `magensec.gigabits.co.in` remains the legacy domain.
 
 - **Marketing/docs site**: Static HTML pages at the root (index.html, about.html, install.html, etc.)
-- **Portal**: A single-page application at `/portal/` for device security management and organization administration, live at [magensec.github.io/portal](https://magensec.github.io/portal/)
+- **Portal**: A single-page application at `/portal/` for device security management and organization administration on the legacy `magensec.gigabits.co.in` host. The current console lives separately at `console.magensec.app`.
 - **Diagnostic data**: Automated security feed data under `/diag/` (CISA KEV, CVRF)
 
 ## Tech Stack
@@ -13,7 +13,7 @@ This is the MagenSec platform website and portal, hosted on GitHub Pages at [mag
 - **Frontend**: Vanilla HTML5, CSS (SASS under `assets/sass/`), vanilla JavaScript (ES modules, no bundler)
 - **Portal SPA**: Preact (vendored under `Web/vendor`), `htm` tagged templates for JSX-like syntax, client-side routing via hash routes (`#!/...`)
 - **Scripting/Automation**: PowerShell (`.ps1`) for tooling and GitHub Actions steps
-- **Hosting**: GitHub Pages (static files only — no server-side processing)
+- **Hosting**: Cloudflare Pages for `magensec.app`; legacy GitHub Pages repository shape remains because the repo is still `MagenSec.github.io` (static files only, no server-side processing)
 
 ## Repository Layout
 

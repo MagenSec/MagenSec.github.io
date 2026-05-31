@@ -20,6 +20,17 @@
 
   var basePath = getBasePath();
 
+  function resolvePortalUrl() {
+    var host = (window.location.hostname || '').toLowerCase();
+    if (host === 'magensec.app' || host === 'www.magensec.app') {
+      return 'https://console.magensec.app/';
+    }
+    if (window.location.protocol === 'file:') {
+      return basePath ? basePath + '/portal/' : 'portal/';
+    }
+    return '/portal/';
+  }
+
   function toBasePath(path) {
     if (!path) return path;
     if (/^(https?:)?\/\//i.test(path) || path.indexOf('mailto:') === 0 || path.indexOf('#') === 0 || path.indexOf('javascript:') === 0 || path.indexOf('data:') === 0) {
@@ -39,6 +50,10 @@
   function normalizeLinks(scope) {
     var anchors = scope.querySelectorAll('a[href]');
     for (var i = 0; i < anchors.length; i++) {
+      if (anchors[i].hasAttribute('data-portal-link')) {
+        anchors[i].setAttribute('href', resolvePortalUrl());
+        continue;
+      }
       var href = anchors[i].getAttribute('href');
       anchors[i].setAttribute('href', toBasePath(href));
     }
@@ -141,8 +156,9 @@
         <h3 class="footer__col-title">Company</h3>
         <div class="footer__stack">
           <a href="about.html" class="footer__link">About</a>
-          <a href="terms.html" class="footer__link">Legal</a>
-          <a href="portal/" class="footer__link">
+          <a href="terms.html#terms" class="footer__link">Terms of Service</a>
+          <a href="terms.html#privacy" class="footer__link">Privacy Policy</a>
+          <a href="/portal/" class="footer__link" data-portal-link>
             <span class="footer__icon" aria-hidden="true"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg></span>
             <span>Customer Portal</span>
           </a>

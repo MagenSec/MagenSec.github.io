@@ -36,7 +36,13 @@ const ACTIVE_DEV_PROFILE = (REQUESTED_PROFILE === 'local' && IS_LOOPBACK_HOST) ?
 const DEBUG_ENABLED = ACTIVE_DEV_PROFILE === 'local' || localStorage.getItem('debug') === 'true';
 
 // Check if we're in production
-const IS_PRODUCTION_ENV = window.location.hostname === 'magensec.gigabits.co.in';
+const PRODUCTION_HOSTS = new Set([
+    'magensec.gigabits.co.in',
+    'magensec.app',
+    'www.magensec.app',
+    'console.magensec.app'
+]);
+const IS_PRODUCTION_ENV = PRODUCTION_HOSTS.has((window.location.hostname || '').toLowerCase());
 
 // Debug logger utility
 // Note: In production, logging is disabled UNLESS debug flag is explicitly set
@@ -74,7 +80,7 @@ export const logger = {
 };
 
 // Resolved URLs (updated by buildDeployContainer.ps1 and Build-Installers.ps1)
-const RESOLVED_API_BASE = 'https://ms-central-api.wonderfulflower-8852e801.eastus.azurecontainerapps.io';
+const RESOLVED_API_BASE = 'https://api.magensec.app';
 const LOCAL_API_BASE = DEV_WORKBENCH.LOCAL_API_BASE;
 const RESOLVED_MANIFEST_URL = 'https://msinstallers6w2f9s.blob.core.windows.net/latest/manifest.json?se=2026-12-26T09%3A20%3A24Z&sp=r&spr=https&sv=2022-11-02&sr=b&sig=gPib7xgDbC%2BiGBO6fO3LeOBambQ0A79JNlxhZNvHF%2Bk%3D';
 
@@ -87,7 +93,7 @@ localStorage.removeItem('apiBaseOverride');
 
 export const config = {
     // API Configuration
-    // - Use direct Azure Container Apps URL for all environments (CORS compatible)
+    // - API_BASE is the origin only; API clients append /api/v1/...
     // - API_BASE updated by buildDeployContainer.ps1 during deployment
     // - MANIFEST_URL updated by Build-Installers.ps1 when publishing packages
     API_BASE: ACTIVE_DEV_PROFILE === 'local' ? LOCAL_API_BASE : RESOLVED_API_BASE,
@@ -102,8 +108,8 @@ export const config = {
     
     // Environment detection
     IS_LOCAL: IS_LOOPBACK_HOST,
-    IS_GITHUB_PAGES: window.location.hostname === 'magensec.github.io',
-    IS_PRODUCTION: window.location.hostname === 'magensec.gigabits.co.in',
+    IS_PUBLIC_STATIC_HOST: ['magensec.app', 'www.magensec.app', 'magensec.gigabits.co.in', 'magensec.github.io'].includes((window.location.hostname || '').toLowerCase()),
+    IS_PRODUCTION: IS_PRODUCTION_ENV,
     
     // Debug mode
     DEBUG: DEBUG_ENABLED,
@@ -137,7 +143,7 @@ export const config = {
 };
 
 // Log environment
-logger.info('[Config] Environment:', config.IS_LOCAL ? 'LOCAL' : config.IS_GITHUB_PAGES ? 'GITHUB_PAGES' : config.IS_PRODUCTION ? 'PRODUCTION' : 'UNKNOWN');
+logger.info('[Config] Environment:', config.IS_LOCAL ? 'LOCAL' : config.IS_PUBLIC_STATIC_HOST ? 'STATIC_HOST' : config.IS_PRODUCTION ? 'PRODUCTION' : 'UNKNOWN');
 logger.info('[Config] Dev profile:', config.DEV_PROFILE);
 logger.info('[Config] API Base:', config.API_BASE);
 if (DEBUG_ENABLED) {

@@ -5,7 +5,7 @@ import { config } from '../portal/js/config.js?v=2.1';
 import { ClientDevicePage } from '../portal/js/pages/client-device/ClientDevicePage.js?v=2.1';
 
 window.config = {
-    API_BASE: config.API_BASE || localStorage.getItem('msec-api-url') || 'https://api.magensec.gigabits.co.in'
+    API_BASE: config.API_BASE || localStorage.getItem('msec-api-url') || 'https://api.magensec.app'
 };
 
 window.auth = {

@@ -623,7 +623,7 @@ export function initRouter(renderApp) {
     normalizeHashbangUrl();
 
     // Start router with hash-bang mode
-    // Set base to /portal/ for GitHub Pages, or current directory
+    // Set base to /portal/ for static hosts, or current directory
     const basePath = window.location.pathname.endsWith('/portal/') || window.location.pathname.endsWith('/portal') 
         ? window.location.pathname.replace(/\/portal\/?$/, '/portal/')
         : '/';
