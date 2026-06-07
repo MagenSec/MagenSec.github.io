@@ -56,7 +56,7 @@
             <div class="row justify-content-center">
                 <div class="col-lg-8">
                     <h1 class="display-5 fw-bold text-white mb-4">Terms of Service & Privacy Policy</h1>
-                    <p class="fs-3 text-muted mb-5">Last Updated: April 2026 | Operated by Gigabits</p>
+                    <p class="fs-3 text-muted mb-5">Last Updated: June 2026 | Operated by Gigabits</p>
                     
                     <div class="mb-4">
                         <p class="fs-3 mb-4">These terms and privacy policies outline our commitment to your data, how our telemetry operates, and the scope of our services. Please review the detailed sections below.</p>
@@ -71,20 +71,25 @@
                                 </h2>
                                 <div id="collapse-privacy" class="accordion-collapse collapse" data-bs-parent="#accordion-legal">
                                     <div class="accordion-body px-5 pb-5 pt-0 text-muted fs-4">
-                                        <p class="mb-3">MagenSec applies absolute minimal telemetry required to map and validate endpoint configurations, assess vulnerabilities, power Officer MAGI recommendations, and generate historical operational evidence.</p>
+                                        <p class="mb-3">MagenSec collects endpoint security data needed to operate the service, validate licensing, assess vulnerabilities, generate reports, support Officer MAGI recommendations, and maintain historical operational evidence. Some collected security metadata can identify a device, user account, network, or software path.</p>
                                         <h4 class="text-white mt-4 mb-2">What We Collect</h4>
                                         <ul class="mb-3">
-                                            <li><strong>System Metadata:</strong> Standard OS versioning, identifiers, and configuration rules mapping to generalized compliance frameworks.</li>
-                                            <li><strong>Security Posture Data:</strong> Signals from security providers on the endpoint including Microsoft Defender active state.</li>
-                                            <li><strong>Application Inventory:</strong> Identified software installations strictly for the purpose of cross-referencing known exploitation risks and vulnerability signatures.</li>
+                                          <li><strong>Account and licensing data:</strong> sign-in email, organization/team membership, role, device enrollment, license status, and license-key metadata.</li>
+                                          <li><strong>Device identity and health:</strong> device identifiers, hostname or machine name, OS/build, hardware characteristics, client version, heartbeat status, scan status, update status, and service health.</li>
+                                          <li><strong>Software and vulnerability data:</strong> installed software names, vendors, versions, install source, install path or path hash, CVE matches, remediation state, and portable-app observations.</li>
+                                          <li><strong>Security posture data:</strong> endpoint protection state, firewall/RDP/BitLocker/Secure Boot/TPM indicators, Windows update/KB state, certificate inventory, open-port evidence, local-user/admin posture, and threat-detection evidence.</li>
+                                          <li><strong>Network security context:</strong> IP addresses, gateways, DNS suffixes, network prefixes, public egress hints, adapter fingerprints, proxy state, and connection indicators.</li>
+                                          <li><strong>Operational evidence:</strong> command acknowledgements, telemetry upload health, audit events, reports, and evidence snapshots used to explain changes over time.</li>
                                         </ul>
                                         <h4 class="text-white mt-4 mb-2">What We Do Not Collect</h4>
                                         <ul class="mb-3">
-                                            <li>We <strong>never</strong> index, intercept, or copy personal documents, communications, file payloads, browsing logs, or session secrets.</li>
-                                            <li>We strictly minimize contextual logging and reject gathering general usage habits unassociated with specific security health states.</li>
+                                          <li>We do <strong>not</strong> index, intercept, or copy personal documents, photos, emails, messages, file contents, browsing history, keystrokes, screen content, passwords, session cookies, browser tokens, or private keys.</li>
+                                          <li>We do not collect general productivity monitoring or application-content usage unrelated to endpoint security state.</li>
                                         </ul>
-                                        <h4 class="text-white mt-4 mb-2">Data Processing & Industry-Standard Encryption</h4>
-                                        <p class="mb-0">In practice, we use HTTPS for all communications. From a protocol standard standpoint, that translates equivalently to utilizing minimum Transport Layer Security (TLS) 1.2 or 1.3 across all of our transit corridors, establishing an authoritative level of data privacy mirroring modern SaaS encryption guarantees. Furthermore, our persistent telemetry is processed purely to provide decision intelligence exclusively to you.</p>
+                                        <h4 class="text-white mt-4 mb-2">Data Processing & Protection</h4>
+                                        <p class="mb-3">We use HTTPS/TLS for communications and encryption at rest for stored customer security data. We also mask or hash selected account and scope values where the product does not need the raw value. No internet-connected service can guarantee absolute security, so customers should grant portal access only to users who need to view security evidence.</p>
+                                        <h4 class="text-white mt-4 mb-2">Customer Responsibilities</h4>
+                                        <p class="mb-0">You are responsible for deploying MagenSec only on devices you own or are authorized to administer, and for providing any notices, consents, works-council approvals, or customer permissions required by applicable law, contracts, or internal policy before monitoring users or devices.</p>
                                     </div>
                                 </div>
                             </div>
@@ -101,6 +106,7 @@
                                         <p class="mb-3">Our platform aims to be a source of structural security truth. In executing our system on your machines, the following principles apply:</p>
                                         <ul class="mb-3">
                                             <li><strong>Authorized Deployment:</strong> You must limit distribution of the MagenSec agent only directly to hardware assets under your ownership or explicit legal administration.</li>
+                                            <li><strong>User Notice and Consent:</strong> You are responsible for informing monitored users that endpoint security, software, network, device identity, and local-admin posture data may be collected and processed by MagenSec for security operations.</li>
                                             <li><strong>Integrity Protocols:</strong> Hostile misuse of our cloud pipelines, interfering with internal logic of the MAGI decision framework, or injecting fraudulent anomalies into our posture ingestion logic equates to explicit violation of service terms and requires zero tolerance access suspension.</li>
                                         </ul>
                                         <p class="mb-0">Licensing enables telemetry flow and reporting functionality. Where a license expires, data flow naturally suspends while previously compiled snapshots generally await proper resumption via renewal.</p>

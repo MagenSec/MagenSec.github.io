@@ -97,7 +97,7 @@
       '      <a href="' + portalHref + '" class="btn-primary btn--full">Sign In to Portal</a>',
       '    </div>',
       '    <div class="nav__mobile-contact">',
-      '      <a href="mailto:MagenSec@Gigabits.co.in">MagenSec@Gigabits.co.in</a>',
+      '      <a href="mailto:support@magensec.app">support@magensec.app</a>',
       '    </div>',
       '  </div>',
       '</header>',

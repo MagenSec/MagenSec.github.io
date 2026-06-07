@@ -422,10 +422,10 @@ export function PeerBenchmarkPage() {
                                 `)}
                             </div>
                             <div class="d-flex gap-2 justify-content-center flex-wrap mb-3">
-                                <a href="mailto:MagenSec@Gigabits.co.in?subject=Upgrade%20Inquiry%20%E2%80%94%20Peer%20Benchmark" class="btn btn-primary">
+                                <a href="mailto:support@magensec.app?subject=Upgrade%20Inquiry%20%E2%80%94%20Peer%20Benchmark" class="btn btn-primary">
                                     <i class="ti ti-mail me-1"></i> Contact Us to Upgrade
                                 </a>
-                                <a href="mailto:MagenSec@Gigabits.co.in?subject=Demo%20Request%20%E2%80%94%20Peer%20Benchmark" class="btn btn-outline-secondary">
+                                <a href="mailto:support@magensec.app?subject=Demo%20Request%20%E2%80%94%20Peer%20Benchmark" class="btn btn-outline-secondary">
                                     <i class="ti ti-calendar me-1"></i> Book a Demo
                                 </a>
                             </div>
