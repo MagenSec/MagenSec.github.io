@@ -63,6 +63,9 @@ export function renderPerfTab(component, embedded = false) {
     const latestPoint = points[points.length - 1];
     const bucketDescription = BUCKET_DESCRIPTIONS[perfBucket] || 'selected';
     const latestNetTotalMb = bytesToMegabytes((latestPoint?.networkBytesSent || 0) + (latestPoint?.networkBytesReceived || 0));
+    const latestRequests = Number(latestPoint?.networkRequests || 0) || 0;
+    const latestFailures = Number(latestPoint?.networkFailures || 0) || 0;
+    const latestFailureRate = latestRequests > 0 ? (latestFailures / latestRequests) * 100 : 0;
 
     const cpuPercentiles = component.calculatePercentiles(points.map(p => p.cpuAvg ?? p.CpuAvg));
     const memPercentiles = component.calculatePercentiles(points.map(p => p.memoryAvg ?? p.MemoryAvg));
@@ -152,8 +155,8 @@ export function renderPerfTab(component, embedded = false) {
                             </div>
                         </div>
                         <div ref=${(el) => { component.perfNetEl = el; }} style="min-height: 220px;"></div>
-                        <div class="text-muted small mt-2">Latest total: ${formatMegabytes(latestNetTotalMb)} • Sent ${formatBytesHuman(latestPoint?.networkBytesSent)} • Recv ${formatBytesHuman(latestPoint?.networkBytesReceived)} • Requests ${Math.round(latestPoint?.networkRequests || 0)} • Failures ${Math.round(latestPoint?.networkFailures || 0)}</div>
-                        <div class="text-muted small">Shows total client data transferred in each ${bucketDescription} bucket, with request and failure counts overlaid.</div>
+                        <div class="text-muted small mt-2">Latest total: ${formatMegabytes(latestNetTotalMb)} • Sent ${formatBytesHuman(latestPoint?.networkBytesSent)} • Recv ${formatBytesHuman(latestPoint?.networkBytesReceived)} • Requests ${Math.round(latestRequests)} • Failures ${Math.round(latestFailures)} • Failure rate ${formatPercent(latestFailureRate)}</div>
+                        <div class="text-muted small">Shows client data transfer plus transport request/failure counters in each ${bucketDescription} bucket. Telemetry payload row counts are tracked separately from these request counters.</div>
                     </div>
                 </div>
             </div>

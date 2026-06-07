@@ -5,15 +5,123 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
     <title>Install | MagenSec</title>
+    <script>
+        (function () {
+            const MANIFEST_ENDPOINT = 'https://api.magensec.app/api/v1/updates/manifest';
+            const PACKAGE_BASE_URL = 'https://update.magensec.app/packages/windows';
+            let hydrationStarted = false;
+
+            window.copyCommand = function copyCommand() {
+                navigator.clipboard.writeText(document.getElementById('wingetCommand').innerText);
+                const icon = document.getElementById('copyIcon');
+                icon.classList.replace('ti-copy', 'ti-check');
+                icon.classList.add('text-green');
+                setTimeout(() => {
+                    icon.classList.replace('ti-check', 'ti-copy');
+                    icon.classList.remove('text-green');
+                }, 2000);
+            };
+
+            function getManifestData(payload) {
+                if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, 'success')) {
+                    if (payload.success === false) {
+                        throw new Error(payload.message || payload.error || 'Manifest request failed');
+                    }
+                    return payload.data;
+                }
+
+                return payload;
+            }
+
+            function getProductionVersion(manifest, platform) {
+                const version = manifest?.[platform]?.production?.version;
+                if (typeof version !== 'string' || !/^[0-9A-Za-z._-]+$/.test(version)) {
+                    throw new Error(`Production version is not available for ${platform}`);
+                }
+
+                return version;
+            }
+
+            function hydrateDownloadLink(anchorId, versionId, arch, version) {
+                const anchor = document.getElementById(anchorId);
+                const versionLabel = document.getElementById(versionId);
+                const fileName = `magensec-${version}-${arch}.msi`;
+
+                anchor.href = `${PACKAGE_BASE_URL}/${fileName}`;
+                anchor.setAttribute('download', fileName);
+                anchor.setAttribute('aria-disabled', 'false');
+                anchor.classList.remove('download-option--disabled');
+                versionLabel.textContent = `v${version}`;
+            }
+
+            async function hydrateProductionDownloads() {
+                const status = document.getElementById('downloadStatus');
+
+                try {
+                    const response = await fetch(MANIFEST_ENDPOINT, { cache: 'no-store' });
+                    if (!response.ok) {
+                        throw new Error(`Manifest request failed (${response.status})`);
+                    }
+
+                    const payload = await response.json();
+                    const manifest = getManifestData(payload);
+                    if (!manifest || manifest.schemaVersion !== 2) {
+                        throw new Error('Manifest schema is not recognized');
+                    }
+
+                    const x64Version = getProductionVersion(manifest, 'windows-x64');
+                    const arm64Version = getProductionVersion(manifest, 'windows-arm64');
+
+                    hydrateDownloadLink('downloadX64', 'downloadX64Version', 'x64', x64Version);
+                    hydrateDownloadLink('downloadArm64', 'downloadArm64Version', 'arm64', arm64Version);
+                    status.textContent = 'Direct MSI links are resolved from the production update manifest.';
+                } catch (error) {
+                    document.getElementById('downloadX64Version').textContent = 'Unavailable';
+                    document.getElementById('downloadArm64Version').textContent = 'Unavailable';
+                    status.textContent = 'Direct MSI downloads are temporarily unavailable. Microsoft Store and WinGet remain available.';
+                    console.warn('Unable to resolve production installers', error);
+                }
+            }
+
+            function tryHydrateProductionDownloads() {
+                if (hydrationStarted) return true;
+                if (!document.getElementById('downloadX64') || !document.getElementById('downloadArm64') || !document.getElementById('downloadStatus')) {
+                    return false;
+                }
+
+                hydrationStarted = true;
+                hydrateProductionDownloads();
+                return true;
+            }
+
+            if (!tryHydrateProductionDownloads()) {
+                const observer = new MutationObserver(() => {
+                    if (tryHydrateProductionDownloads()) {
+                        observer.disconnect();
+                    }
+                });
+                observer.observe(document.documentElement, { childList: true, subtree: true });
+            }
+        })();
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet"/>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
     <style>
       @import url('https://rsms.me/inter/inter.css');
       :root { --tblr-font-sans-serif: 'Inter Var', -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif; }
-      body { font-family: 'Inter Var', system-ui; background-color: #0b0f19; color: #e2e8f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    body { font-family: 'Inter Var', system-ui; background-color: #0b0f19; color: #e2e8f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .install-logo { width: 96px; height: 96px; object-fit: contain; filter: drop-shadow(0 18px 28px rgba(0, 84, 166, 0.28)); }
       .code-block { background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); font-family: monospace; border-radius: 6px; padding: 1rem; position: relative; }
       .copy-btn { position: absolute; right: 8px; top: 8px; background: transparent; border: none; color: #64748b; cursor: pointer; transition: color 0.2s; }
       .copy-btn:hover { color: #e2e8f0; }
+    .download-card { width: 100%; max-width: 420px; background: rgba(17, 24, 39, 0.82); border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 8px; padding: 1rem; box-shadow: 0 18px 60px rgba(0,0,0,0.22); }
+    .download-option { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; padding: 0.9rem 1rem; background: rgba(15, 23, 42, 0.72); color: #f8fafc; text-decoration: none; transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease; }
+    .download-option:hover { color: #ffffff; border-color: rgba(66, 153, 225, 0.8); background: rgba(30, 41, 59, 0.94); transform: translateY(-1px); }
+    .download-option + .download-option { margin-top: 0.75rem; }
+    .download-option--disabled { opacity: 0.62; pointer-events: none; }
+    .download-version { color: #93c5fd; font-size: 0.86rem; font-weight: 600; white-space: nowrap; }
+    .download-status { min-height: 1.3rem; color: #94a3b8; }
+    .secondary-actions { width: 100%; max-width: 420px; }
       
       /* Subtle back link */
       .back-nav { position: absolute; top: 2rem; left: 2rem; }
@@ -26,21 +134,50 @@
 
     <div class="container-tight text-center px-3 py-5">
         <div class="mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon text-primary" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>
+            <img src="assets/MagenSecLogo.png" alt="MagenSec" class="install-logo">
         </div>
         <h1 class="display-5 fw-bold mb-3 text-white">Install MagenSec</h1>     
         <p class="fs-3 text-muted mb-5">Deploy the Windows agent to begin your continuous security proof.</p>
         
         <div class="d-flex flex-column gap-4 align-items-center">
-            <!-- Microsoft Store Button -->
-            <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn btn-primary btn-pill btn-lg px-5 w-100" style="max-width: 380px;">
-                <i class="ti ti-brand-windows me-2"></i> Download from Microsoft Store
-            </a>
+            <div class="download-card text-start" aria-labelledby="windowsDownloadsHeading">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h2 class="h3 text-white mb-0" id="windowsDownloadsHeading">Windows installers</h2>
+                    <span class="badge bg-blue-lt text-blue">Production</span>
+                </div>
+                <a id="downloadX64" class="download-option download-option--disabled" aria-disabled="true">
+                    <span class="d-flex align-items-center">
+                        <i class="ti ti-device-desktop me-2 fs-2 text-blue"></i>
+                        <span>
+                            <span class="d-block fw-bold">Download for x64</span>
+                            <span class="d-block text-muted small">Intel and AMD Windows PCs</span>
+                        </span>
+                    </span>
+                    <span class="download-version" id="downloadX64Version">Loading</span>
+                </a>
+                <a id="downloadArm64" class="download-option download-option--disabled" aria-disabled="true">
+                    <span class="d-flex align-items-center">
+                        <i class="ti ti-cpu-2 me-2 fs-2 text-blue"></i>
+                        <span>
+                            <span class="d-block fw-bold">Download for ARM64</span>
+                            <span class="d-block text-muted small">Windows on Arm devices</span>
+                        </span>
+                    </span>
+                    <span class="download-version" id="downloadArm64Version">Loading</span>
+                </a>
+                <div class="download-status small mt-3" id="downloadStatus">Resolving production release...</div>
+            </div>
 
             <div class="text-muted fs-4 fw-medium my-1">OR</div>
 
+            <div class="secondary-actions d-flex flex-column gap-3 align-items-center">
+                <a href="https://apps.microsoft.com/detail/xpfmw6btjzf89s" class="btn btn-primary btn-pill btn-lg px-5 w-100" target="_blank" rel="nofollow noopener">
+                    <i class="ti ti-brand-windows me-2"></i> Download from Microsoft Store
+                </a>
+            </div>
+
             <!-- WinGet Installation -->
-            <div class="w-100 text-start" style="max-width: 380px;">
+            <div class="w-100 text-start" style="max-width: 420px;">
                 <p class="fs-4 text-muted mb-2 ps-1">Install silently via WinGet:</p>
                 <div class="code-block d-flex align-items-center justify-content-between">
                     <span class="text-white fs-4" id="wingetCommand">winget install MagenSec</span>
@@ -55,18 +192,6 @@
         </div>
     </div>
     
-    <script>
-        function copyCommand() {
-            navigator.clipboard.writeText(document.getElementById('wingetCommand').innerText);
-            const icon = document.getElementById('copyIcon');
-            icon.classList.replace('ti-copy', 'ti-check');
-            icon.classList.add('text-green');
-            setTimeout(() => {
-                icon.classList.replace('ti-check', 'ti-copy');
-                icon.classList.remove('text-green');
-            }, 2000);
-        }
-    </script>
 </body>
 </html>
 
