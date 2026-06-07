@@ -35,12 +35,14 @@ export function renderTelemetryTab(component) {
     });
     
     (changes || []).forEach((change, idx) => {
+        const delta = change.delta || change.Delta || null;
+        const fieldName = change.fieldName || change.FieldName || change.field || change.Field;
         timeline.push({
             type: 'change',
-            timestamp: change.timestamp,
-            field: change.fieldName,
-            oldValue: change.oldValue,
-            newValue: change.newValue,
+            timestamp: change.timestamp || change.Timestamp || change.at || change.At,
+            field: fieldName || (delta ? Object.keys(delta).slice(0, 3).join(', ') : 'Device evidence'),
+            oldValue: change.oldValue ?? change.OldValue ?? null,
+            newValue: change.newValue ?? change.NewValue ?? delta ?? null,
             index: idx
         });
     });
@@ -54,9 +56,11 @@ export function renderTelemetryTab(component) {
     
     const formatDate = (dateStr) => {
         try {
-            return new Date(dateStr).toLocaleString();
+            const date = new Date(dateStr);
+            if (!Number.isFinite(date.getTime())) return 'N/A';
+            return date.toLocaleString();
         } catch {
-            return dateStr;
+            return 'N/A';
         }
     };
     
@@ -212,11 +216,11 @@ export function renderTelemetryTab(component) {
             </div>
             
             <div class="timeline-container">
-                ${timeline.slice(0, 50).map((item, idx) => {
+                ${timeline.slice(0, 20).map((item, idx) => {
                     if (item.type === 'snapshot') {
                         const snapshot = item.snapshot;
                         const fields = snapshot.fields || snapshot || {};
-                        const timestamp = snapshot.timestamp || snapshot.Timestamp || new Date().toISOString();
+                        const timestamp = snapshot.timestamp || snapshot.Timestamp || null;
                         const snapshotFields = collectSignalFields(fields);
                         const snapshotFieldCount = Object.keys(fields).filter(isSignalField).length;
                         
@@ -298,9 +302,9 @@ export function renderTelemetryTab(component) {
                 })}
             </div>
             
-            ${timeline.length > 50 ? html`
+            ${timeline.length > 20 ? html`
                 <div class="alert alert-info small mt-3">
-                    Showing first 50 signal events of ${timeline.length} total
+                    Showing first 20 signal events of ${timeline.length} total
                 </div>
             ` : ''}
         </div>
