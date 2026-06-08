@@ -36,7 +36,6 @@ import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDo
 import { RiskService } from './services/RiskService.js';
 import { NetworkService } from './services/NetworkService.js';
 import { CommandMonitor } from '@components/CommandMonitor.js';
-import { RingSelector } from '@components/RingSelector.js';
 import toast from '@toast';
 
 export class DeviceDetailPage extends window.Component {
@@ -3552,39 +3551,6 @@ export class DeviceDetailPage extends window.Component {
                                 </div>
                             </div>
                         </div>
-
-                        ${(() => {
-                            const currentOrg = orgContext.getCurrentOrg();
-                            const orgId = currentOrg?.orgId;
-                            const deviceId = this.state.deviceId || device?.deviceId || device?.DeviceId;
-                            if (!orgId || !deviceId) return null;
-                            const ringReadOnly = orgContext.isReadOnly() || (rewindContext.isActive?.() || false);
-                            return html`
-                                <div class="card mb-3">
-                                    <div class="card-body py-3">
-                                        <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 gap-md-3">
-                                            <div class="flex-shrink-0">
-                                                <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5.5l7 -1.5v8l-7 .5z" /><path d="M20 4l-7 1.5v7.5l7 -.5z" /><path d="M4 15l7 .5v5l-7 -1.5z" /><path d="M20 13l-7 .5v6.5l7 -1.5z" /></svg>
-                                                    Update Ring
-                                                </h3>
-                                                <div class="text-muted small">Release channel this device updates to. Overrides the organization setting.</div>
-                                            </div>
-                                            <div class="ms-md-auto">
-                                                <${RingSelector}
-                                                    scope="device"
-                                                    orgId=${orgId}
-                                                    deviceId=${deviceId}
-                                                    api=${api}
-                                                    showToast=${(m, t) => toast.show(m, t)}
-                                                    readOnly=${ringReadOnly}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        })()}
 
                         ${this.state.summaryMeta?.source === 'historical' ? html`
                             <div class="alert alert-warning py-2 mb-3 d-flex align-items-center gap-2">

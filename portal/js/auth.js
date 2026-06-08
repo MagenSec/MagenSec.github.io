@@ -13,6 +13,17 @@ export class Auth {
         this.loadSession();
     }
 
+    getOAuthRedirectUri() {
+        const { origin, hostname } = window.location;
+        const isLocalLoopback = hostname === 'localhost' || hostname === '127.0.0.1';
+        return isLocalLoopback ? `${origin}/` : `${origin}/portal/`;
+    }
+
+    isLocalLoopbackHost() {
+        const { hostname } = window.location;
+        return hostname === 'localhost' || hostname === '127.0.0.1';
+    }
+
     // Load session from localStorage
     loadSession() {
         try {
@@ -64,11 +75,9 @@ export class Auth {
         const codeVerifier = this.generateCodeVerifier();
         const codeChallenge = await this.generateCodeChallenge(codeVerifier);
         
-        // Determine redirect URI based on environment
-        // Local: http://localhost:8080/portal/ or http://127.0.0.1:8080/portal/
-        // Cloudflare Pages marketing host: https://magensec.app/portal/
-        // Legacy host: https://magensec.gigabits.co.in/portal/
-        const redirectUri = window.location.origin + '/portal/';
+        // Local loopback tenants authorize the site root, then Web/index.html
+        // forwards the OAuth callback back into /portal/ for completion.
+        const redirectUri = this.getOAuthRedirectUri();
         
         // Store for callback
         sessionStorage.setItem('oauth_provider', 'google');
@@ -131,7 +140,7 @@ export class Auth {
 
         const codeVerifier = this.generateCodeVerifier();
         const codeChallenge = await this.generateCodeChallenge(codeVerifier);
-        const redirectUri = window.location.origin + '/portal/';
+        const redirectUri = this.getOAuthRedirectUri();
 
         sessionStorage.setItem('oauth_provider', 'microsoft');
         sessionStorage.setItem('oauth_code_verifier', codeVerifier);
@@ -174,7 +183,7 @@ export class Auth {
         }
         
         // Get the redirect URI we used for the OAuth request
-        const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || (window.location.origin + '/portal/');
+        const redirectUri = sessionStorage.getItem('oauth_redirect_uri') || this.getOAuthRedirectUri();
         const provider = sessionStorage.getItem('oauth_provider') || 'google';
         
         console.log(`[Auth] Handling callback (provider=${provider}) with redirect:`, redirectUri);
@@ -191,13 +200,31 @@ export class Auth {
             ? '/api/v1/oauth/microsoft/callback'
             : '/api/v1/oauth/callback';
 
-        const response = await fetch(`${config.API_BASE}${callbackPath}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData.toString()
-        });
-        
-        const data = await response.json();
+        const exchangeCode = async (effectiveRedirectUri) => {
+            formData.set('redirectUri', effectiveRedirectUri);
+
+            const response = await fetch(`${config.API_BASE}${callbackPath}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData.toString()
+            });
+
+            return response.json();
+        };
+
+        let data = await exchangeCode(redirectUri);
+
+        if (
+            !data.success &&
+            this.isLocalLoopbackHost() &&
+            redirectUri.endsWith('/portal/') &&
+            /redirect uri is not authorized/i.test(data.message || '')
+        ) {
+            redirectUri = `${window.location.origin}/`;
+            sessionStorage.setItem('oauth_redirect_uri', redirectUri);
+            console.warn('[Auth] Retrying callback with loopback root redirect:', redirectUri);
+            data = await exchangeCode(redirectUri);
+        }
         
         if (data.success) {
             // Transform backend response to expected session format

@@ -6,6 +6,20 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
     <title>MagenSec | Continuous Security Evidence</title>
     <meta name="description" content="MagenSec continuously monitors endpoints, captures daily evidence, explains what changed, and prioritizes what to fix next with Officer MAGI.">
+        <script>
+            (function () {
+                try {
+                    var params = new URLSearchParams(window.location.search || '');
+                    var hasOAuthCallback = params.has('code') && params.has('state');
+                    var redirectUri = sessionStorage.getItem('oauth_redirect_uri');
+                    var expectedRootRedirect = window.location.origin + '/';
+                    if (!hasOAuthCallback || redirectUri !== expectedRootRedirect) return;
+                    window.location.replace('/portal/' + window.location.search + window.location.hash);
+                } catch (_) {
+                    // Ignore callback forwarding errors on the marketing site.
+                }
+            })();
+        </script>
     <!-- CSS files -->
     <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css" rel="stylesheet"/>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
