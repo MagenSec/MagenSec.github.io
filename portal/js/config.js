@@ -31,9 +31,10 @@ if (debugParam === 'true') {
     console.log('[Config] Debug mode DISABLED');
 }
 
-const REQUESTED_PROFILE = String(DEV_WORKBENCH.PROFILE || 'cloud').toLowerCase() === 'local' ? 'local' : 'cloud';
+const REQUESTED_PROFILE = String(DEV_WORKBENCH.PROFILE || (IS_LOOPBACK_HOST ? 'local' : 'cloud')).toLowerCase() === 'local' ? 'local' : 'cloud';
 const ACTIVE_DEV_PROFILE = (REQUESTED_PROFILE === 'local' && IS_LOOPBACK_HOST) ? 'local' : 'cloud';
 const DEBUG_ENABLED = ACTIVE_DEV_PROFILE === 'local' || localStorage.getItem('debug') === 'true';
+const RUNTIME_HOST = (window.location.hostname || '').toLowerCase();
 
 // Check if we're in production
 const PRODUCTION_HOSTS = new Set([
@@ -42,7 +43,7 @@ const PRODUCTION_HOSTS = new Set([
     'www.magensec.app',
     'console.magensec.app'
 ]);
-const IS_PRODUCTION_ENV = PRODUCTION_HOSTS.has((window.location.hostname || '').toLowerCase());
+const IS_PRODUCTION_ENV = PRODUCTION_HOSTS.has(RUNTIME_HOST);
 
 // Debug logger utility
 // Note: In production, logging is disabled UNLESS debug flag is explicitly set
@@ -80,7 +81,7 @@ export const logger = {
 };
 
 // Resolved URLs (updated by buildDeployContainer.ps1 and Build-Installers.ps1)
-const RESOLVED_API_BASE = 'https://api.magensec.app';
+const RESOLVED_API_BASE = 'https://ms-central-api.wonderfulflower-8852e801.eastus.azurecontainerapps.io';
 const LOCAL_API_BASE = DEV_WORKBENCH.LOCAL_API_BASE;
 const RESOLVED_MANIFEST_URL = 'https://msinstallers6w2f9s.blob.core.windows.net/latest/manifest.json?se=2026-12-26T09%3A20%3A24Z&sp=r&spr=https&sv=2022-11-02&sr=b&sig=gPib7xgDbC%2BiGBO6fO3LeOBambQ0A79JNlxhZNvHF%2Bk%3D';
 
@@ -108,7 +109,7 @@ export const config = {
     
     // Environment detection
     IS_LOCAL: IS_LOOPBACK_HOST,
-    IS_PUBLIC_STATIC_HOST: ['magensec.app', 'www.magensec.app', 'magensec.gigabits.co.in', 'magensec.github.io'].includes((window.location.hostname || '').toLowerCase()),
+    IS_PUBLIC_STATIC_HOST: ['magensec.app', 'www.magensec.app', 'magensec.gigabits.co.in', 'magensec.github.io'].includes(RUNTIME_HOST),
     IS_PRODUCTION: IS_PRODUCTION_ENV,
     
     // Debug mode
