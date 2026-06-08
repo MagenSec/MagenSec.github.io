@@ -20,6 +20,13 @@ const hashParams = (() => {
 
 const getRuntimeParam = (key) => urlParams.get(key) ?? hashParams.get(key);
 const IS_LOOPBACK_HOST = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const LEGACY_PORTAL_HOSTS = new Set(['magensec.gigabits.co.in', 'www.magensec.gigabits.co.in']);
+const CANONICAL_PORTAL_ORIGIN = 'https://console.magensec.app';
+
+if (LEGACY_PORTAL_HOSTS.has((window.location.hostname || '').toLowerCase())) {
+    const destination = `${CANONICAL_PORTAL_ORIGIN}${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.location.replace(destination);
+}
 
 // Debug mode detection (URL param or localStorage)
 let debugParam = getRuntimeParam('debug');
