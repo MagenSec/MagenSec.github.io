@@ -1400,7 +1400,7 @@ export class DeviceDetailPage extends window.Component {
                 }));
 
                     const normalizedEndpointProtection = this.normalizeEndpointProtection(endpointProtection);
-                    const timeline = this.buildTimeline(telemetryData, normalizedEndpointProtection, decryptedDevice);
+                    const timeline = this.buildTimeline(telemetryData, normalizedEndpointProtection);
 
             // Extract device summary for risk scoring. Prefer top-level payload summary,
             // then fall back to the summary nested on the device record or cached detail.
@@ -1645,21 +1645,16 @@ export class DeviceDetailPage extends window.Component {
         };
     }
 
-    buildTimeline(telemetryData, endpointProtection = null, device = null) {
+    buildTimeline(telemetryData, endpointProtection = null) {
         if (!telemetryData && !endpointProtection) return [];
 
         const timeline = [];
-        const deviceDisplayName = device?.DeviceName || device?.deviceName || device?.DeviceId || device?.deviceId || this.state.deviceId || 'This device';
         const toDate = (value) => {
             if (!value) return null;
             const date = value instanceof Date ? value : new Date(value);
             return Number.isFinite(date.getTime()) ? date : null;
         };
         const getSnapshotFields = (snapshot) => snapshot?.fields || snapshot?.Fields || snapshot || {};
-        const isHostField = (field) => ['host', 'hostname', 'machinename', 'computername', 'devicename'].includes(String(field || '').toLowerCase());
-        const sanitizeTimelineFields = (fields) => Object.fromEntries(
-            Object.entries(fields || {}).filter(([field]) => !isHostField(field))
-        );
         const getChangeTime = (change) => change?.timestamp || change?.Timestamp || change?.at || change?.At || change?.time || change?.Time;
         const getDelta = (change) => {
             const delta = change?.delta || change?.Delta;
@@ -1693,14 +1688,16 @@ export class DeviceDetailPage extends window.Component {
             if (timestamp) {
                 const os = [fields.OSEdition || fields.osEdition, fields.OSVersion || fields.osVersion].filter(Boolean).join(' ').trim();
                 const client = fields.ClientVersion || fields.clientVersion || fields.AgentVersion || fields.agentVersion;
+                const host = fields.Hostname || fields.hostname || fields.MachineName || fields.machineName;
                 timeline.push({
                     type: 'signal',
                     category: 'Signal',
                     timestamp,
                     title: 'Latest device signal',
-                    description: [deviceDisplayName, os, client ? `Agent ${client}` : null].filter(Boolean).join(' • ') || 'Latest device evidence received',
+                    description: [host, os, client ? `Agent ${client}` : null].filter(Boolean).join(' • ') || 'Latest device evidence received',
                     severity: 'success',
                     fields: {
+                        ...(host ? { Host: host } : {}),
                         ...(os ? { OS: os } : {}),
                         ...(client ? { Agent: client } : {})
                     }
@@ -1712,17 +1709,15 @@ export class DeviceDetailPage extends window.Component {
             const timestamp = toDate(getChangeTime(change));
             const delta = getDelta(change);
             if (!timestamp || Object.keys(delta).length === 0) return;
-            const fields = sanitizeTimelineFields(delta);
-            if (Object.keys(fields).length === 0) return;
-            const meta = classifyChange(fields);
+            const meta = classifyChange(delta);
             timeline.push({
                 type: 'change',
                 category: meta.category,
                 timestamp,
                 title: meta.title,
-                description: summarizeDelta(fields) || 'Evidence changed',
+                description: summarizeDelta(delta) || 'Evidence changed',
                 severity: meta.severity,
-                fields
+                fields: delta
             });
         });
 
@@ -3378,7 +3373,8 @@ export class DeviceDetailPage extends window.Component {
         const hasCoverageData = hasVersionSessions || (this.state.timeline?.length || 0) > 0 || isSiteAdmin;
         const sessionTabs = [
             { key: 'version', label: 'Coverage', hasData: hasVersionSessions },
-            ...(isSiteAdmin ? [{ key: 'perf', label: 'Performance', hasData: true }] : [])
+            ...(isSiteAdmin ? [{ key: 'perf', label: 'Performance', hasData: true }] : []),
+            { key: 'timeline', label: 'Timeline', hasData: this.state.timeline?.length > 0 }
         ];
         const sessionIcon = (key) => {
             switch (key) {
@@ -3903,6 +3899,11 @@ export class DeviceDetailPage extends window.Component {
                                                         <div class="tab-pane active show">
                                                             <div class="text-muted small mb-2">Performance timeline</div>
                                                             ${this.renderPerfTab(true)}
+                                                        </div>
+                                                    ` : ''}
+                                                    ${this.state.sessionTab === 'timeline' ? html`
+                                                        <div class="tab-pane active show">
+                                                            ${this.renderTimelineTab()}
                                                         </div>
                                                     ` : ''}
                                                 </div>
@@ -4713,32 +4714,7 @@ export class DeviceDetailPage extends window.Component {
             };
         };
 
-        const buildCountAxis = (values, title, show = true) => {
-            const nums = (values || []).map(Number).filter(Number.isFinite);
-            const maxValue = nums.length ? Math.max(...nums) : 0;
-            const axisMax = maxValue <= 1 ? 1
-                : maxValue <= 5 ? 5
-                : maxValue <= 10 ? 10
-                : maxValue <= 25 ? 25
-                : Math.ceil(maxValue * 1.15);
-
-            return {
-                min: 0,
-                max: axisMax,
-                show,
-                opposite: true,
-                forceNiceScale: true,
-                labels: { formatter: (value) => formatCount(value) },
-                title: show ? { text: title } : undefined
-            };
-        };
-
         const bucketDescription = ({ '1h': '1-hour', '6h': '6-hour', '1d': '1-day' })[this.state.perfBucket] || 'selected';
-        const isDarkTheme = document.documentElement?.getAttribute('data-bs-theme') === 'dark'
-            || document.body?.classList?.contains('theme-dark');
-        const networkColors = isDarkTheme
-            ? ['#60a5fa', '#a78bfa', '#f87171', '#fb923c']
-            : ['#0b5ed7', '#5f3dc4', '#b42318', '#c2410c'];
 
         const points = validPoints
             .map(p => ({
@@ -4823,7 +4799,7 @@ export class DeviceDetailPage extends window.Component {
                     { name: 'Memory %', data: points.map(p => [p.ts, p.memPct]) },
                     { name: 'Memory MB', data: points.map(p => [p.ts, p.memMb]) }
                 ],
-                colors: ['#2fb344', '#ae3ec9'],
+                colors: ['#0ca678', '#15aabf'],
                 yaxis: [
                     buildPercentAxis(points.map(p => p.memPct), 'Memory (%)'),
                     { opposite: true, labels: { formatter: (val) => `${Math.round(val)} MB` }, title: { text: 'Working Set (MB)' } }
@@ -4839,7 +4815,7 @@ export class DeviceDetailPage extends window.Component {
                     { name: 'App DB MB', data: points.map(p => [p.ts, p.diskApp]) },
                     { name: 'Intel DB MB', data: points.map(p => [p.ts, p.diskIntel]) }
                 ],
-                colors: ['#f59f00', '#206bc4', '#ae3ec9'],
+                colors: ['#fab005', '#ffa94d', '#ffd43b'],
                 yaxis: [{ min: 0, labels: { formatter: (val) => `${Math.round(val)} MB` }, title: { text: 'DB Size (MB)' } }],
                 tooltipFormatter: (val) => formatMegabytes(val),
                 annotations: buildAnnotations(this.calculatePercentiles(points.map(p => p.diskTotal)), (v) => formatMegabytes(v))
@@ -4848,25 +4824,18 @@ export class DeviceDetailPage extends window.Component {
                 key: 'net',
                 el: 'perfNetEl',
                 series: [
-                    { name: 'Total MB', type: 'line', data: points.map(p => [p.ts, p.netTotalMb]) },
+                    { name: 'Total MB', type: 'area', data: points.map(p => [p.ts, p.netTotalMb]) },
                     { name: 'Requests', type: 'column', data: points.map(p => [p.ts, p.netRequests]) },
                     { name: 'Failures', type: 'column', data: points.map(p => [p.ts, p.netFailures]) },
                     { name: 'Failure Rate %', type: 'line', data: points.map(p => [p.ts, p.netFailureRate]) }
                 ],
-                colors: networkColors,
-                strokeWidth: [4, 0, 0, 4],
-                strokeCurve: 'smooth',
-                strokeDashArray: [0, 0, 0, 5],
-                fillOpacity: [1, 0.96, 0.98, 1],
-                fillType: ['solid', 'solid', 'solid', 'solid'],
-                markers: { size: [5, 0, 0, 4], strokeWidth: 2, hover: { sizeOffset: 2 } },
-                hasMeaningfulData: points.some(p => p.netTotalMb > 0 || p.netRequests > 0 || p.netFailures > 0 || p.netFailureRate > 0),
-                emptyMessage: `No network transfer or request activity in this ${bucketDescription} window.`,
+                colors: ['#15aabf', '#2fb344', '#d63939', '#f59f00'],
+                stacked: true,
+                stackOnlyBar: true,
                 yaxis: [
                     { min: 0, labels: { formatter: (val) => formatMegabytes(val) }, title: { text: `Data Transfer (MB per ${bucketDescription} bucket)` } },
-                    buildCountAxis([...points.map(p => p.netRequests), ...points.map(p => p.netFailures)], 'Requests / Failures'),
-                    buildCountAxis([...points.map(p => p.netRequests), ...points.map(p => p.netFailures)], 'Requests / Failures', false),
-                    { ...buildPercentAxis(points.map(p => p.netFailureRate), 'Failure Rate'), opposite: true }
+                    { opposite: true, seriesName: 'Requests', labels: { formatter: (val) => formatCount(val) }, title: { text: 'Requests / Failures' } },
+                    { ...buildPercentAxis(points.map(p => p.netFailureRate), 'Failure Rate'), opposite: true, seriesName: 'Failure Rate %' }
                 ],
                 tooltipFormatter: (val, opts) => {
                     const point = points[opts.dataPointIndex] || {};
@@ -4886,15 +4855,6 @@ export class DeviceDetailPage extends window.Component {
         chartConfigs.forEach(cfg => {
             const el = this[cfg.el];
             if (!el) return;
-
-            if (cfg.hasMeaningfulData === false) {
-                if (this.perfCharts[cfg.key]) {
-                    this.perfCharts[cfg.key].destroy();
-                    this.perfCharts[cfg.key] = null;
-                }
-                el.innerHTML = `<div class="text-muted small py-5 text-center">${cfg.emptyMessage || 'No chart data in this window.'}</div>`;
-                return;
-            }
 
             const seriesData = (cfg.series || []).map((s) => ({
                 name: s.name,
@@ -4927,28 +4887,20 @@ export class DeviceDetailPage extends window.Component {
 
             const options = {
                 chart: {
-                    type: 'line',
                     height: 220,
                     toolbar: { show: false },
                     animations: { enabled: true },
-                    stacked: cfg.key === 'disk'
+                    stacked: cfg.stacked === true || cfg.key === 'disk',
+                    stackOnlyBar: cfg.stackOnlyBar === true
                 },
                 colors: cfg.colors,
-                stroke: { curve: cfg.strokeCurve || 'straight', width: cfg.strokeWidth || 2, dashArray: cfg.strokeDashArray || 0 },
+                stroke: { curve: 'straight', width: 2 },
                 fill: {
-                    opacity: cfg.fillOpacity || 0.35,
-                    type: cfg.fillType || 'gradient',
-                    gradient: cfg.fillGradient || {
+                    type: 'gradient',
+                    gradient: {
                         shadeIntensity: 0.6,
                         opacityFrom: 0.35,
                         opacityTo: 0.05
-                    }
-                },
-                markers: cfg.markers || { size: 0 },
-                plotOptions: {
-                    bar: {
-                        columnWidth: cfg.key === 'net' ? '52%' : '70%',
-                        borderRadius: 2
                     }
                 },
                 dataLabels: { enabled: false },
