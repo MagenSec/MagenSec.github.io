@@ -122,9 +122,9 @@
           <span class="footer__brand-name">MagenSec</span>
         </a>
         <p class="footer__brand-tagline">Continuous security auditing for SMB environments. Protect, Prove, and act with MAGI AI.</p>
-        <a href="mailto:support@magensec.app" class="footer__contact-link">
+        <a href="mailto:MagenSec@Gigabits.co.in" class="footer__contact-link">
           <span class="footer__icon" aria-hidden="true"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>
-          <span>support@magensec.app</span>
+          <span>MagenSec@Gigabits.co.in</span>
         </a>
       </div>
       <nav aria-label="Platform links">
@@ -149,7 +149,7 @@
           <a href="editions/personal.html" class="footer__link">Personal</a>
           <a href="editions/education.html" class="footer__link">Education</a>
           <a href="editions/business.html" class="footer__link">Business</a>
-          <a href="mailto:support@magensec.app" class="footer__link">Managed Services</a>
+          <a href="mailto:MagenSec@Gigabits.co.in" class="footer__link">Managed Services</a>
         </div>
       </nav>
       <nav aria-label="Company links">
@@ -162,7 +162,7 @@
             <span class="footer__icon" aria-hidden="true"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg></span>
             <span>Customer Portal</span>
           </a>
-          <a href="mailto:support@magensec.app" class="footer__link">Contact</a>
+          <a href="mailto:MagenSec@Gigabits.co.in" class="footer__link">Contact</a>
         </div>
       </nav>
     </div>

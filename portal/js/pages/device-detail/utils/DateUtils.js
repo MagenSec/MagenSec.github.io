@@ -5,7 +5,6 @@
 export function formatDate(dateStr) {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
-    if (!Number.isFinite(date.getTime())) return 'N/A';
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${months[date.getMonth()]}-${String(date.getDate()).padStart(2, '0')}, ${date.getFullYear()}`;
 }
@@ -13,7 +12,6 @@ export function formatDate(dateStr) {
 export function formatTime(dateStr) {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
-    if (!Number.isFinite(date.getTime())) return 'N/A';
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
