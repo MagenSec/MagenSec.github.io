@@ -36,8 +36,6 @@ import { renderHealthStatus, renderRiskIndicator, renderPatchStatus, getStatusDo
 import { RiskService } from './services/RiskService.js';
 import { NetworkService } from './services/NetworkService.js';
 import { CommandMonitor } from '@components/CommandMonitor.js';
-import { RingSelector } from '@components/RingSelector.js';
-import toast from '@toast';
 
 export class DeviceDetailPage extends window.Component {
     constructor(props) {
@@ -72,8 +70,6 @@ export class DeviceDetailPage extends window.Component {
             installers: { X64: {}, ARM64: {}, ENGINE: {} },
             latestClientVersion: null,
             updatePosture: null,
-            profileScopes: null,
-            profileScopeFilter: 'all',
             recommendedActions: [],
             manifestError: null,
             showAllCves: false,
@@ -93,7 +89,7 @@ export class DeviceDetailPage extends window.Component {
             expandedVendors: new Set(),
             expandedApps: new Set(),
             deviceSessions: null,
-            sessionTab: 'version',
+            sessionTab: 'specs',
             sessionExpanded: false,
             sessionLoading: false,
             sessionError: null,
@@ -111,8 +107,7 @@ export class DeviceDetailPage extends window.Component {
             contextDraft: { assignedLabelsText: '', businessImpact: 'UNCLASSIFIED', notes: '' },
             contextSaving: false,
             contextError: null,
-            contextEditing: false,
-            endpointProtection: null
+            contextEditing: false
         };
     }
 
@@ -176,8 +171,7 @@ export class DeviceDetailPage extends window.Component {
 
     async loadInstallerConfig(forceRefresh = false) {
         try {
-            const ring = await this.resolveDeviceUpdateRing();
-            const manifestConfig = await getInstallerConfig(forceRefresh, ring);
+            const manifestConfig = await getInstallerConfig(forceRefresh);
             if (manifestConfig) {
                 const latestClientVersion = manifestConfig?.ENGINE?.VERSION || this.state.latestClientVersion || null;
                 this.setState({
@@ -206,25 +200,6 @@ export class DeviceDetailPage extends window.Component {
                 manifestError: 'Latest installer metadata is temporarily unavailable. Showing built-in baseline.'
             });
             return fallbackInstallers;
-        }
-    }
-
-    /**
-     * Resolve this device's effective update ring (device override else org else default) so the
-     * Download button targets the same version the auto-updater will deliver to this device.
-     * Best-effort: any failure falls back to 'production' so the download is never blocked.
-     */
-    async resolveDeviceUpdateRing() {
-        try {
-            const orgId = orgContext.getCurrentOrg()?.orgId;
-            const deviceId = this.state.deviceId;
-            if (!orgId || !deviceId) return 'production';
-            const resp = await api.getDeviceUpdateRing(deviceId, orgId);
-            const data = resp?.data ?? resp;
-            return data?.resolvedRing || data?.ring || data?.defaultRingId || 'production';
-        } catch (error) {
-            console.warn('[DeviceDetail] Could not resolve device update ring; defaulting to production:', error?.message);
-            return 'production';
         }
     }
 
@@ -1096,84 +1071,6 @@ export class DeviceDetailPage extends window.Component {
         `;
     }
 
-    renderProfileScopePanel(enrichedApps) {
-        const { html } = window;
-        const profileOptions = this.getProfileScopeOptions(enrichedApps, this.state.cveInventory);
-        const declaredCount = Number(this.state.profileScopes?.distinctProfileScopeCount || profileOptions.length || 0);
-        const isShared = Boolean(this.state.profileScopes?.isShared || declaredCount > 1 || profileOptions.length > 1);
-        if (!isShared && profileOptions.length <= 1) return null;
-
-        const activeCves = this.getActiveCves(this.state.cveInventory, { applyProfileFilter: false });
-        const totalApps = (enrichedApps || []).length;
-        const totalCves = activeCves.length;
-        const vulnerableAppCount = new Set(activeCves.map(cve => this.getScopedAppKey(cve, 'cve')).filter(Boolean)).size;
-        const selectedScope = this.state.profileScopeFilter || 'all';
-        const selectedMeta = this.getSelectedProfileScopeMeta();
-        const selectScope = (scope) => {
-            this.setState({
-                profileScopeFilter: scope,
-                cveFilterApp: null,
-                showAllCves: false
-            }, () => this.openAdvancedDetails('detailApps'));
-        };
-
-        return html`
-            <section id="deviceProfileScopes" class="card mb-3 device-profile-scopes">
-                <div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
-                    <div>
-                        <h3 class="card-title mb-0">Install scopes</h3>
-                        <div class="text-muted small">Per-user scopes show masked account names when available; hashes remain the stable privacy-preserving identity.</div>
-                    </div>
-                    <span class="badge ${isShared ? 'bg-purple-lt text-purple' : 'bg-secondary-lt text-secondary'}">${declaredCount || profileOptions.length} scope${(declaredCount || profileOptions.length) === 1 ? '' : 's'}</span>
-                </div>
-                <div class="card-body">
-                    <div class="device-profile-scope-toolbar mb-3">
-                        <button type="button" class=${`btn btn-sm ${selectedScope === 'all' ? 'btn-primary' : 'btn-outline-primary'}`} onclick=${() => selectScope('all')}>
-                            All scopes
-                            <span class="badge bg-white text-primary ms-1">${totalApps}</span>
-                        </button>
-                        ${profileOptions.map(option => html`
-                            <button type="button" class=${`btn btn-sm ${selectedScope === option.scope ? 'btn-primary' : 'btn-outline-primary'}`} onclick=${() => selectScope(option.scope)} title=${`${option.label}: ${option.installedCount} installed apps, ${option.cveCount} active CVEs. ${option.description}`}>
-                                <i class=${option.icon}></i>
-                                ${option.shortLabel}
-                                <span class="badge bg-white text-primary ms-1">${option.installedCount}</span>
-                            </button>
-                        `)}
-                    </div>
-
-                    <div class="device-profile-scope-grid">
-                        <button type="button" class=${`device-profile-scope-tile ${selectedScope === 'all' ? 'active' : ''}`} onclick=${() => selectScope('all')}>
-                            <span class="device-profile-scope-tile__head">
-                                <span class="badge bg-primary-lt text-primary">All</span>
-                                ${selectedScope === 'all' ? html`<span class="badge bg-success-lt text-success">Selected</span>` : ''}
-                            </span>
-                            <strong>All install scopes</strong>
-                            <span>${totalApps} apps · ${vulnerableAppCount} vulnerable · ${totalCves} CVEs</span>
-                        </button>
-                        ${profileOptions.map(option => html`
-                            <button type="button" class=${`device-profile-scope-tile ${selectedScope === option.scope ? 'active' : ''}`} onclick=${() => selectScope(option.scope)}>
-                                <span class="device-profile-scope-tile__head">
-                                    <span class=${`badge ${option.className}`}>${option.type}</span>
-                                    ${selectedScope === option.scope ? html`<span class="badge bg-success-lt text-success">Selected</span>` : ''}
-                                </span>
-                                <strong>${option.label}</strong>
-                                <span>${option.installedCount} installed · ${option.vulnerableAppCount} vulnerable · ${option.cveCount} CVEs</span>
-                                <span class="text-muted small">${option.description}</span>
-                            </button>
-                        `)}
-                    </div>
-
-                    ${selectedMeta ? html`
-                        <div class="alert alert-info mt-3 mb-0 py-2 d-flex align-items-center justify-content-between gap-2 flex-wrap">
-                            <span><strong>${selectedMeta.label}</strong> is filtering software evidence and active CVEs.</span>
-                            <button type="button" class="btn btn-sm btn-outline-info" onclick=${() => selectScope('all')}>Clear filter</button>
-                        </div>
-                    ` : ''}
-                </div>
-            </section>
-        `;
-    }
-
     async loadDeviceData() {
         try { 
             const currentOrg = orgContext.getCurrentOrg();
@@ -1199,10 +1096,9 @@ export class DeviceDetailPage extends window.Component {
                     mitigatedCveInventory: cached.mitigatedCves || [],
                     deviceContext: this.normalizeDeviceContext(cached.deviceContext),
                     contextDraft: this.contextToDraft(cached.deviceContext),
-                    profileScopes: cached.profileScopes || null,
-                    endpointProtection: cached.endpointProtection || null,
                     isRefreshingInBackground: true
-                });            } else {
+                });
+            } else {
                 this.setState({ loading: true, error: null, perfLoading: false, perfError: null, perfData: null });
             }
 
@@ -1230,9 +1126,9 @@ export class DeviceDetailPage extends window.Component {
                 apps: appsData,
                 cves: cvesData,
                 deviceContext,
-                telemetryStatus,
-                endpointProtection
+                telemetryStatus
             } = payload;
+
             const historicalSnapshot = !deviceData && payload?.isHistorical ? payload : null;
             if (historicalSnapshot) {
                 const snapshotCveTotal = Number(historicalSnapshot.criticalCount || 0)
@@ -1362,9 +1258,7 @@ export class DeviceDetailPage extends window.Component {
                     appSource: x.appSource || x.AppSource || '',
                     appPath: x.appPath || x.AppPath || '',
                     installKind: x.installKind || x.InstallKind || '',
-                    installKindLabel: x.installKindLabel || x.InstallKindLabel || '',
-                    principalName: x.principalName || x.PrincipalName || '',
-                    profileScope: this.getProfileScopeFromRowKey(x.appRowKey || x.RowKey || x.rowKey || '')
+                    installKindLabel: x.installKindLabel || x.InstallKindLabel || ''
                 }));
 
             // Process CVE data from unified response
@@ -1381,7 +1275,6 @@ export class DeviceDetailPage extends window.Component {
                     lastSeen: x.lastDetected || x.lastSeen || x.LastSeen,
                     appStatus: x.appStatus || 'installed',
                     appRowKey: x.appRowKey || x.rowKey || '',
-                    profileScope: this.getProfileScopeFromRowKey(x.appRowKey || x.rowKey || ''),
                     detectionMethod: x.detectionMethod || x.DetectionMethod || x.howFound || x.HowFound || x.source || x.Source || x.detectedBy || x.DetectedBy || 'database'
                 }));
                 
@@ -1395,12 +1288,11 @@ export class DeviceDetailPage extends window.Component {
                     lastSeen: x.lastDetected || x.lastSeen || x.LastSeen,
                     appStatus: x.appStatus || 'updated',
                     appRowKey: x.appRowKey || x.rowKey || '',
-                    profileScope: this.getProfileScopeFromRowKey(x.appRowKey || x.rowKey || ''),
                     detectionMethod: x.detectionMethod || x.DetectionMethod || x.howFound || x.HowFound || x.source || x.Source || x.detectedBy || x.DetectedBy || 'database'
                 }));
 
-                    const normalizedEndpointProtection = this.normalizeEndpointProtection(endpointProtection);
-                    const timeline = this.buildTimeline(telemetryData, normalizedEndpointProtection);
+                    // Build timeline from device signal changes
+            const timeline = this.buildTimeline(telemetryData);
 
             // Extract device summary for risk scoring. Prefer top-level payload summary,
             // then fall back to the summary nested on the device record or cached detail.
@@ -1453,17 +1345,14 @@ export class DeviceDetailPage extends window.Component {
                 summaryMeta: summaryMeta || null,
                 deviceSessions: null,
                 telemetryStatus: telemetryStatus || null,
-                endpointProtection: normalizedEndpointProtection,
                 latestClientVersion: payload.latestClientVersion || this.state.latestClientVersion || this.state.installers?.ENGINE?.VERSION || null,
                 updatePosture: payload.updatePosture || null,
-                profileScopes: payload.profileScopes || null,
                 recommendedActions: payload.recommendedActions || [],
                 loading: false,
                 isRefreshingInBackground: false,
                 showAllIps: false,
                 showAllCves: false,
-                appStatusFilter: 'installed',
-                profileScopeFilter: 'all'
+                appStatusFilter: 'installed'
             });
 
             // Write SWR cache so next load is instant
@@ -1475,10 +1364,9 @@ export class DeviceDetailPage extends window.Component {
                 appSummary,
                 cves: uniqueCves,
                 mitigatedCves: uniqueMitigatedCves,
-                deviceContext: this.normalizeDeviceContext(deviceContext),
-                profileScopes: payload.profileScopes || null,
-                endpointProtection: normalizedEndpointProtection
+                deviceContext: this.normalizeDeviceContext(deviceContext)
             });
+
             this.destroySessionChart();
             
             // Background: Load known exploits and enrich risk score
@@ -1615,142 +1503,41 @@ export class DeviceDetailPage extends window.Component {
         return norm;
     }
 
-    normalizeEndpointProtection(raw) {
-        if (!raw) return null;
-
-        const parseMaybeJson = (value) => {
-            if (!value) return null;
-            if (typeof value === 'object') return value;
-            if (typeof value !== 'string') return null;
-            try { return JSON.parse(value); } catch { return null; }
-        };
-
-        const detail = parseMaybeJson(raw.detailJson ?? raw.DetailJson) || raw.detailJson || raw.DetailJson || null;
-        const detectionsRaw = raw.detections || raw.Detections || detail?.detections || detail?.Detections || [];
-        const detections = Array.isArray(detectionsRaw) ? detectionsRaw : [];
-        const threatCount = Number(raw.threatCount ?? raw.ThreatCount ?? detections.length) || 0;
-
-        return {
-            provider: raw.provider || raw.Provider || detail?.provider || detail?.Provider || 'WindowsDefender',
-            status: raw.status || raw.Status || (threatCount > 0 ? 'active_detections' : 'no_active_detections'),
-            hasActiveDetections: Boolean(raw.hasActiveDetections ?? raw.HasActiveDetections ?? threatCount > 0),
-            threatCount,
-            severity: raw.severity ?? raw.Severity ?? null,
-            severityLabel: raw.severityLabel || raw.SeverityLabel || null,
-            lastObservedAt: raw.lastObservedAt || raw.LastObservedAt || null,
-            lastDetectedAt: raw.lastDetectedAt || raw.LastDetectedAt || null,
-            scanHistoryAvailable: Boolean(raw.scanHistoryAvailable ?? raw.ScanHistoryAvailable),
-            detections,
-            detailJson: detail
-        };
-    }
-
-    buildTimeline(telemetryData, endpointProtection = null) {
-        if (!telemetryData && !endpointProtection) return [];
-
+    buildTimeline(telemetryData) {
+        if (!telemetryData || !telemetryData.history) return [];
+        
         const timeline = [];
-        const toDate = (value) => {
-            if (!value) return null;
-            const date = value instanceof Date ? value : new Date(value);
-            return Number.isFinite(date.getTime()) ? date : null;
-        };
-        const getSnapshotFields = (snapshot) => snapshot?.fields || snapshot?.Fields || snapshot || {};
-        const getChangeTime = (change) => change?.timestamp || change?.Timestamp || change?.at || change?.At || change?.time || change?.Time;
-        const getDelta = (change) => {
-            const delta = change?.delta || change?.Delta;
-            if (delta && typeof delta === 'object') return delta;
-            const field = change?.fieldName || change?.FieldName || change?.field || change?.Field;
-            if (!field) return {};
-            return { [field]: { from: change?.oldValue ?? change?.OldValue ?? null, to: change?.newValue ?? change?.NewValue ?? null } };
-        };
-        const summarizeDelta = (delta) => Object.entries(delta || {})
-            .map(([field, value]) => {
-                if (value && typeof value === 'object' && ('to' in value || 'To' in value)) {
-                    return `${field}: ${value.to ?? value.To ?? 'changed'}`;
-                }
-                return `${field}: ${typeof value === 'object' ? 'changed' : value}`;
-            })
-            .slice(0, 4)
-            .join(' • ');
-        const classifyChange = (fields) => {
-            const joined = Object.keys(fields || {}).join(' ').toLowerCase();
-            if (joined.includes('client') || joined.includes('version')) return { title: 'Agent version changed', category: 'Agent', severity: 'info' };
-            if (joined.includes('ip') || joined.includes('network') || joined.includes('egress')) return { title: 'Network evidence changed', category: 'Network', severity: 'warning' };
-            if (joined.includes('os') || joined.includes('cpu') || joined.includes('ram') || joined.includes('bios')) return { title: 'Device specification changed', category: 'Specs', severity: 'info' };
-            if (joined.includes('scan') || joined.includes('threat') || joined.includes('defender')) return { title: 'Protection evidence changed', category: 'Protection', severity: 'warning' };
-            return { title: 'Device evidence changed', category: 'Signal', severity: 'info' };
-        };
-
-        const latest = telemetryData?.latest || telemetryData?.Latest || (telemetryData?.history || telemetryData?.History || [])[0] || null;
-        if (latest) {
-            const fields = getSnapshotFields(latest);
-            const timestamp = toDate(latest.timestamp || latest.Timestamp || fields.Timestamp || fields.timestamp);
-            if (timestamp) {
-                const os = [fields.OSEdition || fields.osEdition, fields.OSVersion || fields.osVersion].filter(Boolean).join(' ').trim();
-                const client = fields.ClientVersion || fields.clientVersion || fields.AgentVersion || fields.agentVersion;
-                const host = fields.Hostname || fields.hostname || fields.MachineName || fields.machineName;
-                timeline.push({
-                    type: 'signal',
-                    category: 'Signal',
-                    timestamp,
-                    title: 'Latest device signal',
-                    description: [host, os, client ? `Agent ${client}` : null].filter(Boolean).join(' • ') || 'Latest device evidence received',
-                    severity: 'success',
-                    fields: {
-                        ...(host ? { Host: host } : {}),
-                        ...(os ? { OS: os } : {}),
-                        ...(client ? { Agent: client } : {})
-                    }
-                });
-            }
-        }
-
-        (telemetryData?.changes || telemetryData?.Changes || []).forEach(change => {
-            const timestamp = toDate(getChangeTime(change));
-            const delta = getDelta(change);
-            if (!timestamp || Object.keys(delta).length === 0) return;
-            const meta = classifyChange(delta);
+        const changes = telemetryData.changes || [];
+        
+        // Add change events
+        changes.forEach(change => {
             timeline.push({
                 type: 'change',
-                category: meta.category,
-                timestamp,
-                title: meta.title,
-                description: summarizeDelta(delta) || 'Evidence changed',
-                severity: meta.severity,
-                fields: delta
+                timestamp: new Date(change.at),
+                title: 'Hardware/System Change Detected',
+                description: Object.keys(change.delta).join(', '),
+                severity: 'info',
+                fields: change.delta
             });
         });
 
-        if (endpointProtection?.hasActiveDetections) {
-            const detection = endpointProtection.detections?.[0] || {};
-            const detectedAt = toDate(detection.detectedAt || detection.DetectedAt || endpointProtection.lastDetectedAt || endpointProtection.lastObservedAt);
-            if (detectedAt) {
+        // Add device signal snapshots as events
+        (telemetryData.history || []).slice(0, 20).forEach((snapshot, idx) => {
+            if (idx === 0) {
                 timeline.push({
-                    type: 'threat',
-                    category: 'Protection',
-                    timestamp: detectedAt,
-                    title: detection.title || detection.Title || 'Defender detection reported',
-                    description: detection.resource || detection.Resource || `${endpointProtection.threatCount} active detection${endpointProtection.threatCount === 1 ? '' : 's'}`,
-                    severity: 'danger',
-                    fields: {
-                        Severity: detection.severity || detection.Severity || endpointProtection.severityLabel || 'Threat',
-                        Source: detection.source || detection.Source || endpointProtection.provider
-                    }
+                    type: 'telemetry',
+                    timestamp: new Date(snapshot.timestamp),
+                    title: 'Latest Snapshot',
+                    description: `OS: ${snapshot.fields.OSEdition || ''} | CPU: ${snapshot.fields.CPUName || ''} | RAM: ${snapshot.fields.TotalRAMMB ? Math.round(snapshot.fields.TotalRAMMB / 1024) + ' GB' : ''}`,
+                    severity: 'success',
+                    snapshot
                 });
             }
-        }
+        });
 
-        const seen = new Set();
-        return timeline
-            .filter(event => event.timestamp instanceof Date && Number.isFinite(event.timestamp.getTime()))
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .filter(event => {
-                const key = `${event.type}|${event.category}|${event.title}|${event.timestamp.toISOString()}`;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            })
-            .slice(0, 30);
+        // Sort by timestamp descending (most recent first)
+        timeline.sort((a, b) => b.timestamp - a.timestamp);
+        return timeline;
     }
 
     computeAppStatus(apps) {
@@ -1838,7 +1625,6 @@ export class DeviceDetailPage extends window.Component {
             (a.vendor && a.vendor.toLowerCase().includes(lq)) ||
             (a.version && a.version.toLowerCase().includes(lq)) ||
             (a.installKindLabel && a.installKindLabel.toLowerCase().includes(lq)) ||
-            (this.getProfileScopeMeta(this.getProfileScopeFromApp(a)).label.toLowerCase().includes(lq)) ||
             (a.appPath && a.appPath.toLowerCase().includes(lq))
         );
     }
@@ -1846,11 +1632,10 @@ export class DeviceDetailPage extends window.Component {
     getAppIdentityKey(app) {
         const appName = (app.appName || '').trim().toLowerCase();
         const vendor = (app.vendor || '').trim().toLowerCase();
-        const profileScope = this.getProfileScopeFromApp(app);
         const portablePath = this.isPortableApp(app)
             ? (app.appPath || '').trim().replace(/\//g, '\\').toLowerCase()
             : '';
-        return `${profileScope}|${appName}|${vendor}|${portablePath}`;
+        return `${appName}|${vendor}|${portablePath}`;
     }
 
     isPortableApp(app) {
@@ -1874,146 +1659,7 @@ export class DeviceDetailPage extends window.Component {
         return { label: app.installKindLabel || 'Installed Apps', className: 'bg-primary-lt text-primary', bucket: 'installed' };
     }
 
-    normalizeProfileScope(scope) {
-        const value = String(scope || '').trim().toLowerCase();
-        if (!value || value === 'machine' || value === 'machine-wide') return 'm';
-        if (value === 'm' || value.startsWith('u-')) return value;
-        return 'm';
-    }
-
-    getProfileScopeFromRowKey(rowKey) {
-        const raw = String(rowKey || '').trim();
-        if (!raw) return 'm';
-        const tail = raw.toLowerCase().startsWith('inv|') ? raw.slice(4) : raw;
-        const first = tail.split('|')[0]?.trim() || '';
-        return this.normalizeProfileScope(first);
-    }
-
-    getProfileScopeFromApp(app) {
-        return this.normalizeProfileScope(app?.profileScope || this.getProfileScopeFromRowKey(app?.appRowKey || app?.RowKey || app?.rowKey || ''));
-    }
-
-    getProfileScopeFromCve(cve) {
-        return this.normalizeProfileScope(cve?.profileScope || this.getProfileScopeFromRowKey(cve?.appRowKey || cve?.rowKey || cve?.RowKey || ''));
-    }
-
-    orderProfileScopes(scopes) {
-        return Array.from(new Set((scopes || []).map(scope => this.normalizeProfileScope(scope)).filter(Boolean)))
-            .sort((a, b) => {
-                if (a === 'm' && b !== 'm') return -1;
-                if (a !== 'm' && b === 'm') return 1;
-                return a.localeCompare(b);
-            });
-    }
-
-    getProfileScopeMeta(scope) {
-        const token = this.normalizeProfileScope(scope);
-        if (token === 'm') {
-            return {
-                scope: token,
-                label: 'Machine-wide',
-                shortLabel: 'Machine',
-                type: 'Machine',
-                description: 'Apps visible to the machine-wide service account.',
-                className: 'bg-primary-lt text-primary',
-                icon: 'ti ti-device-desktop'
-            };
-        }
-
-        const hash = token.startsWith('u-') ? token.slice(2).toUpperCase() : token.toUpperCase();
-        const scopeDetail = this.getProfileScopeDetail(token);
-        const principalName = this.getMaskedPrincipalName(scopeDetail);
-        const shortPrincipalName = principalName && principalName.length > 24
-            ? `${principalName.slice(0, 21)}...`
-            : principalName;
-
-        if (principalName) {
-            return {
-                scope: token,
-                label: principalName,
-                shortLabel: shortPrincipalName,
-                type: 'User',
-                description: `Stable scope hash ${hash}; account name is masked before it leaves the device.`,
-                className: 'bg-purple-lt text-purple',
-                icon: 'ti ti-user'
-            };
-        }
-
-        return {
-            scope: token,
-            label: `Private user scope ${hash}`,
-            shortLabel: `User scope ${hash}`,
-            type: 'User scope',
-            description: 'Privacy-preserving SID hash; it is not a Windows username or profile folder.',
-            className: 'bg-purple-lt text-purple',
-            icon: 'ti ti-user'
-        };
-    }
-
-    getProfileScopeDetail(scope) {
-        const token = this.normalizeProfileScope(scope);
-        const details = Array.isArray(this.state.profileScopes?.scopeDetails)
-            ? this.state.profileScopes.scopeDetails
-            : [];
-        const detail = details.find(item => this.normalizeProfileScope(item?.scope || item?.Scope) === token);
-        if (detail) return detail;
-
-        const app = (this.state.appInventory || []).find(item =>
-            this.getProfileScopeFromApp(item) === token && String(item?.principalName || '').trim().length > 0);
-        return app ? { scope: token, principalName: app.principalName } : null;
-    }
-
-    getMaskedPrincipalName(scopeDetail) {
-        const value = scopeDetail?.principalName || scopeDetail?.PrincipalName || scopeDetail?.displayName || scopeDetail?.DisplayName || '';
-        const normalized = String(value || '').trim();
-        return normalized.length > 0 ? normalized : null;
-    }
-
-    getProfileScopeOptions(apps = this.state.appInventory, cves = this.state.cveInventory) {
-        const configuredScopes = Array.isArray(this.state.profileScopes?.scopes)
-            ? this.state.profileScopes.scopes
-            : [];
-        const detailScopes = Array.isArray(this.state.profileScopes?.scopeDetails)
-            ? this.state.profileScopes.scopeDetails.map(detail => detail?.scope || detail?.Scope).filter(Boolean)
-            : [];
-        const appScopes = (apps || []).map(app => this.getProfileScopeFromApp(app));
-        const cveScopes = (cves || []).map(cve => this.getProfileScopeFromCve(cve));
-        const scopes = this.orderProfileScopes(configuredScopes.concat(detailScopes, appScopes, cveScopes));
-
-        return scopes.map(scope => {
-            const scopedApps = (apps || []).filter(app => this.getProfileScopeFromApp(app) === scope);
-            const scopedCves = (cves || []).filter(cve => this.getProfileScopeFromCve(cve) === scope && cve.isPatched !== true);
-            const installedApps = scopedApps.filter(app => (app.status || app.appStatus || '').toLowerCase() === 'installed' || app.isInstalled === true);
-            const vulnerableAppNames = new Set(scopedCves.map(cve => this.getScopedAppKey(cve, 'cve')).filter(Boolean));
-            return {
-                ...this.getProfileScopeMeta(scope),
-                appCount: scopedApps.length,
-                installedCount: installedApps.length,
-                cveCount: scopedCves.length,
-                vulnerableAppCount: vulnerableAppNames.size
-            };
-        });
-    }
-
-    getSelectedProfileScopeMeta() {
-        const filter = this.state.profileScopeFilter || 'all';
-        return filter === 'all' ? null : this.getProfileScopeMeta(filter);
-    }
-
-    filterAppsByProfileScope(apps, scopeFilter = this.state.profileScopeFilter) {
-        const filter = this.normalizeProfileScope(scopeFilter || 'all');
-        if (!scopeFilter || scopeFilter === 'all') return apps;
-        return (apps || []).filter(app => this.getProfileScopeFromApp(app) === filter);
-    }
-
-    filterCvesByProfileScope(cves, scopeFilter = this.state.profileScopeFilter) {
-        const filter = this.normalizeProfileScope(scopeFilter || 'all');
-        if (!scopeFilter || scopeFilter === 'all') return cves;
-        return (cves || []).filter(cve => this.getProfileScopeFromCve(cve) === filter);
-    }
-
-    getCvesByApp(appRowKey, appNameFallback, profileScope = null) {
-        const targetScope = profileScope || (appRowKey ? this.getProfileScopeFromRowKey(appRowKey) : null);
+    getCvesByApp(appRowKey, appNameFallback) {
         // CVEs are linked to apps via appRowKey field extracted from CVE RowKey
         // Try primary key match first
         const byKey = appRowKey
@@ -2024,11 +1670,7 @@ export class DeviceDetailPage extends window.Component {
         if (appNameFallback) {
             const norm = this.normalizeAppName(appNameFallback);
             if (!norm) return [];
-            return this.state.cveInventory.filter(c => {
-                const nameMatches = this.normalizeAppName(c.appName) === norm;
-                if (!nameMatches) return false;
-                return !targetScope || this.getProfileScopeFromCve(c) === targetScope;
-            });
+            return this.state.cveInventory.filter(c => this.normalizeAppName(c.appName) === norm);
         }
         return [];
     }
@@ -2069,9 +1711,8 @@ export class DeviceDetailPage extends window.Component {
     }
 
     // Filter CVEs based on app installation status for accurate risk scoring
-    getActiveApps(apps = this.state.appInventory, options = {}) {
-        const applyProfileFilter = options.applyProfileFilter !== false;
-        const activeApps = (apps || []).filter(app => {
+    getActiveApps() {
+        return this.state.appInventory.filter(app => {
             const status = (app.status || app.appStatus || app.AppStatus || '').toLowerCase();
             if (status === 'installed' || status === 'updated') return true;
             if (status === 'uninstalled') return false;
@@ -2087,8 +1728,6 @@ export class DeviceDetailPage extends window.Component {
 
             return false;
         });
-
-        return applyProfileFilter ? this.filterAppsByProfileScope(activeApps) : activeApps;
     }
 
     /**
@@ -2104,71 +1743,34 @@ export class DeviceDetailPage extends window.Component {
         return appName.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase().trim();
     }
 
-    getApplicationDisplayName(appOrName) {
-        const raw = typeof appOrName === 'string'
-            ? appOrName
-            : (appOrName?.appName || appOrName?.AppName || '');
-        const appName = String(raw || '').trim();
-        if (!appName) return 'Unknown app';
-
-        const resourceMatch = appName.match(/^@\{([^?}]+)\?ms-resource:/i);
-        if (!resourceMatch) return appName;
-
-        const packageName = String(resourceMatch[1] || '').split('_')[0] || appName;
-        const packageParts = packageName.split('.').map(part => part.trim()).filter(Boolean);
-        const suffix = (packageParts[packageParts.length - 1] || packageName).replace(/([a-z])([A-Z])/g, '$1 $2');
-        const vendor = typeof appOrName === 'string'
-            ? ''
-            : String(appOrName?.vendor || appOrName?.appVendor || appOrName?.AppVendor || '').trim();
-
-        if (vendor && vendor.toLowerCase() !== 'unknown') {
-            return `${vendor} package (${suffix})`;
-        }
-
-        return `${suffix} package`;
-    }
-
-    getScopedAppKey(item, itemType = 'app') {
-        const appName = this.normalizeAppName(item?.appName || item?.AppName || '');
-        if (!appName) return '';
-        const scope = itemType === 'cve'
-            ? this.getProfileScopeFromCve(item)
-            : this.getProfileScopeFromApp(item);
-        return `${scope}|${appName}`;
-    }
-
-    getActiveCves(cves = this.state.cveInventory, options = {}) {
-        const applyProfileFilter = options.applyProfileFilter !== false;
+    getActiveCves() {
         const activeAppNames = new Set(
-            this.getActiveApps(this.state.appInventory, { applyProfileFilter }).map(app => this.getScopedAppKey(app)).filter(Boolean)
+            this.getActiveApps().map(app => this.normalizeAppName(app.appName))
         );
 
-        const candidateCves = applyProfileFilter ? this.filterCvesByProfileScope(cves) : (cves || []);
-
-        if (activeAppNames.size === 0 && candidateCves.length > 0) {
-            return candidateCves.filter(cve => cve.isPatched !== true);
+        if (activeAppNames.size === 0 && this.state.cveInventory.length > 0) {
+            return this.state.cveInventory.filter(cve => cve.isPatched !== true);
         }
 
-        return candidateCves.filter(cve => {
-            const cveAppName = this.getScopedAppKey(cve, 'cve');
+        return this.state.cveInventory.filter(cve => {
+            const cveAppName = this.normalizeAppName(cve.appName);
             return activeAppNames.has(cveAppName);
         });
     }
 
-    getAppVulnerabilityBreakdown(options = {}) {
-        const applyProfileFilter = options.applyProfileFilter !== false;
-        const activeApps = this.getActiveApps(this.state.appInventory, { applyProfileFilter });
-        const activeCves = this.getActiveCves(this.state.cveInventory, { applyProfileFilter });
+    getAppVulnerabilityBreakdown() {
+        const activeApps = this.getActiveApps();
+        const activeCves = this.getActiveCves();
 
         const activeAppNames = new Set(
             activeApps
-                .map(app => this.getScopedAppKey(app))
+                .map(app => this.normalizeAppName(app.appName))
                 .filter(Boolean)
         );
 
         const vulnerableAppNames = new Set(
             activeCves
-                .map(cve => this.getScopedAppKey(cve, 'cve'))
+                .map(cve => this.normalizeAppName(cve.appName))
                 .filter(name => name && (activeAppNames.size === 0 || activeAppNames.has(name)))
         );
 
@@ -2180,38 +1782,33 @@ export class DeviceDetailPage extends window.Component {
         return { totalApps, vulnerableApps, cleanApps, projectionPending };
     }
 
-    getMitigatedCves(options = {}) {
-        const applyProfileFilter = options.applyProfileFilter !== false;
+    getMitigatedCves() {
         // Prefer API-provided mitigated CVEs (from backend computation with AppStatus)
         if (this.state.mitigatedCveInventory && this.state.mitigatedCveInventory.length > 0) {
-            return applyProfileFilter ? this.filterCvesByProfileScope(this.state.mitigatedCveInventory) : this.state.mitigatedCveInventory;
+            return this.state.mitigatedCveInventory;
         }
         
         // Fallback to client-side computation for backward compatibility
         const activeAppNames = new Set(
-            this.getActiveApps(this.state.appInventory, { applyProfileFilter }).map(app => this.getScopedAppKey(app)).filter(Boolean)
+            this.getActiveApps().map(app => this.normalizeAppName(app.appName))
         );
 
-        const candidateCves = applyProfileFilter ? this.filterCvesByProfileScope(this.state.cveInventory) : this.state.cveInventory;
-
-        if (activeAppNames.size === 0 && candidateCves.length > 0) {
+        if (activeAppNames.size === 0 && this.state.cveInventory.length > 0) {
             return [];
         }
 
-        return candidateCves.filter(cve => {
-            const cveAppName = this.getScopedAppKey(cve, 'cve');
+        return this.state.cveInventory.filter(cve => {
+            const cveAppName = this.normalizeAppName(cve.appName);
             return !activeAppNames.has(cveAppName);
         });
     }
 
-    getMitigationStats(options = {}) {
-        const applyProfileFilter = options.applyProfileFilter !== false;
-        const mitigated = this.getMitigatedCves({ applyProfileFilter });
-        const candidateApps = applyProfileFilter ? this.filterAppsByProfileScope(this.state.appInventory) : this.state.appInventory;
-        const uninstalledApps = candidateApps.filter(app =>
+    getMitigationStats() {
+        const mitigated = this.getMitigatedCves();
+        const uninstalledApps = this.state.appInventory.filter(app => 
             (app.status || '').toLowerCase() === 'uninstalled'
         );
-
+        
         const bySeverity = {
             critical: mitigated.filter(c => (c.severity || '').toUpperCase() === 'CRITICAL').length,
             high: mitigated.filter(c => (c.severity || '').toUpperCase() === 'HIGH').length,
@@ -2252,10 +1849,9 @@ export class DeviceDetailPage extends window.Component {
     }
 
     // Filter out uninstalled and patched vulnerabilities from risk calculations
-    getActiveAppsAndCves(options = {}) {
-        const applyProfileFilter = options.applyProfileFilter !== false;
+    getActiveAppsAndCves() {
         // Keep only installed apps or apps still showing in current evidence
-        let activeApps = this.state.appInventory.filter(app => {
+        const activeApps = this.state.appInventory.filter(app => {
             // Keep if installed
             if (app.isInstalled === true) return true;
             // Keep if lastSeen is recent (within 30 days)
@@ -2267,17 +1863,12 @@ export class DeviceDetailPage extends window.Component {
         });
 
         // Keep only unpatched CVEs
-        let activeCves = this.state.cveInventory.filter(cve => {
+        const activeCves = this.state.cveInventory.filter(cve => {
             // Exclude if marked as patched
             if (cve.isPatched === true) return false;
             // Keep all others
             return true;
         });
-
-        if (applyProfileFilter) {
-            activeApps = this.filterAppsByProfileScope(activeApps);
-            activeCves = this.filterCvesByProfileScope(activeCves);
-        }
 
         return { activeApps, activeCves };
     }
@@ -2657,7 +2248,7 @@ export class DeviceDetailPage extends window.Component {
                 const sevTotal = Math.max(1, crit + high + med + low);
                 const pct = (n) => Math.round((Math.max(0, Number(n) || 0) / sevTotal) * 100);
 
-                const vendorBase = new URL('/vendor/', window.location.origin).toString().replace(/\/$/, '');
+                const vendorBase = new URL('../vendor/', window.location.href).toString().replace(/\/$/, '');
 
                 return `<!doctype html>
 <html lang="en">
@@ -3243,8 +2834,7 @@ export class DeviceDetailPage extends window.Component {
             if (statusFilter === 'all') return true;
             return status === statusFilter;
         });
-        const profileFilteredApps = this.filterAppsByProfileScope(statusFilteredApps, this.state.profileScopeFilter);
-        let filteredApps = this.filterApps(profileFilteredApps, searchQuery);
+        let filteredApps = this.filterApps(statusFilteredApps, searchQuery);
         // Apply sorting for Applications tab
         filteredApps = filteredApps.slice().sort((a,b) => {
             if (this.state.appSortKey === 'appName') {
@@ -3312,7 +2902,8 @@ export class DeviceDetailPage extends window.Component {
         ].filter(Boolean);
         const health = renderHealthStatus(device);
         const healthStatus = String(health.status || '').toLowerCase();
-        const headerImpactMeta = this.getBusinessImpactMeta(this.state.deviceContext);        const healthBadgeClass = healthStatus === 'online' || healthStatus === 'recent-online'
+        const headerImpactMeta = this.getBusinessImpactMeta(this.state.deviceContext);
+        const healthBadgeClass = healthStatus === 'online' || healthStatus === 'recent-online'
             ? 'bg-success-lt text-success'
             : healthStatus === 'offline' || healthStatus === 'recent-offline'
                 ? 'bg-info-lt text-info'
@@ -3327,7 +2918,8 @@ export class DeviceDetailPage extends window.Component {
                                 : 'bg-secondary-lt text-secondary';
         const patch = renderPatchStatus(device);
         const patchBadgeClass = patch.badge;
-        const registeredAt = device.FirstHeartbeat || device.firstSeen || device.createdAt || null;        const lastSeenAt = this.state.telemetryDetail?.latest?.timestamp || device.LastHeartbeat || device.lastHeartbeat || device.LastSeen || device.lastSeen || null;
+        const registeredAt = device.FirstHeartbeat || device.firstSeen || device.createdAt || null;
+        const lastSeenAt = this.state.telemetryDetail?.latest?.timestamp || device.LastHeartbeat || device.lastHeartbeat || device.LastSeen || device.lastSeen || null;
         const displayUser = (() => {
             // Try detail evidence first, then device's summary from list API
             const encoded = latestFields.UserName || latestFields.Username || latestFields.userName
@@ -3372,6 +2964,7 @@ export class DeviceDetailPage extends window.Component {
         const isSiteAdmin = orgContext.isSiteAdmin?.() || false;
         const hasCoverageData = hasVersionSessions || (this.state.timeline?.length || 0) > 0 || isSiteAdmin;
         const sessionTabs = [
+            { key: 'specs', label: 'Specs', hasData: true },
             { key: 'version', label: 'Coverage', hasData: hasVersionSessions },
             ...(isSiteAdmin ? [{ key: 'perf', label: 'Performance', hasData: true }] : []),
             { key: 'timeline', label: 'Timeline', hasData: this.state.timeline?.length > 0 }
@@ -3413,14 +3006,6 @@ export class DeviceDetailPage extends window.Component {
                                             <span class="badge ${healthBadgeClass}">
                                                 <span class="${getStatusDotClass(health.status)} me-1"></span>${health.text}
                                             </span>
-                                            ${Number(this.state.profileScopes?.distinctProfileScopeCount) > 1 ? html`
-                                                <button type="button" class="badge bg-purple-lt text-purple border-0 device-profile-scope-trigger" title="Open install scope evidence" onclick=${() => {
-                                                    const panel = document.getElementById('deviceProfileScopes');
-                                                    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                }}>
-                                                    Shared · ${Number(this.state.profileScopes.distinctProfileScopeCount)} install scopes
-                                                </button>
-                                            ` : ''}
                                             <span>${displayOs}</span>
                                             <span>Last seen ${lastSeenAt ? DateUtils.formatDate(lastSeenAt) : 'N/A'}</span>
                                             ${summarySignalAt ? html`<span class="badge ${summarySignalBadgeClass}">Signal updated ${DateUtils.formatDate(summarySignalAt)}${summarySignalSource === 'cached' ? ' · last verified' : ''}</span>` : ''}
@@ -3549,47 +3134,12 @@ export class DeviceDetailPage extends window.Component {
                             </div>
                         </div>
 
-                        ${(() => {
-                            const currentOrg = orgContext.getCurrentOrg();
-                            const orgId = currentOrg?.orgId;
-                            const deviceId = this.state.deviceId || device?.deviceId || device?.DeviceId;
-                            if (!orgId || !deviceId) return null;
-                            const ringReadOnly = orgContext.isReadOnly() || (rewindContext.isActive?.() || false);
-                            return html`
-                                <div class="card mb-3">
-                                    <div class="card-body py-3">
-                                        <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 gap-md-3">
-                                            <div class="flex-shrink-0">
-                                                <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5.5l7 -1.5v8l-7 .5z" /><path d="M20 4l-7 1.5v7.5l7 -.5z" /><path d="M4 15l7 .5v5l-7 -1.5z" /><path d="M20 13l-7 .5v6.5l7 -1.5z" /></svg>
-                                                    Update Ring
-                                                </h3>
-                                                <div class="text-muted small">Release channel this device updates to. Overrides the organization setting.</div>
-                                            </div>
-                                            <div class="ms-md-auto">
-                                                <${RingSelector}
-                                                    scope="device"
-                                                    orgId=${orgId}
-                                                    deviceId=${deviceId}
-                                                    api=${api}
-                                                    showToast=${(m, t) => toast.show(m, t)}
-                                                    readOnly=${ringReadOnly}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        })()}
-
                         ${this.state.summaryMeta?.source === 'historical' ? html`
                             <div class="alert alert-warning py-2 mb-3 d-flex align-items-center gap-2">
                                 <i class="ti ti-history"></i>
                                 <span>Historical snapshot. Showing the report facts available for the selected Time Warp date.</span>
                             </div>
                         ` : null}
-
-                        ${this.renderProfileScopePanel(enrichedApps)}
 
                         ${this.renderDeviceDossier({
                             riskScore,
@@ -3901,6 +3451,11 @@ export class DeviceDetailPage extends window.Component {
                                                             ${this.renderPerfTab(true)}
                                                         </div>
                                                     ` : ''}
+                                                    ${this.state.sessionTab === 'specs' ? html`
+                                                        <div class="tab-pane active show">
+                                                            ${this.renderSpecsTab()}
+                                                        </div>
+                                                    ` : ''}
                                                     ${this.state.sessionTab === 'timeline' ? html`
                                                         <div class="tab-pane active show">
                                                             ${this.renderTimelineTab()}
@@ -3988,21 +3543,6 @@ export class DeviceDetailPage extends window.Component {
                                         </div>
                                         <div class="accordion-item border-0">
                                             <h2 class="accordion-header">
-                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detailEndpointProtection" aria-expanded="false">
-                                                    Endpoint Protection
-                                                    ${(this.state.endpointProtection?.threatCount || 0) > 0
-                                                        ? html`<span class="badge bg-danger text-white ms-2">${this.state.endpointProtection.threatCount}</span>`
-                                                        : html`<span class="badge bg-success-lt text-success ms-2">Clear</span>`}
-                                                </button>
-                                            </h2>
-                                            <div id="detailEndpointProtection" class="accordion-collapse collapse" data-bs-parent="#deviceDetailsAccordion">
-                                                <div class="accordion-body">
-                                                    ${this.renderEndpointProtectionTab()}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="accordion-item border-0">
-                                            <h2 class="accordion-header">
                                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detailMissingPatches" aria-expanded="false">
                                                     Missing Security Patches
                                                     ${(this.state.missingPatches?.length || 0) > 0
@@ -4060,101 +3600,6 @@ export class DeviceDetailPage extends window.Component {
 
     renderPerfTab(embedded = false) {
         return renderPerfTab(this, embedded);
-    }
-
-    renderEndpointProtectionTab() {
-        const { html } = window;
-        const ep = this.state.endpointProtection || null;
-        const latestFields = this.state.telemetryDetail?.latest?.fields || {};
-        const lastScan = latestFields.LastScanEnd || latestFields.lastScanEnd || latestFields.LastScanStart || latestFields.lastScanStart || null;
-        const detections = Array.isArray(ep?.detections) ? ep.detections : [];
-        const field = (detection, camel, pascal) => detection?.[camel] ?? detection?.[pascal] ?? '';
-        const fmt = (value) => {
-            if (!value) return 'Not reported';
-            const date = new Date(value);
-            if (!Number.isFinite(date.getTime())) return String(value);
-            return date.toLocaleString();
-        };
-
-        const statusBadge = ep?.hasActiveDetections
-            ? 'bg-danger text-white'
-            : ep?.status === 'unavailable'
-                ? 'bg-warning-lt text-warning'
-                : 'bg-success-lt text-success';
-        const statusLabel = ep?.hasActiveDetections
-            ? `${ep.threatCount || detections.length || 1} active detection${(ep.threatCount || detections.length || 1) === 1 ? '' : 's'}`
-            : ep?.status === 'unavailable'
-                ? 'Protection state unavailable'
-                : 'No active detections';
-
-        return html`
-            <div class="row g-3">
-                <div class="col-lg-4">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start gap-2">
-                                <div>
-                                    <div class="text-muted small">Provider</div>
-                                    <div class="fw-semibold">${ep?.provider || 'WindowsDefender'}</div>
-                                </div>
-                                <span class="badge ${statusBadge}">${statusLabel}</span>
-                            </div>
-                            <div class="mt-3 small">
-                                <div class="d-flex justify-content-between gap-2"><span class="text-muted">Last detection</span><span>${fmt(ep?.lastDetectedAt)}</span></div>
-                                <div class="d-flex justify-content-between gap-2"><span class="text-muted">Last observed</span><span>${fmt(ep?.lastObservedAt)}</span></div>
-                                <div class="d-flex justify-content-between gap-2"><span class="text-muted">Last scan signal</span><span>${fmt(lastScan)}</span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-8">
-                    <div class="card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div>
-                                <div class="card-title mb-0">Defender Evidence</div>
-                                <div class="text-muted small">Active threat state from the latest cloud materialization.</div>
-                            </div>
-                            <span class="badge ${statusBadge}">${statusLabel}</span>
-                        </div>
-                        <div class="card-body">
-                            ${detections.length > 0 ? html`
-                                <div class="d-flex flex-column gap-2">
-                                    ${detections.slice(0, 8).map(detection => {
-                                        const title = field(detection, 'title', 'Title') || 'Unknown threat';
-                                        const severity = field(detection, 'severity', 'Severity') || ep?.severityLabel || 'Threat';
-                                        const resource = field(detection, 'resource', 'Resource');
-                                        const process = field(detection, 'process', 'Process');
-                                        const detectedAt = field(detection, 'detectedAt', 'DetectedAt');
-                                        const source = field(detection, 'source', 'Source') || ep?.provider || 'Defender';
-                                        const origin = field(detection, 'origin', 'Origin');
-                                        const threatId = field(detection, 'threatId', 'ThreatId');
-                                        return html`
-                                            <div class="border rounded p-2">
-                                                <div class="d-flex flex-wrap gap-1 align-items-center">
-                                                    <span class="badge bg-danger text-white">${severity}</span>
-                                                    <span class="fw-semibold">${title}</span>
-                                                    ${threatId ? html`<span class="text-muted small">ID ${threatId}</span>` : ''}
-                                                </div>
-                                                ${resource ? html`<div class="small text-muted text-break mt-1"><strong>File:</strong> ${resource}</div>` : ''}
-                                                ${process ? html`<div class="small text-muted text-break"><strong>Process:</strong> ${process}</div>` : ''}
-                                                <div class="small text-muted">${source}${origin ? ` - ${origin}` : ''}${detectedAt ? ` - ${fmt(detectedAt)}` : ''}</div>
-                                            </div>
-                                        `;
-                                    })}
-                                    ${detections.length > 8 ? html`<div class="text-muted small">+${detections.length - 8} more detection${detections.length - 8 === 1 ? '' : 's'}</div>` : ''}
-                                </div>
-                            ` : html`
-                                <div class="empty py-4">
-                                    <div class="empty-icon"><i class="ti ti-shield-check text-success" style="font-size: 2rem;"></i></div>
-                                    <p class="empty-title">No active Defender detections reported</p>
-                                    <p class="empty-subtitle text-muted">Full AV scan history remains on the device; the cloud currently receives active detection state and latest scan signals.</p>
-                                </div>
-                            `}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
     }
 
     renderSpecsTab() {
@@ -4382,23 +3827,7 @@ export class DeviceDetailPage extends window.Component {
             .filter(Boolean)
             .sort((a, b) => a.startTs - b.startTs);
 
-        const mergeGapMs = 2 * 60 * 60 * 1000;
-        const compacted = [];
-        normalized.forEach((seg) => {
-            const previous = compacted[compacted.length - 1];
-            const sameLabel = previous && previous.label === seg.label;
-            const sameBoot = previous && (previous.systemStartTs || 0) === (seg.systemStartTs || 0);
-            const gap = previous ? seg.startTs - previous.endTs : Number.POSITIVE_INFINITY;
-            if (sameLabel && sameBoot && gap >= 0 && gap <= mergeGapMs) {
-                previous.endTs = Math.max(previous.endTs, seg.endTs);
-                previous.samples += seg.samples;
-                previous.glitches = [...(previous.glitches || []), ...(seg.glitches || [])];
-                return;
-            }
-            compacted.push({ ...seg, glitches: [...(seg.glitches || [])] });
-        });
-
-        const monitoringData = compacted.map(seg => ({ x: 'Monitoring', y: [seg.startTs, seg.endTs], glitches: seg.glitches, samples: seg.samples, versionLabel: seg.label }));
+        const monitoringData = normalized.map(seg => ({ x: 'Monitoring', y: [seg.startTs, seg.endTs], glitches: seg.glitches, samples: seg.samples, versionLabel: seg.label }));
 
         const hasInvalid = monitoringData.some(d => !Number.isFinite(d.y?.[0]) || !Number.isFinite(d.y?.[1]));
         if (hasInvalid) {
@@ -4415,17 +3844,17 @@ export class DeviceDetailPage extends window.Component {
         const systemSeries = [];
         const offlineSeries = [];
         const noCoverageSeries = [];
-        compacted.forEach((seg, idx) => {
+        normalized.forEach((seg, idx) => {
             const sysStart = seg.systemStartTs ?? seg.startTs;
             systemSeries.push({ x: 'System', y: [sysStart, seg.endTs] });
 
-            if (Number.isFinite(sysStart) && (seg.startTs - sysStart) > 60_000) {
+            if (Number.isFinite(sysStart) && sysStart < seg.startTs) {
                 noCoverageSeries.push({ x: 'System', y: [sysStart, seg.startTs] });
             }
 
-            const next = compacted[idx + 1];
+            const next = normalized[idx + 1];
             const nextStart = next ? (next.systemStartTs ?? next.startTs) : null;
-            if (Number.isFinite(nextStart) && (nextStart - seg.endTs) > 60_000) {
+            if (Number.isFinite(nextStart) && seg.endTs < nextStart) {
                 offlineSeries.push({ x: 'System', y: [seg.endTs, nextStart] });
             }
         });
@@ -4731,12 +4160,7 @@ export class DeviceDetailPage extends window.Component {
                 netDownloadMb: bytesToMegabytes(p.networkBytesReceived ?? p.NetworkBytesReceived ?? 0),
                 netTotalMb: bytesToMegabytes((p.networkBytesSent ?? p.NetworkBytesSent ?? 0) + (p.networkBytesReceived ?? p.NetworkBytesReceived ?? 0)),
                 netRequests: roundMetric(p.networkRequests ?? p.NetworkRequests),
-                netFailures: roundMetric(p.networkFailures ?? p.NetworkFailures),
-                netFailureRate: (() => {
-                    const requests = Number(p.networkRequests ?? p.NetworkRequests) || 0;
-                    const failures = Number(p.networkFailures ?? p.NetworkFailures) || 0;
-                    return requests > 0 ? (failures / requests) * 100 : 0;
-                })()
+                netFailures: roundMetric(p.networkFailures ?? p.NetworkFailures)
             }))
             .filter(p => Number.isFinite(p.ts)
                 && Number.isFinite(p.cpu)
@@ -4749,8 +4173,7 @@ export class DeviceDetailPage extends window.Component {
                 && Number.isFinite(p.netRecvBytes)
                 && Number.isFinite(p.netTotalMb)
                 && Number.isFinite(p.netRequests)
-                && Number.isFinite(p.netFailures)
-                && Number.isFinite(p.netFailureRate))
+                && Number.isFinite(p.netFailures))
             .sort((a, b) => a.ts - b.ts);
 
         if (points.length === 0) {
@@ -4826,16 +4249,12 @@ export class DeviceDetailPage extends window.Component {
                 series: [
                     { name: 'Total MB', type: 'area', data: points.map(p => [p.ts, p.netTotalMb]) },
                     { name: 'Requests', type: 'column', data: points.map(p => [p.ts, p.netRequests]) },
-                    { name: 'Failures', type: 'column', data: points.map(p => [p.ts, p.netFailures]) },
-                    { name: 'Failure Rate %', type: 'line', data: points.map(p => [p.ts, p.netFailureRate]) }
+                    { name: 'Failures', type: 'column', data: points.map(p => [p.ts, p.netFailures]) }
                 ],
-                colors: ['#15aabf', '#2fb344', '#d63939', '#f59f00'],
-                stacked: true,
-                stackOnlyBar: true,
+                colors: ['#15aabf', '#2fb344', '#d63939'],
                 yaxis: [
                     { min: 0, labels: { formatter: (val) => formatMegabytes(val) }, title: { text: `Data Transfer (MB per ${bucketDescription} bucket)` } },
-                    { opposite: true, seriesName: 'Requests', labels: { formatter: (val) => formatCount(val) }, title: { text: 'Requests / Failures' } },
-                    { ...buildPercentAxis(points.map(p => p.netFailureRate), 'Failure Rate'), opposite: true, seriesName: 'Failure Rate %' }
+                    { opposite: true, labels: { formatter: (val) => formatCount(val) }, title: { text: 'Requests / Failures' } }
                 ],
                 tooltipFormatter: (val, opts) => {
                     const point = points[opts.dataPointIndex] || {};
@@ -4845,8 +4264,7 @@ export class DeviceDetailPage extends window.Component {
                     const sent = FormattingUtils.formatBytesHuman(point.netSentBytes);
                     const recv = FormattingUtils.formatBytesHuman(point.netRecvBytes);
                     if (opts.seriesIndex === 1) return `${formatCount(val)} requests (sent ${sent}, recv ${recv})`;
-                    if (opts.seriesIndex === 2) return `${formatCount(val)} failures (sent ${sent}, recv ${recv})`;
-                    return `${formatPercent(val)} failed requests`;
+                    return `${formatCount(val)} failures (sent ${sent}, recv ${recv})`;
                 },
                 annotations: buildAnnotations(this.calculatePercentiles(points.map(p => p.netTotalMb)), (v) => formatMegabytes(v))
             }
@@ -4890,8 +4308,7 @@ export class DeviceDetailPage extends window.Component {
                     height: 220,
                     toolbar: { show: false },
                     animations: { enabled: true },
-                    stacked: cfg.stacked === true || cfg.key === 'disk',
-                    stackOnlyBar: cfg.stackOnlyBar === true
+                    stacked: cfg.key === 'disk'
                 },
                 colors: cfg.colors,
                 stroke: { curve: 'straight', width: 2 },
@@ -5008,7 +4425,7 @@ export class DeviceDetailPage extends window.Component {
 
     toggleSessionCollapse() {
         const next = !this.state.sessionExpanded;
-        this.setState({ sessionExpanded: next, sessionTab: next ? 'version' : this.state.sessionTab }, () => {
+        this.setState({ sessionExpanded: next, sessionTab: next ? 'specs' : this.state.sessionTab }, () => {
             if (this.state.sessionExpanded) {
                 this.loadSessionTimeline();
             } else {

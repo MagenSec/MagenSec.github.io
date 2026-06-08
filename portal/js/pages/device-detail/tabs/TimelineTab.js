@@ -1,76 +1,33 @@
 /**
- * Timeline Tab - grouped device evidence events.
+ * Timeline Tab - Event timeline with icons and metadata
+ * 
+ * Displays chronological device events with visual indicators for severity.
+ * Shows changes, updates, and other significant device lifecycle events.
  */
 import { formatDate } from '../utils/DateUtils.js';
 
 export function renderTimelineTab(component) {
     const { html } = window;
-    const events = Array.isArray(component.state.timeline) ? component.state.timeline : [];
-    const validEvents = events.filter(event => {
-        const date = new Date(event?.timestamp);
-        return Number.isFinite(date.getTime());
-    });
-
-    const severityClass = (severity) => {
-        switch (String(severity || '').toLowerCase()) {
-            case 'success': return 'bg-success-lt text-success';
-            case 'warning': return 'bg-warning-lt text-warning';
-            case 'danger': return 'bg-danger-lt text-danger';
-            default: return 'bg-blue-lt text-blue';
-        }
-    };
-
-    const iconClass = (type) => {
-        switch (String(type || '').toLowerCase()) {
-            case 'threat': return 'ti-shield-exclamation';
-            case 'change': return 'ti-adjustments';
-            case 'signal': return 'ti-activity-heartbeat';
-            default: return 'ti-timeline-event';
-        }
-    };
-
-    const formatTimestamp = (value) => {
-        const date = new Date(value);
-        if (!Number.isFinite(date.getTime())) return 'N/A';
-        return `${formatDate(date)} ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
-    };
-
-    const renderValue = (value) => {
-        if (value === null || value === undefined || value === '') return '—';
-        if (typeof value === 'object') {
-            const from = value.from ?? value.From ?? value.oldValue ?? value.OldValue;
-            const to = value.to ?? value.To ?? value.newValue ?? value.NewValue;
-            if (from !== undefined || to !== undefined) return `${from ?? '—'} → ${to ?? '—'}`;
-            return 'changed';
-        }
-        return String(value);
-    };
     
     return html`
-        <div class="timeline timeline-simple device-evidence-timeline">
-            ${validEvents.length > 0 ? validEvents.map(event => html`
+        <div class="timeline timeline-simple">
+            ${component.state.timeline.length > 0 ? component.state.timeline.map(event => html`
                 <div class="timeline-event">
-                    <div class="timeline-event-icon ${severityClass(event.severity)}">
-                        <i class="ti ${iconClass(event.type)}"></i>
+                    <div class="timeline-event-icon ${event.severity === 'success' ? 'bg-success-lt' : event.severity === 'warning' ? 'bg-warning-lt' : event.severity === 'danger' ? 'bg-danger-lt' : 'bg-blue-lt'}">
+                        ${event.type === 'change' ? html`
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3" /><line x1="12" y1="12" x2="20" y2="7.5" /><line x1="12" y1="12" x2="12" y2="21" /><line x1="12" y1="12" x2="4" y2="7.5" /></svg>
+                        ` : html`
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                        `}
                     </div>
-                    <div class="timeline-event-content w-100">
-                        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-                            <div>
-                                <div class="text-muted small">${formatTimestamp(event.timestamp)}</div>
-                                <div class="fw-semibold">${event.title || 'Device event'}</div>
-                            </div>
-                            <span class="badge ${severityClass(event.severity)}">${event.category || event.type || 'Event'}</span>
-                        </div>
-                        ${event.description ? html`<div class="text-muted small mt-1">${event.description}</div>` : ''}
-                        ${event.fields && Object.keys(event.fields).length > 0 ? html`
-                            <div class="row g-2 mt-2 small">
-                                ${Object.entries(event.fields).slice(0, 6).map(([key, value]) => html`
-                                    <div class="col-sm-6 col-lg-4">
-                                        <div class="border rounded p-2 h-100">
-                                            <div class="text-muted text-truncate" title=${key}>${key}</div>
-                                            <div class="fw-semibold text-break">${renderValue(value)}</div>
-                                        </div>
-                                    </div>
+                    <div class="timeline-event-content">
+                        <div class="text-muted small">${formatDate(event.timestamp)}</div>
+                        <div class="text-sm font-weight-medium">${event.title}</div>
+                        <div class="text-muted small mt-1">${event.description}</div>
+                        ${event.fields ? html`
+                            <div class="mt-2">
+                                ${Object.entries(event.fields).map(([k, v]) => html`
+                                    <div class="text-sm"><strong>${k}:</strong> ${v}</div>
                                 `)}
                             </div>
                         ` : ''}
@@ -78,7 +35,7 @@ export function renderTimelineTab(component) {
                 </div>
             `) : html`
                 <div class="text-center text-muted py-5">
-                    No meaningful timeline events yet
+                    No timeline events yet
                 </div>
             `}
         </div>
