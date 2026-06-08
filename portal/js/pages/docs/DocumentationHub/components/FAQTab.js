@@ -62,7 +62,7 @@ export function FAQTab(html) {
         },
         {
             q: 'Is my data secure?',
-            a: 'MagenSec encrypts data in transit and at rest and limits collection to security, licensing, compliance, support, and service reliability needs. Some security metadata can identify a device, user, network, or software path, so administrators should review the Security & Privacy tab before deployment. MagenSec does not collect personal files, browsing history, email content, keystrokes, or screen content.',
+            a: 'Yes. Data is encrypted in transit and at rest. MagenSec collects only security metadata needed to assess posture, such as device status, installed software, and security settings. It does not collect your personal files, browsing history, or documents. See the Security & Privacy tab for full details.',
         },
         {
             q: 'How do I change my notification settings?',
@@ -86,7 +86,7 @@ export function FAQTab(html) {
                 `)}
 
                 <div class="alert alert-info mt-4" style="border-left:4px solid #4299e1;">
-                    <strong>Still have questions?</strong> Contact our support team at <strong>support@magensec.app</strong>.
+                    <strong>Still have questions?</strong> Contact our support team at <strong>support@gigabits.co.in</strong>.
                 </div>
             </div>
         </div>
