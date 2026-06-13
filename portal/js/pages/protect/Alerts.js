@@ -548,6 +548,7 @@ export class AlertsPage extends Component {
                 this.setState({
                     alerts: cached.data.alerts || [],
                     summary: cached.data.summary,
+                    deviceMap: cached.data.deviceMap || {},
                     loading: false,
                     isRefreshingInBackground: true,
                     error: null,
@@ -582,6 +583,7 @@ export class AlertsPage extends Component {
                 alerts: alertsResp.data?.alerts || [],
                 summary: summaryResp.success ? summaryResp.data : null,
                 evidence: evidenceResp?.success ? (evidenceResp.data?.evidence || null) : null,
+                deviceMap,
             };
 
             this.setCache(data);
