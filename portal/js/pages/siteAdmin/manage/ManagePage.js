@@ -675,7 +675,7 @@ export class ManagePage extends Component {
                                         <h4 class="mb-2">WhatsApp AI Chat</h4>
                                         <div class="text-muted small">
                                             AI Chat via WhatsApp is always active when the webhook is configured.
-                                            Users initiate conversations via <a href="https://wa.me/message/67GDBBIFLTSGG1" target="_blank" rel="noopener">wa.me/message/67GDBBIFLTSGG1</a>
+                                            Users initiate conversations via <a href="https://wa.me/message/YP2UPGGAFMN4P1" target="_blank" rel="noopener">wa.me/message/YP2UPGGAFMN4P1</a>
                                             and chat with Officer MAGI. This is free for user-initiated conversations (no template required).
                                         </div>
                                     </div>
