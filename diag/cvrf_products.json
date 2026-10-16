@@ -15,21 +15,6 @@
     "FixedBuild": "155.0.4283.45"
   },
   {
-    "ProductId": "251",
-    "Name": "Windows Defender",
-    "UpdateId": "2026-Oct",
-    "UpdateTitle": "October 2026 Security Updates",
-    "UpdateReleaseDate": "2026-10-16T07:00:00Z",
-    "Cpe": "cpe:2.3:a:microsoft:windows_defender:-:*:*:*:*:*:*:*",
-    "CvssBaseScore": 5.5,
-    "CvssTemporalScore": 4.8,
-    "CvssVector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N/E:U/RL:O/RC:C",
-    "ThreatSeverity": "Important",
-    "ThreatImpact": "Information Disclosure",
-    "Url": null,
-    "FixedBuild": "1.1.26090.9"
-  },
-  {
     "ProductId": "10133",
     "Name": "Microsoft Exchange Online",
     "UpdateId": "2026-Aug",
@@ -12598,6 +12583,21 @@
     "ThreatImpact": "Denial of Service, Elevation of Privilege, Information Disclosure, Remote Code Execution, Spoofing, Tampering",
     "Url": "https://www.catalog.update.microsoft.com/Search.aspx?q=KB5127696",
     "FixedBuild": "2.0.50727.9188 AND 3.0.30729.9171"
+  },
+  {
+    "ProductId": "251",
+    "Name": "Windows Defender",
+    "UpdateId": "2026-Oct",
+    "UpdateTitle": "October 2026 Security Updates",
+    "UpdateReleaseDate": "2026-10-16T07:00:00Z",
+    "Cpe": "cpe:2.3:a:microsoft:windows_defender:-:*:*:*:*:*:*:*",
+    "CvssBaseScore": 5.5,
+    "CvssTemporalScore": 4.8,
+    "CvssVector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N/E:U/RL:O/RC:C",
+    "ThreatSeverity": "Important",
+    "ThreatImpact": "Information Disclosure",
+    "Url": null,
+    "FixedBuild": "1.1.26090.9"
   },
   {
     "ProductId": "21531",
